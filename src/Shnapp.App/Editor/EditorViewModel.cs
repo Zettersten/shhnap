@@ -84,7 +84,9 @@ internal enum EditorTool
     Arrow,
     Line,
     Rectangle,
+    Square,
     Ellipse,
+    Circle,
     Redaction,
     Crop,
 }

@@ -12,6 +12,7 @@ using Shnapp.Core;
 using Windows.Foundation;
 using Windows.System;
 using Windows.UI;
+using Windows.UI.Text;
 
 namespace Shnapp.App;
 
@@ -29,13 +30,15 @@ public sealed partial class MainPage : Page
     private Annotation? _draft;
     private ImageRect? _crop;
     private TextBox? _textBox;
+    private Guid? _textEditId;
     private ImagePoint _textOrigin;
     private double _scale = 1;
     private double _offsetX;
     private double _offsetY;
     private bool _updatingOptions;
-    private uint _strokeColor = 0xFFE5484D;
-    private uint _stepColor = 0xFF0A84FF;
+    private bool? _narrowInspector;
+    private readonly Dictionary<EditorTool, ToolStyle> _toolStyles =
+        Enum.GetValues<EditorTool>().ToDictionary(tool => tool, ToolStyle.Defaults);
     private IReadOnlyList<ShnappDocument> _library = [];
 
     /// <summary>Gets observable state consumed by compiled XAML bindings.</summary>
@@ -49,6 +52,10 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         InitializeComponent();
+        InitializeFontFamilies();
+        EditorSplitView.PaneOpened += (_, _) => InspectorToggle.IsChecked = true;
+        EditorSplitView.PaneClosed += (_, _) => InspectorToggle.IsChecked = false;
+        ActualThemeChanged += (_, _) => UpdateShapeButtonAppearance();
     }
 
     internal void Configure(AppController controller) => _controller = controller;
@@ -125,6 +132,7 @@ public sealed partial class MainPage : Page
         ViewModel.CanRedo = _editor.CanRedo;
         ViewModel.Status = ToolHint();
         UpdateTransform();
+        UpdateInspector();
         DrawingCanvas.Invalidate();
     }
 
@@ -136,10 +144,10 @@ public sealed partial class MainPage : Page
         }
 
         _scale = Math.Max(0.01, Math.Min(1,
-            Math.Min(Math.Max(1, DrawingCanvas.ActualWidth - 64) / _flattened.Size.Width,
-                Math.Max(1, DrawingCanvas.ActualHeight - 104) / _flattened.Size.Height)));
+            Math.Min(Math.Max(1, DrawingCanvas.ActualWidth - 48) / _flattened.Size.Width,
+                Math.Max(1, DrawingCanvas.ActualHeight - 48) / _flattened.Size.Height)));
         _offsetX = (DrawingCanvas.ActualWidth - _flattened.Size.Width * _scale) / 2;
-        _offsetY = 48 + (DrawingCanvas.ActualHeight - 48 - _flattened.Size.Height * _scale) / 2;
+        _offsetY = (DrawingCanvas.ActualHeight - _flattened.Size.Height * _scale) / 2;
     }
 
     private Matrix3x2 ImageTransform()
@@ -239,8 +247,6 @@ public sealed partial class MainPage : Page
             case EditorTool.Step:
                 _editor.AddAnnotation(NewAnnotation(AnnotationKind.Step, point) with
                 {
-                    StrokeArgb = _stepColor,
-                    FontSize = Math.Max(10, FiniteValue(StepSize.Value, 28) * 0.45),
                     StepNumber = _editor.Current.Annotations.Count(a => a.Kind == AnnotationKind.Step) + 1,
                 });
                 break;
@@ -258,13 +264,21 @@ public sealed partial class MainPage : Page
                 _dragStart = point;
                 if (_tool != EditorTool.Crop)
                 {
-                    _draft = NewAnnotation(Enum.Parse<AnnotationKind>(_tool.ToString()), point);
+                    AnnotationKind kind = _tool switch
+                    {
+                        EditorTool.Square => AnnotationKind.Rectangle,
+                        EditorTool.Circle => AnnotationKind.Ellipse,
+                        EditorTool.Arrow => AnnotationKind.Line,
+                        _ => Enum.Parse<AnnotationKind>(_tool.ToString()),
+                    };
+                    _draft = NewAnnotation(kind, point);
                 }
 
                 DrawingCanvas.CapturePointer(args.Pointer);
                 break;
         }
 
+        UpdateInspector();
         args.Handled = true;
         DrawingCanvas.Invalidate();
     }
@@ -296,7 +310,9 @@ public sealed partial class MainPage : Page
         }
         else if (_draft is not null)
         {
-            _draft = _draft with { End = point };
+            _draft = _draft with { End = _tool is EditorTool.Square or EditorTool.Circle
+                ? ConstrainSquare(start, point)
+                : point };
         }
 
         DrawingCanvas.Invalidate();
@@ -331,18 +347,80 @@ public sealed partial class MainPage : Page
 
     private void Canvas_PointerCanceled(object sender, PointerRoutedEventArgs args) => CancelInteraction();
 
-    private Annotation NewAnnotation(AnnotationKind kind, ImagePoint point) => new()
+    private void Canvas_DoubleTapped(object sender, DoubleTappedRoutedEventArgs args)
     {
-        Kind = kind,
-        Start = point,
-        End = point,
-        StrokeArgb = _strokeColor,
-        StrokeWidth = FiniteValue(StrokeSize.Value, 3),
-        FontSize = FiniteValue(FontSizeChoice.Value, 18),
-        FontWeight = BoldText.IsChecked == true ? 600 : 400,
-        StepDiameter = FiniteValue(StepSize.Value, 28),
-        FillArgb = FillShape.IsChecked == true ? (_strokeColor & 0x00FFFFFF) | 0x40000000 : 0,
-    };
+        if (_editor is null || _tool != EditorTool.Select || ImagePosition(args.GetPosition(DrawingCanvas)) is not ImagePoint point)
+        {
+            return;
+        }
+
+        Annotation? text = _editor.Current.Annotations.Reverse().FirstOrDefault(annotation =>
+            annotation.Kind == AnnotationKind.Text && HitBounds(annotation).Contains(new Point(point.X, point.Y)));
+        if (text is null)
+        {
+            return;
+        }
+
+        CancelInteraction();
+        _selectedId = text.Id;
+        StartText(text.Start, text);
+        UpdateInspector();
+        args.Handled = true;
+    }
+
+    private ImagePoint ConstrainSquare(ImagePoint start, ImagePoint point)
+    {
+        ImageRect viewport = _editor!.Current.Viewport;
+        double dx = point.X - start.X;
+        double dy = point.Y - start.Y;
+        double directionX = dx < 0 ? -1 : 1;
+        double directionY = dy < 0 ? -1 : 1;
+        double edgeX = directionX < 0 ? start.X - viewport.X : viewport.Right - start.X;
+        double edgeY = directionY < 0 ? start.Y - viewport.Y : viewport.Bottom - start.Y;
+        double side = Math.Min(Math.Max(Math.Abs(dx), Math.Abs(dy)), Math.Min(edgeX, edgeY));
+        return new(start.X + directionX * side, start.Y + directionY * side);
+    }
+
+    private void EditorHost_SizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        bool narrow = args.NewSize.Width < 860;
+        if (_narrowInspector == narrow)
+        {
+            return;
+        }
+
+        _narrowInspector = narrow;
+        EditorSplitView.DisplayMode = narrow ? SplitViewDisplayMode.Overlay : SplitViewDisplayMode.Inline;
+        EditorSplitView.IsPaneOpen = !narrow;
+        InspectorToggle.IsChecked = !narrow;
+    }
+
+    private Annotation NewAnnotation(AnnotationKind kind, ImagePoint point)
+    {
+        ToolStyle style = _toolStyles[_tool];
+        return new Annotation
+        {
+            Kind = kind,
+            Start = point,
+            End = point,
+            StrokeArgb = style.Primary,
+            FillArgb = kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse && style.FillShape
+                ? WithOpacity(style.Secondary, style.FillOpacity)
+                : 0,
+            StrokeWidth = style.StrokeWidth,
+            FontFamily = style.FontFamily,
+            FontSize = style.FontSize,
+            FontWeight = style.FontWeight,
+            Italic = style.Italic,
+            StepDiameter = style.StepDiameter,
+            StepTextArgb = style.Secondary,
+            StartArrow = style.StartArrow,
+            EndArrow = style.EndArrow,
+        };
+    }
+
+    private static uint WithOpacity(uint color, double percent) =>
+        ((uint)Math.Clamp(Math.Round(percent * 255 / 100), 0, 255) << 24) | (color & 0x00FFFFFF);
 
     private static double FiniteValue(double value, double fallback) => double.IsFinite(value) ? value : fallback;
 
@@ -360,18 +438,23 @@ public sealed partial class MainPage : Page
             Math.Max(1, bounds.Height) + tolerance * 2);
     }
 
-    private void StartText(ImagePoint point)
+    private void StartText(ImagePoint point, Annotation? existing = null)
     {
         _textOrigin = point;
+        _textEditId = existing?.Id;
         Vector2 position = Vector2.Transform(new((float)point.X, (float)point.Y), ImageTransform());
+        ToolStyle style = StyleFor(existing, EditorTool.Text);
         _textBox = new TextBox
         {
+            Text = existing?.Text ?? string.Empty,
             PlaceholderText = "Type here",
             MinWidth = 160,
             MaxWidth = Math.Max(180, DrawingCanvas.ActualWidth - position.X - 24),
-            FontFamily = new FontFamily("Segoe UI Variable Text"),
-            FontSize = Math.Max(12, FiniteValue(FontSizeChoice.Value, 18) * _scale),
-            Foreground = new SolidColorBrush(ShnappRenderer.FromArgb(_strokeColor)),
+            FontFamily = new FontFamily(style.FontFamily),
+            FontSize = Math.Max(12, style.FontSize * _scale),
+            FontWeight = new FontWeight { Weight = (ushort)style.FontWeight },
+            FontStyle = style.Italic ? FontStyle.Italic : FontStyle.Normal,
+            Foreground = new SolidColorBrush(ShnappRenderer.FromArgb(style.Primary)),
         };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_textBox, "Annotation text");
         Canvas.SetLeft(_textBox, position.X);
@@ -392,6 +475,10 @@ public sealed partial class MainPage : Page
         _textBox.LostFocus += (_, _) => CommitText();
         TextOverlay.Children.Add(_textBox);
         _textBox.Focus(FocusState.Programmatic);
+        if (existing is not null)
+        {
+            _textBox.SelectAll();
+        }
     }
 
     internal void CommitText()
@@ -402,8 +489,26 @@ public sealed partial class MainPage : Page
         }
 
         string text = _textBox.Text.Trim();
+        Guid? editId = _textEditId;
         CancelText();
-        if (!string.IsNullOrWhiteSpace(text) && _editor is not null)
+        if (_editor is null)
+        {
+            return;
+        }
+
+        if (editId is Guid id && _editor.Current.Annotations.FirstOrDefault(annotation => annotation.Id == id) is { } existing)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                _selectedId = null;
+                _editor.RemoveAnnotation(id);
+            }
+            else
+            {
+                _editor.UpdateAnnotation(existing with { Text = text });
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(text))
         {
             _editor.AddAnnotation(NewAnnotation(AnnotationKind.Text, _textOrigin) with { Text = text });
         }
@@ -413,6 +518,7 @@ public sealed partial class MainPage : Page
     {
         TextBox? textBox = _textBox;
         _textBox = null;
+        _textEditId = null;
         if (textBox is not null)
         {
             TextOverlay.Children.Remove(textBox);
@@ -441,11 +547,11 @@ public sealed partial class MainPage : Page
             button.IsChecked = string.Equals(button.Tag as string, tool.ToString(), StringComparison.Ordinal);
         }
 
-        _updatingOptions = true;
-        uint color = tool == EditorTool.Step ? _stepColor : _strokeColor;
-        ColorChoice.SelectedIndex = ColorChoice.Items.Cast<ComboBoxItem>().ToList().FindIndex(item =>
-            Convert.ToUInt32(item.Tag as string, 16) == color);
-        _updatingOptions = false;
+        ShapesTool.Label = tool is EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle
+            ? tool.ToString()
+            : "Shapes";
+        UpdateShapeButtonAppearance();
+        UpdateInspector();
         ViewModel.Status = ToolHint();
         DrawingCanvas.Invalidate();
     }
@@ -462,39 +568,41 @@ public sealed partial class MainPage : Page
 
     private void Tool_Click(object sender, RoutedEventArgs args) => SetTool(Enum.Parse<EditorTool>((string)((AppBarToggleButton)sender).Tag));
 
-    private void Options_Changed(object sender, RoutedEventArgs args)
+    private void ToolMenu_Click(object sender, RoutedEventArgs args) =>
+        SetTool(Enum.Parse<EditorTool>((string)((FrameworkElement)sender).Tag));
+
+    private void InspectorToggle_Click(object sender, RoutedEventArgs args) =>
+        EditorSplitView.IsPaneOpen = InspectorToggle.IsChecked == true;
+
+    private void Options_Changed(object sender, RoutedEventArgs args) => HandleOptionChanged(sender);
+
+    private void NumberOption_Changed(NumberBox sender, NumberBoxValueChangedEventArgs args) => HandleOptionChanged(sender);
+
+    private void ColorOption_Changed(ColorPicker sender, ColorChangedEventArgs args) =>
+        HandleColorChanged(sender, args.NewColor, commitSelected: false);
+
+    private void ColorFlyout_Closed(object sender, object args)
     {
-        if (_updatingOptions || ColorChoice?.SelectedItem is not ComboBoxItem choice)
+        if (sender is Flyout { Content: ColorPicker picker })
         {
-            return;
-        }
-
-        uint color = Convert.ToUInt32(choice.Tag as string, 16);
-        if (_tool == EditorTool.Step)
-        {
-            _stepColor = color;
-        }
-        else
-        {
-            _strokeColor = color;
-        }
-
-        Annotation? selected = _editor?.Current.Annotations.FirstOrDefault(a => a.Id == _selectedId);
-        if (selected is not null)
-        {
-            _editor!.UpdateAnnotation(selected with
-            {
-                StrokeArgb = color,
-                StrokeWidth = FiniteValue(StrokeSize.Value, 3),
-                FontSize = FiniteValue(FontSizeChoice.Value, 18),
-                StepDiameter = FiniteValue(StepSize.Value, 28),
-                FontWeight = BoldText.IsChecked == true ? 600 : 400,
-                FillArgb = FillShape.IsChecked == true ? (color & 0x00FFFFFF) | 0x40000000 : 0,
-            });
+            HandleColorChanged(picker, picker.Color, commitSelected: true);
         }
     }
 
-    private void NumberOption_Changed(NumberBox sender, NumberBoxValueChangedEventArgs args) => Options_Changed(sender, new RoutedEventArgs());
+    private void UpdateShapeButtonAppearance()
+    {
+        bool selected = _tool is EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle;
+        if (selected)
+        {
+            ShapesTool.Background = (Brush)Application.Current.Resources["ShnappBlueBrush"];
+            ShapesTool.Foreground = (Brush)Application.Current.Resources["ShnappOnBlueBrush"];
+        }
+        else
+        {
+            ShapesTool.ClearValue(Control.BackgroundProperty);
+            ShapesTool.ClearValue(Control.ForegroundProperty);
+        }
+    }
     private void LibrarySearch_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args) => FilterLibrary();
     private void Library_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
@@ -514,11 +622,26 @@ public sealed partial class MainPage : Page
     private void Undo_Click(object sender, RoutedEventArgs args) { CancelInteraction(); _editor?.Undo(); }
     private void Redo_Click(object sender, RoutedEventArgs args) { CancelInteraction(); _editor?.Redo(); }
 
-    private bool TextHasFocus() => FocusManager.GetFocusedElement(XamlRoot) is TextBox;
+    private bool EditorInputHasFocus()
+    {
+        DependencyObject? focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
+        while (focused is not null)
+        {
+            if (focused is TextBox or ComboBox or NumberBox or ColorPicker or CheckBox ||
+                ReferenceEquals(focused, EditorSplitView.Pane))
+            {
+                return true;
+            }
+
+            focused = VisualTreeHelper.GetParent(focused);
+        }
+
+        return false;
+    }
 
     private void CopyAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (!TextHasFocus()) { _controller?.Copy(); args.Handled = true; }
+        if (!EditorInputHasFocus()) { _controller?.Copy(); args.Handled = true; }
     }
 
     private void SaveAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
@@ -529,17 +652,17 @@ public sealed partial class MainPage : Page
 
     private void UndoAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (!TextHasFocus()) { Undo_Click(this, new RoutedEventArgs()); args.Handled = true; }
+        if (!EditorInputHasFocus()) { Undo_Click(this, new RoutedEventArgs()); args.Handled = true; }
     }
 
     private void RedoAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (!TextHasFocus()) { Redo_Click(this, new RoutedEventArgs()); args.Handled = true; }
+        if (!EditorInputHasFocus()) { Redo_Click(this, new RoutedEventArgs()); args.Handled = true; }
     }
 
     private void Page_KeyDown(object sender, KeyRoutedEventArgs args)
     {
-        if (TextHasFocus() || _editor is null)
+        if (EditorInputHasFocus() || _editor is null)
         {
             return;
         }

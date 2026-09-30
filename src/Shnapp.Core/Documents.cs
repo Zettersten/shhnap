@@ -89,8 +89,19 @@ public sealed record Annotation
     /// <summary>Gets the fill color as packed ARGB; zero means transparent.</summary>
     public uint FillArgb { get; init; }
 
+    /// <summary>Gets the step number color as packed ARGB.</summary>
+    /// <remarks>Zero uses a white step number, preserving documents that omitted this property.</remarks>
+    public uint StepTextArgb { get; init; }
+
     /// <summary>Gets the line width in source pixels.</summary>
     public double StrokeWidth { get; init; } = 3;
+
+    /// <summary>Gets whether a line or arrow has an arrowhead at its starting point.</summary>
+    public bool StartArrow { get; init; }
+
+    /// <summary>Gets whether a line has an arrowhead at its ending point.</summary>
+    /// <remarks>Legacy <see cref="AnnotationKind.Arrow"/> annotations always have an ending arrowhead.</remarks>
+    public bool EndArrow { get; init; }
 
     /// <summary>Gets the user-entered text.</summary>
     public string Text { get; init; } = string.Empty;

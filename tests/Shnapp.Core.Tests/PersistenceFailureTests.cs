@@ -32,6 +32,9 @@ public sealed class PersistenceFailureTests
     [DataRow("nullText")]
     [DataRow("emptyFontFamily")]
     [DataRow("negativeStroke")]
+    [DataRow("invalidStartArrow")]
+    [DataRow("invalidEndArrow")]
+    [DataRow("invalidStepTextArgb")]
     [DataRow("wrongStepNumber")]
     [DataRow("fractionalCrop")]
     [DataRow("outsideCrop")]
@@ -88,6 +91,9 @@ public sealed class PersistenceFailureTests
             case "nullText": annotation["text"] = null; break;
             case "emptyFontFamily": annotation["fontFamily"] = " "; break;
             case "negativeStroke": annotation["strokeWidth"] = -1; break;
+            case "invalidStartArrow": annotation["startArrow"] = "yes"; break;
+            case "invalidEndArrow": annotation["endArrow"] = 1; break;
+            case "invalidStepTextArgb": annotation["stepTextArgb"] = "white"; break;
             case "wrongStepNumber": annotation["stepNumber"] = 99; break;
             case "fractionalCrop": crop["x"] = 10.25; break;
             case "outsideCrop": crop["width"] = 640; break;

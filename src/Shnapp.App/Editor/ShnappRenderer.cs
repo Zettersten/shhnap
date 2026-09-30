@@ -118,7 +118,8 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                     format.HorizontalAlignment = CanvasHorizontalAlignment.Center;
                     format.VerticalAlignment = CanvasVerticalAlignment.Center;
                     drawing.DrawText(annotation.StepNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        new Rect(start.X - radius, start.Y - radius, radius * 2, radius * 2), Colors.White, format);
+                        new Rect(start.X - radius, start.Y - radius, radius * 2, radius * 2),
+                        annotation.StepTextArgb == 0 ? Colors.White : FromArgb(annotation.StepTextArgb), format);
                 }
 
                 break;
@@ -129,18 +130,18 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                     drawing.DrawLine(start, end, stroke, width, style);
                 }
 
-                if (annotation.Kind == AnnotationKind.Arrow && Vector2.Distance(start, end) > 1)
+                if (Vector2.Distance(start, end) > 1)
                 {
                     Vector2 direction = Vector2.Normalize(end - start);
-                    Vector2 perpendicular = new(-direction.Y, direction.X);
-                    float head = Math.Max(10, width * 3.5f);
-                    using var path = new CanvasPathBuilder(drawing);
-                    path.BeginFigure(end);
-                    path.AddLine(end - direction * head + perpendicular * head * 0.45f);
-                    path.AddLine(end - direction * head - perpendicular * head * 0.45f);
-                    path.EndFigure(CanvasFigureLoop.Closed);
-                    using CanvasGeometry triangle = CanvasGeometry.CreatePath(path);
-                    drawing.FillGeometry(triangle, stroke);
+                    if (annotation.StartArrow)
+                    {
+                        DrawArrowHead(drawing, start, -direction, width, stroke);
+                    }
+
+                    if (annotation.Kind == AnnotationKind.Arrow || annotation.EndArrow)
+                    {
+                        DrawArrowHead(drawing, end, direction, width, stroke);
+                    }
                 }
 
                 break;
@@ -171,6 +172,20 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                 drawing.Antialiasing = previous;
                 break;
         }
+    }
+
+    private static void DrawArrowHead(CanvasDrawingSession drawing, Vector2 tip, Vector2 direction,
+        float strokeWidth, Color color)
+    {
+        Vector2 perpendicular = new(-direction.Y, direction.X);
+        float head = Math.Max(10, strokeWidth * 3.5f);
+        using var path = new CanvasPathBuilder(drawing);
+        path.BeginFigure(tip);
+        path.AddLine(tip - direction * head + perpendicular * head * 0.45f);
+        path.AddLine(tip - direction * head - perpendicular * head * 0.45f);
+        path.EndFigure(CanvasFigureLoop.Closed);
+        using CanvasGeometry triangle = CanvasGeometry.CreatePath(path);
+        drawing.FillGeometry(triangle, color);
     }
 
     internal static Rect TextBounds(Annotation annotation) => new(annotation.Start.X, annotation.Start.Y,

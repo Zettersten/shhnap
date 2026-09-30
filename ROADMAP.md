@@ -4,7 +4,7 @@ Shnapp's goal is a fast, small Windows 11 capture app: press a shortcut, make a 
 
 ## Starting point
 
-The current app has the three global shortcuts, a tray and local library, per-user storage, opt-in startup, a window shadow, crop, basic text/steps/lines/arrows/rectangles/ellipses/opaque redaction, undo/redo, and PNG copy/export. `Ctrl+Shift+2` currently selects a **rectangle**. Annotation styling is limited to a shared color, line width, text size, step size, bold, and shape fill toggle. Saved documents use schema version 1 and retain the unedited source image. GitHub Actions tests and builds on `main` and prepares x64/ARM64 archives on version tags, but no public release or Store package has been validated. The previous self-contained x64 publish measured about 174 MiB; capture latency and idle memory have no baseline yet.
+The current app has the three global shortcuts, a tray and local library, per-user storage, opt-in startup, a window shadow, crop, text/steps/lines/arrows/rectangles/squares/ellipses/circles/opaque redaction, undo/redo, and PNG copy/export. The capture editor now has a contextual side panel for text, step, line, and shape styling. `Ctrl+Shift+2` currently selects a **rectangle**. Saved documents still use schema version 1 and retain the unedited source image; optional annotation fields preserve older documents. GitHub Actions tests and builds on `main` and prepares x64/ARM64 archives on version tags, but no public release or Store package has been validated. The previous self-contained x64 publish measured about 174 MiB; capture latency and idle memory have no baseline yet.
 
 Work on the product website and README can proceed in parallel with the app slices below. Each slice should land as a usable improvement, with the same result visible in the editor, copied PNG, exported PNG, saved preview, and reopened document where applicable.
 
@@ -18,9 +18,9 @@ Work on the product website and README can proceed in parallel with the app slic
 
 **Done when:** a push to `main` builds and deploys the site; its actual Pages URL and `shnapp.com` (once DNS is in place) load over HTTPS; the README and site show the real logo and real, legible screenshots; links and claims match a release that users can actually download. If no release exists, label the download as forthcoming or link to source builds.
 
-### 1. Durable editing foundation (P0; before adding new document fields)
+### 1. Durable editing foundation (P0; before complex new document structures)
 
-- Define document schema version 2 and a migration from version 1. Preserve existing local shnapps and their original pixels. Add explicit models for captions, output resizing, polygon vertices, line caps, and privacy effects rather than forcing all of them into `Annotation.Start` and `End` (`src/Shnapp.Core/Documents.cs`, `DocumentValidation.cs`, `DocumentEditor.cs`, `ShnappLibrary.cs`).
+- Define document schema version 2 and a migration from version 1. Preserve existing local shnapps and their original pixels. Add explicit models for captions, output resizing, polygon vertices, and privacy effects rather than forcing all of them into `Annotation.Start` and `End` (`src/Shnapp.Core/Documents.cs`, `DocumentValidation.cs`, `DocumentEditor.cs`, `ShnappLibrary.cs`). Existing optional version 1 fields cover step number color and line end caps for now.
 - Make one render pipeline the source of truth for editor preview, thumbnail, clipboard, and PNG export (`src/Shnapp.App/Editor/ShnappRenderer.cs`). Define the layer order: source image → privacy effects → ordinary annotations → captions → window shadow/output padding, with crop and resize applied consistently. Include alpha behavior for lasso captures.
 - Keep every user edit undoable; add migration, serialization, geometry, and render parity tests. Ensure malformed or unsupported documents fail clearly without deleting originals.
 
@@ -28,11 +28,11 @@ Work on the product website and README can proceed in parallel with the app slic
 
 ### 2. Complete annotation controls (P1)
 
-- Text: add font family, style (including italic), weight, color, and size controls; allow editing existing text. Retain a one-click placement and immediate typing path.
-- Steps: add independent dot size and fill color, label font family, weight, and color. Keep automatic numbering through insert, delete, reorder, save, and reopen.
-- Lines: offer no cap or arrow at each end, plus stroke color and thickness. Scale arrowheads with line thickness and make drag direction unambiguous.
-- Shapes: support circle, square, rectangle, ellipse, and polygon with independent outline color, thickness, fill color, and fill opacity. Squares and circles must stay constrained while dragging; polygons need add-point, finish, and cancel interactions.
-- Put only the active tool's settings in a contextual WinUI surface, with sensible defaults from `DESIGN.md` and recent choices. Avoid requiring a settings pass before the first annotation.
+**Current status:** The editor has a compact tool bar and contextual inspector. Text font, weight, italic style, size, color, and existing-text editing are present. Steps have separate dot and number colors, dot size, number font, and weight. Lines have color, thickness, and independent start/end arrowheads. Rectangle, square, ellipse, and circle tools have outline color, thickness, fill color, and opacity. Polygon placement is still outstanding. Final keyboard, pointer, persistence, and export checks remain part of the release gate.
+
+- Finish polygon placement with add-point, finish, and cancel interactions, then expose its outline color, thickness, fill color, and fill opacity beside the existing shape controls.
+- Verify automatic step numbering through insert, delete, reorder, save, and reopen; keep numbers stable when annotations are moved or styled.
+- Finish keyboard, pointer, screen-reader, persistence, and export checks for every tool. Keep the default one-click placement path while allowing edits through the contextual inspector.
 
 **Done when:** every control in the original annotation list changes both live preview and exported pixels, persists in the library, and remains editable and undoable. Keyboard and pointer flows work without obscuring the canvas.
 

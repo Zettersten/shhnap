@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Shnapp.Core.Tests;
@@ -79,7 +80,10 @@ public sealed class ShnappLibraryTests
                 Italic = true,
                 StrokeArgb = 0xFFE5484D,
                 FillArgb = 0xFF111418,
+                StepTextArgb = kind == AnnotationKind.Step ? 0xFFFDE68A : 0,
                 StrokeWidth = 4.25,
+                StartArrow = kind is AnnotationKind.Line or AnnotationKind.Arrow,
+                EndArrow = kind == AnnotationKind.Line,
                 StepDiameter = 32.5,
                 StepNumber = kind == AnnotationKind.Step ? 1 : 0,
             }).ToImmutableArray();
@@ -103,6 +107,40 @@ public sealed class ShnappLibraryTests
         Assert.IsFalse(json.RootElement.GetProperty("crop").TryGetProperty("right", out _));
         Assert.IsFalse(json.RootElement.GetProperty("annotations")[0].TryGetProperty("bounds", out _));
         temporary.AssertNoTemporaryFiles();
+    }
+
+    [TestMethod]
+    public async Task ExistingSchemaOneAnnotationsWithoutOptionalStyleFieldsStillOpen()
+    {
+        using var temporary = new TemporaryLibrary();
+        ShnappDocument document = TestDocuments.Create() with
+        {
+            Annotations =
+            [
+                TestDocuments.Annotation(AnnotationKind.Arrow),
+                TestDocuments.Annotation(AnnotationKind.Step) with { FillArgb = 0x40E5484D, StepNumber = 1 },
+            ],
+        };
+        await temporary.Library.SaveAsync(document);
+        string path = temporary.GetMetadataPath(document.Id);
+        JsonObject root = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        foreach (JsonNode? item in root["annotations"]!.AsArray())
+        {
+            JsonObject annotation = item!.AsObject();
+            annotation.Remove("startArrow");
+            annotation.Remove("endArrow");
+            annotation.Remove("stepTextArgb");
+        }
+        await File.WriteAllTextAsync(path, root.ToJsonString());
+
+        ShnappDocument? opened = await temporary.Library.OpenAsync(document.Id);
+
+        Assert.IsNotNull(opened);
+        Assert.AreEqual(AnnotationKind.Arrow, opened.Annotations[0].Kind);
+        Assert.IsFalse(opened.Annotations[0].StartArrow);
+        Assert.IsFalse(opened.Annotations[0].EndArrow);
+        Assert.AreEqual(0u, opened.Annotations[1].StepTextArgb);
+        Assert.AreEqual(0x40E5484Du, opened.Annotations[1].FillArgb);
     }
 
     [TestMethod]

@@ -16,7 +16,7 @@ Shnapp waits quietly in your tray until you need it. Capture part of your screen
 
 ![The Shnapp editor with a captured sample window, numbered steps, an arrow, text, and an opaque redaction](src/Shnapp.Site/public/screenshots/editor.png)
 
-*A real Shnapp editor session. The image stays front and center while the tools stay close.*
+*A real Shnapp editor session. Your capture stays in view while the tools stay close.*
 
 ## Make a shnapp
 
@@ -30,7 +30,14 @@ You can start any capture from the tray icon or **New shnapp** in the app, too. 
 
 ## Explain it in a few clicks
 
-Place text, numbered steps, lines and arrows, rectangles and ellipses, or an opaque redaction directly on your capture. Crop, move annotations, and undo or redo as you go. Window captures get a soft drop shadow by default.
+The editor gives your capture room to breathe. Pick a tool from the compact bar, then use the side panel to change only that tool's options. Shnapp remembers your choices while you work, so the next mark is ready to place.
+
+- **Text:** choose a font, weight, italic style, size, and color. Double-click placed text to rewrite it.
+- **Steps:** place numbered dots and set the dot size and color, plus the number's font, weight, and color.
+- **Lines and shapes:** add lines with arrowheads at either end, or draw rectangles, squares, ellipses, and circles. Adjust outlines, thickness, and shape fills.
+- **Privacy:** cover an area with an opaque redaction before sharing.
+
+Crop, move annotations, and undo or redo as you go. Window captures get a soft drop shadow by default.
 
 When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboard, **Save PNG** (`Ctrl+S`) lets you choose where to export it, and **Done** returns Shnapp to the tray.
 
@@ -48,7 +55,7 @@ Shnapp saves its library and preferences under `%LOCALAPPDATA%\Shnapp` for your 
 
 ## Get started
 
-Shnapp is an early preview for Windows 11 on x64 and ARM64. A public installer or GitHub Release has not been published yet. You can [build it from source](#build-from-source) today. Follow the [roadmap](ROADMAP.md) for planned captions, resizing, richer annotation controls, blur and pixelation, true free-form capture, and optional AI assistance. The [product website source](src/Shnapp.Site) lives alongside the app.
+Shnapp is an early preview for Windows 11 on x64 and ARM64. A public installer or GitHub Release has not been published yet. You can [build it from source](#build-from-source) today. Follow the [roadmap](ROADMAP.md) for planned captions, resizing, polygon shapes, blur and pixelation, true free-form capture, and optional AI assistance. The [product website source](src/Shnapp.Site) lives alongside the app.
 
 ### Build from source
 
