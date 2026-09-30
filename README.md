@@ -1,42 +1,62 @@
-# Shnapp
+<p align="center">
+  <img src="logo.png" alt="Shnapp logo" width="360">
+</p>
 
-**Capture first. Think less.**
+<h1 align="center">Capture first. Think less.</h1>
 
-Shnapp is an early Windows 11 screenshot app for turning something on your screen into an image you can explain and share. It waits in the notification area until you need it, then opens a compact editor after each capture.
+<p align="center">
+  Press a shortcut. Show what matters. Share a clearer picture.
+</p>
+
+<p align="center">
+  <strong>Made for Windows 11 · Native WinUI · Local by default</strong>
+</p>
+
+Shnapp waits quietly in your tray until you need it. Capture part of your screen, add a little context, then copy the finished image or save a PNG. Every capture is a **shnapp**; making one is **shnapping**.
+
+![The Shnapp editor with a captured sample window, numbered steps, an arrow, text, and an opaque redaction](src/Shnapp.Site/public/screenshots/editor.png)
+
+*A real Shnapp editor session. The image stays front and center while the tools stay close.*
 
 ## Make a shnapp
 
-| Shortcut | Capture |
+| Shortcut | What it captures |
 | --- | --- |
-| `Ctrl+Shift+4` | Pick a window |
-| `Ctrl+Shift+3` | Capture the display under your pointer |
-| `Ctrl+Shift+2` | Drag out a rectangular region |
+| `Ctrl+Shift+4` | A window you choose |
+| `Ctrl+Shift+3` | The display under your pointer |
+| `Ctrl+Shift+2` | A region you drag out |
 
-You can also start any capture from the tray icon or **New shnapp** in the app. “Free form” currently means a rectangular selection.
+You can start any capture from the tray icon or **New shnapp** in the app, too. Region capture currently uses a rectangle; a drawn free-form selection is on the [roadmap](ROADMAP.md).
 
-After a capture, add text, numbered steps, lines, arrows, rectangles, ellipses, or an opaque redaction. Crop the image, move annotations, and undo or redo edits. Shnapp applies a soft shadow to window captures by default.
+## Explain it in a few clicks
 
-Choose **Copy** (`Ctrl+C`) to paste the finished image elsewhere, **Save PNG** (`Ctrl+S`) to choose an export location, or **Done** to return to the tray. Shnapp also saves each capture in your local library, where you can find it and reopen its annotations.
+Place text, numbered steps, lines and arrows, rectangles and ellipses, or an opaque redaction directly on your capture. Crop, move annotations, and undo or redo as you go. Window captures get a soft drop shadow by default.
 
-## Quiet by default
+When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboard, **Save PNG** (`Ctrl+S`) lets you choose where to export it, and **Done** returns Shnapp to the tray.
 
-Shnapp keeps its library and preferences under `%LOCALAPPDATA%\Shnapp` for your Windows user account. The core capture and editing flow needs no account or internet connection. Copied and exported PNGs have redactions baked in; the editable original remains in your local library, so share the flattened PNG rather than the library folder.
+## Find it again
 
-In **Settings**, you can opt in to starting Shnapp at sign-in or copying new captures automatically. You can also change the theme and turn the window shadow on or off. Closing the window returns Shnapp to the tray; **Quit Shnapp** exits it.
+Shnapp keeps your captures in a local library, ready to search and reopen for more editing. Opt in to starting at sign-in if you want Shnapp waiting in the tray whenever Windows starts.
 
-## Early version
+![The Shnapp library showing three locally saved captures with preview thumbnails, dates, and dimensions](src/Shnapp.Site/public/screenshots/library.png)
 
-This version has basic color, line width, text size, step size, bold, and shape fill controls. Font family and style selection, separate step and fill colors, line end-cap choices, polygons, nonrectangular selection, blur, pixelation, image resizing, captions, and AI assistance are not available yet.
+*Your shnapps stay on this PC, with previews that make the right capture easy to find.*
 
-Shnapp targets Windows 11 on x64 and ARM64. A product website, downloadable GitHub releases, and Store distribution are planned; they are not available from this repository yet.
+## Your captures stay yours
 
-## Build from source
+Shnapp saves its library and preferences under `%LOCALAPPDATA%\Shnapp` for your Windows user account. Capturing and editing require no account or internet connection. Copied and exported PNGs have opaque redactions baked in. The editable original remains in your local library, so share the finished PNG rather than a library file when something sensitive was covered.
 
-On Windows 11, install the .NET SDK specified in `global.json` and a WinUI 3 development toolchain. The current app is unpackaged. From the repository root, build for your machine:
+## Get started
+
+Shnapp is an early preview for Windows 11 on x64 and ARM64. A public installer or GitHub Release has not been published yet. You can [build it from source](#build-from-source) today. Follow the [roadmap](ROADMAP.md) for planned captions, resizing, richer annotation controls, blur and pixelation, true free-form capture, and optional AI assistance. The [product website source](src/Shnapp.Site) lives alongside the app.
+
+### Build from source
+
+On Windows 11, install the .NET SDK specified in `global.json` and a WinUI 3 development toolchain. Then run:
 
 ```powershell
 dotnet build src\Shnapp.App\Shnapp.App.csproj -c Debug -p:Platform=x64
 .\src\Shnapp.App\bin\x64\Debug\net10.0-windows10.0.26100.0\win-x64\Shnapp.exe
 ```
 
-For ARM64, use `-p:Platform=ARM64`; the output is under `bin\ARM64\Debug\...\win-arm64`.
+For ARM64, use `-p:Platform=ARM64`; its output is under `bin\ARM64\Debug\...\win-arm64`.
