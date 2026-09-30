@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Shnapp.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Shnapp.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

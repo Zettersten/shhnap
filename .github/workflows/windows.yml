@@ -1,0 +1,132 @@
+name: Windows build and release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Test and build (x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Restore core tests from lock files
+        run: dotnet restore tests/Shnapp.Core.Tests/Shnapp.Core.Tests.csproj --locked-mode
+      - name: Run core tests
+        run: dotnet test tests/Shnapp.Core.Tests/Shnapp.Core.Tests.csproj -c Release --no-restore
+      - name: Restore Windows app from lock files
+        run: dotnet restore src/Shnapp.App/Shnapp.App.csproj -p:Platform=x64 --locked-mode
+      - name: Build Windows app
+        run: dotnet build src/Shnapp.App/Shnapp.App.csproj -c Release -r win-x64 -p:Platform=x64 --no-restore
+
+  package:
+    name: Publish (${{ matrix.rid }})
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            platform: x64
+          - rid: win-arm64
+            platform: ARM64
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      TARGET_RID: ${{ matrix.rid }}
+      TARGET_PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Validate version tag
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$') {
+            throw "Release tags must look like v1.2.3 or v1.2.3-rc.1."
+          }
+      - name: Restore target architecture from lock files
+        shell: pwsh
+        run: |
+          dotnet restore src/Shnapp.App/Shnapp.App.csproj --locked-mode "-p:Platform=$env:TARGET_PLATFORM"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish portable app and checksums
+        shell: pwsh
+        run: |
+          $publishDir = Join-Path $env:RUNNER_TEMP 'shnapp-publish'
+          $assetsDir = Join-Path $env:GITHUB_WORKSPACE 'release-assets'
+          $version = $env:RELEASE_TAG.Substring(1)
+          dotnet publish src/Shnapp.App/Shnapp.App.csproj -c Release -r $env:TARGET_RID --no-restore --self-contained true --output $publishDir "-p:Platform=$env:TARGET_PLATFORM" "-p:Version=$version"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($requiredFile in @('Shnapp.exe', 'Shnapp.pri')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $publishDir $requiredFile) -PathType Leaf)) {
+              throw "The published app does not contain $requiredFile."
+            }
+          }
+          New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
+          $archiveName = "Shnapp-$env:RELEASE_TAG-$env:TARGET_RID.zip"
+          $archive = Join-Path $assetsDir $archiveName
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            $publishDir, $archive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+          $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          [System.IO.File]::WriteAllText("$archive.sha256", "$hash  $archiveName`n", [System.Text.Encoding]::ASCII)
+      - name: Upload release assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: Shnapp-${{ matrix.rid }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: Shnapp-win-*
+          merge-multiple: true
+          path: release-assets
+      - name: Verify assets and publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd release-assets
+          assets=()
+          for rid in win-x64 win-arm64; do
+            archive="Shnapp-${RELEASE_TAG}-${rid}.zip"
+            test -s "$archive"
+            sha256sum --check "$archive.sha256"
+            assets+=("$archive" "$archive.sha256")
+          done
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+          else
+            notes='Portable Windows 11 builds. Extract the archive for your processor and run Shnapp.exe. ARM64 was cross-published on x64 CI and has not been run on ARM64 hardware.'
+            release_options=()
+            if [[ "$RELEASE_TAG" == *-* ]]; then release_options+=(--prerelease); fi
+            gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes --notes "$notes" "${release_options[@]}"
+          fi

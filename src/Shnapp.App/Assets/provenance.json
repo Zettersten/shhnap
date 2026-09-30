@@ -1,0 +1,18 @@
+{
+  "AppIcon.ico": {
+    "origin": "User-supplied root icon.png",
+    "transform": "Multi-resolution 16–256px PNG-backed ICO; tools/Generate-Assets.ps1"
+  },
+  "ShnappIcon.png": {
+    "origin": "User-supplied root icon.png",
+    "transform": "128px aspect-preserving resize"
+  },
+  "ShnappLogo.png": {
+    "origin": "User-supplied root logo.png",
+    "transform": "Unmodified copy"
+  },
+  "packagingLogos": {
+    "origin": "User-supplied root icon.png",
+    "transform": "Aspect-preserving resize onto transparent packaging canvases"
+  }
+}

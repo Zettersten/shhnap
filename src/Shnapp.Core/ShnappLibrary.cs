@@ -1,0 +1,408 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
+
+namespace Shnapp.Core;
+
+/// <summary>
+/// Persists editable shnapps and preferences beneath an explicitly supplied local root.
+/// Document locations depend only on nonempty GUIDs, never user-facing titles.
+/// </summary>
+/// <param name="rootPath">The local data directory; construction does not create it.</param>
+/// <remarks>
+/// JSON writes use unique same-directory temporary files and atomic replacement.
+/// Metadata operations sharing a normalized root are coordinated asynchronously in-process,
+/// so concurrent callers see complete snapshots on both NTFS and ReFS.
+/// Image-file creation and rendering belong to the application, not this metadata store.
+/// </remarks>
+public sealed class ShnappLibrary(string rootPath)
+{
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> RootAccessGates =
+        new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+    private readonly SemaphoreSlim _access = RootAccessGates.GetOrAdd(NormalizeRoot(rootPath), static _ => new(1, 1));
+
+    /// <summary>Gets the fully qualified, normalized local data root.</summary>
+    public string RootPath { get; } = NormalizeRoot(rootPath);
+
+    /// <summary>Gets the GUID-only directory for a shnapp, without creating it.</summary>
+    /// <param name="id">The nonempty shnapp identifier.</param>
+    /// <returns>The root/shnapps/GUID-N directory.</returns>
+    /// <exception cref="ArgumentException">The identifier is empty.</exception>
+    public string GetDocumentDirectory(Guid id)
+    {
+        ArgumentOutOfRangeException.ThrowIfEqual(id, Guid.Empty);
+        return Path.Combine(RootPath, "shnapps", id.ToString("N"));
+    }
+
+    /// <summary>Gets the location of the unmodified original PNG.</summary>
+    /// <param name="id">The nonempty shnapp identifier.</param>
+    /// <returns>The document directory's original.png path.</returns>
+    public string GetOriginalPath(Guid id) => Path.Combine(GetDocumentDirectory(id), "original.png");
+
+    /// <summary>Gets the location of the library preview PNG.</summary>
+    /// <param name="id">The nonempty shnapp identifier.</param>
+    /// <returns>The document directory's preview.png path.</returns>
+    public string GetPreviewPath(Guid id) => Path.Combine(GetDocumentDirectory(id), "preview.png");
+
+    /// <summary>Gets the location of the default flattened export PNG.</summary>
+    /// <param name="id">The nonempty shnapp identifier.</param>
+    /// <returns>The document directory's shnapp.png path.</returns>
+    public string GetExportPath(Guid id) => Path.Combine(GetDocumentDirectory(id), "shnapp.png");
+
+    /// <summary>Validates and atomically writes an editable document, creating its directory as needed.</summary>
+    /// <param name="document">A supported, valid document with consecutive step numbering.</param>
+    /// <param name="cancellationToken">Cancels waiting or writing before the atomic commit.</param>
+    /// <returns>A task completed after the metadata has been atomically replaced.</returns>
+    /// <exception cref="ArgumentException">The document violates its schema or source-image bounds.</exception>
+    /// <remarks>Cancellation observed before replacement leaves the previous document unchanged.</remarks>
+    public async Task SaveAsync(ShnappDocument document, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        DocumentValidation.Validate(document);
+        string directory = GetDocumentDirectory(document.Id);
+        await _access.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureSafeDirectories(directory, create: true);
+            await WriteAtomicAsync(Path.Combine(directory, "document.json"), document,
+                ShnappJsonContext.Default.ShnappDocument, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _access.Release();
+        }
+    }
+
+    /// <summary>Reads and validates a stored document without changing any image files.</summary>
+    /// <param name="id">The nonempty identifier whose directory must match the stored document.</param>
+    /// <param name="cancellationToken">Cancels asynchronous reading.</param>
+    /// <returns>The document, or null only when its metadata file does not exist.</returns>
+    /// <exception cref="InvalidDataException">Metadata is corrupt, incomplete, or uses an unsupported schema.</exception>
+    public async Task<ShnappDocument?> OpenAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string directory = GetDocumentDirectory(id);
+        await _access.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureSafeDirectories(directory, create: false);
+            string path = Path.Combine(directory, "document.json");
+            EnsureNotReparsePoint(path);
+            try
+            {
+                await using FileStream stream = OpenRead(path);
+                using JsonDocument json = await JsonDocument.ParseAsync(stream,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                JsonSchema.ValidateDocument(json.RootElement);
+                ShnappDocument document = json.RootElement.Deserialize(ShnappJsonContext.Default.ShnappDocument)
+                    ?? throw new InvalidDataException("The stored document is null.");
+                DocumentValidation.Validate(document);
+                if (document.Id != id)
+                {
+                    throw new InvalidDataException("The document identifier does not match its directory.");
+                }
+
+                return document;
+            }
+            catch (FileNotFoundException)
+            {
+                return null;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return null;
+            }
+            catch (JsonException exception)
+            {
+                throw new InvalidDataException("The stored document is not valid Shnapp JSON.", exception);
+            }
+            catch (ArgumentException exception)
+            {
+                throw new InvalidDataException("The stored document contains invalid values.", exception);
+            }
+        }
+        finally
+        {
+            _access.Release();
+        }
+    }
+
+    /// <summary>Lists readable, valid documents newest first, skipping corrupt, unsupported, or inaccessible items.</summary>
+    /// <param name="cancellationToken">Cancels enumeration or an individual asynchronous read.</param>
+    /// <returns>A stable metadata snapshot; missing or empty libraries produce an empty list.</returns>
+    /// <remarks>Failure to access the library root is surfaced rather than disguised as an empty library.</remarks>
+    public async Task<IReadOnlyList<ShnappDocument>> ListAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string libraryPath = Path.Combine(RootPath, "shnapps");
+        EnsureSafeDirectories(libraryPath, create: false);
+        string[] directories;
+        try
+        {
+            directories = await Task.Run(() => Directory.GetDirectories(libraryPath),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return Array.Empty<ShnappDocument>();
+        }
+
+        var documents = new List<ShnappDocument>(directories.Length);
+        foreach (string directory in directories)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!Guid.TryParseExact(Path.GetFileName(directory), "N", out Guid id) || id == Guid.Empty)
+            {
+                continue;
+            }
+
+            try
+            {
+                ShnappDocument? document = await OpenAsync(id, cancellationToken).ConfigureAwait(false);
+                if (document is not null)
+                {
+                    documents.Add(document);
+                }
+            }
+            catch (InvalidDataException)
+            {
+                // A single damaged or future-version shnapp must not hide the rest of the library.
+            }
+            catch (IOException)
+            {
+                // A concurrently removed, locked, or linked item does not prevent listing other items.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Permissions on individual items can differ from the accessible library root.
+            }
+        }
+
+        return documents.OrderByDescending(document => document.CreatedAt).ThenBy(document => document.Id).ToArray();
+    }
+
+    /// <summary>Deletes only the identified shnapp directory and its image/metadata files.</summary>
+    /// <param name="id">The nonempty identifier to delete; a missing directory is a no-op.</param>
+    /// <param name="cancellationToken">Cancels waiting or validation before deletion begins.</param>
+    /// <returns>A task completed after the owned directory has been removed.</returns>
+    /// <remarks>Directory deletion cannot be interrupted once the filesystem operation begins.</remarks>
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string directory = GetDocumentDirectory(id);
+        await _access.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await Task.Run(() =>
+            {
+                EnsureSafeDirectories(directory, create: false);
+                if (!Directory.Exists(directory))
+                {
+                    return;
+                }
+
+                EnsureSafeTree(directory, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                Directory.Delete(directory, recursive: true);
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _access.Release();
+        }
+    }
+
+    /// <summary>Loads validated preferences or returns safe defaults when settings.json is absent.</summary>
+    /// <param name="cancellationToken">Cancels asynchronous reading.</param>
+    /// <returns>The stored preferences, with startup disabled by default for a new library.</returns>
+    /// <exception cref="InvalidDataException">Settings are corrupt, incomplete, or use an unsupported schema.</exception>
+    public async Task<ShnappSettings> LoadSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await _access.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureSafeDirectories(RootPath, create: false);
+            string path = Path.Combine(RootPath, "settings.json");
+            EnsureNotReparsePoint(path);
+            try
+            {
+                await using FileStream stream = OpenRead(path);
+                using JsonDocument json = await JsonDocument.ParseAsync(stream,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                JsonSchema.ValidateSettings(json.RootElement);
+                SettingsFile file = json.RootElement.Deserialize(ShnappJsonContext.Default.SettingsFile)
+                    ?? throw new InvalidDataException("The stored settings are null.");
+                DocumentValidation.ValidateSettings(file.Settings);
+                return file.Settings;
+            }
+            catch (FileNotFoundException)
+            {
+                return new ShnappSettings();
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return new ShnappSettings();
+            }
+            catch (JsonException exception)
+            {
+                throw new InvalidDataException("The stored settings are not valid Shnapp JSON.", exception);
+            }
+            catch (ArgumentException exception)
+            {
+                throw new InvalidDataException("The stored settings contain invalid values.", exception);
+            }
+        }
+        finally
+        {
+            _access.Release();
+        }
+    }
+
+    /// <summary>Validates and atomically saves preferences without applying startup or OS configuration changes.</summary>
+    /// <param name="settings">Preferences whose theme is System, Light, or Dark.</param>
+    /// <param name="cancellationToken">Cancels waiting or writing before the atomic commit.</param>
+    /// <returns>A task completed after settings.json has been replaced.</returns>
+    public async Task SaveSettingsAsync(ShnappSettings settings, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        DocumentValidation.ValidateSettings(settings);
+        await _access.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureSafeDirectories(RootPath, create: true);
+            var file = new SettingsFile(DocumentValidation.SchemaVersion, settings);
+            await WriteAtomicAsync(Path.Combine(RootPath, "settings.json"), file,
+                ShnappJsonContext.Default.SettingsFile, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _access.Release();
+        }
+    }
+
+    private static string NormalizeRoot(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        return Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+    }
+
+    private static FileStream OpenRead(string path) =>
+        new(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete,
+            bufferSize: 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+    private static async Task WriteAtomicAsync<T>(string path, T value, JsonTypeInfo<T> typeInfo,
+        CancellationToken cancellationToken)
+    {
+        string temporaryPath = Path.Combine(Path.GetDirectoryName(path)!, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+        bool created = false;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write,
+                FileShare.None, bufferSize: 65536, FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                created = true;
+                await JsonSerializer.SerializeAsync(stream, value, typeInfo, cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            await CommitAtomicAsync(temporaryPath, path, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (created)
+            {
+                try
+                {
+                    File.Delete(temporaryPath);
+                }
+                catch (IOException)
+                {
+                    // A failed cleanup leaves only an ignored, uniquely named temporary file.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Preserve the original write/cancellation error if cleanup is denied.
+                }
+            }
+        }
+    }
+
+    private static async Task CommitAtomicAsync(string temporaryPath, string path, CancellationToken cancellationToken)
+    {
+        const int retryLimit = 5;
+        for (int attempt = 0; ; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureNotReparsePoint(path);
+            try
+            {
+                File.Move(temporaryPath, path, overwrite: true);
+                return;
+            }
+            catch (Exception exception) when (attempt < retryLimit && IsTransientWindowsMoveFailure(exception) &&
+                File.Exists(temporaryPath) && !Directory.Exists(path))
+            {
+                await Task.Delay(20 * (attempt + 1), cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static bool IsTransientWindowsMoveFailure(Exception exception) =>
+        OperatingSystem.IsWindows() &&
+        exception is IOException or UnauthorizedAccessException &&
+        (exception.HResult & 0xFFFF) is 5 or 32 or 33;
+
+    private void EnsureSafeDirectories(string directory, bool create)
+    {
+        EnsureNotReparsePoint(RootPath);
+        EnsureNotReparsePoint(Path.Combine(RootPath, "shnapps"));
+        EnsureNotReparsePoint(directory);
+        if (create)
+        {
+            Directory.CreateDirectory(directory);
+            EnsureNotReparsePoint(RootPath);
+            EnsureNotReparsePoint(Path.Combine(RootPath, "shnapps"));
+            EnsureNotReparsePoint(directory);
+        }
+    }
+
+    private static void EnsureNotReparsePoint(string path)
+    {
+        try
+        {
+            if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new IOException("Library files and directories must not be symbolic links or reparse points.");
+            }
+        }
+        catch (FileNotFoundException)
+        {
+            // Missing locations are valid for reads or will be created by a save.
+        }
+        catch (DirectoryNotFoundException)
+        {
+            // Missing locations are valid for reads or will be created by a save.
+        }
+    }
+
+    private static void EnsureSafeTree(string directory, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        foreach (string entry in Directory.EnumerateFileSystemEntries(directory))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            FileAttributes attributes = File.GetAttributes(entry);
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new IOException("Refusing to delete a shnapp directory containing linked files or directories.");
+            }
+
+            if ((attributes & FileAttributes.Directory) != 0)
+            {
+                EnsureSafeTree(entry, cancellationToken);
+            }
+        }
+    }
+}
