@@ -33,6 +33,11 @@ internal static class DocumentValidation
             Require(identifiers.Add(annotation.Id), "Annotation identifiers must be unique.", nameof(document));
             if (annotation.Kind == AnnotationKind.Step)
             {
+                if (annotation.StepReset)
+                {
+                    stepNumber = 0;
+                }
+
                 stepNumber++;
                 Require(!validateStepNumbers || annotation.StepNumber == stepNumber,
                     "Step annotations must be numbered consecutively in document order.", nameof(document));
@@ -46,6 +51,12 @@ internal static class DocumentValidation
         Require(annotation.Id != Guid.Empty, "An annotation identifier cannot be empty.", nameof(annotation));
         Require(Enum.IsDefined(annotation.Kind), "The annotation kind is not supported.", nameof(annotation));
         Require(Enum.IsDefined(annotation.RedactionMode), "The redaction mode is not supported.", nameof(annotation));
+        Require(Enum.IsDefined(annotation.StartCap) && Enum.IsDefined(annotation.EndCap),
+            "The line end cap is not supported.", nameof(annotation));
+        Require(Enum.IsDefined(annotation.LinePattern), "The line pattern is not supported.", nameof(annotation));
+        Require(Enum.IsDefined(annotation.StepLabelFormat), "The step label format is not supported.", nameof(annotation));
+        Require(annotation.Kind == AnnotationKind.Step || !annotation.StepReset,
+            "Only a step can restart numbering.", nameof(annotation));
         ValidatePoint(annotation.Start, document, nameof(annotation));
         ValidatePoint(annotation.End, document, nameof(annotation));
         Require(double.IsFinite(annotation.StrokeWidth) && annotation.StrokeWidth >= 0,

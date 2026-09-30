@@ -16,18 +16,18 @@ const shortcuts = [
   {
     title: 'A region',
     keys: ['Ctrl', 'Shift', '2'],
-    description: 'Drag a rectangle around exactly what you need.',
+    description: 'Drag a rectangle with a crosshair and live pixel measurements.',
   },
 ];
 
 const capabilities = [
   {
     title: 'Say it in a sentence',
-    description: 'Add text or numbered steps, then choose the type, size, weight, and colors that make your point clear.',
+    description: 'Add text or step dots with number, letter, or Roman labels. Restart a sequence wherever you need.',
   },
   {
     title: 'Point to the detail',
-    description: 'Draw lines with arrowheads at either end, or mark an area with a rectangle, square, ellipse, or circle.',
+    description: 'Draw solid, dashed, or dotted lines with your choice of caps at either end. Mark an area with a rectangle, square, ellipse, or circle.',
   },
   {
     title: 'Choose how to hide a detail',
@@ -35,7 +35,7 @@ const capabilities = [
   },
   {
     title: 'Finish and move on',
-    description: 'Crop, undo a change, copy to the clipboard, or save a PNG wherever you like.',
+    description: 'Crop by exact pixels or a familiar ratio, zoom into details, then copy or save a PNG.',
   },
 ];
 ---
@@ -97,7 +97,7 @@ const capabilities = [
           <figure class="hero-preview">
             <div class="preview-canvas">
               <a href="screenshots/editor.png" aria-label="View a full-size screenshot of the Shnapp editor">
-                <img src="screenshots/editor.png" alt="The Shnapp editor showing a captured image and contextual text options" width="1376" height="843" fetchpriority="high" />
+                <img src="screenshots/editor.png" alt="The Shnapp editor showing a captured image and contextual dotted line options" width="1376" height="843" fetchpriority="high" />
               </a>
             </div>
             <figcaption><span class="caption-dot" aria-hidden="true"></span> The editor after a capture. Actual app screenshot with sample content.</figcaption>
@@ -138,7 +138,7 @@ const capabilities = [
         <div class="shell tools-inner">
           <div class="tools-intro">
             <h2 id="tools-heading">Just enough to explain what matters.</h2>
-            <p>Place a mark, then select it to adjust its settings in the side panel or resize it with drag handles. The capture stays in view while you work.</p>
+            <p>Place a mark and adjust it right away in the side panel. Select an earlier mark to edit it or drag its handles to resize it. Scroll to zoom, hold Space to pan, and hold Shift to keep movement or scaling in line.</p>
           </div>
           <div class="capabilities">
             {capabilities.map((capability) => (
@@ -155,13 +155,13 @@ const capabilities = [
         <div class="shell library-inner">
           <div class="library-visual">
             <a href="screenshots/library.png" aria-label="View a full-size screenshot of the Shnapp library">
-              <img src="screenshots/library.png" alt="The Shnapp library showing saved screen captures" width="1106" height="463" loading="lazy" />
+              <img src="screenshots/library.png" alt="The Shnapp library showing saved screen captures, search, and thumbnail size controls" width="1106" height="533" loading="lazy" />
             </a>
             <p>Actual app screenshot with sample content</p>
           </div>
           <div class="library-copy">
             <h2 id="library-heading">Your shnapps, right where you left them.</h2>
-            <p>Every capture lands in your local library, ready to find and reopen. Turn on launch at sign-in if you want Shnapp waiting in the tray whenever Windows starts.</p>
+            <p>Every capture lands in your local library, ready to search and reopen. Choose a compact list or one of four thumbnail sizes. Turn on launch at sign-in if you want Shnapp waiting in the tray whenever Windows starts.</p>
             <a class="inline-link" href="#privacy">See where your shnapps live <span aria-hidden="true">↗</span></a>
           </div>
         </div>

@@ -27,7 +27,7 @@ public sealed class DocumentEditor(ShnappDocument document)
     /// <summary>Occurs once after a real edit, undo, or redo, after the new state is available.</summary>
     public event EventHandler? Changed;
 
-    /// <summary>Adds an annotation and assigns consecutive step numbers.</summary>
+    /// <summary>Adds an annotation and assigns step numbers, restarting at marked steps.</summary>
     /// <param name="annotation">An annotation with a unique, nonempty identifier and valid source coordinates.</param>
     /// <exception cref="ArgumentNullException">The annotation is null.</exception>
     /// <exception cref="ArgumentException">The annotation is invalid or its identifier already exists.</exception>
@@ -134,7 +134,17 @@ public sealed class DocumentEditor(ShnappDocument document)
         for (int index = 0; index < annotations.Length; index++)
         {
             Annotation annotation = annotations[index];
-            if (annotation.Kind == AnnotationKind.Step && annotation.StepNumber != ++number)
+            if (annotation.Kind != AnnotationKind.Step)
+            {
+                continue;
+            }
+
+            if (annotation.StepReset)
+            {
+                number = 0;
+            }
+
+            if (annotation.StepNumber != ++number)
             {
                 builder ??= annotations.ToBuilder();
                 builder[index] = annotation with { StepNumber = number };

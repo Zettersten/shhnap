@@ -44,6 +44,17 @@ internal sealed class SelectionWindow : Window, IDisposable
         _canvas.PointerMoved += PointerMoved;
         _canvas.PointerReleased += PointerReleased;
         _canvas.PointerCanceled += (_, _) => Cancel();
+        _canvas.PointerCaptureLost += (_, _) =>
+        {
+            if (_start is null || _completion.Task.IsCompleted)
+            {
+                return;
+            }
+
+            _start = null;
+            _selection = null;
+            _canvas.Invalidate();
+        };
         _canvas.KeyDown += (_, args) =>
         {
             if (args.Key == VirtualKey.Escape)
@@ -166,10 +177,27 @@ internal sealed class SelectionWindow : Window, IDisposable
             double right = Math.Min(_bounds.Width, selection.Right);
             double bottom = Math.Min(_bounds.Height, selection.Bottom);
             var rectangle = new global::Windows.Foundation.Rect(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
-            drawing.DrawImage(_desktop, rectangle, rectangle);
-            drawing.DrawRectangle(rectangle, Colors.White, 2 / scaleX);
-            string dimensions = $"{(int)rectangle.Width} × {(int)rectangle.Height} px";
-            DrawLabel(drawing, dimensions, (float)left, (float)Math.Min(_bounds.Height - 36 / scaleY, bottom + 8 / scaleY), scaleX);
+            if (rectangle.Width > 0 && rectangle.Height > 0)
+            {
+                drawing.DrawImage(_desktop, rectangle, rectangle);
+                drawing.DrawRectangle(rectangle, Colors.White, 2 / scaleX);
+            }
+            string dimensions = $"X {_bounds.Left + (int)left}   Y {_bounds.Top + (int)top}\n" +
+                $"W {(int)rectangle.Width}   H {(int)rectangle.Height} px";
+            if (_start is not null)
+            {
+                DrawLabel(drawing, dimensions,
+                    (float)(_pointer.X + 24 / scaleX), (float)(_pointer.Y + 28 / scaleY), scaleX, scaleY);
+            }
+            else
+            {
+                DrawLabel(drawing, dimensions, (float)left, (float)(bottom + 8 / scaleY), scaleX, scaleY);
+            }
+        }
+
+        if (_start is not null && _selection is not null)
+        {
+            return;
         }
 
         string hint = _windows is null ? "Drag a region · Esc to cancel" : "Click a window · Esc to cancel";
@@ -179,18 +207,24 @@ internal sealed class SelectionWindow : Window, IDisposable
         }
 
         DrawLabel(drawing, hint,
-            (float)Math.Clamp(_pointer.X + 24 / scaleX, 16 / scaleX, Math.Max(16 / scaleX, _bounds.Width - 440 / scaleX)),
-            (float)Math.Clamp(_pointer.Y + 28 / scaleY, 16 / scaleY, Math.Max(16 / scaleY, _bounds.Height - 100 / scaleY)), scaleX);
+            (float)(_pointer.X + 24 / scaleX),
+            (float)(_pointer.Y + 28 / scaleY), scaleX, scaleY);
     }
 
-    private static void DrawLabel(CanvasDrawingSession drawing, string text, float x, float y, float scale)
+    private void DrawLabel(CanvasDrawingSession drawing, string text, float x, float y, float scaleX, float scaleY)
     {
-        using var format = new CanvasTextFormat { FontFamily = "Segoe UI Variable Text", FontSize = 14 / scale };
-        using var layout = new CanvasTextLayout(drawing, text, format, 400 / scale, 72 / scale);
-        float width = (float)layout.LayoutBounds.Width + 20 / scale;
-        float height = (float)layout.LayoutBounds.Height + 12 / scale;
-        drawing.FillRoundedRectangle(x, y, width, height, 6 / scale, 6 / scale, Color.FromArgb(235, 17, 20, 24));
-        drawing.DrawTextLayout(layout, x + 10 / scale, y + 6 / scale, Colors.White);
+        using var format = new CanvasTextFormat { FontFamily = "Segoe UI Variable Text", FontSize = 14 / scaleX };
+        using var layout = new CanvasTextLayout(drawing, text, format,
+            Math.Max(1, Math.Min(400 / scaleX, _bounds.Width - 48 / scaleX)), 96 / scaleY);
+        float width = (float)layout.LayoutBounds.Width + 20 / scaleX;
+        float height = (float)layout.LayoutBounds.Height + 12 / scaleY;
+        float marginX = 16 / scaleX;
+        float marginY = 16 / scaleY;
+        float labelX = Math.Clamp(x, marginX, Math.Max(marginX, _bounds.Width - width - marginX));
+        float labelY = Math.Clamp(y, marginY, Math.Max(marginY, _bounds.Height - height - marginY));
+        drawing.FillRoundedRectangle(labelX, labelY, width, height,
+            6 / scaleX, 6 / scaleY, Color.FromArgb(235, 17, 20, 24));
+        drawing.DrawTextLayout(layout, labelX + 10 / scaleX, labelY + 6 / scaleY, Colors.White);
     }
 
     private void Cancel() => _completion.TrySetResult(null);

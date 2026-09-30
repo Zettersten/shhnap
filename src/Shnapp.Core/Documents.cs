@@ -44,6 +44,35 @@ public enum RedactionMode
     Pixelate,
 }
 
+/// <summary>The visible mark at either end of a line.</summary>
+public enum LineEndCap
+{
+    None,
+    Triangle,
+    OpenArrow,
+    Circle,
+    Diamond,
+    Bar,
+}
+
+/// <summary>The pattern used for a line's shaft.</summary>
+public enum LinePattern
+{
+    Solid,
+    Dashed,
+    Dotted,
+}
+
+/// <summary>How an automatically numbered step is shown inside its dot.</summary>
+public enum StepLabelFormat
+{
+    Decimal,
+    UpperLetters,
+    LowerLetters,
+    UpperRoman,
+    LowerRoman,
+}
+
 /// <summary>A position in original-image pixels, never window DIPs.</summary>
 /// <param name="X">Horizontal coordinate.</param>
 /// <param name="Y">Vertical coordinate.</param>
@@ -118,6 +147,25 @@ public sealed record Annotation
     /// <remarks>Legacy <see cref="AnnotationKind.Arrow"/> annotations always have an ending arrowhead.</remarks>
     public bool EndArrow { get; init; }
 
+    /// <summary>Gets the mark extending outward from the line's starting point.</summary>
+    public LineEndCap StartCap { get; init; }
+
+    /// <summary>Gets the mark extending outward from the line's ending point.</summary>
+    public LineEndCap EndCap { get; init; }
+
+    /// <summary>Gets the line shaft pattern.</summary>
+    public LinePattern LinePattern { get; init; }
+
+    /// <summary>Gets the effective starting mark, including legacy arrow flags.</summary>
+    [JsonIgnore]
+    public LineEndCap EffectiveStartCap => StartCap != LineEndCap.None ? StartCap :
+        StartArrow ? LineEndCap.Triangle : LineEndCap.None;
+
+    /// <summary>Gets the effective ending mark, including legacy arrow annotations.</summary>
+    [JsonIgnore]
+    public LineEndCap EffectiveEndCap => EndCap != LineEndCap.None ? EndCap :
+        EndArrow || Kind == AnnotationKind.Arrow ? LineEndCap.Triangle : LineEndCap.None;
+
     /// <summary>Gets the user-entered text.</summary>
     public string Text { get; init; } = string.Empty;
 
@@ -138,6 +186,12 @@ public sealed record Annotation
 
     /// <summary>Gets the assigned step number.</summary>
     public int StepNumber { get; init; }
+
+    /// <summary>Gets the numbering style shown inside this step.</summary>
+    public StepLabelFormat StepLabelFormat { get; init; }
+
+    /// <summary>Gets whether this step restarts the count at one.</summary>
+    public bool StepReset { get; init; }
 
     /// <summary>Gets the normalized geometric bounds.</summary>
     [JsonIgnore]

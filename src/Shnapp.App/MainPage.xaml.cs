@@ -65,6 +65,7 @@ public sealed partial class MainPage : Page
     internal void OpenDocument(ShnappDocument document, CanvasBitmap original)
     {
         ReleaseDocument();
+        ResetCanvasView();
         _editor = new DocumentEditor(document);
         _editor.Changed += EditorChanged;
         _original = original;
@@ -83,33 +84,8 @@ public sealed partial class MainPage : Page
         ViewModel.HasDocument = false;
         ViewModel.Title = "Capture first. Think less.";
         ViewModel.Dimensions = string.Empty;
-        FilterLibrary();
-    }
-
-    private void FilterLibrary()
-    {
-        if (_controller is null)
-        {
-            return;
-        }
-
-        string query = LibrarySearch.Text?.Trim() ?? string.Empty;
-        ViewModel.Library.Clear();
-        foreach (ShnappDocument document in _library.Where(d => d.Title.Contains(query, StringComparison.OrdinalIgnoreCase)))
-        {
-            ViewModel.Library.Add(new(document, _controller.Library.GetPreviewPath(document.Id)));
-        }
-
-        bool hasSavedShnapps = _library.Count > 0;
-        LibraryEmpty.Visibility = ViewModel.Library.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        LibraryEmptyTitle.Text = hasSavedShnapps
-            ? "No shnapps match your search."
-            : "Your shnapps will show up here.";
-        LibraryEmptyDescription.Text = hasSavedShnapps
-            ? "Try another title."
-            : "Capture first. Think less.";
-        LibraryEmptyCapture.Visibility = hasSavedShnapps ? Visibility.Collapsed : Visibility.Visible;
-        LibraryEmptyShortcuts.Visibility = hasSavedShnapps ? Visibility.Collapsed : Visibility.Visible;
+        RebuildLibraryEntries();
+        FocusLibrarySearchIfRequested();
     }
 
     private void EditorChanged(object? sender, EventArgs args)
@@ -135,6 +111,7 @@ public sealed partial class MainPage : Page
         ViewModel.Status = ToolHint();
         UpdateTransform();
         UpdateInspector();
+        UpdateCropInspector();
         DrawingCanvas.Invalidate();
     }
 
@@ -145,11 +122,24 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        _scale = Math.Max(0.01, Math.Min(1,
+        double fit = Math.Max(0.01, Math.Min(1,
             Math.Min(Math.Max(1, DrawingCanvas.ActualWidth - 48) / _flattened.Size.Width,
                 Math.Max(1, DrawingCanvas.ActualHeight - 48) / _flattened.Size.Height)));
+        if (_viewCanvasWidth == DrawingCanvas.ActualWidth && _viewCanvasHeight == DrawingCanvas.ActualHeight &&
+            _viewImageWidth == _flattened.Size.Width && _viewImageHeight == _flattened.Size.Height)
+        {
+            return;
+        }
+
+        _fitScale = fit;
+        _scale = _fitScale * _zoomFactor;
         _offsetX = (DrawingCanvas.ActualWidth - _flattened.Size.Width * _scale) / 2;
         _offsetY = (DrawingCanvas.ActualHeight - _flattened.Size.Height * _scale) / 2;
+        _viewCanvasWidth = DrawingCanvas.ActualWidth;
+        _viewCanvasHeight = DrawingCanvas.ActualHeight;
+        _viewImageWidth = _flattened.Size.Width;
+        _viewImageHeight = _flattened.Size.Height;
+        ClampCanvasPan();
     }
 
     private Matrix3x2 ImageTransform()
@@ -240,6 +230,13 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        if (IsSpaceHeld())
+        {
+            BeginCanvasPan(args);
+            return;
+        }
+
+        StopCanvasPan();
         CommitText();
         Point canvasPosition = args.GetCurrentPoint(DrawingCanvas).Position;
         if (SelectedAnnotation() is { } current &&
@@ -263,7 +260,10 @@ public sealed partial class MainPage : Page
         }
 
         DrawingCanvas.Focus(FocusState.Programmatic);
-        _crop = null;
+        if (_tool != EditorTool.Crop)
+        {
+            _crop = null;
+        }
         _selectedId = null;
         switch (_tool)
         {
@@ -307,12 +307,19 @@ public sealed partial class MainPage : Page
         }
 
         UpdateInspector();
+        UpdateCropInspector();
         args.Handled = true;
         DrawingCanvas.Invalidate();
     }
 
     private void Canvas_PointerMoved(object sender, PointerRoutedEventArgs args)
     {
+        if (_panning)
+        {
+            MoveCanvasPan(args);
+            return;
+        }
+
         if (_dragStart is not ImagePoint start || _editor is null)
         {
             return;
@@ -323,14 +330,32 @@ public sealed partial class MainPage : Page
         {
             if (_resizeHandle != ResizeHandle.None)
             {
-                _draft = ResizeAnnotation(_moving, _resizeHandle, point);
+                _draft = ResizeAnnotation(_moving, _resizeHandle, point, IsShiftHeld());
             }
             else
             {
                 Rect bounds = SelectionBounds(_moving);
                 ImageRect viewport = _editor.Current.Viewport;
-                double dx = ClampMovement(point.X - start.X, viewport.X - bounds.X, viewport.Right - bounds.Right);
-                double dy = ClampMovement(point.Y - start.Y, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom);
+                double dx = point.X - start.X;
+                double dy = point.Y - start.Y;
+                if (IsShiftHeld())
+                {
+                    if (_axisLockHorizontal is null && Math.Max(Math.Abs(dx), Math.Abs(dy)) >= 3 / _scale)
+                    {
+                        _axisLockHorizontal = Math.Abs(dx) >= Math.Abs(dy);
+                    }
+
+                    if (_axisLockHorizontal is true) dy = 0;
+                    else if (_axisLockHorizontal is false) dx = 0;
+                    else dx = dy = 0;
+                }
+                else
+                {
+                    _axisLockHorizontal = null;
+                }
+
+                dx = ClampMovement(dx, viewport.X - bounds.X, viewport.Right - bounds.Right);
+                dy = ClampMovement(dy, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom);
                 _draft = _moving with
                 {
                     Start = new(_moving.Start.X + dx, _moving.Start.Y + dy),
@@ -345,8 +370,11 @@ public sealed partial class MainPage : Page
         }
         else if (_tool == EditorTool.Crop)
         {
-            _crop = ImageRect.FromPoints(start, point);
-            ViewModel.Status = $"{_crop.Value.Width:0} × {_crop.Value.Height:0} px · Enter to crop · Esc to cancel";
+            if (Math.Max(Math.Abs(point.X - start.X), Math.Abs(point.Y - start.Y)) * _scale >= 4)
+            {
+                _crop = CropRectFromDrag(start, point);
+                UpdateCropInspector();
+            }
         }
         else if (_draft is not null)
         {
@@ -360,6 +388,12 @@ public sealed partial class MainPage : Page
 
     private void Canvas_PointerReleased(object sender, PointerRoutedEventArgs args)
     {
+        if (_panning)
+        {
+            EndCanvasPan(args);
+            return;
+        }
+
         if (_editor is null)
         {
             return;
@@ -381,6 +415,7 @@ public sealed partial class MainPage : Page
 
         _draft = null;
         _moving = null;
+        _axisLockHorizontal = null;
         _resizeHandle = ResizeHandle.None;
         _dragStart = null;
         DrawingCanvas.ReleasePointerCapture(args.Pointer);
@@ -389,6 +424,14 @@ public sealed partial class MainPage : Page
     }
 
     private void Canvas_PointerCanceled(object sender, PointerRoutedEventArgs args) => CancelInteraction();
+
+    private void Canvas_PointerCaptureLost(object sender, PointerRoutedEventArgs args)
+    {
+        if (_panning || _dragStart is not null)
+        {
+            CancelInteraction();
+        }
+    }
 
     private void Canvas_DoubleTapped(object sender, DoubleTappedRoutedEventArgs args)
     {
@@ -459,6 +502,10 @@ public sealed partial class MainPage : Page
             StepTextArgb = style.Secondary,
             StartArrow = style.StartArrow,
             EndArrow = style.EndArrow,
+            StartCap = style.StartCap,
+            EndCap = style.EndCap,
+            LinePattern = style.LinePattern,
+            StepLabelFormat = style.StepLabelFormat,
             RedactionMode = style.RedactionMode,
         };
     }
@@ -567,10 +614,12 @@ public sealed partial class MainPage : Page
 
     private void CancelInteraction()
     {
+        StopCanvasPan();
         CancelText();
         _draft = null;
         DisposeDragBase();
         _moving = null;
+        _axisLockHorizontal = null;
         _resizeHandle = ResizeHandle.None;
         _crop = null;
         _dragStart = null;
@@ -580,9 +629,25 @@ public sealed partial class MainPage : Page
 
     private void SetTool(EditorTool tool)
     {
+        if (tool == EditorTool.Arrow)
+        {
+            _toolStyles[EditorTool.Line].StartCap = LineEndCap.None;
+            _toolStyles[EditorTool.Line].EndCap = LineEndCap.Triangle;
+            _toolStyles[EditorTool.Line].LinePattern = LinePattern.Solid;
+            tool = EditorTool.Line;
+        }
+
         CommitText();
         CancelInteraction();
         _tool = tool;
+        if (tool == EditorTool.Crop && _editor is not null)
+        {
+            _crop = _editor.Current.Viewport;
+            if (ActiveCropRatio() > 0)
+            {
+                FitCurrentCropToRatio();
+            }
+        }
         if (tool != EditorTool.Select)
         {
             _selectedId = null;
@@ -597,6 +662,7 @@ public sealed partial class MainPage : Page
             : "Shapes";
         UpdateShapeButtonAppearance();
         UpdateInspector();
+        UpdateCropInspector();
         ViewModel.Status = ToolHint();
         DrawingCanvas.Invalidate();
     }
@@ -607,7 +673,7 @@ public sealed partial class MainPage : Page
         EditorTool.Text => "Click to type · Enter finishes",
         EditorTool.Step => "Click to place the next numbered step",
         EditorTool.Redaction => "Drag to obscure an area · Solid fully masks; blur and pixelate soften detail",
-        EditorTool.Crop => "Drag a crop · Enter confirms · Esc cancels",
+        EditorTool.Crop => "Drag or enter a crop · Pick a ratio · Enter confirms · Esc cancels",
         _ => $"Drag to draw a {_tool.ToString().ToLowerInvariant()}",
     };
 
@@ -648,7 +714,6 @@ public sealed partial class MainPage : Page
             ShapesTool.ClearValue(Control.ForegroundProperty);
         }
     }
-    private void LibrarySearch_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args) => FilterLibrary();
     private void Library_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         LibraryEntry? entry = args.InRecycleQueue ? null : args.Item as LibraryEntry;
@@ -720,9 +785,7 @@ public sealed partial class MainPage : Page
         }
         else if (args.Key == VirtualKey.Enter && _crop is ImageRect crop && crop.Width >= 1 && crop.Height >= 1)
         {
-            _crop = null;
-            _editor.ApplyCrop(crop);
-            SetTool(EditorTool.Select);
+            ApplyCurrentCrop();
             args.Handled = true;
         }
         else if (args.Key == VirtualKey.Delete && _selectedId is Guid id)
@@ -764,6 +827,7 @@ public sealed partial class MainPage : Page
     internal void ReleaseDocument()
     {
         CancelInteraction();
+        ResetCanvasView();
         if (_editor is not null)
         {
             _editor.Changed -= EditorChanged;

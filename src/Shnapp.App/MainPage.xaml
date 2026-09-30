@@ -14,6 +14,7 @@
         <KeyboardAccelerator Key="Z" Modifiers="Control" Invoked="UndoAccelerator_Invoked" />
         <KeyboardAccelerator Key="Y" Modifiers="Control" Invoked="RedoAccelerator_Invoked" />
         <KeyboardAccelerator Key="Z" Modifiers="Control,Shift" Invoked="RedoAccelerator_Invoked" />
+        <KeyboardAccelerator Key="F" Modifiers="Control" Invoked="FocusLibrarySearch_Invoked" />
     </Page.KeyboardAccelerators>
     <Grid KeyDown="Page_KeyDown">
         <Grid.RowDefinitions>
@@ -124,12 +125,8 @@
                     ToolTipService.ToolTip="Numbered step · N" AutomationProperties.AutomationId="ToolStep">
                     <AppBarToggleButton.Icon><FontIcon Glyph="&#xE8FD;" /></AppBarToggleButton.Icon>
                 </AppBarToggleButton>
-                <AppBarToggleButton x:Name="ArrowTool" Label="Arrow" Tag="Arrow" Click="Tool_Click"
-                    ToolTipService.ToolTip="Arrow · A" AutomationProperties.AutomationId="ToolArrow">
-                    <AppBarToggleButton.Icon><SymbolIcon Symbol="Forward" /></AppBarToggleButton.Icon>
-                </AppBarToggleButton>
                 <AppBarToggleButton x:Name="LineTool" Label="Line" Tag="Line" Click="Tool_Click"
-                    ToolTipService.ToolTip="Line · L" AutomationProperties.AutomationId="ToolLine">
+                    ToolTipService.ToolTip="Line and arrows · L (arrow preset A)" AutomationProperties.AutomationId="ToolLine">
                     <AppBarToggleButton.Icon><FontIcon Glyph="&#xE738;" /></AppBarToggleButton.Icon>
                 </AppBarToggleButton>
                 <AppBarButton x:Name="ShapesTool" Label="Shapes" Tag="Rectangle"
@@ -210,6 +207,8 @@
                         <canvas:CanvasControl x:Name="DrawingCanvas" Draw="Canvas_Draw" SizeChanged="Canvas_SizeChanged"
                             PointerPressed="Canvas_PointerPressed" PointerMoved="Canvas_PointerMoved"
                             PointerReleased="Canvas_PointerReleased" PointerCanceled="Canvas_PointerCanceled"
+                            PointerCaptureLost="Canvas_PointerCaptureLost"
+                            PointerWheelChanged="Canvas_PointerWheelChanged"
                             DoubleTapped="Canvas_DoubleTapped"
                             IsTabStop="True" AutomationProperties.Name="Shnapp annotation canvas"
                             AutomationProperties.AutomationId="ShnappCanvas" />
@@ -228,6 +227,34 @@
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                                 <Rectangle Height="1" Fill="{ThemeResource ControlStrokeColorDefaultBrush}" />
+                                <StackPanel x:Name="CropOptionsRow" Visibility="Collapsed" Spacing="12">
+                                    <TextBlock Text="Crop in pixels" FontWeight="SemiBold" />
+                                    <Grid ColumnSpacing="10" RowSpacing="10">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                        <NumberBox x:Name="CropXChoice" Header="X" Minimum="0" SmallChange="1" SpinButtonPlacementMode="Compact"
+                                            ValueChanged="CropNumber_Changed" Loaded="NumberBox_Loaded" />
+                                        <NumberBox x:Name="CropYChoice" Grid.Column="1" Header="Y" Minimum="0" SmallChange="1" SpinButtonPlacementMode="Compact"
+                                            ValueChanged="CropNumber_Changed" Loaded="NumberBox_Loaded" />
+                                        <NumberBox x:Name="CropWidthChoice" Grid.Row="1" Header="Width" Minimum="1" SmallChange="1" SpinButtonPlacementMode="Compact"
+                                            ValueChanged="CropNumber_Changed" Loaded="NumberBox_Loaded" />
+                                        <NumberBox x:Name="CropHeightChoice" Grid.Row="1" Grid.Column="1" Header="Height" Minimum="1" SmallChange="1" SpinButtonPlacementMode="Compact"
+                                            ValueChanged="CropNumber_Changed" Loaded="NumberBox_Loaded" />
+                                    </Grid>
+                                    <CheckBox x:Name="CropLockProportions" Content="Lock proportions" Click="CropLock_Click" />
+                                    <ComboBox x:Name="CropRatioChoice" Header="Aspect ratio" HorizontalAlignment="Stretch"
+                                        SelectedIndex="0" SelectionChanged="CropRatio_Changed">
+                                        <ComboBoxItem Content="Free" Tag="Free" />
+                                        <ComboBoxItem Content="1:1 · Square" Tag="1:1" />
+                                        <ComboBoxItem Content="9:16 · Portrait" Tag="9:16" />
+                                        <ComboBoxItem Content="16:9 · Wide" Tag="16:9" />
+                                        <ComboBoxItem Content="5:7 · Print" Tag="5:7" />
+                                        <ComboBoxItem Content="7:5 · Landscape" Tag="7:5" />
+                                        <ComboBoxItem Content="4:3 · Classic" Tag="4:3" />
+                                        <ComboBoxItem Content="3:2 · Photo" Tag="3:2" />
+                                    </ComboBox>
+                                    <Button Content="Apply crop" HorizontalAlignment="Stretch" Click="ApplyCrop_Click" />
+                                </StackPanel>
                                 <StackPanel x:Name="RedactionModeRow" Visibility="Collapsed">
                                     <ComboBox x:Name="RedactionModeChoice" Header="Mode" SelectedIndex="0"
                                         HorizontalAlignment="Stretch" SelectionChanged="Options_Changed">
@@ -276,7 +303,8 @@
                                 </StackPanel>
                                 <StackPanel x:Name="StrokeWidthRow" Visibility="Collapsed">
                                     <NumberBox x:Name="StrokeSize" Header="Line width (px)" Value="3" Minimum="1" Maximum="24"
-                                        SpinButtonPlacementMode="Compact" ValueChanged="NumberOption_Changed" />
+                                        SmallChange="1" SpinButtonPlacementMode="Compact" ValueChanged="NumberOption_Changed"
+                                        Loaded="NumberBox_Loaded" />
                                 </StackPanel>
                                 <StackPanel x:Name="FontFamilyRow" Visibility="Collapsed">
                                     <ComboBox x:Name="FontFamilyChoice" Header="Font" SelectedIndex="0"
@@ -303,24 +331,61 @@
                                 </StackPanel>
                                 <StackPanel x:Name="FontSizeRow" Visibility="Collapsed">
                                     <NumberBox x:Name="FontSizeChoice" Header="Text size (px)" Value="18" Minimum="8" Maximum="144"
-                                        SpinButtonPlacementMode="Compact" ValueChanged="NumberOption_Changed" />
+                                        SmallChange="1" SpinButtonPlacementMode="Compact" ValueChanged="NumberOption_Changed"
+                                        Loaded="NumberBox_Loaded" />
                                 </StackPanel>
                                 <StackPanel x:Name="StepSizeRow" Visibility="Collapsed">
                                     <NumberBox x:Name="StepSize" Header="Dot diameter (px)" Value="28" Minimum="16" Maximum="120"
-                                        SpinButtonPlacementMode="Compact" ValueChanged="NumberOption_Changed" />
+                                        SmallChange="1" SpinButtonPlacementMode="Compact" ValueChanged="NumberOption_Changed"
+                                        Loaded="NumberBox_Loaded" />
+                                </StackPanel>
+                                <StackPanel x:Name="StepLabelRow" Visibility="Collapsed" Spacing="8">
+                                    <ComboBox x:Name="StepLabelChoice" Header="Dot labels" SelectedIndex="0"
+                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed">
+                                        <ComboBoxItem Content="1, 2, 3" Tag="Decimal" />
+                                        <ComboBoxItem Content="A, B, C" Tag="UpperLetters" />
+                                        <ComboBoxItem Content="a, b, c" Tag="LowerLetters" />
+                                        <ComboBoxItem Content="I, II, III" Tag="UpperRoman" />
+                                        <ComboBoxItem Content="i, ii, iii" Tag="LowerRoman" />
+                                    </ComboBox>
+                                    <CheckBox x:Name="StepResetCount" Content="Restart count at this dot"
+                                        Click="Options_Changed" ToolTipService.ToolTip="Make this dot number one in a new sequence" />
                                 </StackPanel>
                                 <StackPanel x:Name="FillToggleRow" Visibility="Collapsed">
                                     <CheckBox x:Name="FillShape" Content="Fill shape" Click="Options_Changed" />
                                 </StackPanel>
                                 <StackPanel x:Name="FillOpacityRow" Visibility="Collapsed">
                                     <NumberBox x:Name="FillOpacityChoice" Header="Fill opacity (%)" Value="25"
-                                        Minimum="1" Maximum="100" SmallChange="5" SpinButtonPlacementMode="Compact"
-                                        ValueChanged="NumberOption_Changed" />
+                                        Minimum="1" Maximum="100" SmallChange="1" SpinButtonPlacementMode="Compact"
+                                        ValueChanged="NumberOption_Changed" Loaded="NumberBox_Loaded" />
                                 </StackPanel>
-                                <StackPanel x:Name="LineCapRow" Visibility="Collapsed" Spacing="2">
-                                    <TextBlock Text="Arrow ends" FontWeight="SemiBold" Margin="0,0,0,4" />
-                                    <CheckBox x:Name="StartArrow" Content="Start" Click="Options_Changed" />
-                                    <CheckBox x:Name="EndArrow" Content="End" Click="Options_Changed" />
+                                <StackPanel x:Name="LinePatternRow" Visibility="Collapsed">
+                                    <ComboBox x:Name="LinePatternChoice" Header="Line style" SelectedIndex="0"
+                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed">
+                                        <ComboBoxItem Content="Solid" Tag="Solid" />
+                                        <ComboBoxItem Content="Dashed" Tag="Dashed" />
+                                        <ComboBoxItem Content="Dotted" Tag="Dotted" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel x:Name="LineCapRow" Visibility="Collapsed" Spacing="10">
+                                    <ComboBox x:Name="StartCapChoice" Header="Start cap" SelectedIndex="0"
+                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed">
+                                        <ComboBoxItem Content="None" Tag="None" />
+                                        <ComboBoxItem Content="Triangle" Tag="Triangle" />
+                                        <ComboBoxItem Content="Open arrow" Tag="OpenArrow" />
+                                        <ComboBoxItem Content="Circle" Tag="Circle" />
+                                        <ComboBoxItem Content="Diamond" Tag="Diamond" />
+                                        <ComboBoxItem Content="Bar" Tag="Bar" />
+                                    </ComboBox>
+                                    <ComboBox x:Name="EndCapChoice" Header="End cap" SelectedIndex="0"
+                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed">
+                                        <ComboBoxItem Content="None" Tag="None" />
+                                        <ComboBoxItem Content="Triangle" Tag="Triangle" />
+                                        <ComboBoxItem Content="Open arrow" Tag="OpenArrow" />
+                                        <ComboBoxItem Content="Circle" Tag="Circle" />
+                                        <ComboBoxItem Content="Diamond" Tag="Diamond" />
+                                        <ComboBoxItem Content="Bar" Tag="Bar" />
+                                    </ComboBox>
                                 </StackPanel>
                             </StackPanel>
                         </ScrollViewer>
@@ -331,50 +396,120 @@
         <Grid Grid.Row="2" Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}" Padding="24">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <Grid Margin="0,0,0,20" ColumnSpacing="24">
+            <Grid Margin="0,0,0,20" ColumnSpacing="16">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel Spacing="4">
-                    <TextBlock Text="Library" FontFamily="Segoe UI Variable Display" FontSize="28" FontWeight="SemiBold" />
-                    <TextBlock Text="Your shnapps, saved here on this PC." Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="Library" FontFamily="Segoe UI Variable Display" FontSize="30" FontWeight="SemiBold" />
+                    <TextBlock x:Name="LibraryResultCount" Text="0 shnapps" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        AutomationProperties.LiveSetting="Polite" />
                 </StackPanel>
-                <AutoSuggestBox x:Name="LibrarySearch" Grid.Column="1" Width="240" PlaceholderText="Find a shnapp"
-                    TextChanged="LibrarySearch_TextChanged" AutomationProperties.Name="Search library" />
+                <Button x:Name="LibraryHeaderCapture" Grid.Column="1" Content="Capture a window" Tag="Window" Click="Capture_Click"
+                    Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Center" />
             </Grid>
-            <GridView x:Name="LibraryGrid" Grid.Row="1" ItemsSource="{x:Bind ViewModel.Library}"
-                SelectionMode="None" IsItemClickEnabled="True" ItemClick="Library_ItemClick"
-                ContainerContentChanging="Library_ContainerContentChanging"
-                AutomationProperties.Name="Saved shnapps" AutomationProperties.AutomationId="ShnappLibrary">
-                <GridView.ItemsPanel>
-                    <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate>
-                </GridView.ItemsPanel>
-                <GridView.ItemTemplate>
-                    <DataTemplate x:DataType="editor:LibraryEntry">
-                        <StackPanel Width="224" Margin="8" Spacing="8">
-                            <Grid Height="144" Background="{ThemeResource ShnappCanvasBrush}" CornerRadius="8">
-                                <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="8" />
-                            </Grid>
-                            <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextBlockStyle}"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        </StackPanel>
-                    </DataTemplate>
-                </GridView.ItemTemplate>
-            </GridView>
-            <StackPanel x:Name="LibraryEmpty" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
-                MaxWidth="420" Spacing="16">
-                <TextBlock x:Name="LibraryEmptyTitle" Text="Your shnapps will show up here." FontFamily="Segoe UI Variable Display"
-                    FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
-                <TextBlock x:Name="LibraryEmptyDescription" Text="Capture first. Think less." FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Button x:Name="LibraryEmptyCapture" Content="Shnapp a window" Tag="Window" Click="Capture_Click"
-                    Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Left" />
-                <StackPanel x:Name="LibraryEmptyShortcuts" Spacing="6">
-                    <TextBlock Text="Ctrl+Shift+4    Window" FontFamily="Cascadia Mono" FontSize="12" />
-                    <TextBlock Text="Ctrl+Shift+3    Full screen" FontFamily="Cascadia Mono" FontSize="12" />
-                    <TextBlock Text="Ctrl+Shift+2    Free form" FontFamily="Cascadia Mono" FontSize="12" />
+            <Grid Grid.Row="1" Margin="0,0,0,18" ColumnSpacing="16">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Grid MaxWidth="480" HorizontalAlignment="Stretch" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBox x:Name="LibrarySearch" PlaceholderText="Search title, date, or capture type"
+                        TextChanged="LibrarySearch_TextChanged" KeyDown="LibrarySearch_KeyDown"
+                        AutomationProperties.Name="Search library" AutomationProperties.AutomationId="LibrarySearch" />
+                    <Button x:Name="LibraryClearSearch" Grid.Column="1" Content="Clear" Click="LibraryClearSearch_Click"
+                        Visibility="Collapsed" AutomationProperties.Name="Clear library search" />
+                </Grid>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ComboBox x:Name="LibrarySizeChoice" Width="132" SelectedIndex="1"
+                        SelectionChanged="LibrarySize_SelectionChanged" AutomationProperties.Name="Grid thumbnail size">
+                        <ComboBoxItem Content="Small" />
+                        <ComboBoxItem Content="Medium" />
+                        <ComboBoxItem Content="Large" />
+                        <ComboBoxItem Content="Extra large" />
+                    </ComboBox>
+                    <ToggleButton x:Name="LibraryGridMode" Content="Grid" IsChecked="True" Click="LibraryGridMode_Click"
+                        MinWidth="64" AutomationProperties.Name="Grid view" AutomationProperties.AutomationId="LibraryGridMode" />
+                    <ToggleButton x:Name="LibraryListMode" Content="List" Click="LibraryListMode_Click"
+                        MinWidth="64" AutomationProperties.Name="List view" AutomationProperties.AutomationId="LibraryListMode" />
                 </StackPanel>
-            </StackPanel>
+            </Grid>
+            <Grid Grid.Row="2">
+                <GridView x:Name="LibraryGrid" ItemsSource="{x:Bind ViewModel.Library}"
+                    SelectionMode="None" IsItemClickEnabled="True" ItemClick="Library_ItemClick"
+                    ContainerContentChanging="Library_ContainerContentChanging"
+                    AutomationProperties.Name="Saved shnapps grid" AutomationProperties.AutomationId="ShnappLibrary">
+                    <GridView.ItemsPanel>
+                        <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </GridView.ItemsPanel>
+                    <GridView.ItemTemplate>
+                        <DataTemplate x:DataType="editor:LibraryEntry">
+                            <Border Width="{x:Bind CardWidth}" Margin="4" Padding="9"
+                                Background="{ThemeResource ShnappPanelBrush}" CornerRadius="12">
+                                <StackPanel Spacing="8">
+                                    <Grid Height="{x:Bind ThumbnailHeight}" Background="{ThemeResource ShnappCanvasBrush}" CornerRadius="8">
+                                        <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="6" />
+                                    </Grid>
+                                    <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                    <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextBlockStyle}"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </GridView.ItemTemplate>
+                </GridView>
+                <ListView x:Name="LibraryList" ItemsSource="{x:Bind ViewModel.Library}" Visibility="Collapsed"
+                    SelectionMode="None" IsItemClickEnabled="True" ItemClick="Library_ItemClick"
+                    ContainerContentChanging="Library_ContainerContentChanging"
+                    AutomationProperties.Name="Saved shnapps list" AutomationProperties.AutomationId="ShnappLibraryList">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="editor:LibraryEntry">
+                            <Grid Height="78" Padding="6" ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="104" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid Background="{ThemeResource ShnappCanvasBrush}" CornerRadius="6">
+                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="4" />
+                                </Grid>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                                    <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextBlockStyle}"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{x:Bind CaptureType}" VerticalAlignment="Center"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="16,0,8,0" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+                <ScrollViewer x:Name="LibraryEmpty" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                <Border MaxWidth="500" Margin="8" Padding="40,32"
+                    Background="{ThemeResource ShnappPanelBrush}" CornerRadius="18">
+                    <StackPanel HorizontalAlignment="Center" Spacing="16">
+                        <Image x:Name="LibraryEmptyLogo" Source="ms-appx:///Assets/ShnappLogo.png" Width="220" Height="66"
+                            Stretch="Uniform" HorizontalAlignment="Center" AutomationProperties.Name="Shnapp logo" />
+                        <FontIcon x:Name="LibraryNoResultsIcon" Glyph="&#xE721;" FontSize="48" Visibility="Collapsed"
+                            HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock x:Name="LibraryEmptyTitle" Text="Your first shnapp starts here" FontFamily="Segoe UI Variable Display"
+                            FontSize="26" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" />
+                        <TextBlock x:Name="LibraryEmptyDescription" Text="Capture a window or region. Your shnapps will be saved here, ready to revisit."
+                            FontSize="15" TextWrapping="Wrap" TextAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button x:Name="LibraryEmptyCapture" Content="Capture a window" Tag="Window" Click="Capture_Click"
+                            Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" />
+                        <Button x:Name="LibraryEmptyClear" Content="Clear search" Click="LibraryClearSearch_Click"
+                            HorizontalAlignment="Center" Visibility="Collapsed" />
+                        <StackPanel x:Name="LibraryEmptyShortcuts" Spacing="6" HorizontalAlignment="Center">
+                            <TextBlock Text="Ctrl+Shift+4    Window" FontFamily="Cascadia Mono" FontSize="12" />
+                            <TextBlock Text="Ctrl+Shift+3    Full screen" FontFamily="Cascadia Mono" FontSize="12" />
+                            <TextBlock Text="Ctrl+Shift+2    Region" FontFamily="Cascadia Mono" FontSize="12" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+                </ScrollViewer>
+            </Grid>
         </Grid>
         <Grid Grid.Row="3" Padding="20,8" ColumnSpacing="16">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>

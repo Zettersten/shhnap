@@ -1,15 +1,20 @@
+using Microsoft.UI.Input;
 using Microsoft.Graphics.Canvas.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Shnapp.App.Editor;
 using Shnapp.Core;
+using Windows.System;
 using Windows.UI;
 
 namespace Shnapp.App;
 
 public sealed partial class MainPage
 {
+    private readonly Dictionary<TextBox, NumberBox> _numberBoxInputs = [];
+
     private void InitializeFontFamilies()
     {
         IReadOnlyList<string> installed;
@@ -46,8 +51,7 @@ public sealed partial class MainPage
     {
         AnnotationKind.Text => EditorTool.Text,
         AnnotationKind.Step => EditorTool.Step,
-        AnnotationKind.Arrow => EditorTool.Arrow,
-        AnnotationKind.Line when annotation.EndArrow => EditorTool.Arrow,
+        AnnotationKind.Arrow => EditorTool.Line,
         AnnotationKind.Line => EditorTool.Line,
         AnnotationKind.Rectangle => EditorTool.Rectangle,
         AnnotationKind.Ellipse => EditorTool.Ellipse,
@@ -81,6 +85,10 @@ public sealed partial class MainPage
             FillOpacity = selected.FillArgb == 0 ? defaults.FillOpacity : Math.Round((selected.FillArgb >> 24) * 100.0 / 255),
             StartArrow = selected.StartArrow,
             EndArrow = selected.EndArrow || selected.Kind == AnnotationKind.Arrow,
+            StartCap = selected.EffectiveStartCap,
+            EndCap = selected.EffectiveEndCap,
+            LinePattern = selected.LinePattern,
+            StepLabelFormat = selected.StepLabelFormat,
             RedactionMode = selected.RedactionMode,
         };
     }
@@ -105,7 +113,7 @@ public sealed partial class MainPage
         _updatingOptions = true;
         InspectorTitle.Text = redaction
             ? selected is null ? RedactionModeLabel(style.RedactionMode) : $"Selected {RedactionModeLabel(style.RedactionMode).ToLowerInvariant()}"
-            : selected is null ? tool.ToString() : $"Selected {selected.Kind.ToString().ToLowerInvariant()}";
+            : selected is null ? tool.ToString() : line ? "Selected line" : $"Selected {selected.Kind.ToString().ToLowerInvariant()}";
         InspectorHelp.Text = redaction
             ? selected is null
                 ? "Drag to apply. Cover fully hides pixels in shared images; blur and pixelate obscure them."
@@ -123,9 +131,11 @@ public sealed partial class MainPage
         ItalicRow.Visibility = Visible(text);
         FontSizeRow.Visibility = Visible(text || step);
         StepSizeRow.Visibility = Visible(step);
+        StepLabelRow.Visibility = Visible(step);
         FillToggleRow.Visibility = Visible(shape);
         FillOpacityRow.Visibility = Visible(shape);
         LineCapRow.Visibility = Visible(line);
+        LinePatternRow.Visibility = Visible(line);
 
         PrimaryColorLabel.Text = tool switch
         {
@@ -149,8 +159,12 @@ public sealed partial class MainPage
         FillShape.IsChecked = style.FillShape;
         FillOpacityChoice.IsEnabled = style.FillShape;
         ItalicText.IsChecked = style.Italic;
-        StartArrow.IsChecked = style.StartArrow;
-        EndArrow.IsChecked = style.EndArrow;
+        StepResetCount.IsChecked = selected?.StepReset == true;
+        StepResetCount.IsEnabled = selected?.Kind == AnnotationKind.Step;
+        SelectComboValue(StepLabelChoice, style.StepLabelFormat.ToString());
+        SelectComboValue(StartCapChoice, style.StartCap.ToString());
+        SelectComboValue(EndCapChoice, style.EndCap.ToString());
+        SelectComboValue(LinePatternChoice, style.LinePattern.ToString());
         SelectComboValue(RedactionModeChoice, style.RedactionMode.ToString());
         SelectComboValue(FontFamilyChoice, style.FontFamily);
         SelectComboValue(FontWeightChoice, style.FontWeight.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -206,6 +220,17 @@ public sealed partial class MainPage
             style.StepDiameter = Math.Clamp(FiniteValue(StepSize.Value, 28), 16, 120);
             UpdateSelected(annotation => annotation with { StepDiameter = style.StepDiameter });
         }
+        else if (ReferenceEquals(sender, StepLabelChoice) &&
+            StepLabelChoice.SelectedItem is ComboBoxItem labelChoice &&
+            Enum.TryParse(labelChoice.Tag?.ToString(), out StepLabelFormat labelFormat))
+        {
+            style.StepLabelFormat = labelFormat;
+            UpdateSelected(annotation => annotation with { StepLabelFormat = labelFormat });
+        }
+        else if (ReferenceEquals(sender, StepResetCount))
+        {
+            UpdateSelected(annotation => annotation with { StepReset = StepResetCount.IsChecked == true });
+        }
         else if (ReferenceEquals(sender, FontFamilyChoice) && FontFamilyChoice.SelectedItem is ComboBoxItem family)
         {
             style.FontFamily = family.Tag?.ToString() ?? family.Content?.ToString() ?? style.FontFamily;
@@ -230,16 +255,32 @@ public sealed partial class MainPage
             uint fill = style.FillShape ? WithOpacity(current.Secondary, style.FillOpacity) : 0;
             UpdateSelected(annotation => annotation with { FillArgb = fill });
         }
-        else if (ReferenceEquals(sender, StartArrow) || ReferenceEquals(sender, EndArrow))
+        else if (ReferenceEquals(sender, StartCapChoice) || ReferenceEquals(sender, EndCapChoice))
         {
-            style.StartArrow = StartArrow.IsChecked == true;
-            style.EndArrow = EndArrow.IsChecked == true;
-            UpdateSelected(annotation => annotation with
+            if (StartCapChoice is not null && EndCapChoice is not null &&
+                StartCapChoice.SelectedItem is ComboBoxItem startCapChoice &&
+                EndCapChoice.SelectedItem is ComboBoxItem endCapChoice &&
+                Enum.TryParse(startCapChoice.Tag?.ToString(), out LineEndCap startCap) &&
+                Enum.TryParse(endCapChoice.Tag?.ToString(), out LineEndCap endCap))
             {
-                Kind = AnnotationKind.Line,
-                StartArrow = style.StartArrow,
-                EndArrow = style.EndArrow,
-            });
+                style.StartCap = startCap;
+                style.EndCap = endCap;
+                UpdateSelected(annotation => annotation with
+                {
+                    Kind = AnnotationKind.Line,
+                    StartArrow = false,
+                    EndArrow = false,
+                    StartCap = startCap,
+                    EndCap = endCap,
+                });
+            }
+        }
+        else if (ReferenceEquals(sender, LinePatternChoice) &&
+            LinePatternChoice.SelectedItem is ComboBoxItem patternChoice &&
+            Enum.TryParse(patternChoice.Tag?.ToString(), out LinePattern pattern))
+        {
+            style.LinePattern = pattern;
+            UpdateSelected(annotation => annotation with { LinePattern = pattern });
         }
         else if (ReferenceEquals(sender, RedactionModeChoice) &&
             RedactionModeChoice.SelectedItem is ComboBoxItem modeChoice &&
@@ -252,6 +293,64 @@ public sealed partial class MainPage
                 UpdateInspector();
             }
         }
+    }
+
+    private void NumberBox_Loaded(object sender, RoutedEventArgs args)
+    {
+        if (sender is not NumberBox number)
+        {
+            return;
+        }
+
+        number.ApplyTemplate();
+        if (FindNumberInput(number) is TextBox input && _numberBoxInputs.TryAdd(input, number))
+        {
+            input.AddHandler(UIElement.PointerWheelChangedEvent,
+                new PointerEventHandler(NumberInput_PointerWheelChanged), true);
+        }
+    }
+
+    private static TextBox? FindNumberInput(DependencyObject root)
+    {
+        if (root is TextBox { Name: "InputBox" } input)
+        {
+            return input;
+        }
+
+        for (int index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            if (FindNumberInput(VisualTreeHelper.GetChild(root, index)) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private void NumberInput_PointerWheelChanged(object sender, PointerRoutedEventArgs args)
+    {
+        if (sender is not TextBox input || input.FocusState == FocusState.Unfocused ||
+            !_numberBoxInputs.TryGetValue(input, out NumberBox? number) || !number.IsEnabled)
+        {
+            return;
+        }
+
+        int delta = args.GetCurrentPoint(input).Properties.MouseWheelDelta;
+        if (delta == 0)
+        {
+            return;
+        }
+
+        bool shift = (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift) &
+            global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
+        double minimum = double.IsFinite(number.Minimum) ? Math.Max(0, number.Minimum) : 0;
+        double maximum = double.IsFinite(number.Maximum) ? Math.Max(minimum, number.Maximum) : double.MaxValue;
+        double current = double.IsFinite(number.Value) ? number.Value : minimum;
+        int notches = Math.Max(1, (int)Math.Round(Math.Abs((double)delta) / 120,
+            MidpointRounding.AwayFromZero));
+        number.Value = Math.Clamp(current + Math.Sign(delta) * notches * (shift ? 10 : 1), minimum, maximum);
+        args.Handled = true;
     }
 
     private void HandleColorChanged(ColorPicker sender, Color color, bool commitSelected)

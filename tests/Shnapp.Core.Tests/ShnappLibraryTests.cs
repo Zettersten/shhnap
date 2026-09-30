@@ -133,6 +133,11 @@ public sealed class ShnappLibraryTests
             annotation.Remove("endArrow");
             annotation.Remove("stepTextArgb");
             annotation.Remove("redactionMode");
+            annotation.Remove("startCap");
+            annotation.Remove("endCap");
+            annotation.Remove("linePattern");
+            annotation.Remove("stepLabelFormat");
+            annotation.Remove("stepReset");
         }
         await File.WriteAllTextAsync(path, root.ToJsonString());
 
@@ -142,6 +147,10 @@ public sealed class ShnappLibraryTests
         Assert.AreEqual(AnnotationKind.Arrow, opened.Annotations[0].Kind);
         Assert.IsFalse(opened.Annotations[0].StartArrow);
         Assert.IsFalse(opened.Annotations[0].EndArrow);
+        Assert.AreEqual(LineEndCap.Triangle, opened.Annotations[0].EffectiveEndCap);
+        Assert.AreEqual(LinePattern.Solid, opened.Annotations[0].LinePattern);
+        Assert.AreEqual(StepLabelFormat.Decimal, opened.Annotations[1].StepLabelFormat);
+        Assert.IsFalse(opened.Annotations[1].StepReset);
         Assert.AreEqual(0u, opened.Annotations[1].StepTextArgb);
         Assert.AreEqual(0x40E5484Du, opened.Annotations[1].FillArgb);
         Assert.AreEqual(RedactionMode.Solid, opened.Annotations[2].RedactionMode);
@@ -166,6 +175,40 @@ public sealed class ShnappLibraryTests
         using JsonDocument json = JsonDocument.Parse(await File.ReadAllTextAsync(temporary.GetMetadataPath(document.Id)));
         Assert.AreEqual(mode.ToString(), json.RootElement.GetProperty("annotations")[0]
             .GetProperty("redactionMode").GetString());
+    }
+
+    [TestMethod]
+    public async Task LineAndStepStylesRemainEditableAfterSaving()
+    {
+        using var temporary = new TemporaryLibrary();
+        ShnappDocument document = TestDocuments.Create() with
+        {
+            Annotations =
+            [
+                TestDocuments.Annotation(AnnotationKind.Line) with
+                {
+                    StartCap = LineEndCap.Circle,
+                    EndCap = LineEndCap.Triangle,
+                    LinePattern = LinePattern.Dashed,
+                },
+                TestDocuments.Annotation(AnnotationKind.Step) with
+                {
+                    StepNumber = 1,
+                    StepLabelFormat = StepLabelFormat.UpperRoman,
+                    StepReset = true,
+                },
+            ],
+        };
+
+        await temporary.Library.SaveAsync(document);
+        ShnappDocument? reopened = await temporary.Library.OpenAsync(document.Id);
+
+        Assert.IsNotNull(reopened);
+        Assert.AreEqual(LineEndCap.Circle, reopened.Annotations[0].StartCap);
+        Assert.AreEqual(LineEndCap.Triangle, reopened.Annotations[0].EndCap);
+        Assert.AreEqual(LinePattern.Dashed, reopened.Annotations[0].LinePattern);
+        Assert.AreEqual(StepLabelFormat.UpperRoman, reopened.Annotations[1].StepLabelFormat);
+        Assert.IsTrue(reopened.Annotations[1].StepReset);
     }
 
     [TestMethod]

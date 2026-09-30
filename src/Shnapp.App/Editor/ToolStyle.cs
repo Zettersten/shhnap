@@ -17,6 +17,10 @@ internal sealed class ToolStyle
     internal double FillOpacity { get; set; } = 25;
     internal bool StartArrow { get; set; }
     internal bool EndArrow { get; set; }
+    internal LineEndCap StartCap { get; set; }
+    internal LineEndCap EndCap { get; set; }
+    internal LinePattern LinePattern { get; set; }
+    internal StepLabelFormat StepLabelFormat { get; set; }
     internal RedactionMode RedactionMode { get; set; } = RedactionMode.Solid;
 
     internal static ToolStyle Defaults(EditorTool tool) => new()
@@ -29,6 +33,6 @@ internal sealed class ToolStyle
         },
         Secondary = tool == EditorTool.Step ? 0xFFFFFFFF : 0xFFE5484D,
         FontSize = tool == EditorTool.Step ? 13 : 18,
-        EndArrow = tool == EditorTool.Arrow,
+        EndCap = tool == EditorTool.Arrow ? LineEndCap.Triangle : LineEndCap.None,
     };
 }

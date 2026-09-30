@@ -14,7 +14,7 @@
 
 Shnapp waits quietly in your tray until you need it. Capture part of your screen, add a little context, then copy the finished image or save a PNG. Every capture is a **shnapp**; making one is **shnapping**.
 
-![The Shnapp editor with a captured sample window, numbered steps, an arrow, text, and an opaque redaction](src/Shnapp.Site/public/screenshots/editor.png)
+![The Shnapp editor with a captured sample window, numbered steps, and a selected dotted line with its settings](src/Shnapp.Site/public/screenshots/editor.png)
 
 *A real Shnapp editor session. Your capture stays in view while the tools stay close.*
 
@@ -27,23 +27,24 @@ Shnapp waits quietly in your tray until you need it. Capture part of your screen
 | `Ctrl+Shift+2` | A region you drag out |
 
 You can start any capture from the tray icon or **New shnapp** in the app, too. Region capture currently uses a rectangle; a drawn free-form selection is on the [roadmap](ROADMAP.md).
+The grabber shows a crosshair and live X, Y, width, and height in pixels as you drag.
 
 ## Explain it in a few clicks
 
 The editor gives your capture room to breathe. Place a mark and it stays selected: changes in the side panel update that mark right away. Select an earlier mark to adjust it, or drag its handles to resize it. When nothing is selected, your choices set up the next mark.
 
 - **Text:** choose a font, weight, italic style, size, and color. Double-click placed text to rewrite it.
-- **Steps:** place numbered dots and set the dot size and color, plus the number's font, weight, and color.
-- **Lines and shapes:** add lines with arrowheads at either end, or draw rectangles, squares, ellipses, and circles. Adjust outlines, thickness, and shape fills.
+- **Steps:** place dots labeled with numbers, letters, or Roman numerals. Restart the count at any dot, and adjust its size, colors, font, and weight.
+- **Lines and shapes:** use one line tool for solid, dashed, or dotted strokes. Choose a cap for either end: triangle, open arrow, circle, diamond, bar, or none. Draw rectangles, squares, ellipses, and circles with adjustable outlines and fills.
 - **Privacy:** choose Cover, Blur, or Pixelate for a rectangular area. Use opaque Cover for sensitive details; Blur and Pixelate only obscure the view.
 
-Crop, move and resize annotations, and undo or redo as you go. Window captures get a soft drop shadow by default.
+Crop with exact X, Y, width, and height values, lock proportions, or pick a ratio such as 1:1, 9:16, or 5:7. Scroll the canvas to zoom; hold Space and drag to pan with a short, gentle glide. Hold Shift while moving a mark to keep it on one axis, or while resizing to keep its proportions. Click a number field, then scroll to change it by one; hold Shift for ten. Undo or redo as you go. Window captures get a soft drop shadow by default.
 
 When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboard, **Save PNG** (`Ctrl+S`) lets you choose where to export it, and **Done** returns Shnapp to the tray.
 
 ## Find it again
 
-Shnapp keeps your captures in a local library, ready to search and reopen for more editing. Opt in to starting at sign-in if you want Shnapp waiting in the tray whenever Windows starts.
+Shnapp keeps your captures in a local library, ready to search by title, date, or capture type and reopen for more editing. Browse as a list or choose small, medium, large, or extra-large thumbnail grids. When the library is empty, a getting-started view helps you take the first shnapp. Opt in to starting at sign-in if you want Shnapp waiting in the tray whenever Windows starts.
 
 ![The Shnapp library showing three locally saved captures with preview thumbnails, dates, and dimensions](src/Shnapp.Site/public/screenshots/library.png)
 

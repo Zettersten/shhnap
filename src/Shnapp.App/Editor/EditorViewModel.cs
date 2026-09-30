@@ -60,14 +60,31 @@ public sealed class LibraryEntry
     /// <summary>Gets the decoded-size-limited local preview.</summary>
     public BitmapImage Preview { get; }
 
+    /// <summary>Gets the width of this entry in the selected grid layout.</summary>
+    public double CardWidth { get; }
+
+    /// <summary>Gets the thumbnail height in the selected grid layout.</summary>
+    public double ThumbnailHeight { get; }
+
+    /// <summary>Gets the capture type shown in list view.</summary>
+    public string CaptureType { get; }
+
     /// <summary>Creates a library presentation entry without loading the original image.</summary>
     /// <param name="document">The validated local metadata.</param>
     /// <param name="previewPath">The absolute PNG preview path.</param>
-    public LibraryEntry(ShnappDocument document, string previewPath)
+    public LibraryEntry(ShnappDocument document, string previewPath, double cardWidth = 224, double thumbnailHeight = 144)
     {
         Id = document.Id;
         Title = document.Title;
+        CaptureType = document.CaptureKind switch
+        {
+            CaptureKind.Window => "Window",
+            CaptureKind.FullScreen => "Full screen",
+            _ => "Region",
+        };
         Detail = $"{document.CreatedAt.ToLocalTime():MMM d · HH:mm}   {document.Viewport.Width:0} × {document.Viewport.Height:0}";
+        CardWidth = cardWidth;
+        ThumbnailHeight = thumbnailHeight;
         Preview = new BitmapImage { DecodePixelWidth = 384 };
         if (File.Exists(previewPath))
         {

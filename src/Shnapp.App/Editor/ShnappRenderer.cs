@@ -156,9 +156,12 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                 drawing.DrawCircle(start, radius, Colors.White, 2);
                 using (CanvasTextFormat format = TextFormat(annotation))
                 {
+                    string label = StepLabels.Format(annotation.StepNumber, annotation.StepLabelFormat);
+                    format.FontSize = Math.Min(format.FontSize,
+                        (float)Math.Max(5, (annotation.StepDiameter - 6) / Math.Max(1, label.Length * 0.62)));
                     format.HorizontalAlignment = CanvasHorizontalAlignment.Center;
                     format.VerticalAlignment = CanvasVerticalAlignment.Center;
-                    drawing.DrawText(annotation.StepNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    drawing.DrawText(label,
                         new Rect(start.X - radius, start.Y - radius, radius * 2, radius * 2),
                         annotation.StepTextArgb == 0 ? Colors.White : FromArgb(annotation.StepTextArgb), format);
                 }
@@ -166,23 +169,27 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                 break;
             case AnnotationKind.Line:
             case AnnotationKind.Arrow:
-                using (var style = new CanvasStrokeStyle { StartCap = CanvasCapStyle.Round, EndCap = CanvasCapStyle.Round })
+                if (annotation.LinePattern == LinePattern.Dotted)
                 {
+                    DrawDottedLine(drawing, start, end, stroke, width);
+                }
+                else
+                {
+                    using var style = new CanvasStrokeStyle
+                    {
+                        StartCap = CanvasCapStyle.Flat,
+                        EndCap = CanvasCapStyle.Flat,
+                        DashStyle = annotation.LinePattern == LinePattern.Dashed
+                            ? CanvasDashStyle.Dash : CanvasDashStyle.Solid,
+                    };
                     drawing.DrawLine(start, end, stroke, width, style);
                 }
 
                 if (Vector2.Distance(start, end) > 1)
                 {
                     Vector2 direction = Vector2.Normalize(end - start);
-                    if (annotation.StartArrow)
-                    {
-                        DrawArrowHead(drawing, start, -direction, width, stroke);
-                    }
-
-                    if (annotation.Kind == AnnotationKind.Arrow || annotation.EndArrow)
-                    {
-                        DrawArrowHead(drawing, end, direction, width, stroke);
-                    }
+                    DrawLineEndCap(drawing, start, -direction, width, stroke, annotation.EffectiveStartCap);
+                    DrawLineEndCap(drawing, end, direction, width, stroke, annotation.EffectiveEndCap);
                 }
 
                 break;
@@ -267,18 +274,80 @@ internal sealed class ShnappRenderer(CanvasDevice device)
             1, CanvasImageInterpolation.NearestNeighbor);
     }
 
-    private static void DrawArrowHead(CanvasDrawingSession drawing, Vector2 tip, Vector2 direction,
-        float strokeWidth, Color color)
+    private static void DrawDottedLine(CanvasDrawingSession drawing, Vector2 start, Vector2 end,
+        Color color, float width)
     {
-        Vector2 perpendicular = new(-direction.Y, direction.X);
-        float head = Math.Max(10, strokeWidth * 3.5f);
+        Vector2 delta = end - start;
+        float length = delta.Length();
+        if (length <= 0)
+        {
+            return;
+        }
+
+        int intervals = Math.Max(1, (int)Math.Floor(length / Math.Max(4, width * 2.6f)));
+        float radius = Math.Max(0.75f, width / 2);
+        for (int index = 0; index <= intervals; index++)
+        {
+            drawing.FillCircle(start + delta * (index / (float)intervals), radius, color);
+        }
+    }
+
+    private static void DrawLineEndCap(CanvasDrawingSession drawing, Vector2 anchor, Vector2 outward,
+        float strokeWidth, Color color, LineEndCap cap)
+    {
+        if (cap == LineEndCap.None)
+        {
+            return;
+        }
+
+        Vector2 perpendicular = new(-outward.Y, outward.X);
+        float length = Math.Max(10, strokeWidth * 3.5f);
+        float halfWidth = length * 0.45f;
+        switch (cap)
+        {
+            case LineEndCap.Triangle:
+                FillPolygon(drawing, color,
+                    anchor + perpendicular * halfWidth,
+                    anchor + outward * length,
+                    anchor - perpendicular * halfWidth);
+                break;
+            case LineEndCap.OpenArrow:
+                drawing.DrawLine(anchor + perpendicular * halfWidth,
+                    anchor + outward * length, color, Math.Max(1, strokeWidth));
+                drawing.DrawLine(anchor - perpendicular * halfWidth,
+                    anchor + outward * length, color, Math.Max(1, strokeWidth));
+                break;
+            case LineEndCap.Circle:
+                float radius = length * 0.38f;
+                drawing.FillCircle(anchor + outward * radius, radius, color);
+                break;
+            case LineEndCap.Diamond:
+                float depth = length * 0.48f;
+                FillPolygon(drawing, color,
+                    anchor,
+                    anchor + outward * depth + perpendicular * depth,
+                    anchor + outward * (depth * 2),
+                    anchor + outward * depth - perpendicular * depth);
+                break;
+            case LineEndCap.Bar:
+                drawing.DrawLine(anchor + perpendicular * halfWidth,
+                    anchor - perpendicular * halfWidth, color, Math.Max(1, strokeWidth));
+                break;
+        }
+    }
+
+    private static void FillPolygon(CanvasDrawingSession drawing, Color color, params Vector2[] points)
+    {
         using var path = new CanvasPathBuilder(drawing);
-        path.BeginFigure(tip);
-        path.AddLine(tip - direction * head + perpendicular * head * 0.45f);
-        path.AddLine(tip - direction * head - perpendicular * head * 0.45f);
+        path.BeginFigure(points[0]);
+        foreach (Vector2 point in points.AsSpan(1))
+        {
+            path.AddLine(point);
+        }
+
         path.EndFigure(CanvasFigureLoop.Closed);
-        using CanvasGeometry triangle = CanvasGeometry.CreatePath(path);
-        drawing.FillGeometry(triangle, color);
+        using CanvasGeometry polygon = CanvasGeometry.CreatePath(path);
+        drawing.FillGeometry(polygon, color);
     }
 
     internal static Rect TextBounds(Annotation annotation) => new(annotation.Start.X, annotation.Start.Y,

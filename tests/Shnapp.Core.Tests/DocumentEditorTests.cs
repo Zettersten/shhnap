@@ -192,6 +192,39 @@ public sealed class DocumentEditorTests
     }
 
     [TestMethod]
+    public void ResetStepRestartsSequenceAndRenumbersLaterDotsOnUndo()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation first = TestDocuments.Annotation(AnnotationKind.Step);
+        Annotation second = TestDocuments.Annotation(AnnotationKind.Step);
+        Annotation third = TestDocuments.Annotation(AnnotationKind.Step);
+        editor.AddAnnotation(first);
+        editor.AddAnnotation(second);
+        editor.AddAnnotation(third);
+        AssertStepNumbers(editor, 1, 2, 3);
+
+        editor.UpdateAnnotation(editor.Current.Annotations[1] with { StepReset = true });
+        AssertStepNumbers(editor, 1, 1, 2);
+        Assert.IsTrue(editor.Undo());
+        AssertStepNumbers(editor, 1, 2, 3);
+        Assert.IsTrue(editor.Redo());
+        AssertStepNumbers(editor, 1, 1, 2);
+        editor.RemoveAnnotation(second.Id);
+        AssertStepNumbers(editor, 1, 2);
+    }
+
+    [TestMethod]
+    public void LetterAndRomanLabelsHandleSequenceBoundaries()
+    {
+        Assert.AreEqual("1", StepLabels.Format(1, StepLabelFormat.Decimal));
+        Assert.AreEqual("Z", StepLabels.Format(26, StepLabelFormat.UpperLetters));
+        Assert.AreEqual("aa", StepLabels.Format(27, StepLabelFormat.LowerLetters));
+        Assert.AreEqual("CMXLIV", StepLabels.Format(944, StepLabelFormat.UpperRoman));
+        Assert.AreEqual("xiv", StepLabels.Format(14, StepLabelFormat.LowerRoman));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => StepLabels.Format(0, StepLabelFormat.Decimal));
+    }
+
+    [TestMethod]
     public void ChangingAnnotationKindsKeepsStepsNumberedInDocumentOrder()
     {
         Annotation shape = TestDocuments.Annotation();
@@ -356,6 +389,11 @@ public sealed class DocumentEditorTests
             valid with { Id = Guid.Empty },
             valid with { Kind = (AnnotationKind)99 },
             valid with { RedactionMode = (RedactionMode)99 },
+            valid with { StartCap = (LineEndCap)99 },
+            valid with { EndCap = (LineEndCap)99 },
+            valid with { LinePattern = (LinePattern)99 },
+            valid with { StepLabelFormat = (StepLabelFormat)99 },
+            valid with { StepReset = true },
             valid with { Start = new ImagePoint(double.NaN, 1) },
             valid with { Start = new ImagePoint(1, double.PositiveInfinity) },
             valid with { Start = new ImagePoint(-1, 0) },
