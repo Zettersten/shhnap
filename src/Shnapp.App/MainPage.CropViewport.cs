@@ -27,6 +27,11 @@ public sealed partial class MainPage
     private bool? _axisLockHorizontal;
     private bool _updatingCropOptions;
     private double _cropAspectRatio;
+    private bool _cropCanMove;
+    private bool _cropCanMoveAtDragStart;
+    private bool _movingCrop;
+    private bool _cropDragChanged;
+    private ImageRect? _cropAtDragStart;
 
     private static bool IsKeyHeld(VirtualKey key) =>
         (InputKeyboardSource.GetKeyStateForCurrentThread(key) &
@@ -72,6 +77,7 @@ public sealed partial class MainPage
         _offsetY = pointer.Y - imageY * next;
         ClampCanvasPan();
         DrawingCanvas.Invalidate();
+        UpdateCropHover(pointer);
         ViewModel.Status = $"Zoom {_scale * 100:0}% · Space + drag to pan";
         args.Handled = true;
     }
@@ -85,6 +91,7 @@ public sealed partial class MainPage
         _panLastSample = DateTimeOffset.UtcNow;
         _panLastMovement = _panLastSample;
         _panVelocity = Vector2.Zero;
+        HideCropTip();
         DrawingCanvas.Focus(FocusState.Programmatic);
         DrawingCanvas.CapturePointer(args.Pointer);
         args.Handled = true;
@@ -157,6 +164,103 @@ public sealed partial class MainPage
         _panTimer?.Stop();
         _panning = false;
         _panVelocity = Vector2.Zero;
+    }
+
+    private void Canvas_PointerEntered(object sender, PointerRoutedEventArgs args) =>
+        UpdateCropHover(args.GetCurrentPoint(DrawingCanvas).Position);
+
+    private void Canvas_PointerExited(object sender, PointerRoutedEventArgs args)
+    {
+        if (_dragStart is null)
+        {
+            HideCropTip();
+        }
+    }
+
+    private void HideCropTip()
+    {
+        if (CropTip is not null)
+        {
+            CropTip.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void UpdateCropCursor(bool moving)
+    {
+        CanvasHost.SetCropCursor(_tool == EditorTool.Crop, moving);
+    }
+
+    private void UpdateCropHover(Point canvasPosition, ImagePoint? knownPoint = null)
+    {
+        if (_tool != EditorTool.Crop || _editor is null || _panning || CropTip is null)
+        {
+            HideCropTip();
+            return;
+        }
+
+        ImagePoint? imagePoint = knownPoint ?? ImagePosition(canvasPosition);
+        if (imagePoint is not ImagePoint point)
+        {
+            HideCropTip();
+            UpdateCropCursor(false);
+            return;
+        }
+
+        bool moving = _movingCrop || (_dragStart is null && _cropCanMove &&
+            _crop is ImageRect selectable && selectable.Contains(point));
+        UpdateCropCursor(moving);
+
+        ImageRect? preview = _dragStart is ImagePoint dragStart && !_movingCrop && !_cropDragChanged
+            ? new ImageRect(Math.Round(dragStart.X), Math.Round(dragStart.Y), 0, 0)
+            : _cropCanMove ? _crop : null;
+        ImagePoint origin = preview is ImageRect crop ? new(crop.X, crop.Y) : point;
+        CropPositionTip.Text = $"X {origin.X:0}   Y {origin.Y:0}";
+        CropSizeTip.Text = preview is ImageRect area
+            ? $"W {area.Width:0}   H {area.Height:0} px"
+            : "W —   H — px";
+        CropTip.Visibility = Visibility.Visible;
+
+        double width = Math.Max(132, CropTip.ActualWidth);
+        double height = Math.Max(50, CropTip.ActualHeight);
+        double left = canvasPosition.X + 16;
+        double top = canvasPosition.Y + 18;
+        if (left + width > DrawingCanvas.ActualWidth - 8) left = canvasPosition.X - width - 16;
+        if (top + height > DrawingCanvas.ActualHeight - 8) top = canvasPosition.Y - height - 16;
+        Canvas.SetLeft(CropTip, Math.Clamp(left, 8, Math.Max(8, DrawingCanvas.ActualWidth - width - 8)));
+        Canvas.SetTop(CropTip, Math.Clamp(top, 8, Math.Max(8, DrawingCanvas.ActualHeight - height - 8)));
+    }
+
+    private bool ShouldMoveCrop(ImagePoint point) =>
+        _cropCanMove && _crop is ImageRect area && area.Contains(point);
+
+    private void MoveCropFromDrag(ImagePoint start, ImagePoint point)
+    {
+        if (_editor is null || _cropAtDragStart is not ImageRect original)
+        {
+            return;
+        }
+
+        ImageRect viewport = _editor.Current.Viewport;
+        double x = Math.Clamp(Math.Round(original.X + point.X - start.X),
+            viewport.X, viewport.Right - original.Width);
+        double y = Math.Clamp(Math.Round(original.Y + point.Y - start.Y),
+            viewport.Y, viewport.Bottom - original.Height);
+        _crop = original with { X = x, Y = y };
+        UpdateCropInspector();
+    }
+
+    private void RestoreCropDrag()
+    {
+        _crop = _cropAtDragStart;
+        _cropCanMove = _cropCanMoveAtDragStart;
+        _cropAtDragStart = null;
+        _movingCrop = false;
+        _cropDragChanged = false;
+        _dragStart = null;
+        HideCropTip();
+        DrawingCanvas.ReleasePointerCaptures();
+        UpdateCropInspector();
+        DrawingCanvas.Invalidate();
     }
 
     private void ClampCanvasPan()
@@ -274,6 +378,7 @@ public sealed partial class MainPage
         }
 
         _crop = ClampCrop(new(x, y, width, height), viewport);
+        _cropCanMove = true;
         UpdateCropInspector();
         DrawingCanvas.Invalidate();
     }
@@ -328,6 +433,7 @@ public sealed partial class MainPage
         CropLockProportions.IsChecked = true;
         _cropAspectRatio = ratio;
         FitCurrentCropToRatio();
+        _cropCanMove = _crop != _editor.Current.Viewport;
         UpdateCropInspector();
         DrawingCanvas.Invalidate();
     }

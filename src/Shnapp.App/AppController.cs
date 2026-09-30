@@ -80,7 +80,7 @@ internal sealed class AppController
             _settings = await Library.LoadSettingsAsync(_lifetime.Token);
             ApplyTheme();
             _page.ShowLibrary(await Library.ListAsync(_lifetime.Token));
-            _page.ViewModel.Status = _options.Isolated ? "Isolated verification library · startup changes disabled" : "Ready to shnapp · close returns to the tray";
+            _page.ViewModel.Status = "Ready to shnapp · close returns to the tray";
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -158,6 +158,17 @@ internal sealed class AppController
             {
                 nint monitor = NativeMethods.MonitorFromPoint(pointer, NativeMethods.MonitorDefaultToNearest);
                 bitmap = await _capture.MonitorAsync(monitor, cancellationToken);
+                MonitorTarget display = NativeMethods.Monitors().FirstOrDefault(target => target.Handle == monitor)
+                    ?? throw new InvalidOperationException("The selected display is no longer available.");
+                using (var preview = new SelectionWindow(bitmap, display.Bounds, null, previewDisplay: true))
+                {
+                    if (await preview.PickAsync(cancellationToken) is null)
+                    {
+                        if (wasVisible && !_quitting) { Show(); }
+                        return;
+                    }
+                }
+
                 title = "Full screen";
             }
             else
@@ -405,42 +416,65 @@ internal sealed class AppController
         {
             var startup = new ToggleSwitch
             {
-                Header = "Start Shnapp at sign-in",
                 IsOn = _settings.StartOnLogin,
                 IsEnabled = !_options.Isolated,
             };
-            var autoCopy = new ToggleSwitch { Header = "Copy new shnapps automatically", IsOn = _settings.AutoCopy };
-            var shadow = new ToggleSwitch { Header = "Soft shadow on window shnapps", IsOn = _settings.WindowShadow };
+            var autoCopy = new ToggleSwitch { IsOn = _settings.AutoCopy };
+            var shadow = new ToggleSwitch { IsOn = _settings.WindowShadow };
             var theme = new ComboBox { Header = "Theme", ItemsSource = new[] { "System", "Light", "Dark" }, SelectedItem = _settings.Theme };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(startup, "Start Shnapp at sign-in");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(autoCopy, "Copy new shnapps automatically");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(shadow, "Soft shadow on window shnapps");
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(startup, "StartOnLogin");
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(autoCopy, "AutoCopy");
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(shadow, "WindowShadow");
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(theme, "ShnappTheme");
-            var content = new StackPanel { Spacing = 20, MinWidth = 320 };
-            content.Children.Add(startup);
-            content.Children.Add(autoCopy);
-            content.Children.Add(shadow);
+            var content = new StackPanel { Spacing = 12, MinWidth = 320, MaxWidth = 420 };
+            var captureGroup = new StackPanel { Spacing = 8 };
+            captureGroup.Children.Add(PreferenceRow("Start Shnapp at sign-in", startup));
+            captureGroup.Children.Add(PreferenceRow("Copy new shnapps automatically", autoCopy));
+            captureGroup.Children.Add(PreferenceRow("Soft shadow on window shnapps", shadow));
+            content.Children.Add(new TextBlock { Text = "CAPTURE", FontSize = 12, Opacity = 0.68 });
+            content.Children.Add(captureGroup);
+            content.Children.Add(new TextBlock { Text = "APPEARANCE", FontSize = 12, Opacity = 0.68 });
             content.Children.Add(theme);
+            content.Children.Add(new TextBlock { Text = "SHORTCUTS", FontSize = 12, Opacity = 0.68 });
             content.Children.Add(new TextBlock
             {
-                Text = _options.Isolated
-                    ? "Isolated verification instance. Startup cannot be changed."
-                    : "Window  Ctrl+Shift+4\nFull screen  Ctrl+Shift+3\nFree form  Ctrl+Shift+2",
+                Text = "Window          Ctrl+Shift+4\nFull screen     Ctrl+Shift+3\nRegion          Ctrl+Shift+2",
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono"),
+                FontSize = 12,
                 TextWrapping = TextWrapping.Wrap,
+            });
+            content.Children.Add(new TextBlock { Text = "LOCAL LIBRARY", FontSize = 12, Opacity = 0.68 });
+            content.Children.Add(new TextBlock
+            {
+                Text = Library.RootPath,
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 12,
+                MaxWidth = 380,
             });
             content.Children.Add(new TextBlock
             {
-                Text = "Local storage\n" + Library.RootPath + "\nEditable originals are retained. Share the flattened PNG, not the document folder.",
+                Text = _options.Isolated
+                    ? "Verification library. Startup changes are disabled."
+                    : "Editable originals stay here. Share the exported PNG when a capture contains private details.",
                 TextWrapping = TextWrapping.Wrap,
                 FontSize = 12,
+                Opacity = 0.72,
                 MaxWidth = 380,
             });
             var dialog = new ContentDialog
             {
                 XamlRoot = _page.XamlRoot,
                 RequestedTheme = _page.RequestedTheme,
-                Title = "Shnapp settings",
-                Content = content,
+                Title = "Settings",
+                Content = new ScrollViewer
+                {
+                    Content = content,
+                    MaxHeight = 460,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                },
                 PrimaryButtonText = "Save",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
@@ -475,6 +509,23 @@ internal sealed class AppController
         {
             _dialogOpen = false;
         }
+    }
+
+    private static Grid PreferenceRow(string label, ToggleSwitch toggle)
+    {
+        var row = new Grid { ColumnSpacing = 16, MinHeight = 42 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.Children.Add(new TextBlock
+        {
+            Text = label,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = toggle.IsEnabled ? 1 : 0.55,
+        });
+        Grid.SetColumn(toggle, 1);
+        row.Children.Add(toggle);
+        return row;
     }
 
     private void ApplyTheme() => _window.ApplyTheme(_settings.Theme switch

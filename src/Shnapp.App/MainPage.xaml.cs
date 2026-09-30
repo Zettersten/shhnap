@@ -82,7 +82,7 @@ public sealed partial class MainPage : Page
         ReleaseDocument();
         _library = documents;
         ViewModel.HasDocument = false;
-        ViewModel.Title = "Capture first. Think less.";
+        ViewModel.Title = string.Empty;
         ViewModel.Dimensions = string.Empty;
         RebuildLibraryEntries();
         FocusLibrarySearchIfRequested();
@@ -288,6 +288,15 @@ public sealed partial class MainPage : Page
                 }
 
                 break;
+            case EditorTool.Crop:
+                _dragStart = point;
+                _cropAtDragStart = _crop;
+                _cropCanMoveAtDragStart = _cropCanMove;
+                _movingCrop = ShouldMoveCrop(point);
+                _cropDragChanged = false;
+                DrawingCanvas.CapturePointer(args.Pointer);
+                UpdateCropHover(canvasPosition, point);
+                break;
             default:
                 _dragStart = point;
                 if (_tool != EditorTool.Crop)
@@ -314,6 +323,7 @@ public sealed partial class MainPage : Page
 
     private void Canvas_PointerMoved(object sender, PointerRoutedEventArgs args)
     {
+        Point canvasPosition = args.GetCurrentPoint(DrawingCanvas).Position;
         if (_panning)
         {
             MoveCanvasPan(args);
@@ -322,10 +332,11 @@ public sealed partial class MainPage : Page
 
         if (_dragStart is not ImagePoint start || _editor is null)
         {
+            UpdateCropHover(canvasPosition);
             return;
         }
 
-        ImagePoint point = ImagePosition(args.GetCurrentPoint(DrawingCanvas).Position, clamp: true)!.Value;
+        ImagePoint point = ImagePosition(canvasPosition, clamp: true)!.Value;
         if (_moving is not null)
         {
             if (_resizeHandle != ResizeHandle.None)
@@ -372,8 +383,17 @@ public sealed partial class MainPage : Page
         {
             if (Math.Max(Math.Abs(point.X - start.X), Math.Abs(point.Y - start.Y)) * _scale >= 4)
             {
-                _crop = CropRectFromDrag(start, point);
-                UpdateCropInspector();
+                _cropDragChanged = true;
+                if (_movingCrop)
+                {
+                    MoveCropFromDrag(start, point);
+                }
+                else
+                {
+                    _crop = CropRectFromDrag(start, point);
+                    _cropCanMove = true;
+                    UpdateCropInspector();
+                }
             }
         }
         else if (_draft is not null)
@@ -383,6 +403,7 @@ public sealed partial class MainPage : Page
                 : point };
         }
 
+        UpdateCropHover(canvasPosition, point);
         DrawingCanvas.Invalidate();
     }
 
@@ -399,12 +420,28 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        if (_tool == EditorTool.Crop && _dragStart is ImagePoint cropStart &&
+            !_movingCrop && _cropDragChanged &&
+            ImagePosition(args.GetCurrentPoint(DrawingCanvas).Position, clamp: true) is ImagePoint cropEnd &&
+            Math.Max(Math.Abs(cropEnd.X - cropStart.X), Math.Abs(cropEnd.Y - cropStart.Y)) * _scale < 4)
+        {
+            RestoreCropDrag();
+            args.Handled = true;
+            return;
+        }
+
         DisposeDragBase();
         if (_draft is Annotation annotation)
         {
             if (_moving is not null)
             {
                 _editor.UpdateAnnotation(annotation);
+                if (_resizeHandle != ResizeHandle.None && annotation.Kind == AnnotationKind.Step)
+                {
+                    ToolStyle stepStyle = _toolStyles[EditorTool.Step];
+                    stepStyle.StepDiameter = annotation.StepDiameter;
+                    stepStyle.FontSize = annotation.FontSize;
+                }
             }
             else if (Math.Abs(annotation.End.X - annotation.Start.X) + Math.Abs(annotation.End.Y - annotation.Start.Y) >= 2)
             {
@@ -418,18 +455,27 @@ public sealed partial class MainPage : Page
         _axisLockHorizontal = null;
         _resizeHandle = ResizeHandle.None;
         _dragStart = null;
+        _cropAtDragStart = null;
+        _movingCrop = false;
+        _cropDragChanged = false;
         DrawingCanvas.ReleasePointerCapture(args.Pointer);
+        UpdateCropHover(args.GetCurrentPoint(DrawingCanvas).Position);
         DrawingCanvas.Invalidate();
         args.Handled = true;
     }
 
-    private void Canvas_PointerCanceled(object sender, PointerRoutedEventArgs args) => CancelInteraction();
+    private void Canvas_PointerCanceled(object sender, PointerRoutedEventArgs args)
+    {
+        if (_tool == EditorTool.Crop && _dragStart is not null) RestoreCropDrag();
+        else CancelInteraction();
+    }
 
     private void Canvas_PointerCaptureLost(object sender, PointerRoutedEventArgs args)
     {
         if (_panning || _dragStart is not null)
         {
-            CancelInteraction();
+            if (_tool == EditorTool.Crop && _dragStart is not null) RestoreCropDrag();
+            else CancelInteraction();
         }
     }
 
@@ -494,6 +540,7 @@ public sealed partial class MainPage : Page
                 ? WithOpacity(style.Secondary, style.FillOpacity)
                 : 0,
             StrokeWidth = style.StrokeWidth,
+            HideOutline = !style.OutlineShape,
             FontFamily = style.FontFamily,
             FontSize = style.FontSize,
             FontWeight = style.FontWeight,
@@ -622,7 +669,13 @@ public sealed partial class MainPage : Page
         _axisLockHorizontal = null;
         _resizeHandle = ResizeHandle.None;
         _crop = null;
+        _cropCanMove = false;
+        _cropCanMoveAtDragStart = false;
+        _cropAtDragStart = null;
+        _movingCrop = false;
+        _cropDragChanged = false;
         _dragStart = null;
+        HideCropTip();
         DrawingCanvas.ReleasePointerCaptures();
         DrawingCanvas.Invalidate();
     }
@@ -646,8 +699,10 @@ public sealed partial class MainPage : Page
             if (ActiveCropRatio() > 0)
             {
                 FitCurrentCropToRatio();
+                _cropCanMove = _crop != _editor.Current.Viewport;
             }
         }
+        UpdateCropCursor(false);
         if (tool != EditorTool.Select)
         {
             _selectedId = null;
@@ -669,7 +724,7 @@ public sealed partial class MainPage : Page
 
     private string ToolHint() => _tool switch
     {
-        EditorTool.Select => "Select to move · Drag handles to resize · Delete removes",
+        EditorTool.Select => "Select to move · Drag handles to resize · Arrow keys nudge 1 px (Shift: 10 px) · Delete removes",
         EditorTool.Text => "Click to type · Enter finishes",
         EditorTool.Step => "Click to place the next numbered step",
         EditorTool.Redaction => "Drag to obscure an area · Solid fully masks; blur and pixelate soften detail",
@@ -793,6 +848,22 @@ public sealed partial class MainPage : Page
             _selectedId = null;
             _editor.RemoveAnnotation(id);
             args.Handled = true;
+        }
+        else if (args.Key is VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down &&
+            _dragStart is null && !_panning &&
+            ReferenceEquals(FocusManager.GetFocusedElement(XamlRoot), DrawingCanvas) &&
+            (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control) &
+                global::Windows.UI.Core.CoreVirtualKeyStates.Down) == 0)
+        {
+            int distance = IsShiftHeld() ? 10 : 1;
+            (int dx, int dy) = args.Key switch
+            {
+                VirtualKey.Left => (-distance, 0),
+                VirtualKey.Right => (distance, 0),
+                VirtualKey.Up => (0, -distance),
+                _ => (0, distance),
+            };
+            args.Handled = NudgeSelected(dx, dy);
         }
         else if ((InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control) & global::Windows.UI.Core.CoreVirtualKeyStates.Down) == 0)
         {

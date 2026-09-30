@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Shnapp.App.Editor;
 using Shnapp.Core;
 using Windows.System;
@@ -18,7 +19,7 @@ public sealed partial class MainPage
     ];
 
     private readonly Dictionary<Guid, LibraryEntry> _libraryEntries = [];
-    private int _librarySizeIndex = 1;
+    private int _librarySizeIndex = 2;
     private bool _libraryListMode;
     private bool _focusSearchWhenLibraryOpens;
 
@@ -61,10 +62,8 @@ public sealed partial class MainPage
         bool hasSaved = _library.Count > 0;
         bool noMatches = hasSaved && count == 0;
         LibraryResultCount.Text = query.Length == 0
-            ? $"{_library.Count} {ShnappWord(_library.Count)} saved on this PC"
+            ? $"{_library.Count} {ShnappWord(_library.Count)}"
             : $"{count} of {_library.Count} {ShnappWord(_library.Count)}";
-        LibraryHeaderCapture.Visibility = hasSaved ? Visibility.Visible : Visibility.Collapsed;
-        LibraryClearSearch.Visibility = query.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         LibraryEmpty.Visibility = count == 0 ? Visibility.Visible : Visibility.Collapsed;
         LibraryEmptyLogo.Visibility = noMatches ? Visibility.Collapsed : Visibility.Visible;
         LibraryNoResultsIcon.Visibility = noMatches ? Visibility.Visible : Visibility.Collapsed;
@@ -107,21 +106,24 @@ public sealed partial class MainPage
         LibraryList.Visibility = hasResults && _libraryListMode ? Visibility.Visible : Visibility.Collapsed;
         LibraryGridMode.IsChecked = !_libraryListMode;
         LibraryListMode.IsChecked = _libraryListMode;
-        LibrarySizeChoice.IsEnabled = !_libraryListMode;
+        LibrarySizeButton.IsEnabled = !_libraryListMode;
     }
 
-    private void LibrarySearch_TextChanged(object sender, TextChangedEventArgs args) => FilterLibrary();
+    private void LibrarySearch_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args) => FilterLibrary();
+
+    private void LibrarySearch_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (ViewModel.Library.FirstOrDefault() is { } entry)
+        {
+            _controller?.OpenDocument(entry.Id);
+        }
+    }
 
     private void LibrarySearch_KeyDown(object sender, KeyRoutedEventArgs args)
     {
         if (args.Key == VirtualKey.Escape)
         {
             LibrarySearch.Text = string.Empty;
-            args.Handled = true;
-        }
-        else if (args.Key == VirtualKey.Enter && ViewModel.Library.FirstOrDefault() is { } entry)
-        {
-            _controller?.OpenDocument(entry.Id);
             args.Handled = true;
         }
     }
@@ -132,14 +134,15 @@ public sealed partial class MainPage
         LibrarySearch.Focus(FocusState.Programmatic);
     }
 
-    private void LibrarySize_SelectionChanged(object sender, SelectionChangedEventArgs args)
+    private void LibrarySize_Click(object sender, RoutedEventArgs args)
     {
-        if (_controller is null || LibraryGrid is null)
+        if (_controller is null || sender is not RadioMenuFlyoutItem item ||
+            !int.TryParse(item.Tag?.ToString(), out int index))
         {
             return;
         }
 
-        int index = Math.Clamp(LibrarySizeChoice.SelectedIndex, 0, LibrarySizes.Length - 1);
+        index = Math.Clamp(index, 0, LibrarySizes.Length - 1);
         if (index != _librarySizeIndex)
         {
             _librarySizeIndex = index;
@@ -185,6 +188,24 @@ public sealed partial class MainPage
     private void FocusLibrarySearch()
     {
         LibrarySearch.Focus(FocusState.Programmatic);
-        LibrarySearch.SelectAll();
+        FindLibrarySearchInput(LibrarySearch)?.SelectAll();
+    }
+
+    private static TextBox? FindLibrarySearchInput(DependencyObject root)
+    {
+        if (root is TextBox input)
+        {
+            return input;
+        }
+
+        for (int index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            if (FindLibrarySearchInput(VisualTreeHelper.GetChild(root, index)) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 }

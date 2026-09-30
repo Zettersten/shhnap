@@ -83,6 +83,7 @@ public sealed class ShnappLibraryTests
                 StepTextArgb = kind == AnnotationKind.Step ? 0xFFFDE68A : 0,
                 RedactionMode = kind == AnnotationKind.Redaction ? RedactionMode.Pixelate : RedactionMode.Solid,
                 StrokeWidth = 4.25,
+                HideOutline = kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse,
                 StartArrow = kind is AnnotationKind.Line or AnnotationKind.Arrow,
                 EndArrow = kind == AnnotationKind.Line,
                 StepDiameter = 32.5,
@@ -107,6 +108,10 @@ public sealed class ShnappLibraryTests
         Assert.IsFalse(json.RootElement.TryGetProperty("viewport", out _));
         Assert.IsFalse(json.RootElement.GetProperty("crop").TryGetProperty("right", out _));
         Assert.IsFalse(json.RootElement.GetProperty("annotations")[0].TryGetProperty("bounds", out _));
+        Assert.IsFalse(json.RootElement.GetProperty("annotations")[0].TryGetProperty("hideOutline", out _));
+        Assert.IsTrue(json.RootElement.GetProperty("annotations").EnumerateArray()
+            .First(item => item.GetProperty("kind").GetString() == "Rectangle")
+            .GetProperty("hideOutline").GetBoolean());
         temporary.AssertNoTemporaryFiles();
     }
 
@@ -121,6 +126,7 @@ public sealed class ShnappLibraryTests
                 TestDocuments.Annotation(AnnotationKind.Arrow),
                 TestDocuments.Annotation(AnnotationKind.Step) with { FillArgb = 0x40E5484D, StepNumber = 1 },
                 TestDocuments.Annotation(AnnotationKind.Redaction),
+                TestDocuments.Annotation(AnnotationKind.Rectangle),
             ],
         };
         await temporary.Library.SaveAsync(document);
@@ -138,6 +144,7 @@ public sealed class ShnappLibraryTests
             annotation.Remove("linePattern");
             annotation.Remove("stepLabelFormat");
             annotation.Remove("stepReset");
+            annotation.Remove("hideOutline");
         }
         await File.WriteAllTextAsync(path, root.ToJsonString());
 
@@ -154,6 +161,7 @@ public sealed class ShnappLibraryTests
         Assert.AreEqual(0u, opened.Annotations[1].StepTextArgb);
         Assert.AreEqual(0x40E5484Du, opened.Annotations[1].FillArgb);
         Assert.AreEqual(RedactionMode.Solid, opened.Annotations[2].RedactionMode);
+        Assert.IsFalse(opened.Annotations[3].HideOutline);
     }
 
     [TestMethod]

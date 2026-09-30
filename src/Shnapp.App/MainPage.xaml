@@ -7,7 +7,7 @@
     xmlns:editor="using:Shnapp.App.Editor"
     xmlns:local="using:Shnapp.App"
     FontFamily="Segoe UI Variable Text"
-    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    Background="Transparent">
     <Page.KeyboardAccelerators>
         <KeyboardAccelerator Key="C" Modifiers="Control" Invoked="CopyAccelerator_Invoked" />
         <KeyboardAccelerator Key="S" Modifiers="Control" Invoked="SaveAccelerator_Invoked" />
@@ -23,12 +23,15 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <CommandBar DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" Background="Transparent">
+        <CommandBar DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True"
+            Background="{ThemeResource ShnappChromeBrush}">
             <CommandBar.Content>
                 <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" FontWeight="SemiBold"
                     VerticalAlignment="Center" Margin="20,0,16,0" MaxWidth="260" TextTrimming="CharacterEllipsis" />
             </CommandBar.Content>
-            <AppBarButton Label="New shnapp" Icon="Camera" AutomationProperties.AutomationId="NewShnapp">
+            <AppBarButton Label="New shnapp" Icon="Camera" Foreground="{ThemeResource ShnappBlueBrush}"
+                ToolTipService.ToolTip="Capture a window, display, or region"
+                AutomationProperties.AutomationId="NewShnapp">
                 <AppBarButton.Flyout>
                     <MenuFlyout>
                         <MenuFlyoutItem Text="Window" Tag="Window" Click="Capture_Click">
@@ -72,14 +75,16 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <Grid Padding="12,8" Background="{ThemeResource ShnappPanelBrush}">
+            <Grid Padding="16,10" Background="{ThemeResource ShnappChromeBrush}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <CommandBar x:Name="Tools" HorizontalAlignment="Center" MaxWidth="900"
-                    DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" CornerRadius="8"
-                    Background="Transparent" AutomationProperties.Name="Annotation tools">
+                    DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" CornerRadius="10"
+                    Background="{ThemeResource ShnappToolbarBrush}"
+                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
+                    AutomationProperties.Name="Annotation tools">
                     <CommandBar.Resources>
                         <ResourceDictionary>
                             <ResourceDictionary.ThemeDictionaries>
@@ -203,20 +208,31 @@
                 OpenPaneLength="296" CompactPaneLength="0" IsPaneOpen="True"
                 Background="{ThemeResource ShnappCanvasBrush}">
                 <SplitView.Content>
-                    <Grid Background="{ThemeResource ShnappCanvasBrush}">
+                    <local:EditorCursorHost x:Name="CanvasHost" Background="{ThemeResource ShnappCanvasBrush}">
                         <canvas:CanvasControl x:Name="DrawingCanvas" Draw="Canvas_Draw" SizeChanged="Canvas_SizeChanged"
                             PointerPressed="Canvas_PointerPressed" PointerMoved="Canvas_PointerMoved"
                             PointerReleased="Canvas_PointerReleased" PointerCanceled="Canvas_PointerCanceled"
                             PointerCaptureLost="Canvas_PointerCaptureLost"
+                            PointerEntered="Canvas_PointerEntered" PointerExited="Canvas_PointerExited"
                             PointerWheelChanged="Canvas_PointerWheelChanged"
                             DoubleTapped="Canvas_DoubleTapped"
                             IsTabStop="True" AutomationProperties.Name="Shnapp annotation canvas"
                             AutomationProperties.AutomationId="ShnappCanvas" />
                         <Canvas x:Name="TextOverlay" />
-                    </Grid>
+                        <Canvas x:Name="CropOverlay" IsHitTestVisible="False">
+                            <Border x:Name="CropTip" Visibility="Collapsed" Padding="10,7" CornerRadius="8"
+                                Background="{ThemeResource ShnappPanelBrush}"
+                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+                                <StackPanel Spacing="2">
+                                    <TextBlock x:Name="CropPositionTip" FontSize="12" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="CropSizeTip" FontSize="12" Opacity="0.72" />
+                                </StackPanel>
+                            </Border>
+                        </Canvas>
+                    </local:EditorCursorHost>
                 </SplitView.Content>
                 <SplitView.Pane>
-                    <Border Width="296" Background="{ThemeResource ShnappPanelBrush}"
+                    <Border Width="296" Background="{ThemeResource ShnappToolbarBrush}"
                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1,0,0,0">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Padding="20,20,20,24" Spacing="16">
@@ -351,6 +367,11 @@
                                     <CheckBox x:Name="StepResetCount" Content="Restart count at this dot"
                                         Click="Options_Changed" ToolTipService.ToolTip="Make this dot number one in a new sequence" />
                                 </StackPanel>
+                                <StackPanel x:Name="OutlineToggleRow" Visibility="Collapsed">
+                                    <CheckBox x:Name="OutlineShape" Content="Show outline" IsChecked="True"
+                                        Click="Options_Changed"
+                                        ToolTipService.ToolTip="Turn off the shape border; a fill stays visible" />
+                                </StackPanel>
                                 <StackPanel x:Name="FillToggleRow" Visibility="Collapsed">
                                     <CheckBox x:Name="FillShape" Content="Fill shape" Click="Options_Changed" />
                                 </StackPanel>
@@ -393,44 +414,48 @@
                 </SplitView.Pane>
             </SplitView>
         </Grid>
-        <Grid Grid.Row="2" Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}" Padding="24">
+        <Grid Grid.Row="2" Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}" Padding="28,24,28,16">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <Grid Margin="0,0,0,20" ColumnSpacing="16">
+            <StackPanel Margin="0,0,0,20" Spacing="4">
+                <TextBlock Text="Library" FontFamily="Segoe UI Variable Display" FontSize="28" FontWeight="SemiBold" />
+                <TextBlock x:Name="LibraryResultCount" Text="0 shnapps" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    AutomationProperties.LiveSetting="Polite" />
+            </StackPanel>
+            <Grid Grid.Row="1" Margin="0,0,0,18" ColumnSpacing="12">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <StackPanel Spacing="4">
-                    <TextBlock Text="Library" FontFamily="Segoe UI Variable Display" FontSize="30" FontWeight="SemiBold" />
-                    <TextBlock x:Name="LibraryResultCount" Text="0 shnapps" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        AutomationProperties.LiveSetting="Polite" />
-                </StackPanel>
-                <Button x:Name="LibraryHeaderCapture" Grid.Column="1" Content="Capture a window" Tag="Window" Click="Capture_Click"
-                    Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Center" />
-            </Grid>
-            <Grid Grid.Row="1" Margin="0,0,0,18" ColumnSpacing="16">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <Grid MaxWidth="480" HorizontalAlignment="Stretch" ColumnSpacing="8">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <TextBox x:Name="LibrarySearch" PlaceholderText="Search title, date, or capture type"
-                        TextChanged="LibrarySearch_TextChanged" KeyDown="LibrarySearch_KeyDown"
-                        AutomationProperties.Name="Search library" AutomationProperties.AutomationId="LibrarySearch" />
-                    <Button x:Name="LibraryClearSearch" Grid.Column="1" Content="Clear" Click="LibraryClearSearch_Click"
-                        Visibility="Collapsed" AutomationProperties.Name="Clear library search" />
-                </Grid>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <ComboBox x:Name="LibrarySizeChoice" Width="132" SelectedIndex="1"
-                        SelectionChanged="LibrarySize_SelectionChanged" AutomationProperties.Name="Grid thumbnail size">
-                        <ComboBoxItem Content="Small" />
-                        <ComboBoxItem Content="Medium" />
-                        <ComboBoxItem Content="Large" />
-                        <ComboBoxItem Content="Extra large" />
-                    </ComboBox>
-                    <ToggleButton x:Name="LibraryGridMode" Content="Grid" IsChecked="True" Click="LibraryGridMode_Click"
-                        MinWidth="64" AutomationProperties.Name="Grid view" AutomationProperties.AutomationId="LibraryGridMode" />
-                    <ToggleButton x:Name="LibraryListMode" Content="List" Click="LibraryListMode_Click"
-                        MinWidth="64" AutomationProperties.Name="List view" AutomationProperties.AutomationId="LibraryListMode" />
+                <AutoSuggestBox x:Name="LibrarySearch" HorizontalAlignment="Stretch"
+                    QueryIcon="Find" PlaceholderText="Search shnapps" TextChanged="LibrarySearch_TextChanged"
+                    QuerySubmitted="LibrarySearch_QuerySubmitted" KeyDown="LibrarySearch_KeyDown"
+                    ToolTipService.ToolTip="Search by title, date, dimensions, or capture type"
+                    AutomationProperties.Name="Search library" AutomationProperties.AutomationId="LibrarySearch" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Button x:Name="LibrarySizeButton" Width="36" Height="36" Padding="0"
+                        ToolTipService.ToolTip="Thumbnail size" AutomationProperties.Name="Thumbnail size"
+                        AutomationProperties.AutomationId="LibrarySizeButton">
+                        <Button.Content><FontIcon Glyph="&#xE8A7;" FontSize="16" /></Button.Content>
+                        <Button.Flyout>
+                            <MenuFlyout>
+                                <RadioMenuFlyoutItem Text="Small" Tag="0" GroupName="LibrarySize" Click="LibrarySize_Click" />
+                                <RadioMenuFlyoutItem Text="Medium" Tag="1" GroupName="LibrarySize" Click="LibrarySize_Click" />
+                                <RadioMenuFlyoutItem Text="Large" Tag="2" GroupName="LibrarySize" IsChecked="True" Click="LibrarySize_Click" />
+                                <RadioMenuFlyoutItem Text="Extra large" Tag="3" GroupName="LibrarySize" Click="LibrarySize_Click" />
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                    <ToggleButton x:Name="LibraryGridMode" Width="36" Height="36" Padding="0" IsChecked="True"
+                        Click="LibraryGridMode_Click" ToolTipService.ToolTip="Grid view"
+                        AutomationProperties.Name="Grid view" AutomationProperties.AutomationId="LibraryGridMode">
+                        <FontIcon Glyph="&#xE8A9;" FontSize="16" />
+                    </ToggleButton>
+                    <ToggleButton x:Name="LibraryListMode" Width="36" Height="36" Padding="0"
+                        Click="LibraryListMode_Click" ToolTipService.ToolTip="List view"
+                        AutomationProperties.Name="List view" AutomationProperties.AutomationId="LibraryListMode">
+                        <FontIcon Glyph="&#xE8FD;" FontSize="16" />
+                    </ToggleButton>
                 </StackPanel>
             </Grid>
             <Grid Grid.Row="2">
@@ -443,17 +468,15 @@
                     </GridView.ItemsPanel>
                     <GridView.ItemTemplate>
                         <DataTemplate x:DataType="editor:LibraryEntry">
-                            <Border Width="{x:Bind CardWidth}" Margin="4" Padding="9"
-                                Background="{ThemeResource ShnappPanelBrush}" CornerRadius="12">
-                                <StackPanel Spacing="8">
-                                    <Grid Height="{x:Bind ThumbnailHeight}" Background="{ThemeResource ShnappCanvasBrush}" CornerRadius="8">
-                                        <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="6" />
-                                    </Grid>
-                                    <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxLines="1" />
-                                    <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextBlockStyle}"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxLines="1" />
-                                </StackPanel>
-                            </Border>
+                            <StackPanel Width="{x:Bind CardWidth}" Margin="4" Spacing="6">
+                                <Border Height="{x:Bind ThumbnailHeight}" Background="{ThemeResource ShnappPreviewBrush}"
+                                    CornerRadius="10" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="5" />
+                                </Border>
+                                <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextBlockStyle}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxLines="1" />
+                            </StackPanel>
                         </DataTemplate>
                     </GridView.ItemTemplate>
                 </GridView>
@@ -463,15 +486,16 @@
                     AutomationProperties.Name="Saved shnapps list" AutomationProperties.AutomationId="ShnappLibraryList">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="editor:LibraryEntry">
-                            <Grid Height="78" Padding="6" ColumnSpacing="16">
+                            <Grid Height="74" Padding="4" ColumnSpacing="14">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="104" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Grid Background="{ThemeResource ShnappCanvasBrush}" CornerRadius="6">
+                                <Border Background="{ThemeResource ShnappPreviewBrush}" CornerRadius="6"
+                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                                     <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="4" />
-                                </Grid>
+                                </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextBlockStyle}"
@@ -485,23 +509,22 @@
                 </ListView>
                 <ScrollViewer x:Name="LibraryEmpty" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                     HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-                <Border MaxWidth="500" Margin="8" Padding="40,32"
-                    Background="{ThemeResource ShnappPanelBrush}" CornerRadius="18">
-                    <StackPanel HorizontalAlignment="Center" Spacing="16">
-                        <Image x:Name="LibraryEmptyLogo" Source="ms-appx:///Assets/ShnappLogo.png" Width="220" Height="66"
+                <Border MaxWidth="500" Margin="8" Padding="28,22" Background="Transparent">
+                    <StackPanel HorizontalAlignment="Center" Spacing="12">
+                        <Image x:Name="LibraryEmptyLogo" Source="ms-appx:///Assets/ShnappLogo.png" Width="180" Height="54"
                             Stretch="Uniform" HorizontalAlignment="Center" AutomationProperties.Name="Shnapp logo" />
                         <FontIcon x:Name="LibraryNoResultsIcon" Glyph="&#xE721;" FontSize="48" Visibility="Collapsed"
                             HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock x:Name="LibraryEmptyTitle" Text="Your first shnapp starts here" FontFamily="Segoe UI Variable Display"
-                            FontSize="26" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" />
+                            FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" />
                         <TextBlock x:Name="LibraryEmptyDescription" Text="Capture a window or region. Your shnapps will be saved here, ready to revisit."
-                            FontSize="15" TextWrapping="Wrap" TextAlignment="Center"
+                            FontSize="14" TextWrapping="Wrap" TextAlignment="Center"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <Button x:Name="LibraryEmptyCapture" Content="Capture a window" Tag="Window" Click="Capture_Click"
                             Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" />
                         <Button x:Name="LibraryEmptyClear" Content="Clear search" Click="LibraryClearSearch_Click"
                             HorizontalAlignment="Center" Visibility="Collapsed" />
-                        <StackPanel x:Name="LibraryEmptyShortcuts" Spacing="6" HorizontalAlignment="Center">
+                        <StackPanel x:Name="LibraryEmptyShortcuts" Spacing="4" HorizontalAlignment="Center">
                             <TextBlock Text="Ctrl+Shift+4    Window" FontFamily="Cascadia Mono" FontSize="12" />
                             <TextBlock Text="Ctrl+Shift+3    Full screen" FontFamily="Cascadia Mono" FontSize="12" />
                             <TextBlock Text="Ctrl+Shift+2    Region" FontFamily="Cascadia Mono" FontSize="12" />
@@ -511,7 +534,7 @@
                 </ScrollViewer>
             </Grid>
         </Grid>
-        <Grid Grid.Row="3" Padding="20,8" ColumnSpacing="16">
+        <Grid Grid.Row="3" Padding="20,8" ColumnSpacing="16" Background="{ThemeResource ShnappChromeBrush}">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"

@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.Text;
 using Microsoft.Graphics.Canvas.UI.Xaml;
@@ -13,6 +15,7 @@ using Shnapp.Core;
 using Windows.Graphics;
 using Windows.System;
 using Windows.UI;
+using Windows.UI.ViewManagement;
 
 namespace Shnapp.App.Capture;
 
@@ -23,7 +26,11 @@ internal sealed class SelectionWindow : Window, IDisposable
     private readonly CanvasBitmap _desktop;
     private readonly NativeMethods.Rect _bounds;
     private readonly IReadOnlyList<WindowTarget>? _windows;
+    private readonly bool _previewDisplay;
+    private readonly bool _animationsEnabled = new UISettings().AnimationsEnabled;
     private readonly CanvasControl _canvas;
+    private readonly DispatcherTimer _pulseTimer;
+    private readonly Stopwatch _pulseClock = new();
     private readonly TaskCompletionSource<CaptureSelection?> _completion =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private ImagePoint? _start;
@@ -32,13 +39,17 @@ internal sealed class SelectionWindow : Window, IDisposable
     private WindowTarget? _hovered;
     private bool _disposed;
 
-    internal SelectionWindow(CanvasBitmap desktop, NativeMethods.Rect bounds, IReadOnlyList<WindowTarget>? windows)
+    internal SelectionWindow(CanvasBitmap desktop, NativeMethods.Rect bounds, IReadOnlyList<WindowTarget>? windows,
+        bool previewDisplay = false)
     {
         _desktop = desktop;
         _bounds = bounds;
         _windows = windows;
-        Title = "Shnapp — " + (windows is null ? "Free form" : "Window");
+        _previewDisplay = previewDisplay;
+        Title = "Shnapp — " + (previewDisplay ? "Full screen" : windows is null ? "Free form" : "Window");
         _canvas = new CanvasControl { IsTabStop = true };
+        _pulseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
+        _pulseTimer.Tick += (_, _) => _canvas.Invalidate();
         _canvas.Draw += Draw;
         _canvas.PointerPressed += PointerPressed;
         _canvas.PointerMoved += PointerMoved;
@@ -86,6 +97,19 @@ internal sealed class SelectionWindow : Window, IDisposable
         Activate();
         NativeMethods.SetForegroundWindow(WinRT.Interop.WindowNative.GetWindowHandle(this));
         _canvas.Focus(FocusState.Programmatic);
+        if (_animationsEnabled && (_windows is not null || _previewDisplay))
+        {
+            _pulseClock.Start();
+            _pulseTimer.Start();
+        }
+
+        if (_previewDisplay)
+        {
+            await Task.WhenAny(_completion.Task, Task.Delay(360, cancellationToken));
+            _completion.TrySetResult(cancellationToken.IsCancellationRequested ? null :
+                new CaptureSelection(new ImageRect(0, 0, _bounds.Width, _bounds.Height), null));
+        }
+
         return await _completion.Task;
     }
 
@@ -95,7 +119,11 @@ internal sealed class SelectionWindow : Window, IDisposable
         _pointer = new(
             Math.Clamp(point.X - _bounds.Left, 0, _bounds.Width),
             Math.Clamp(point.Y - _bounds.Top, 0, _bounds.Height));
-        if (_windows is not null)
+        if (_previewDisplay)
+        {
+            _selection = new ImageRect(0, 0, _bounds.Width, _bounds.Height);
+        }
+        else if (_windows is not null)
         {
             var screenPoint = new ImagePoint(point.X, point.Y);
             _hovered = _windows.FirstOrDefault(window => window.Bounds.ToImageRect().Contains(screenPoint));
@@ -107,12 +135,30 @@ internal sealed class SelectionWindow : Window, IDisposable
         }
         else if (_start is ImagePoint start)
         {
-            _selection = ImageRect.FromPoints(start, _pointer);
+            ImagePoint end = _pointer;
+            if (IsShiftHeld())
+            {
+                double side = Math.Min(Math.Abs(end.X - start.X), Math.Abs(end.Y - start.Y));
+                end = new ImagePoint(start.X + Math.CopySign(side, end.X - start.X),
+                    start.Y + Math.CopySign(side, end.Y - start.Y));
+            }
+
+            _selection = ImageRect.FromPoints(start, end);
         }
     }
 
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int virtualKey);
+
+    private static bool IsShiftHeld() => (GetAsyncKeyState(0x10) & 0x8000) != 0;
+
     private void PointerPressed(object sender, PointerRoutedEventArgs args)
     {
+        if (_previewDisplay)
+        {
+            return;
+        }
+
         if (!args.GetCurrentPoint(_canvas).Properties.IsLeftButtonPressed)
         {
             return;
@@ -137,6 +183,11 @@ internal sealed class SelectionWindow : Window, IDisposable
 
     private void PointerReleased(object sender, PointerRoutedEventArgs args)
     {
+        if (_previewDisplay)
+        {
+            return;
+        }
+
         UpdatePointer();
         if (_windows is not null && _hovered is not null)
         {
@@ -180,8 +231,20 @@ internal sealed class SelectionWindow : Window, IDisposable
             if (rectangle.Width > 0 && rectangle.Height > 0)
             {
                 drawing.DrawImage(_desktop, rectangle, rectangle);
-                drawing.DrawRectangle(rectangle, Colors.White, 2 / scaleX);
+                if (_windows is not null || _previewDisplay)
+                {
+                    DrawPulsingBorder(drawing, rectangle, scaleX, scaleY);
+                }
+                else
+                {
+                    drawing.DrawRectangle(rectangle, Colors.White, 2 / scaleX);
+                }
             }
+            if (_previewDisplay)
+            {
+                return;
+            }
+
             string dimensions = $"X {_bounds.Left + (int)left}   Y {_bounds.Top + (int)top}\n" +
                 $"W {(int)rectangle.Width}   H {(int)rectangle.Height} px";
             if (_start is not null)
@@ -200,7 +263,8 @@ internal sealed class SelectionWindow : Window, IDisposable
             return;
         }
 
-        string hint = _windows is null ? "Drag a region · Esc to cancel" : "Click a window · Esc to cancel";
+        string hint = _windows is null ? "Drag a region · Shift for square · Esc to cancel" :
+            "Click a window · Esc to cancel";
         if (_hovered is not null)
         {
             hint += "\n" + _hovered.Title;
@@ -209,6 +273,25 @@ internal sealed class SelectionWindow : Window, IDisposable
         DrawLabel(drawing, hint,
             (float)(_pointer.X + 24 / scaleX),
             (float)(_pointer.Y + 28 / scaleY), scaleX, scaleY);
+    }
+
+    private void DrawPulsingBorder(CanvasDrawingSession drawing, global::Windows.Foundation.Rect bounds,
+        float scaleX, float scaleY)
+    {
+        float unit = 1 / Math.Min(scaleX, scaleY);
+        double phase = _pulseClock.Elapsed.TotalSeconds * Math.PI * 2 / 0.9;
+        float pulse = _animationsEnabled ? (float)((Math.Sin(phase) + 1) / 2) : 1;
+        double inset = 7 * unit;
+        var border = new global::Windows.Foundation.Rect(bounds.X + inset, bounds.Y + inset,
+            Math.Max(0, bounds.Width - inset * 2), Math.Max(0, bounds.Height - inset * 2));
+        if (border.Width <= 0 || border.Height <= 0)
+        {
+            return;
+        }
+
+        drawing.DrawRectangle(border, Color.FromArgb((byte)(32 + pulse * 40), 75, 203, 255), 18 * unit);
+        drawing.DrawRectangle(border, Color.FromArgb((byte)(175 + pulse * 65), 74, 210, 255), 7 * unit);
+        drawing.DrawRectangle(border, Color.FromArgb(220, 242, 253, 255), 1.5f * unit);
     }
 
     private void DrawLabel(CanvasDrawingSession drawing, string text, float x, float y, float scaleX, float scaleY)
@@ -237,6 +320,7 @@ internal sealed class SelectionWindow : Window, IDisposable
         }
 
         _disposed = true;
+        _pulseTimer.Stop();
         _completion.TrySetResult(null);
         AppWindow.Hide();
         _canvas.RemoveFromVisualTree();

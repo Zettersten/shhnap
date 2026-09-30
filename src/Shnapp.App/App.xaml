@@ -15,18 +15,27 @@
                     <SolidColorBrush x:Key="ShnappPanelBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="ShnappBlueBrush" Color="#0A84FF" />
                     <SolidColorBrush x:Key="ShnappOnBlueBrush" Color="White" />
+                    <SolidColorBrush x:Key="ShnappChromeBrush" Color="#EAF8FAFD" />
+                    <SolidColorBrush x:Key="ShnappToolbarBrush" Color="#F5FFFFFF" />
+                    <SolidColorBrush x:Key="ShnappPreviewBrush" Color="#F1F3F6" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Default">
                     <SolidColorBrush x:Key="ShnappCanvasBrush" Color="#171A1F" />
                     <SolidColorBrush x:Key="ShnappPanelBrush" Color="#20242A" />
                     <SolidColorBrush x:Key="ShnappBlueBrush" Color="#0A84FF" />
                     <SolidColorBrush x:Key="ShnappOnBlueBrush" Color="White" />
+                    <SolidColorBrush x:Key="ShnappChromeBrush" Color="#DF1B2028" />
+                    <SolidColorBrush x:Key="ShnappToolbarBrush" Color="#F020252D" />
+                    <SolidColorBrush x:Key="ShnappPreviewBrush" Color="#242A33" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="HighContrast">
                     <SolidColorBrush x:Key="ShnappCanvasBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="ShnappPanelBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="ShnappBlueBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                     <SolidColorBrush x:Key="ShnappOnBlueBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                    <SolidColorBrush x:Key="ShnappChromeBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="ShnappToolbarBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="ShnappPreviewBrush" Color="{ThemeResource SystemColorWindowColor}" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>

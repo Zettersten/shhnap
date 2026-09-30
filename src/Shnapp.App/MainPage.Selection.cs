@@ -365,6 +365,36 @@ public sealed partial class MainPage
     private static double ClampMovement(double change, double minimum, double maximum) =>
         minimum > maximum ? 0 : Math.Clamp(change, minimum, maximum);
 
+    private bool NudgeSelected(int dx, int dy)
+    {
+        if (_editor is null || SelectedAnnotation() is not { } selected)
+        {
+            return false;
+        }
+
+        Rect bounds = SelectionBounds(selected);
+        ImageRect viewport = _editor.Current.Viewport;
+        double offsetX = ClampNudge(dx, viewport.X - bounds.X, viewport.Right - bounds.Right);
+        double offsetY = ClampNudge(dy, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom);
+        if (offsetX != 0 || offsetY != 0)
+        {
+            _editor.UpdateAnnotation(selected with
+            {
+                Start = new(selected.Start.X + offsetX, selected.Start.Y + offsetY),
+                End = new(selected.End.X + offsetX, selected.End.Y + offsetY),
+            });
+        }
+
+        return true;
+    }
+
+    private static double ClampNudge(int change, double minimum, double maximum) => change switch
+    {
+        > 0 when maximum > 0 => Math.Min(change, maximum),
+        < 0 when minimum < 0 => Math.Max(change, minimum),
+        _ => 0,
+    };
+
     private void EnsureDragBase()
     {
         if (_dragBase is not null || _moving is null || _editor is null || _original is null || _controller is null)

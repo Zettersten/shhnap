@@ -140,6 +140,11 @@ public sealed record Annotation
     /// <summary>Gets the line width in source pixels.</summary>
     public double StrokeWidth { get; init; } = 3;
 
+    /// <summary>Gets whether a rectangle or ellipse hides its outline.</summary>
+    /// <remarks>False by default so older saved shnapps keep their outlines.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HideOutline { get; init; }
+
     /// <summary>Gets whether a line or arrow has an arrowhead at its starting point.</summary>
     public bool StartArrow { get; init; }
 

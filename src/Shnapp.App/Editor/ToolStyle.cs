@@ -8,6 +8,7 @@ internal sealed class ToolStyle
     internal uint Primary { get; set; } = 0xFFE5484D;
     internal uint Secondary { get; set; } = 0xFFE5484D;
     internal double StrokeWidth { get; set; } = 3;
+    internal bool OutlineShape { get; set; } = true;
     internal string FontFamily { get; set; } = "Segoe UI Variable Text";
     internal int FontWeight { get; set; } = 600;
     internal bool Italic { get; set; }

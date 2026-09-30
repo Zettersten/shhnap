@@ -61,6 +61,9 @@ internal static class DocumentValidation
         ValidatePoint(annotation.End, document, nameof(annotation));
         Require(double.IsFinite(annotation.StrokeWidth) && annotation.StrokeWidth >= 0,
             "Stroke width must be finite and nonnegative.", nameof(annotation));
+        Require(annotation.Kind is not (AnnotationKind.Rectangle or AnnotationKind.Ellipse) ||
+            !annotation.HideOutline || (annotation.FillArgb >> 24) != 0,
+            "A shape needs an outline or fill.", nameof(annotation));
         Require(double.IsFinite(annotation.FontSize) && annotation.FontSize > 0,
             "Font size must be finite and positive.", nameof(annotation));
         Require(double.IsFinite(annotation.StepDiameter) && annotation.StepDiameter > 0,

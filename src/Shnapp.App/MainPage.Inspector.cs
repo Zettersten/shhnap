@@ -76,6 +76,7 @@ public sealed partial class MainPage
                 ? selected.StepTextArgb == 0 ? 0xFFFFFFFF : selected.StepTextArgb
                 : selected.FillArgb == 0 ? defaults.Secondary : 0xFF000000 | (selected.FillArgb & 0x00FFFFFF),
             StrokeWidth = selected.StrokeWidth,
+            OutlineShape = !selected.HideOutline,
             FontFamily = selected.FontFamily,
             FontWeight = selected.FontWeight,
             Italic = selected.Italic,
@@ -117,10 +118,10 @@ public sealed partial class MainPage
         InspectorHelp.Text = redaction
             ? selected is null
                 ? "Drag to apply. Cover fully hides pixels in shared images; blur and pixelate obscure them."
-                : "Change the mode or drag handles to resize. Use Cover for private details."
+                : "Change the mode, drag handles to resize, or use arrow keys to nudge. Use Cover for private details."
             : selected is null
                 ? ToolHint()
-                : "Change options here, drag to move, or drag handles to resize. Delete removes this mark.";
+                : "Change options here, drag to move, or use arrow keys to nudge (Shift: 10 px). Drag handles to resize.";
 
         RedactionModeRow.Visibility = Visible(redaction);
         PrimaryColorRow.Visibility = Visible(styleable);
@@ -132,6 +133,7 @@ public sealed partial class MainPage
         FontSizeRow.Visibility = Visible(text || step);
         StepSizeRow.Visibility = Visible(step);
         StepLabelRow.Visibility = Visible(step);
+        OutlineToggleRow.Visibility = Visible(shape);
         FillToggleRow.Visibility = Visible(shape);
         FillOpacityRow.Visibility = Visible(shape);
         LineCapRow.Visibility = Visible(line);
@@ -153,10 +155,13 @@ public sealed partial class MainPage
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SecondaryColorButton, SecondaryColorLabel.Text);
 
         StrokeSize.Value = style.StrokeWidth;
+        StrokeSize.IsEnabled = !shape || style.OutlineShape;
+        PrimaryColorButton.IsEnabled = !shape || style.OutlineShape;
         FontSizeChoice.Value = style.FontSize;
         StepSize.Value = style.StepDiameter;
         FillOpacityChoice.Value = style.FillOpacity;
         FillShape.IsChecked = style.FillShape;
+        OutlineShape.IsChecked = style.OutlineShape;
         FillOpacityChoice.IsEnabled = style.FillShape;
         ItalicText.IsChecked = style.Italic;
         StepResetCount.IsChecked = selected?.StepReset == true;
@@ -247,13 +252,34 @@ public sealed partial class MainPage
             style.Italic = ItalicText.IsChecked == true;
             UpdateSelected(annotation => annotation with { Italic = style.Italic });
         }
-        else if (ReferenceEquals(sender, FillShape) || ReferenceEquals(sender, FillOpacityChoice))
+        else if (ReferenceEquals(sender, OutlineShape) || ReferenceEquals(sender, FillShape) ||
+            ReferenceEquals(sender, FillOpacityChoice))
         {
+            style.OutlineShape = OutlineShape.IsChecked == true;
             style.FillShape = FillShape.IsChecked == true;
+            if (!style.OutlineShape && !style.FillShape)
+            {
+                if (ReferenceEquals(sender, OutlineShape))
+                {
+                    style.FillShape = true;
+                    _updatingOptions = true;
+                    FillShape.IsChecked = true;
+                    _updatingOptions = false;
+                }
+                else
+                {
+                    style.OutlineShape = true;
+                    _updatingOptions = true;
+                    OutlineShape.IsChecked = true;
+                    _updatingOptions = false;
+                }
+            }
             style.FillOpacity = Math.Clamp(FiniteValue(FillOpacityChoice.Value, 25), 1, 100);
+            StrokeSize.IsEnabled = style.OutlineShape;
+            PrimaryColorButton.IsEnabled = style.OutlineShape;
             FillOpacityChoice.IsEnabled = style.FillShape;
             uint fill = style.FillShape ? WithOpacity(current.Secondary, style.FillOpacity) : 0;
-            UpdateSelected(annotation => annotation with { FillArgb = fill });
+            UpdateSelected(annotation => annotation with { HideOutline = !style.OutlineShape, FillArgb = fill });
         }
         else if (ReferenceEquals(sender, StartCapChoice) || ReferenceEquals(sender, EndCapChoice))
         {

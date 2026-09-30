@@ -12,6 +12,15 @@ public sealed partial class MainWindow : Window
     {
         ((FrameworkElement)Content).RequestedTheme = theme;
         Page.RequestedTheme = theme;
+        if (AppWindowTitleBar.IsCustomizationSupported())
+        {
+            AppWindow.TitleBar.PreferredTheme = theme switch
+            {
+                ElementTheme.Light => TitleBarTheme.Light,
+                ElementTheme.Dark => TitleBarTheme.Dark,
+                _ => TitleBarTheme.UseDefaultAppMode,
+            };
+        }
     }
 
     /// <summary>Creates the native shell and its document-first page.</summary>

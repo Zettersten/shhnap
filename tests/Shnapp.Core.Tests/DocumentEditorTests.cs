@@ -402,6 +402,8 @@ public sealed class DocumentEditorTests
             valid with { End = new ImagePoint(0, double.NegativeInfinity) },
             valid with { StrokeWidth = -1 },
             valid with { StrokeWidth = double.NaN },
+            valid with { HideOutline = true, FillArgb = 0 },
+            valid with { HideOutline = true, FillArgb = 0x00E5484D },
             valid with { FontSize = 0 },
             valid with { FontSize = double.PositiveInfinity },
             valid with { StepDiameter = 0 },
@@ -432,6 +434,7 @@ public sealed class DocumentEditorTests
             End = new ImagePoint(0, 0),
             StrokeWidth = 0,
             FillArgb = 0xFF0A84FF,
+            HideOutline = true,
         };
 
         editor.AddAnnotation(annotation);

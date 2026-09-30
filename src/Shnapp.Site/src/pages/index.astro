@@ -16,18 +16,18 @@ const shortcuts = [
   {
     title: 'A region',
     keys: ['Ctrl', 'Shift', '2'],
-    description: 'Drag a rectangle with a crosshair and live pixel measurements.',
+    description: 'Drag a rectangle with live pixel measurements. Hold Shift for a square.',
   },
 ];
 
 const capabilities = [
   {
     title: 'Say it in a sentence',
-    description: 'Add text or step dots with number, letter, or Roman labels. Restart a sequence wherever you need.',
+    description: 'Add text or step dots with number, letter, or Roman labels. Restart a sequence and keep the last dot size.',
   },
   {
     title: 'Point to the detail',
-    description: 'Draw solid, dashed, or dotted lines with your choice of caps at either end. Mark an area with a rectangle, square, ellipse, or circle.',
+    description: 'Draw solid, dashed, or dotted lines with your choice of caps at either end. Add outlined or fill-only shapes.',
   },
   {
     title: 'Choose how to hide a detail',
@@ -35,7 +35,7 @@ const capabilities = [
   },
   {
     title: 'Finish and move on',
-    description: 'Crop by exact pixels or a familiar ratio, zoom into details, then copy or save a PNG.',
+    description: 'Move a crop into place, choose exact pixels or a familiar ratio, then copy or save a PNG.',
   },
 ];
 ---
@@ -97,7 +97,7 @@ const capabilities = [
           <figure class="hero-preview">
             <div class="preview-canvas">
               <a href="screenshots/editor.png" aria-label="View a full-size screenshot of the Shnapp editor">
-                <img src="screenshots/editor.png" alt="The Shnapp editor showing a captured image and contextual dotted line options" width="1376" height="843" fetchpriority="high" />
+                <img src="screenshots/editor.png" alt="The Shnapp editor showing a captured image and contextual dotted line options" width="1362" height="836" fetchpriority="high" />
               </a>
             </div>
             <figcaption><span class="caption-dot" aria-hidden="true"></span> The editor after a capture. Actual app screenshot with sample content.</figcaption>
@@ -138,7 +138,7 @@ const capabilities = [
         <div class="shell tools-inner">
           <div class="tools-intro">
             <h2 id="tools-heading">Just enough to explain what matters.</h2>
-            <p>Place a mark and adjust it right away in the side panel. Select an earlier mark to edit it or drag its handles to resize it. Scroll to zoom, hold Space to pan, and hold Shift to keep movement or scaling in line.</p>
+            <p>Place a mark and adjust it right away in the side panel. Select an earlier mark to edit it or drag its handles to resize it. Scroll to zoom, hold Space to pan, and use the arrow keys to nudge a mark into place.</p>
           </div>
           <div class="capabilities">
             {capabilities.map((capability) => (
@@ -155,7 +155,7 @@ const capabilities = [
         <div class="shell library-inner">
           <div class="library-visual">
             <a href="screenshots/library.png" aria-label="View a full-size screenshot of the Shnapp library">
-              <img src="screenshots/library.png" alt="The Shnapp library showing saved screen captures, search, and thumbnail size controls" width="1106" height="533" loading="lazy" />
+              <img src="screenshots/library.png" alt="The Shnapp library showing saved screen captures, search, and thumbnail size controls" width="1362" height="613" loading="lazy" />
             </a>
             <p>Actual app screenshot with sample content</p>
           </div>

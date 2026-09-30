@@ -199,7 +199,10 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                     drawing.FillRectangle(bounds, fill);
                 }
 
-                drawing.DrawRectangle(bounds, stroke, width);
+                if (!annotation.HideOutline)
+                {
+                    drawing.DrawRectangle(bounds, stroke, width);
+                }
                 break;
             case AnnotationKind.Ellipse:
                 Vector2 center = new((float)(bounds.X + bounds.Width / 2), (float)(bounds.Y + bounds.Height / 2));
@@ -208,7 +211,10 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                     drawing.FillEllipse(center, (float)bounds.Width / 2, (float)bounds.Height / 2, fill);
                 }
 
-                drawing.DrawEllipse(center, (float)bounds.Width / 2, (float)bounds.Height / 2, stroke, width);
+                if (!annotation.HideOutline)
+                {
+                    drawing.DrawEllipse(center, (float)bounds.Width / 2, (float)bounds.Height / 2, stroke, width);
+                }
                 break;
             case AnnotationKind.Redaction:
                 CanvasAntialiasing previous = drawing.Antialiasing;
