@@ -33,6 +33,17 @@ public enum AnnotationKind
     Redaction,
 }
 
+/// <summary>How a rectangular redaction obscures the image beneath it.</summary>
+public enum RedactionMode
+{
+    /// <summary>An opaque, dark rectangle.</summary>
+    Solid,
+    /// <summary>A Gaussian blur of the covered pixels.</summary>
+    Blur,
+    /// <summary>Covered pixels enlarged as visible color blocks.</summary>
+    Pixelate,
+}
+
 /// <summary>A position in original-image pixels, never window DIPs.</summary>
 /// <param name="X">Horizontal coordinate.</param>
 /// <param name="Y">Vertical coordinate.</param>
@@ -92,6 +103,10 @@ public sealed record Annotation
     /// <summary>Gets the step number color as packed ARGB.</summary>
     /// <remarks>Zero uses a white step number, preserving documents that omitted this property.</remarks>
     public uint StepTextArgb { get; init; }
+
+    /// <summary>Gets how a redaction obscures its rectangular area.</summary>
+    /// <remarks>Solid is the default for older documents that omit this property.</remarks>
+    public RedactionMode RedactionMode { get; init; }
 
     /// <summary>Gets the line width in source pixels.</summary>
     public double StrokeWidth { get; init; } = 3;

@@ -31,7 +31,48 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                 {
                     DrawAnnotation(drawing, annotation);
                 }
+            }
 
+            bool hasEffects = document.Annotations.Any(a =>
+                a.Kind == AnnotationKind.Redaction && a.RedactionMode != RedactionMode.Solid);
+            if (hasEffects)
+            {
+                var redacted = new CanvasRenderTarget(_device, (float)viewport.Width, (float)viewport.Height, 96);
+                try
+                {
+                    using (CanvasDrawingSession drawing = redacted.CreateDrawingSession())
+                    {
+                        drawing.Clear(Colors.Transparent);
+                        drawing.DrawImage(content);
+                        drawing.Transform = Matrix3x2.CreateTranslation(-(float)viewport.X, -(float)viewport.Y);
+                        foreach (Annotation annotation in document.Annotations.Where(a =>
+                                     a.Kind == AnnotationKind.Redaction && a.RedactionMode != RedactionMode.Solid))
+                        {
+                            DrawRedactionPreview(drawing, content, annotation,
+                                new ImagePoint(viewport.X, viewport.Y));
+                        }
+
+                        // Opaque masks are last so another effect can never reveal their source pixels.
+                        foreach (Annotation annotation in document.Annotations.Where(a =>
+                                     a.Kind == AnnotationKind.Redaction && a.RedactionMode == RedactionMode.Solid))
+                        {
+                            DrawAnnotation(drawing, annotation);
+                        }
+                    }
+
+                    content.Dispose();
+                    content = redacted;
+                }
+                catch
+                {
+                    redacted.Dispose();
+                    throw;
+                }
+            }
+            else if (document.Annotations.Any(a => a.Kind == AnnotationKind.Redaction))
+            {
+                using CanvasDrawingSession drawing = content.CreateDrawingSession();
+                drawing.Transform = Matrix3x2.CreateTranslation(-(float)viewport.X, -(float)viewport.Y);
                 foreach (Annotation annotation in document.Annotations.Where(a => a.Kind == AnnotationKind.Redaction))
                 {
                     DrawAnnotation(drawing, annotation);
@@ -172,6 +213,58 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                 drawing.Antialiasing = previous;
                 break;
         }
+    }
+
+    /// <summary>Draws a redaction in source-image coordinates over a separate source bitmap.</summary>
+    /// <remarks>The source must not be the target of the active drawing session.</remarks>
+    internal void DrawRedactionPreview(CanvasDrawingSession drawing, CanvasBitmap source,
+        Annotation annotation, ImagePoint sourceOrigin = default)
+    {
+        if (annotation.Kind != AnnotationKind.Redaction || annotation.RedactionMode == RedactionMode.Solid)
+        {
+            DrawAnnotation(drawing, annotation);
+            return;
+        }
+
+        ImageRect bounds = annotation.Bounds;
+        double left = Math.Max(sourceOrigin.X, Math.Floor(bounds.X));
+        double top = Math.Max(sourceOrigin.Y, Math.Floor(bounds.Y));
+        double right = Math.Min(sourceOrigin.X + source.Size.Width, Math.Ceiling(bounds.Right));
+        double bottom = Math.Min(sourceOrigin.Y + source.Size.Height, Math.Ceiling(bounds.Bottom));
+        if (right <= left || bottom <= top)
+        {
+            return;
+        }
+
+        var destination = new Rect(left, top, right - left, bottom - top);
+        var sourceRect = new Rect(left - sourceOrigin.X, top - sourceOrigin.Y,
+            right - left, bottom - top);
+        if (annotation.RedactionMode == RedactionMode.Blur)
+        {
+            using var blur = new GaussianBlurEffect
+            {
+                Source = source,
+                BlurAmount = 12,
+                BorderMode = EffectBorderMode.Hard,
+            };
+            drawing.DrawImage(blur, destination, sourceRect, 1,
+                CanvasImageInterpolation.Linear);
+            return;
+        }
+
+        const double blockSize = 12;
+        int reducedWidth = Math.Max(1, (int)Math.Ceiling(destination.Width / blockSize));
+        int reducedHeight = Math.Max(1, (int)Math.Ceiling(destination.Height / blockSize));
+        using var reduced = new CanvasRenderTarget(_device, reducedWidth, reducedHeight, 96);
+        using (CanvasDrawingSession sample = reduced.CreateDrawingSession())
+        {
+            sample.Clear(Colors.Transparent);
+            sample.DrawImage(source, new Rect(0, 0, reducedWidth, reducedHeight), sourceRect,
+                1, CanvasImageInterpolation.Linear);
+        }
+
+        drawing.DrawImage(reduced, destination, new Rect(0, 0, reducedWidth, reducedHeight),
+            1, CanvasImageInterpolation.NearestNeighbor);
     }
 
     private static void DrawArrowHead(CanvasDrawingSession drawing, Vector2 tip, Vector2 direction,

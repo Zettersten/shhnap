@@ -30,14 +30,14 @@ You can start any capture from the tray icon or **New shnapp** in the app, too. 
 
 ## Explain it in a few clicks
 
-The editor gives your capture room to breathe. Pick a tool from the compact bar, then use the side panel to change only that tool's options. Shnapp remembers your choices while you work, so the next mark is ready to place.
+The editor gives your capture room to breathe. Place a mark and it stays selected: changes in the side panel update that mark right away. Select an earlier mark to adjust it, or drag its handles to resize it. When nothing is selected, your choices set up the next mark.
 
 - **Text:** choose a font, weight, italic style, size, and color. Double-click placed text to rewrite it.
 - **Steps:** place numbered dots and set the dot size and color, plus the number's font, weight, and color.
 - **Lines and shapes:** add lines with arrowheads at either end, or draw rectangles, squares, ellipses, and circles. Adjust outlines, thickness, and shape fills.
-- **Privacy:** cover an area with an opaque redaction before sharing.
+- **Privacy:** choose Cover, Blur, or Pixelate for a rectangular area. Use opaque Cover for sensitive details; Blur and Pixelate only obscure the view.
 
-Crop, move annotations, and undo or redo as you go. Window captures get a soft drop shadow by default.
+Crop, move and resize annotations, and undo or redo as you go. Window captures get a soft drop shadow by default.
 
 When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboard, **Save PNG** (`Ctrl+S`) lets you choose where to export it, and **Done** returns Shnapp to the tray.
 
@@ -51,11 +51,11 @@ Shnapp keeps your captures in a local library, ready to search and reopen for mo
 
 ## Your captures stay yours
 
-Shnapp saves its library and preferences under `%LOCALAPPDATA%\Shnapp` for your Windows user account. Capturing and editing require no account or internet connection. Copied and exported PNGs have opaque redactions baked in. The editable original remains in your local library, so share the finished PNG rather than a library file when something sensitive was covered.
+Shnapp saves its library and preferences under `%LOCALAPPDATA%\Shnapp` for your Windows user account. Capturing and editing require no account or internet connection. Copied and exported PNGs have the chosen Cover, Blur, or Pixelate effect baked in. The editable original remains in your local library, so share the finished PNG rather than a library file when something sensitive was covered. For private information, choose opaque Cover; blurred or pixelated details may still be recognizable.
 
 ## Get started
 
-Shnapp is an early preview for Windows 11 on x64 and ARM64. A public installer or GitHub Release has not been published yet. You can [build it from source](#build-from-source) today. Follow the [roadmap](ROADMAP.md) for planned captions, resizing, polygon shapes, blur and pixelation, true free-form capture, and optional AI assistance. The [product website source](src/Shnapp.Site) lives alongside the app.
+Shnapp is an early preview for Windows 11 on x64 and ARM64. A public installer or GitHub Release has not been published yet. You can [build it from source](#build-from-source) today. Follow the [roadmap](ROADMAP.md) for planned captions, output resizing, polygon shapes, true free-form capture, and optional AI assistance. The [product website source](src/Shnapp.Site) lives alongside the app.
 
 ### Build from source
 

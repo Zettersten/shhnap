@@ -145,7 +145,7 @@
                     </AppBarButton.Flyout>
                 </AppBarButton>
                 <AppBarToggleButton x:Name="RedactTool" Label="Redact" Tag="Redaction" Click="Tool_Click"
-                    ToolTipService.ToolTip="Opaque redaction · B" AutomationProperties.AutomationId="ToolRedact">
+                    ToolTipService.ToolTip="Cover, blur, or pixelate · B" AutomationProperties.AutomationId="ToolRedact">
                     <AppBarToggleButton.Icon><FontIcon Glyph="&#xE72E;" /></AppBarToggleButton.Icon>
                 </AppBarToggleButton>
                 <AppBarToggleButton x:Name="CropTool" Label="Crop" Tag="Crop" Click="Tool_Click"
@@ -228,6 +228,14 @@
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                                 <Rectangle Height="1" Fill="{ThemeResource ControlStrokeColorDefaultBrush}" />
+                                <StackPanel x:Name="RedactionModeRow" Visibility="Collapsed">
+                                    <ComboBox x:Name="RedactionModeChoice" Header="Mode" SelectedIndex="0"
+                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed">
+                                        <ComboBoxItem Content="Cover" Tag="Solid" />
+                                        <ComboBoxItem Content="Blur" Tag="Blur" />
+                                        <ComboBoxItem Content="Pixelate" Tag="Pixelate" />
+                                    </ComboBox>
+                                </StackPanel>
                                 <StackPanel x:Name="PrimaryColorRow" Visibility="Collapsed" Spacing="8">
                                     <TextBlock x:Name="PrimaryColorLabel" Text="Color" FontWeight="SemiBold" />
                                     <Button x:Name="PrimaryColorButton" HorizontalAlignment="Stretch"

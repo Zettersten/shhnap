@@ -355,6 +355,7 @@ public sealed class DocumentEditorTests
         [
             valid with { Id = Guid.Empty },
             valid with { Kind = (AnnotationKind)99 },
+            valid with { RedactionMode = (RedactionMode)99 },
             valid with { Start = new ImagePoint(double.NaN, 1) },
             valid with { Start = new ImagePoint(1, double.PositiveInfinity) },
             valid with { Start = new ImagePoint(-1, 0) },

@@ -81,6 +81,7 @@ public sealed class ShnappLibraryTests
                 StrokeArgb = 0xFFE5484D,
                 FillArgb = 0xFF111418,
                 StepTextArgb = kind == AnnotationKind.Step ? 0xFFFDE68A : 0,
+                RedactionMode = kind == AnnotationKind.Redaction ? RedactionMode.Pixelate : RedactionMode.Solid,
                 StrokeWidth = 4.25,
                 StartArrow = kind is AnnotationKind.Line or AnnotationKind.Arrow,
                 EndArrow = kind == AnnotationKind.Line,
@@ -119,6 +120,7 @@ public sealed class ShnappLibraryTests
             [
                 TestDocuments.Annotation(AnnotationKind.Arrow),
                 TestDocuments.Annotation(AnnotationKind.Step) with { FillArgb = 0x40E5484D, StepNumber = 1 },
+                TestDocuments.Annotation(AnnotationKind.Redaction),
             ],
         };
         await temporary.Library.SaveAsync(document);
@@ -130,6 +132,7 @@ public sealed class ShnappLibraryTests
             annotation.Remove("startArrow");
             annotation.Remove("endArrow");
             annotation.Remove("stepTextArgb");
+            annotation.Remove("redactionMode");
         }
         await File.WriteAllTextAsync(path, root.ToJsonString());
 
@@ -141,6 +144,28 @@ public sealed class ShnappLibraryTests
         Assert.IsFalse(opened.Annotations[0].EndArrow);
         Assert.AreEqual(0u, opened.Annotations[1].StepTextArgb);
         Assert.AreEqual(0x40E5484Du, opened.Annotations[1].FillArgb);
+        Assert.AreEqual(RedactionMode.Solid, opened.Annotations[2].RedactionMode);
+    }
+
+    [TestMethod]
+    [DataRow(RedactionMode.Blur)]
+    [DataRow(RedactionMode.Pixelate)]
+    public async Task RedactionModesRemainEditableAfterSaving(RedactionMode mode)
+    {
+        using var temporary = new TemporaryLibrary();
+        ShnappDocument document = TestDocuments.Create() with
+        {
+            Annotations = [TestDocuments.Annotation(AnnotationKind.Redaction) with { RedactionMode = mode }],
+        };
+
+        await temporary.Library.SaveAsync(document);
+        ShnappDocument? reopened = await temporary.Library.OpenAsync(document.Id);
+
+        Assert.IsNotNull(reopened);
+        Assert.AreEqual(mode, reopened.Annotations[0].RedactionMode);
+        using JsonDocument json = JsonDocument.Parse(await File.ReadAllTextAsync(temporary.GetMetadataPath(document.Id)));
+        Assert.AreEqual(mode.ToString(), json.RootElement.GetProperty("annotations")[0]
+            .GetProperty("redactionMode").GetString());
     }
 
     [TestMethod]

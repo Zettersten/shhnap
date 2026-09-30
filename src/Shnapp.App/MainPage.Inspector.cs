@@ -81,6 +81,7 @@ public sealed partial class MainPage
             FillOpacity = selected.FillArgb == 0 ? defaults.FillOpacity : Math.Round((selected.FillArgb >> 24) * 100.0 / 255),
             StartArrow = selected.StartArrow,
             EndArrow = selected.EndArrow || selected.Kind == AnnotationKind.Arrow,
+            RedactionMode = selected.RedactionMode,
         };
     }
 
@@ -98,14 +99,22 @@ public sealed partial class MainPage
         bool step = tool == EditorTool.Step;
         bool line = tool is EditorTool.Line or EditorTool.Arrow;
         bool shape = tool is EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle;
+        bool redaction = tool == EditorTool.Redaction;
         bool styleable = text || step || line || shape;
 
         _updatingOptions = true;
-        InspectorTitle.Text = selected is null ? tool.ToString() : $"Selected {selected.Kind.ToString().ToLowerInvariant()}";
-        InspectorHelp.Text = selected is null
-            ? ToolHint()
-            : "Change only what you need. Drag to move; Delete removes this mark.";
+        InspectorTitle.Text = redaction
+            ? selected is null ? RedactionModeLabel(style.RedactionMode) : $"Selected {RedactionModeLabel(style.RedactionMode).ToLowerInvariant()}"
+            : selected is null ? tool.ToString() : $"Selected {selected.Kind.ToString().ToLowerInvariant()}";
+        InspectorHelp.Text = redaction
+            ? selected is null
+                ? "Drag to apply. Cover fully hides pixels in shared images; blur and pixelate obscure them."
+                : "Change the mode or drag handles to resize. Use Cover for private details."
+            : selected is null
+                ? ToolHint()
+                : "Change options here, drag to move, or drag handles to resize. Delete removes this mark.";
 
+        RedactionModeRow.Visibility = Visible(redaction);
         PrimaryColorRow.Visibility = Visible(styleable);
         SecondaryColorRow.Visibility = Visible(step || shape);
         StrokeWidthRow.Visibility = Visible(line || shape);
@@ -142,12 +151,20 @@ public sealed partial class MainPage
         ItalicText.IsChecked = style.Italic;
         StartArrow.IsChecked = style.StartArrow;
         EndArrow.IsChecked = style.EndArrow;
+        SelectComboValue(RedactionModeChoice, style.RedactionMode.ToString());
         SelectComboValue(FontFamilyChoice, style.FontFamily);
         SelectComboValue(FontWeightChoice, style.FontWeight.ToString(System.Globalization.CultureInfo.InvariantCulture));
         _updatingOptions = false;
     }
 
     private static Visibility Visible(bool show) => show ? Visibility.Visible : Visibility.Collapsed;
+
+    private static string RedactionModeLabel(RedactionMode mode) => mode switch
+    {
+        RedactionMode.Blur => "Blur",
+        RedactionMode.Pixelate => "Pixelate",
+        _ => "Cover",
+    };
 
     private static void SelectComboValue(ComboBox combo, string value)
     {
@@ -223,6 +240,17 @@ public sealed partial class MainPage
                 StartArrow = style.StartArrow,
                 EndArrow = style.EndArrow,
             });
+        }
+        else if (ReferenceEquals(sender, RedactionModeChoice) &&
+            RedactionModeChoice.SelectedItem is ComboBoxItem modeChoice &&
+            Enum.TryParse(modeChoice.Tag?.ToString(), out RedactionMode mode))
+        {
+            style.RedactionMode = mode;
+            UpdateSelected(annotation => annotation with { RedactionMode = mode });
+            if (_editor is not null)
+            {
+                UpdateInspector();
+            }
         }
     }
 

@@ -45,6 +45,7 @@ internal static class DocumentValidation
         ArgumentNullException.ThrowIfNull(annotation);
         Require(annotation.Id != Guid.Empty, "An annotation identifier cannot be empty.", nameof(annotation));
         Require(Enum.IsDefined(annotation.Kind), "The annotation kind is not supported.", nameof(annotation));
+        Require(Enum.IsDefined(annotation.RedactionMode), "The redaction mode is not supported.", nameof(annotation));
         ValidatePoint(annotation.Start, document, nameof(annotation));
         ValidatePoint(annotation.End, document, nameof(annotation));
         Require(double.IsFinite(annotation.StrokeWidth) && annotation.StrokeWidth >= 0,

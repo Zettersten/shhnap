@@ -30,8 +30,8 @@ const capabilities = [
     description: 'Draw lines with arrowheads at either end, or mark an area with a rectangle, square, ellipse, or circle.',
   },
   {
-    title: 'Keep private things private',
-    description: 'Cover sensitive details with an opaque redaction before you copy or export.',
+    title: 'Choose how to hide a detail',
+    description: 'Use opaque Cover for sensitive details. Blur and Pixelate offer visual obscuring when that is enough.',
   },
   {
     title: 'Finish and move on',
@@ -138,7 +138,7 @@ const capabilities = [
         <div class="shell tools-inner">
           <div class="tools-intro">
             <h2 id="tools-heading">Just enough to explain what matters.</h2>
-            <p>Useful marks, direct editing, and a clear finish. The capture stays at the center of the experience.</p>
+            <p>Place a mark, then select it to adjust its settings in the side panel or resize it with drag handles. The capture stays in view while you work.</p>
           </div>
           <div class="capabilities">
             {capabilities.map((capability) => (
@@ -172,7 +172,7 @@ const capabilities = [
           <div class="privacy-mark" aria-hidden="true"><img src="assets/icon.png" alt="" width="110" height="110" loading="lazy" /></div>
           <div>
             <h2 id="privacy-heading">Local is the default.</h2>
-            <p>Your library and preferences live in your Windows user folder. Core capture and editing need no account or internet connection. Copied and exported PNGs have redactions baked in; editable originals stay in your local library.</p>
+            <p>Your library and preferences live in your Windows user folder. Core capture and editing need no account or internet connection. Copied and exported PNGs include your chosen Cover, Blur, or Pixelate effect. Editable originals stay in your local library. Choose opaque Cover for private information; blur and pixelation may leave details recognizable.</p>
           </div>
         </div>
       </section>
@@ -181,7 +181,7 @@ const capabilities = [
         <div class="shell future-inner">
           <div>
             <h2 id="future-heading">Still taking shape.</h2>
-            <p>Shnapp is an early preview. Planned additions include captions, polygon shapes, blur and pixelation, resizing, and optional AI help for writing. They are not in the current app.</p>
+            <p>Shnapp is an early preview. Planned additions include captions, polygon shapes, output resizing, true free-form capture, and optional AI help for writing. They are not in the current app.</p>
           </div>
           <a class="inline-link" href={github} target="_blank" rel="noopener noreferrer">Follow the project on GitHub <span aria-hidden="true">↗</span></a>
         </div>

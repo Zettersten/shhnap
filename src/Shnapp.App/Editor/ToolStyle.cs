@@ -1,3 +1,5 @@
+using Shnapp.Core;
+
 namespace Shnapp.App.Editor;
 
 /// <summary>Session defaults for one editor tool, independent of the selected annotation.</summary>
@@ -15,6 +17,7 @@ internal sealed class ToolStyle
     internal double FillOpacity { get; set; } = 25;
     internal bool StartArrow { get; set; }
     internal bool EndArrow { get; set; }
+    internal RedactionMode RedactionMode { get; set; } = RedactionMode.Solid;
 
     internal static ToolStyle Defaults(EditorTool tool) => new()
     {

@@ -35,6 +35,7 @@ public sealed class PersistenceFailureTests
     [DataRow("invalidStartArrow")]
     [DataRow("invalidEndArrow")]
     [DataRow("invalidStepTextArgb")]
+    [DataRow("unknownRedactionMode")]
     [DataRow("wrongStepNumber")]
     [DataRow("fractionalCrop")]
     [DataRow("outsideCrop")]
@@ -94,6 +95,7 @@ public sealed class PersistenceFailureTests
             case "invalidStartArrow": annotation["startArrow"] = "yes"; break;
             case "invalidEndArrow": annotation["endArrow"] = 1; break;
             case "invalidStepTextArgb": annotation["stepTextArgb"] = "white"; break;
+            case "unknownRedactionMode": annotation["redactionMode"] = "Smudge"; break;
             case "wrongStepNumber": annotation["stepNumber"] = 99; break;
             case "fractionalCrop": crop["x"] = 10.25; break;
             case "outsideCrop": crop["width"] = 640; break;

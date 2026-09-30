@@ -4,7 +4,7 @@ Shnapp's goal is a fast, small Windows 11 capture app: press a shortcut, make a 
 
 ## Starting point
 
-The current app has the three global shortcuts, a tray and local library, per-user storage, opt-in startup, a window shadow, crop, text/steps/lines/arrows/rectangles/squares/ellipses/circles/opaque redaction, undo/redo, and PNG copy/export. The capture editor now has a contextual side panel for text, step, line, and shape styling. `Ctrl+Shift+2` currently selects a **rectangle**. Saved documents still use schema version 1 and retain the unedited source image; optional annotation fields preserve older documents. GitHub Actions tests and builds on `main` and prepares x64/ARM64 archives on version tags, but no public release or Store package has been validated. The previous self-contained x64 publish measured about 174 MiB; capture latency and idle memory have no baseline yet.
+The current app has the three global shortcuts, a tray and local library, per-user storage, opt-in startup, a window shadow, crop, text/steps/lines/arrows/rectangles/squares/ellipses/circles, rectangular Cover/Blur/Pixelate effects, undo/redo, and PNG copy/export. Newly placed annotations stay selected. The contextual side panel edits the selected mark immediately, and drag handles resize it on the canvas. `Ctrl+Shift+2` currently selects a **rectangle**. Saved documents still use schema version 1 and retain the unedited source image; optional annotation fields preserve older documents. GitHub Actions tests and builds on `main` and prepares x64/ARM64 archives on version tags, but no public release or Store package has been validated. The previous self-contained x64 publish measured about 174 MiB; capture latency and idle memory have no baseline yet.
 
 Work on the product website and README can proceed in parallel with the app slices below. Each slice should land as a usable improvement, with the same result visible in the editor, copied PNG, exported PNG, saved preview, and reopened document where applicable.
 
@@ -20,7 +20,7 @@ Work on the product website and README can proceed in parallel with the app slic
 
 ### 1. Durable editing foundation (P0; before complex new document structures)
 
-- Define document schema version 2 and a migration from version 1. Preserve existing local shnapps and their original pixels. Add explicit models for captions, output resizing, polygon vertices, and privacy effects rather than forcing all of them into `Annotation.Start` and `End` (`src/Shnapp.Core/Documents.cs`, `DocumentValidation.cs`, `DocumentEditor.cs`, `ShnappLibrary.cs`). Existing optional version 1 fields cover step number color and line end caps for now.
+- Define document schema version 2 and a migration from version 1. Preserve existing local shnapps and their original pixels. Add explicit models for captions, output resizing, polygon vertices, and configurable privacy effect parameters rather than forcing all of them into `Annotation.Start` and `End` (`src/Shnapp.Core/Documents.cs`, `DocumentValidation.cs`, `DocumentEditor.cs`, `ShnappLibrary.cs`). Existing optional version 1 fields cover step number color, line end caps, and the three redaction modes for now.
 - Make one render pipeline the source of truth for editor preview, thumbnail, clipboard, and PNG export (`src/Shnapp.App/Editor/ShnappRenderer.cs`). Define the layer order: source image → privacy effects → ordinary annotations → captions → window shadow/output padding, with crop and resize applied consistently. Include alpha behavior for lasso captures.
 - Keep every user edit undoable; add migration, serialization, geometry, and render parity tests. Ensure malformed or unsupported documents fail clearly without deleting originals.
 
@@ -28,22 +28,22 @@ Work on the product website and README can proceed in parallel with the app slic
 
 ### 2. Complete annotation controls (P1)
 
-**Current status:** The editor has a compact tool bar and contextual inspector. Text font, weight, italic style, size, color, and existing-text editing are present. Steps have separate dot and number colors, dot size, number font, and weight. Lines have color, thickness, and independent start/end arrowheads. Rectangle, square, ellipse, and circle tools have outline color, thickness, fill color, and opacity. Polygon placement is still outstanding. Final keyboard, pointer, persistence, and export checks remain part of the release gate.
+**Current status:** The editor has a compact tool bar and contextual inspector. A newly placed mark stays selected; selecting an older one loads its settings, and sidebar changes apply to it immediately. Drag handles resize text, steps, lines, shapes, and privacy rectangles. Text font, weight, italic style, size, color, and existing-text editing are present. Steps have separate dot and number colors, dot size, number font, and weight. Lines have color, thickness, and independent start/end arrowheads. Rectangle, square, ellipse, and circle tools have outline color, thickness, fill color, and opacity. Polygon placement is still outstanding. Final keyboard, pointer, persistence, and export checks remain part of the release gate.
 
 - Finish polygon placement with add-point, finish, and cancel interactions, then expose its outline color, thickness, fill color, and fill opacity beside the existing shape controls.
 - Verify automatic step numbering through insert, delete, reorder, save, and reopen; keep numbers stable when annotations are moved or styled.
-- Finish keyboard, pointer, screen-reader, persistence, and export checks for every tool. Keep the default one-click placement path while allowing edits through the contextual inspector.
+- Finish keyboard, pointer, screen-reader, persistence, and export checks for every tool. Verify selected-item editing and drag handles across the supported annotation types, including zoomed and cropped views.
 
 **Done when:** every control in the original annotation list changes both live preview and exported pixels, persists in the library, and remains editable and undoable. Keyboard and pointer flows work without obscuring the canvas.
 
 ### 3. Privacy, dimensions, and captions (P1)
 
-- Add rectangular **blur** and **pixelate** tools next to the existing opaque redact tool. Show their exact effect in the editor and flatten them into copied/exported PNGs. Test that representative text under a default effect is unreadable at 100% and after resize; describe blur and pixelate as visual obscuring, with opaque redact as the strong privacy choice. Make clear that the local editable source still contains the original pixels.
+- Harden the current rectangular Cover, Blur, and Pixelate modes: verify editor, clipboard, export, preview, undo, and saved-document parity with representative text and overlapping effects. Describe Blur and Pixelate as visual obscuring; Cover is the safer choice for sensitive details. Make clear that the local editable source still contains the original pixels.
 - Add non-destructive output resize: width/height in pixels, aspect lock, percentage and common presets. Apply it after crop and before final output; keep annotation placement stable in source coordinates. Show resulting dimensions before copy/export.
 - Add captions with a one-action default (bottom overlay, focused text field). Support overlay or outside-canvas placement, top/bottom/left/right, background color and opacity, caption font family/style/weight/size/color, padding, and margins. Prevent accidental clipping when a caption grows or the image is narrow.
 - Complete the broad “style” request as a small set of useful output presets (for example background/padding and shadow choices) after the precise controls above work; keep source pixels untouched unless the user chooses an effect.
 
-**Done when:** privacy effects, resize, and captions survive save/reopen and undo/redo; output dimensions and caption layout match preview; exported redaction is opaque; defaults produce a shareable image without opening an options panel.
+**Done when:** privacy effects, output resize, and captions survive save/reopen and undo/redo; output dimensions and caption layout match preview; exported Cover is opaque; defaults produce a shareable image without opening an options panel.
 
 ### 4. Capture semantics and reliability (P1)
 

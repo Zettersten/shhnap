@@ -23,11 +23,13 @@ public sealed partial class MainPage : Page
     private DocumentEditor? _editor;
     private CanvasBitmap? _original;
     private CanvasRenderTarget? _flattened;
+    private CanvasRenderTarget? _dragBase;
     private EditorTool _tool;
     private Guid? _selectedId;
     private ImagePoint? _dragStart;
     private Annotation? _moving;
     private Annotation? _draft;
+    private ResizeHandle _resizeHandle;
     private ImageRect? _crop;
     private TextBox? _textBox;
     private Guid? _textEditId;
@@ -189,18 +191,27 @@ public sealed partial class MainPage : Page
         CanvasDrawingSession drawing = args.DrawingSession;
         drawing.Transform = Matrix3x2.CreateScale((float)_scale)
             * Matrix3x2.CreateTranslation((float)_offsetX, (float)_offsetY);
-        drawing.DrawImage(_flattened);
+        drawing.DrawImage(_dragBase ?? _flattened);
         drawing.Transform = ImageTransform();
         if (_draft is not null)
         {
-            ShnappRenderer.DrawAnnotation(drawing, _draft);
+            if (_draft.Kind == AnnotationKind.Redaction)
+            {
+                ImageRect viewport = _editor.Current.Viewport;
+                int padding = _editor.Current.HasWindowShadow ? ShnappRenderer.ShadowPadding : 0;
+                _controller!.Renderer.DrawRedactionPreview(drawing, _dragBase ?? _flattened, _draft,
+                    new ImagePoint(viewport.X - padding, viewport.Y - padding));
+            }
+            else
+            {
+                ShnappRenderer.DrawAnnotation(drawing, _draft);
+            }
         }
 
         Annotation? selected = _editor.Current.Annotations.FirstOrDefault(a => a.Id == _selectedId);
-        if (selected is not null && _moving is null)
+        if (selected is not null)
         {
-            drawing.DrawRectangle(HitBounds(selected), Colors.White, (float)(3 / _scale));
-            drawing.DrawRectangle(HitBounds(selected), ShnappRenderer.FromArgb(0xFF0A84FF), (float)(1 / _scale));
+            DrawSelection(drawing, _moving is not null ? _draft ?? selected : selected);
         }
 
         if (_crop is ImageRect crop)
@@ -230,7 +241,22 @@ public sealed partial class MainPage : Page
         }
 
         CommitText();
-        ImagePoint? position = ImagePosition(args.GetCurrentPoint(DrawingCanvas).Position);
+        Point canvasPosition = args.GetCurrentPoint(DrawingCanvas).Position;
+        if (SelectedAnnotation() is { } current &&
+            HitResizeHandle(current, canvasPosition) is ResizeHandle handle and not ResizeHandle.None)
+        {
+            _moving = current;
+            _resizeHandle = handle;
+            _dragStart = ImagePosition(canvasPosition, clamp: true);
+            _crop = null;
+            DrawingCanvas.Focus(FocusState.Programmatic);
+            DrawingCanvas.CapturePointer(args.Pointer);
+            args.Handled = true;
+            DrawingCanvas.Invalidate();
+            return;
+        }
+
+        ImagePoint? position = ImagePosition(canvasPosition);
         if (position is not ImagePoint point)
         {
             return;
@@ -245,13 +271,15 @@ public sealed partial class MainPage : Page
                 StartText(point);
                 break;
             case EditorTool.Step:
-                _editor.AddAnnotation(NewAnnotation(AnnotationKind.Step, point) with
+                Annotation step = NewAnnotation(AnnotationKind.Step, point) with
                 {
                     StepNumber = _editor.Current.Annotations.Count(a => a.Kind == AnnotationKind.Step) + 1,
-                });
+                };
+                _selectedId = step.Id;
+                _editor.AddAnnotation(step);
                 break;
             case EditorTool.Select:
-                _moving = _editor.Current.Annotations.Reverse().FirstOrDefault(a => HitBounds(a).Contains(new Point(point.X, point.Y)));
+                _moving = _editor.Current.Annotations.Reverse().FirstOrDefault(a => HitAnnotation(a, point));
                 _selectedId = _moving?.Id;
                 _dragStart = _moving is null ? null : point;
                 if (_moving is not null)
@@ -293,15 +321,27 @@ public sealed partial class MainPage : Page
         ImagePoint point = ImagePosition(args.GetCurrentPoint(DrawingCanvas).Position, clamp: true)!.Value;
         if (_moving is not null)
         {
-            double dx = Math.Clamp(point.X - start.X, -Math.Min(_moving.Start.X, _moving.End.X),
-                _editor.Current.PixelWidth - Math.Max(_moving.Start.X, _moving.End.X));
-            double dy = Math.Clamp(point.Y - start.Y, -Math.Min(_moving.Start.Y, _moving.End.Y),
-                _editor.Current.PixelHeight - Math.Max(_moving.Start.Y, _moving.End.Y));
-            _draft = _moving with
+            if (_resizeHandle != ResizeHandle.None)
             {
-                Start = new(_moving.Start.X + dx, _moving.Start.Y + dy),
-                End = new(_moving.End.X + dx, _moving.End.Y + dy),
-            };
+                _draft = ResizeAnnotation(_moving, _resizeHandle, point);
+            }
+            else
+            {
+                Rect bounds = SelectionBounds(_moving);
+                ImageRect viewport = _editor.Current.Viewport;
+                double dx = ClampMovement(point.X - start.X, viewport.X - bounds.X, viewport.Right - bounds.Right);
+                double dy = ClampMovement(point.Y - start.Y, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom);
+                _draft = _moving with
+                {
+                    Start = new(_moving.Start.X + dx, _moving.Start.Y + dy),
+                    End = new(_moving.End.X + dx, _moving.End.Y + dy),
+                };
+            }
+
+            if (_draft != _moving)
+            {
+                EnsureDragBase();
+            }
         }
         else if (_tool == EditorTool.Crop)
         {
@@ -325,6 +365,7 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        DisposeDragBase();
         if (_draft is Annotation annotation)
         {
             if (_moving is not null)
@@ -333,12 +374,14 @@ public sealed partial class MainPage : Page
             }
             else if (Math.Abs(annotation.End.X - annotation.Start.X) + Math.Abs(annotation.End.Y - annotation.Start.Y) >= 2)
             {
+                _selectedId = annotation.Id;
                 _editor.AddAnnotation(annotation);
             }
         }
 
         _draft = null;
         _moving = null;
+        _resizeHandle = ResizeHandle.None;
         _dragStart = null;
         DrawingCanvas.ReleasePointerCapture(args.Pointer);
         DrawingCanvas.Invalidate();
@@ -416,6 +459,7 @@ public sealed partial class MainPage : Page
             StepTextArgb = style.Secondary,
             StartArrow = style.StartArrow,
             EndArrow = style.EndArrow,
+            RedactionMode = style.RedactionMode,
         };
     }
 
@@ -426,13 +470,7 @@ public sealed partial class MainPage : Page
 
     private Rect HitBounds(Annotation annotation)
     {
-        Rect bounds = annotation.Kind switch
-        {
-            AnnotationKind.Text => ShnappRenderer.TextBounds(annotation),
-            AnnotationKind.Step => new Rect(annotation.Start.X - annotation.StepDiameter / 2,
-                annotation.Start.Y - annotation.StepDiameter / 2, annotation.StepDiameter, annotation.StepDiameter),
-            _ => ShnappRenderer.ToRect(annotation.Bounds),
-        };
+        Rect bounds = SelectionBounds(annotation);
         double tolerance = 5 / _scale;
         return new(bounds.X - tolerance, bounds.Y - tolerance, Math.Max(1, bounds.Width) + tolerance * 2,
             Math.Max(1, bounds.Height) + tolerance * 2);
@@ -510,7 +548,9 @@ public sealed partial class MainPage : Page
         }
         else if (!string.IsNullOrWhiteSpace(text))
         {
-            _editor.AddAnnotation(NewAnnotation(AnnotationKind.Text, _textOrigin) with { Text = text });
+            Annotation annotation = NewAnnotation(AnnotationKind.Text, _textOrigin) with { Text = text };
+            _selectedId = annotation.Id;
+            _editor.AddAnnotation(annotation);
         }
     }
 
@@ -529,7 +569,9 @@ public sealed partial class MainPage : Page
     {
         CancelText();
         _draft = null;
+        DisposeDragBase();
         _moving = null;
+        _resizeHandle = ResizeHandle.None;
         _crop = null;
         _dragStart = null;
         DrawingCanvas.ReleasePointerCaptures();
@@ -541,7 +583,10 @@ public sealed partial class MainPage : Page
         CommitText();
         CancelInteraction();
         _tool = tool;
-        _selectedId = null;
+        if (tool != EditorTool.Select)
+        {
+            _selectedId = null;
+        }
         foreach (AppBarToggleButton button in Tools.PrimaryCommands.OfType<AppBarToggleButton>())
         {
             button.IsChecked = string.Equals(button.Tag as string, tool.ToString(), StringComparison.Ordinal);
@@ -558,10 +603,10 @@ public sealed partial class MainPage : Page
 
     private string ToolHint() => _tool switch
     {
-        EditorTool.Select => "Select to move · Delete removes · Ctrl+Z undoes",
+        EditorTool.Select => "Select to move · Drag handles to resize · Delete removes",
         EditorTool.Text => "Click to type · Enter finishes",
         EditorTool.Step => "Click to place the next numbered step",
-        EditorTool.Redaction => "Drag an opaque redaction · Flattened exports hide covered pixels",
+        EditorTool.Redaction => "Drag to obscure an area · Solid fully masks; blur and pixelate soften detail",
         EditorTool.Crop => "Drag a crop · Enter confirms · Esc cancels",
         _ => $"Drag to draw a {_tool.ToString().ToLowerInvariant()}",
     };
