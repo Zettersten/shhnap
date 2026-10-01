@@ -70,11 +70,11 @@ export const catalogChannels: CatalogChannel[] = [
   {
     id: 'chocolatey',
     name: 'Chocolatey',
-    state: 'planned',
+    state: 'awaiting-listing',
     listingUrl: null,
     installCommand: 'choco install shnapp',
     updateCommand: 'choco upgrade shnapp',
-    description: 'A managed package for Windows.',
+    description: 'Submitted to Chocolatey Community; awaiting moderation.',
   },
   {
     id: 'microsoft-store',
