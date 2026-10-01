@@ -377,6 +377,13 @@ public sealed partial class MainPage
 
     private void GalleryDock_PointerMoved(object sender, PointerRoutedEventArgs args)
     {
+        // With one or two recent shnapps the dock has no neighbors to fan out;
+        // a fixed-size preview is easier to click and drag.
+        if (_galleryVisibleDocuments.Count <= 2)
+        {
+            return;
+        }
+
         double pointerY = args.GetCurrentPoint(GalleryDockItems).Position.Y;
         for (int index = 0; index < GalleryDockItems.Children.Count; index++)
         {

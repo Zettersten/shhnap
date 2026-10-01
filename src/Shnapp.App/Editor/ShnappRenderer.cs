@@ -152,8 +152,9 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         }
     }
 
-    /// <summary>Downsamples a flattened shnapp to a small, center-cropped preview.</summary>
-    internal CanvasRenderTarget Thumbnail(CanvasBitmap flattened, int width, int height)
+    /// <summary>Downsamples a shnapp for a compact preview, preserving or cropping its aspect.</summary>
+    internal CanvasRenderTarget Thumbnail(CanvasBitmap flattened, int width, int height,
+        bool preserveEntireImage = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
@@ -163,12 +164,19 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         double targetAspect = (double)width / height;
         double croppedWidth = Math.Min(sourceWidth, sourceHeight * targetAspect);
         double croppedHeight = Math.Min(sourceHeight, sourceWidth / targetAspect);
-        var source = new Rect((sourceWidth - croppedWidth) / 2,
-            (sourceHeight - croppedHeight) / 2, croppedWidth, croppedHeight);
+        var source = preserveEntireImage
+            ? new Rect(0, 0, sourceWidth, sourceHeight)
+            : new Rect((sourceWidth - croppedWidth) / 2,
+                (sourceHeight - croppedHeight) / 2, croppedWidth, croppedHeight);
+        double scale = Math.Min(width / sourceWidth, height / sourceHeight);
+        var destination = preserveEntireImage
+            ? new Rect((width - sourceWidth * scale) / 2, (height - sourceHeight * scale) / 2,
+                sourceWidth * scale, sourceHeight * scale)
+            : new Rect(0, 0, width, height);
         var preview = new CanvasRenderTarget(_device, width, height, 96);
         using CanvasDrawingSession drawing = preview.CreateDrawingSession();
         drawing.Clear(Colors.Transparent);
-        drawing.DrawImage(flattened, new Rect(0, 0, width, height), source);
+        drawing.DrawImage(flattened, destination, source);
         return preview;
     }
 

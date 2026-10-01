@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
@@ -14,6 +15,13 @@ public sealed partial class MainPage
 {
     private double _fitScale = 1;
     private double _zoomFactor = 1;
+    private DispatcherTimer? _zoomTimer;
+    private double _zoomTargetScale = 1;
+    private double _zoomVelocity;
+    private Point _zoomAnchor;
+    private double _zoomAnchorImageX;
+    private double _zoomAnchorImageY;
+    private DateTimeOffset _zoomLastTick;
     private double _viewCanvasWidth = double.NaN;
     private double _viewCanvasHeight = double.NaN;
     private double _viewImageWidth = double.NaN;
@@ -45,6 +53,7 @@ public sealed partial class MainPage
 
     private void ResetCanvasView()
     {
+        StopZoomAnimation();
         StopCanvasPan();
         _zoomFactor = 1;
         _fitScale = 1;
@@ -54,6 +63,7 @@ public sealed partial class MainPage
         _viewViewport = null;
         _viewShadowPadding = 0;
         _pendingContentAnchor = null;
+        UpdateZoomLabel();
     }
 
     private void Canvas_PointerWheelChanged(object sender, PointerRoutedEventArgs args)
@@ -73,23 +83,109 @@ public sealed partial class MainPage
         }
 
         Point pointer = args.GetCurrentPoint(DrawingCanvas).Position;
-        double imageX = (pointer.X - _offsetX) / _scale;
-        double imageY = (pointer.Y - _offsetY) / _scale;
-        double next = Math.Clamp(_scale * Math.Pow(1.2, delta / 120), _fitScale,
-            Math.Max(8, _fitScale * 16));
-        _scale = next;
-        _zoomFactor = next / _fitScale;
-        _offsetX = pointer.X - imageX * next;
-        _offsetY = pointer.Y - imageY * next;
-        ClampCanvasPan();
-        DrawingCanvas.Invalidate();
-        UpdateCropHover(pointer);
-        ViewModel.Status = $"Zoom {_scale * 100:0}% · Space + drag to pan";
+        double baseScale = _zoomTimer?.IsEnabled == true ? _zoomTargetScale : _scale;
+        QueueCanvasZoom(baseScale * Math.Pow(1.2, delta / 120), pointer);
         args.Handled = true;
+    }
+
+    private void ZoomPreset_Click(object sender, RoutedEventArgs args)
+    {
+        if (_flattened is null || _editor is null || sender is not MenuFlyoutItem item)
+        {
+            return;
+        }
+
+        UpdateTransform();
+        string? preset = item.Tag?.ToString();
+        double target = preset == "fit" ? _fitScale :
+            double.TryParse(preset, NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
+                ? value : _scale;
+        QueueCanvasZoom(target, new Point(DrawingCanvas.ActualWidth / 2, DrawingCanvas.ActualHeight / 2));
+    }
+
+    private double MinimumZoomScale() => Math.Max(0.005, Math.Min(0.1, _fitScale * 0.2));
+    private double MaximumZoomScale() => Math.Max(8, _fitScale * 16);
+
+    private void QueueCanvasZoom(double target, Point anchor)
+    {
+        target = Math.Clamp(target, MinimumZoomScale(), MaximumZoomScale());
+        _zoomTargetScale = target;
+        _zoomAnchor = anchor;
+        _zoomAnchorImageX = (anchor.X - _offsetX) / _scale;
+        _zoomAnchorImageY = (anchor.Y - _offsetY) / _scale;
+        if (_zoomTimer?.IsEnabled != true)
+        {
+            _zoomVelocity = 0;
+            _zoomLastTick = DateTimeOffset.UtcNow;
+            _zoomTimer ??= CreateZoomTimer();
+            _zoomTimer.Start();
+        }
+
+        ViewModel.Status = "Scroll to zoom · Space + drag to pan";
+    }
+
+    private DispatcherTimer CreateZoomTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        timer.Tick += (_, _) =>
+        {
+            if (_flattened is null || _editor is null)
+            {
+                StopZoomAnimation();
+                return;
+            }
+
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            double elapsed = Math.Clamp((now - _zoomLastTick).TotalSeconds, 0.001, 0.04);
+            _zoomLastTick = now;
+            double currentLog = Math.Log(_scale);
+            double targetLog = Math.Log(_zoomTargetScale);
+            const double frequency = 18;
+            const double damping = 0.85;
+            _zoomVelocity += (frequency * frequency * (targetLog - currentLog) -
+                2 * damping * frequency * _zoomVelocity) * elapsed;
+            double next = Math.Clamp(Math.Exp(currentLog + _zoomVelocity * elapsed),
+                MinimumZoomScale(), MaximumZoomScale());
+            if (Math.Abs(targetLog - Math.Log(next)) < 0.001 && Math.Abs(_zoomVelocity) < 0.02)
+            {
+                next = _zoomTargetScale;
+                StopZoomAnimation();
+            }
+
+            _scale = next;
+            _zoomFactor = _scale / _fitScale;
+            _offsetX = _zoomAnchor.X - _zoomAnchorImageX * _scale;
+            _offsetY = _zoomAnchor.Y - _zoomAnchorImageY * _scale;
+            ClampCanvasPan();
+            UpdateZoomLabel();
+            DrawingCanvas.Invalidate();
+        };
+        return timer;
+    }
+
+    private void StopZoomAnimation()
+    {
+        _zoomTimer?.Stop();
+        _zoomVelocity = 0;
+    }
+
+    private void UpdateZoomLabel()
+    {
+        if (ZoomPresetButton is null)
+        {
+            return;
+        }
+
+        string label = $"{_scale * 100:0}%";
+        if (!Equals(ZoomPresetButton.Content, label))
+        {
+            ZoomPresetButton.Content = label;
+        }
     }
 
     private void BeginCanvasPan(PointerRoutedEventArgs args)
     {
+        StopZoomAnimation();
         StopCanvasPan();
         CommitText();
         _panning = true;
@@ -176,11 +272,13 @@ public sealed partial class MainPage
     }
 
     private void UpdatePanCursor() =>
-        CanvasHost.SetPanCursor(_editor is not null && (_panning || IsSpaceHeld()) && !EditorInputHasFocus());
+        CanvasHost.SetPanCursor(_editor is not null && (_panning || IsSpaceHeld()) && !EditorInputHasFocus(),
+            dragging: _panning);
 
     private void Canvas_PointerEntered(object sender, PointerRoutedEventArgs args)
     {
         UpdatePanCursor();
+        UpdateCanvasElementCursor(args.GetCurrentPoint(DrawingCanvas).Position);
         UpdateCropHover(args.GetCurrentPoint(DrawingCanvas).Position);
     }
 

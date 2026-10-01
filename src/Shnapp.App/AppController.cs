@@ -294,6 +294,7 @@ internal sealed partial class AppController
             if (document is null || original is null || (ReferenceEquals(document, _saved) &&
                 File.Exists(Library.GetExportPath(document.Id)) && File.Exists(Library.GetPreviewPath(document.Id)) &&
                 File.Exists(Library.GetCompactPreviewPath(document.Id)) &&
+                File.Exists(Library.GetFittedPreviewPath(document.Id)) &&
                 File.Exists(Library.GetGalleryPreviewPath(document.Id))))
             {
                 return;
@@ -314,6 +315,9 @@ internal sealed partial class AppController
             await ShnappRenderer.SavePngAtomicAsync(compact, Library.GetCompactPreviewPath(document.Id), CancellationToken.None);
             using CanvasRenderTarget preview = Renderer.Thumbnail(flattened, 384, 256);
             await ShnappRenderer.SavePngAtomicAsync(preview, Library.GetPreviewPath(document.Id), CancellationToken.None);
+            using CanvasRenderTarget fittedPreview = Renderer.Thumbnail(flattened, 384, 256,
+                preserveEntireImage: true);
+            await ShnappRenderer.SavePngAtomicAsync(fittedPreview, Library.GetFittedPreviewPath(document.Id), CancellationToken.None);
             await ShnappRenderer.SavePngAtomicAsync(flattened, Library.GetExportPath(document.Id), CancellationToken.None);
             await prepared.CommitAsync();
             _saved = document;
@@ -656,6 +660,7 @@ internal sealed partial class AppController
             directory,
             Library.GetOriginalPath(id),
             Library.GetPreviewPath(id),
+            Library.GetFittedPreviewPath(id),
             Library.GetCompactPreviewPath(id),
             Library.GetGalleryPreviewPath(id),
             Library.GetExportPath(id),

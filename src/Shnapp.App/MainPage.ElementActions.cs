@@ -32,6 +32,7 @@ public sealed partial class MainPage
 
         SetTool(EditorTool.Select);
         _selectedId = hit.Id;
+        OpenInspectorForSelection();
         UpdateInspector();
         DrawingCanvas.Invalidate();
 

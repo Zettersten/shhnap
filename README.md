@@ -14,7 +14,7 @@
 
 Shnapp waits quietly in your tray until you need it. Capture part of your screen, add a little context, then copy the finished image or save a PNG. Every capture is a **shnapp**; making one is **shnapping**.
 
-![The Shnapp editor with a captured sample window, numbered steps, and line options](src/Shnapp.Site/public/screenshots/editor.png)
+![The Shnapp editor with a captured sample window, numbered steps, and contextual step options](src/Shnapp.Site/public/screenshots/editor.png)
 
 *A real Shnapp editor session. Your capture stays in view while the tools stay close.*
 

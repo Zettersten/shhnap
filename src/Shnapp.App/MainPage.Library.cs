@@ -49,13 +49,17 @@ public sealed partial class MainPage
         _libraryEntries.Clear();
         foreach (ShnappSummary document in _library)
         {
-            string compact = _controller.Library.GetCompactPreviewPath(document.Id);
-            string preview = (_libraryListMode || _librarySizeIndex == 0) && File.Exists(compact)
-                ? compact
-                : _controller.Library.GetPreviewPath(document.Id);
+            string fitted = _controller.Library.GetFittedPreviewPath(document.Id);
+            string export = _controller.Library.GetExportPath(document.Id);
+            string preview = File.Exists(fitted) ? fitted : export;
+            if (!File.Exists(preview))
+            {
+                preview = _controller.Library.GetPreviewPath(document.Id);
+            }
             long? fileSizeBytes = GetSavedPngSize(document.Id);
             _libraryEntries[document.Id] = new LibraryEntry(document,
-                preview, cardWidth, thumbnailHeight, preview == compact ? 192 : 384, fileSizeBytes)
+                preview, cardWidth, thumbnailHeight,
+                _libraryListMode || _librarySizeIndex == 0 ? 192 : 384, fileSizeBytes)
             {
                 CanDrag = !_librarySelectionMode,
                 CompactList = _libraryCompactList,

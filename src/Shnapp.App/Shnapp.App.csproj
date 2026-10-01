@@ -8,7 +8,6 @@
     <AssemblyName>Shnapp</AssemblyName>
     <Version>0.1.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon Condition="Exists('Assets\AppIcon.ico')">Assets\AppIcon.ico</ApplicationIcon>
     <Platforms>x64;ARM64</Platforms>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'AnyCPU'">x64</Platform>
@@ -46,6 +45,30 @@
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
   </ItemGroup>
+
+  <!-- Self-contained WinUI generates a manifest with its WinRT registrations. Add
+       the pan cursors to that manifest and the app icon in one native resource. -->
+  <Target Name="CompileShnappNativeResources" BeforeTargets="CoreCompile"
+          DependsOnTargets="CreateWinRTRegistration;SetWin32ManifestProperties">
+    <PropertyGroup>
+      <_ShnappAssetDirectory>$([System.String]::Copy('$(MSBuildProjectDirectory)').Replace('\', '/'))/Assets</_ShnappAssetDirectory>
+      <_ShnappManifestPath>$([System.String]::Copy('$(ApplicationManifest)').Replace('\', '/'))</_ShnappManifestPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ShnappNativeResourceLine Include="1 ICON &quot;$(_ShnappAssetDirectory)/AppIcon.ico&quot;" />
+      <_ShnappNativeResourceLine Include="1 24 &quot;$(_ShnappManifestPath)&quot;" />
+      <_ShnappNativeResourceLine Include="101 CURSOR &quot;$(_ShnappAssetDirectory)/PanOpen.cur&quot;" />
+      <_ShnappNativeResourceLine Include="102 CURSOR &quot;$(_ShnappAssetDirectory)/PanClosed.cur&quot;" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)ShnappNative.rc"
+                      Lines="@(_ShnappNativeResourceLine)" Overwrite="true" />
+    <Exec Command="&quot;$(WindowsSDKBuildToolsBinVersionedArchFolder)\rc.exe&quot; /nologo /fo &quot;$(IntermediateOutputPath)ShnappNative.res&quot; &quot;$(IntermediateOutputPath)ShnappNative.rc&quot;" />
+    <PropertyGroup>
+      <Win32Resource>$(IntermediateOutputPath)ShnappNative.res</Win32Resource>
+      <Win32Manifest></Win32Manifest>
+      <NoWin32Manifest>true</NoWin32Manifest>
+    </PropertyGroup>
+  </Target>
 
   <!--
     Defining the "Msix" ProjectCapability here allows the Single-project MSIX Packaging

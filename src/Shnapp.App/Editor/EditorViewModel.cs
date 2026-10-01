@@ -63,11 +63,11 @@ public sealed partial class LibraryEntry : ObservableObject
     [NotifyPropertyChangedFor(nameof(CompactListVisibility))]
     public partial bool CompactList { get; set; }
 
-    public double ListRowHeight => CompactList ? 94 : 74;
-    public GridLength ListThumbnailWidth => new(CompactList ? 84 : 104);
-    public GridLength ListDateWidth => new(CompactList ? 0 : 168);
-    public GridLength ListDimensionsWidth => new(CompactList ? 0 : 114);
-    public GridLength ListSizeWidth => new(CompactList ? 0 : 78);
+    public double ListRowHeight => CompactList ? 60 : 56;
+    public GridLength ListThumbnailWidth => new(48);
+    public GridLength ListDateWidth => new(CompactList ? 0 : 152);
+    public GridLength ListDimensionsWidth => new(CompactList ? 0 : 124);
+    public GridLength ListSizeWidth => new(CompactList ? 0 : 80);
     public Visibility WideListVisibility => CompactList ? Visibility.Collapsed : Visibility.Visible;
     public Visibility CompactListVisibility => CompactList ? Visibility.Visible : Visibility.Collapsed;
 
@@ -82,6 +82,9 @@ public sealed partial class LibraryEntry : ObservableObject
 
     /// <summary>Gets the concise capture date shown on thumbnail cards.</summary>
     public string GridDateText { get; }
+
+    /// <summary>Gets the quiet, single-line details beneath a thumbnail.</summary>
+    public string GridMetadataText { get; }
 
     /// <summary>Gets the visible canvas dimensions in pixels.</summary>
     public string DimensionsText { get; }
@@ -138,7 +141,8 @@ public sealed partial class LibraryEntry : ObservableObject
         PixelArea = document.Viewport.Width * document.Viewport.Height;
         FileSizeBytes = fileSizeBytes;
         FileSizeText = fileSizeBytes is { } bytes ? ShnappMetadata.FormatFileSize(bytes) : "—";
-        CompactMetadataSummary = $"{DateText}  ·  {FileSizeText}";
+        GridMetadataText = $"{GridDateText}  ·  {document.Viewport.Width:0} × {document.Viewport.Height:0}  ·  {FileSizeText}";
+        CompactMetadataSummary = $"{DateText}  ·  {DimensionsText}  ·  {FileSizeText}";
         MetadataDescription = $"{Title}, {DateText}, {DimensionsText}, " +
             (fileSizeBytes is null ? "file size unavailable" : FileSizeText);
         CardWidth = cardWidth;

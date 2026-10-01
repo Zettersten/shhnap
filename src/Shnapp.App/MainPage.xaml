@@ -409,10 +409,6 @@
                         </ScrollViewer>
                     </Border>
             <Grid Margin="12,8,12,0" VerticalAlignment="Top">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
                 <CommandBar x:Name="Tools" HorizontalAlignment="Center" MaxWidth="900"
                     DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" CornerRadius="12"
                     Background="{ThemeResource ShnappToolbarBrush}"
@@ -500,56 +496,13 @@
                     ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.AutomationId="UndoEdit" />
                 <AppBarButton Label="Redo" Icon="Redo" Click="Redo_Click" IsEnabled="{x:Bind ViewModel.CanRedo, Mode=OneWay}"
                     ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.AutomationId="RedoEdit" />
+                <AppBarSeparator />
+                <AppBarToggleButton x:Name="InspectorToggle" Label="Options" IsChecked="True"
+                    Click="InspectorToggle_Click" ToolTipService.ToolTip="Show or hide tool options"
+                    AutomationProperties.AutomationId="ToolOptions">
+                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE8A0;" /></AppBarToggleButton.Icon>
+                </AppBarToggleButton>
                 </CommandBar>
-                <ToggleButton x:Name="InspectorToggle" Grid.Column="1" IsChecked="True"
-                    VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="96" Height="36" Click="InspectorToggle_Click"
-                    AutomationProperties.Name="Show or hide tool options" AutomationProperties.AutomationId="ToolOptions">
-                    <ToggleButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <FontIcon Glyph="&#xE8A0;" FontSize="16" />
-                            <TextBlock Text="Options" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ToggleButton.Content>
-                    <ToggleButton.Resources>
-                        <ResourceDictionary>
-                            <ResourceDictionary.ThemeDictionaries>
-                                <ResourceDictionary x:Key="Light">
-                                    <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#0A84FF" />
-                                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#0878EA" />
-                                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#0668CC" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#0A84FF" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#0878EA" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#0668CC" />
-                                </ResourceDictionary>
-                                <ResourceDictionary x:Key="Default">
-                                    <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#0A84FF" />
-                                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#0878EA" />
-                                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#0668CC" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#0A84FF" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#0878EA" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#0668CC" />
-                                </ResourceDictionary>
-                                <ResourceDictionary x:Key="HighContrast">
-                                    <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonBorderBrushChecked" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonBorderBrushCheckedPointerOver" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonBorderBrushCheckedPressed" ResourceKey="SystemColorHighlightColorBrush" />
-                                </ResourceDictionary>
-                            </ResourceDictionary.ThemeDictionaries>
-                        </ResourceDictionary>
-                    </ToggleButton.Resources>
-                </ToggleButton>
             </Grid>
         </Grid>
         <Grid x:Name="LibraryRoot" Grid.Row="2" Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}"
@@ -628,22 +581,15 @@
                                 ToolTipService.ToolTip="{x:Bind MetadataDescription}"
                                 AutomationProperties.Name="{x:Bind MetadataDescription}">
                                 <Border Height="{x:Bind ThumbnailHeight}" Background="{ThemeResource ShnappPreviewBrush}"
-                                    CornerRadius="12" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="8"
+                                    CornerRadius="8" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="6"
                                         Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
                                         Tapped="LibraryPreview_Tapped" />
                                 </Border>
-                                <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxLines="1" />
-                                <TextBlock Text="{x:Bind GridDateText}" Style="{StaticResource CaptionTextBlockStyle}"
+                                <TextBlock Text="{x:Bind Title}" FontSize="12" FontWeight="SemiBold"
+                                    TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                <TextBlock Text="{x:Bind GridMetadataText}" FontSize="11"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxLines="1" />
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <TextBlock Text="{x:Bind DimensionsText}" Style="{StaticResource CaptionTextBlockStyle}"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxLines="1" />
-                                    <TextBlock Text="·" Style="{StaticResource CaptionTextBlockStyle}"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock Text="{x:Bind FileSizeText}" Style="{StaticResource CaptionTextBlockStyle}"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxLines="1" />
-                                </StackPanel>
                             </StackPanel>
                         </DataTemplate>
                     </GridView.ItemTemplate>
@@ -656,7 +602,7 @@
                     AutomationProperties.Name="Saved shnapps list" AutomationProperties.AutomationId="ShnappLibraryList">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="editor:LibraryEntry">
-                            <Grid Height="{x:Bind ListRowHeight, Mode=OneWay}" Padding="8" ColumnSpacing="16"
+                            <Grid Height="{x:Bind ListRowHeight, Mode=OneWay}" Padding="8,4" ColumnSpacing="16"
                                 Background="Transparent"
                                 Tag="{x:Bind}" RightTapped="LibraryCard_RightTapped"
                                 ToolTipService.ToolTip="{x:Bind MetadataDescription}"
@@ -668,36 +614,35 @@
                                     <ColumnDefinition Width="{x:Bind ListDimensionsWidth, Mode=OneWay}" />
                                     <ColumnDefinition Width="{x:Bind ListSizeWidth, Mode=OneWay}" />
                                 </Grid.ColumnDefinitions>
-                                <Border Background="{ThemeResource ShnappPreviewBrush}" CornerRadius="8"
+                                <Border Background="{ThemeResource ShnappPreviewBrush}" CornerRadius="4"
                                     BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="4"
+                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="2"
                                         Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
                                         Tapped="LibraryPreview_Tapped" />
                                 </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                                    <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{x:Bind CaptureType}" Style="{StaticResource CaptionTextBlockStyle}"
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Text="{x:Bind Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{x:Bind CaptureType}" FontSize="11"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
                                         Visibility="{x:Bind WideListVisibility, Mode=OneWay}" />
-                                    <StackPanel Spacing="4" Visibility="{x:Bind CompactListVisibility, Mode=OneWay}">
-                                        <TextBlock Text="{x:Bind CompactMetadataSummary}" Style="{StaticResource CaptionTextBlockStyle}"
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{x:Bind DimensionsText}" Style="{StaticResource CaptionTextBlockStyle}"
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
+                                    <TextBlock Text="{x:Bind CompactMetadataSummary}" FontSize="11"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
+                                        Visibility="{x:Bind CompactListVisibility, Mode=OneWay}" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="2" Text="{x:Bind DateText}" VerticalAlignment="Center"
-                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    FontSize="11"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
                                     Visibility="{x:Bind WideListVisibility, Mode=OneWay}" />
                                 <TextBlock Grid.Column="3" Text="{x:Bind DimensionsText}" VerticalAlignment="Center"
-                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    FontSize="11"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
                                     Visibility="{x:Bind WideListVisibility, Mode=OneWay}" />
                                 <TextBlock Grid.Column="4" Text="{x:Bind FileSizeText}" VerticalAlignment="Center"
-                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    FontSize="11"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
                                     Visibility="{x:Bind WideListVisibility, Mode=OneWay}" />
+                                <Border Grid.ColumnSpan="5" Height="1" VerticalAlignment="Bottom" IsHitTestVisible="False"
+                                    Background="{ThemeResource ControlStrokeColorDefaultBrush}" Opacity="0.45" />
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
@@ -745,12 +690,31 @@
             </Grid>
         </Grid>
         <Grid Grid.Row="3" Padding="20,8" ColumnSpacing="16" Background="{ThemeResource ShnappChromeBrush}">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-            <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <DropDownButton x:Name="ZoomPresetButton" Content="100%" Height="28" MinWidth="72"
+                Padding="8,0" Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
+                ToolTipService.ToolTip="Canvas zoom" AutomationProperties.AutomationId="ZoomPresets">
+                <DropDownButton.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="Fit canvas" Tag="fit" Click="ZoomPreset_Click" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="10%" Tag="0.1" Click="ZoomPreset_Click" />
+                        <MenuFlyoutItem Text="25%" Tag="0.25" Click="ZoomPreset_Click" />
+                        <MenuFlyoutItem Text="50%" Tag="0.5" Click="ZoomPreset_Click" />
+                        <MenuFlyoutItem Text="75%" Tag="0.75" Click="ZoomPreset_Click" />
+                        <MenuFlyoutItem Text="100%" Tag="1" Click="ZoomPreset_Click" />
+                        <MenuFlyoutItem Text="125%" Tag="1.25" Click="ZoomPreset_Click" />
+                        <MenuFlyoutItem Text="150%" Tag="1.5" Click="ZoomPreset_Click" />
+                        <MenuFlyoutItem Text="200%" Tag="2" Click="ZoomPreset_Click" />
+                        <MenuFlyoutItem Text="400%" Tag="4" Click="ZoomPreset_Click" />
+                    </MenuFlyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
+            <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Status, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
                 TextWrapping="NoWrap" VerticalAlignment="Center"
                 AutomationProperties.LiveSetting="Polite" AutomationProperties.AutomationId="ShnappStatus" />
-            <TextBlock x:Name="DocumentMetadataText" Grid.Column="1" Text="{x:Bind ViewModel.DocumentMetadata, Mode=OneWay}"
+            <TextBlock x:Name="DocumentMetadataText" Grid.Column="2" Text="{x:Bind ViewModel.DocumentMetadata, Mode=OneWay}"
                 Style="{StaticResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"
                 AutomationProperties.AutomationId="DocumentMetadata" />

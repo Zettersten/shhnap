@@ -45,6 +45,9 @@ public sealed class ShnappLibrary(string rootPath)
     /// <returns>The document directory's preview.png path.</returns>
     public string GetPreviewPath(Guid id) => Path.Combine(GetDocumentDirectory(id), "preview.png");
 
+    /// <summary>Gets the aspect-preserving preview used by library cards and rows.</summary>
+    public string GetFittedPreviewPath(Guid id) => Path.Combine(GetDocumentDirectory(id), "preview-fit.png");
+
     /// <summary>Gets the smaller preview used by compact library cards and rows.</summary>
     public string GetCompactPreviewPath(Guid id) => Path.Combine(GetDocumentDirectory(id), "preview-compact.png");
 

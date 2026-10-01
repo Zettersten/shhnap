@@ -59,6 +59,10 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         InitializeComponent();
+        // Page-level shortcuts remain active, but the first one (Ctrl+C) must not
+        // appear as a tooltip when the pointer rests on the annotation canvas.
+        KeyboardAcceleratorPlacementMode = Microsoft.UI.Xaml.Input.KeyboardAcceleratorPlacementMode.Hidden;
+        DrawingCanvas.KeyboardAcceleratorPlacementMode = Microsoft.UI.Xaml.Input.KeyboardAcceleratorPlacementMode.Hidden;
         InitializeNavigationInput();
         AddHandler(KeyUpEvent, new KeyEventHandler(Page_KeyUp), true);
         InitializeFontFamilies();
@@ -149,9 +153,11 @@ public sealed partial class MainPage : Page
         {
             _viewViewport = viewport;
             _viewShadowPadding = padding;
+            UpdateZoomLabel();
             return;
         }
 
+        StopZoomAnimation();
         bool preserveAnchor = _viewViewport is ImageRect &&
             _viewCanvasWidth == DrawingCanvas.ActualWidth &&
             _viewCanvasHeight == DrawingCanvas.ActualHeight &&
@@ -177,6 +183,7 @@ public sealed partial class MainPage : Page
         _viewViewport = viewport;
         _viewShadowPadding = padding;
         ClampCanvasPan();
+        UpdateZoomLabel();
     }
 
     private Matrix3x2 ImageTransform()
@@ -253,6 +260,7 @@ public sealed partial class MainPage : Page
         }
 
         Annotation? selected = _editor.Current.Annotations.FirstOrDefault(a => a.Id == _selectedId);
+        DrawSmartGuides(drawing);
         if (selected is not null)
         {
             DrawSelection(drawing, _moving is not null ? preview ?? selected : selected);
@@ -297,6 +305,8 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        StopZoomAnimation();
+        ClearSmartGuides();
         if (IsSpaceHeld())
         {
             BeginCanvasPan(args);
@@ -312,10 +322,14 @@ public sealed partial class MainPage : Page
             _moving = current;
             _resizeHandle = handle;
             _dragStart = ImagePosition(canvasPosition, clamp: true);
+            BeginSmartGuideDrag(current);
+            OpenInspectorForSelection();
+            UpdateInspector();
             _crop = null;
             DrawingCanvas.Focus(FocusState.Programmatic);
             DrawingCanvas.CapturePointer(args.Pointer);
             args.Handled = true;
+            UpdateCanvasElementCursor(canvasPosition);
             DrawingCanvas.Invalidate();
             return;
         }
@@ -353,6 +367,8 @@ public sealed partial class MainPage : Page
                 _dragStart = _moving is null ? null : point;
                 if (_moving is not null)
                 {
+                    BeginSmartGuideDrag(_moving);
+                    OpenInspectorForSelection();
                     DrawingCanvas.CapturePointer(args.Pointer);
                 }
 
@@ -386,6 +402,7 @@ public sealed partial class MainPage : Page
 
         UpdateInspector();
         UpdateCropInspector();
+        UpdateCanvasElementCursor(canvasPosition);
         args.Handled = true;
         DrawingCanvas.Invalidate();
     }
@@ -399,6 +416,7 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        UpdateCanvasElementCursor(canvasPosition);
         if (_textDragStart is not null && _editor is not null)
         {
             _textDragEnd = ImagePosition(canvasPosition, allowOutside: true);
@@ -419,15 +437,14 @@ public sealed partial class MainPage : Page
         {
             if (_resizeHandle != ResizeHandle.None)
             {
-                _draft = ResizeAnnotation(_moving, _resizeHandle, point, IsShiftHeld());
+                _draft = ResizeWithSmartGuides(_moving, _resizeHandle, point, IsShiftHeld());
             }
             else
             {
-                Rect bounds = SelectionBounds(_moving);
-                ImageRect viewport = _editor.Current.Viewport;
                 double dx = point.X - start.X;
                 double dy = point.Y - start.Y;
-                if (IsShiftHeld())
+                bool shiftHeld = IsShiftHeld();
+                if (shiftHeld)
                 {
                     if (_axisLockHorizontal is null && Math.Max(Math.Abs(dx), Math.Abs(dy)) >= 3 / _scale)
                     {
@@ -443,11 +460,9 @@ public sealed partial class MainPage : Page
                     _axisLockHorizontal = null;
                 }
 
-                if (_moving.Kind is not (AnnotationKind.Image or AnnotationKind.Text))
-                {
-                    dx = ClampMovement(dx, viewport.X - bounds.X, viewport.Right - bounds.Right);
-                    dy = ClampMovement(dy, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom);
-                }
+                (dx, dy) = SnapMovingAnnotation(_moving, dx, dy,
+                    !shiftHeld || _axisLockHorizontal is true,
+                    !shiftHeld || _axisLockHorizontal is false);
                 _draft = _moving with
                 {
                     Start = new(_moving.Start.X + dx, _moving.Start.Y + dy),
@@ -563,6 +578,7 @@ public sealed partial class MainPage : Page
         }
 
         DisposeDragBase();
+        ClearSmartGuides();
         if (_draft is Annotation annotation)
         {
             if (_moving is not null)
@@ -610,6 +626,7 @@ public sealed partial class MainPage : Page
         _cropDragChanged = false;
         DrawingCanvas.ReleasePointerCapture(args.Pointer);
         UpdateCropHover(args.GetCurrentPoint(DrawingCanvas).Position);
+        UpdateCanvasElementCursor(args.GetCurrentPoint(DrawingCanvas).Position);
         DrawingCanvas.Invalidate();
         args.Handled = true;
     }
@@ -995,6 +1012,7 @@ public sealed partial class MainPage : Page
         CancelText();
         _draft = null;
         DisposeDragBase();
+        ClearSmartGuides();
         _moving = null;
         _axisLockHorizontal = null;
         _resizeHandle = ResizeHandle.None;
@@ -1035,11 +1053,13 @@ public sealed partial class MainPage : Page
             }
         }
         UpdateCropCursor(false);
+        CanvasHost.SetSelectionCursor(null);
         if (tool != EditorTool.Select)
         {
             _selectedId = null;
         }
-        foreach (AppBarToggleButton button in Tools.PrimaryCommands.OfType<AppBarToggleButton>())
+        foreach (AppBarToggleButton button in Tools.PrimaryCommands.OfType<AppBarToggleButton>()
+            .Where(button => button.Tag is string))
         {
             button.IsChecked = string.Equals(button.Tag as string, tool.ToString(), StringComparison.Ordinal);
         }
@@ -1071,6 +1091,15 @@ public sealed partial class MainPage : Page
 
     private void InspectorToggle_Click(object sender, RoutedEventArgs args) =>
         InspectorPanel.Visibility = InspectorToggle.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+
+    private void OpenInspectorForSelection()
+    {
+        if (InspectorToggle.IsChecked != true || InspectorPanel.Visibility != Visibility.Visible)
+        {
+            InspectorToggle.IsChecked = true;
+            InspectorPanel.Visibility = Visibility.Visible;
+        }
+    }
 
     private void Options_Changed(object sender, RoutedEventArgs args) => HandleOptionChanged(sender);
 
@@ -1232,7 +1261,7 @@ public sealed partial class MainPage : Page
     {
         if (args.Key == VirtualKey.Space)
         {
-            CanvasHost.SetPanCursor(_panning);
+            CanvasHost.SetPanCursor(_panning, _panning);
         }
     }
 

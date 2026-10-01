@@ -50,6 +50,7 @@ internal sealed partial class AppController
                 Copy(Library.GetOriginalPath);
                 Copy(Library.GetExportPath);
                 Copy(Library.GetPreviewPath);
+                Copy(Library.GetFittedPreviewPath);
                 Copy(Library.GetCompactPreviewPath);
                 Copy(Library.GetGalleryPreviewPath);
                 await EnsureClonedImagesAsync(source, clone.Id);
@@ -93,6 +94,7 @@ internal sealed partial class AppController
         }
 
         if (File.Exists(Library.GetPreviewPath(cloneId)) &&
+            File.Exists(Library.GetFittedPreviewPath(cloneId)) &&
             File.Exists(Library.GetCompactPreviewPath(cloneId)) &&
             File.Exists(Library.GetGalleryPreviewPath(cloneId)))
         {
@@ -105,6 +107,12 @@ internal sealed partial class AppController
         {
             using CanvasRenderTarget preview = Renderer.Thumbnail(image, 384, 256);
             await ShnappRenderer.SavePngAtomicAsync(preview, Library.GetPreviewPath(cloneId), _lifetime.Token);
+        }
+        if (!File.Exists(Library.GetFittedPreviewPath(cloneId)))
+        {
+            using CanvasRenderTarget fittedPreview = Renderer.Thumbnail(image, 384, 256,
+                preserveEntireImage: true);
+            await ShnappRenderer.SavePngAtomicAsync(fittedPreview, Library.GetFittedPreviewPath(cloneId), _lifetime.Token);
         }
         if (!File.Exists(Library.GetCompactPreviewPath(cloneId)))
         {
