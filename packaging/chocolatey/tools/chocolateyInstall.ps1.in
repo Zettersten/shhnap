@@ -7,6 +7,11 @@ if ($version -match '__' -or $checksumX64 -match '__' -or $checksumArm64 -match 
     throw 'Fill package version and checksums from a published Shnapp release before packing.'
 }
 
+$windowsBuild = [int](Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name CurrentBuildNumber).CurrentBuildNumber
+if ($windowsBuild -lt 22000) {
+    throw "Shnapp requires Windows 11 (build 22000 or newer); this system is build $windowsBuild."
+}
+
 $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 switch ($architecture) {
     'X64' {
