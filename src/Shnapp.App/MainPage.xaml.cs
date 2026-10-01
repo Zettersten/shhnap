@@ -13,6 +13,7 @@ using Windows.Foundation;
 using Windows.System;
 using Windows.UI;
 using Windows.UI.Text;
+using Windows.UI.ViewManagement;
 
 namespace Shnapp.App;
 
@@ -42,6 +43,7 @@ public sealed partial class MainPage : Page
     private double _offsetY;
     private bool _updatingOptions;
     private bool? _narrowInspector;
+    private readonly AccessibilitySettings _accessibility = new();
     private readonly Dictionary<EditorTool, ToolStyle> _toolStyles =
         Enum.GetValues<EditorTool>().ToDictionary(tool => tool, ToolStyle.Defaults);
     private IReadOnlyList<ShnappSummary> _library = [];
@@ -60,9 +62,11 @@ public sealed partial class MainPage : Page
         InitializeNavigationInput();
         AddHandler(KeyUpEvent, new KeyEventHandler(Page_KeyUp), true);
         InitializeFontFamilies();
-        EditorSplitView.PaneOpened += (_, _) => InspectorToggle.IsChecked = true;
-        EditorSplitView.PaneClosed += (_, _) => InspectorToggle.IsChecked = false;
-        ActualThemeChanged += (_, _) => UpdateShapeButtonAppearance();
+        ActualThemeChanged += (_, _) =>
+        {
+            UpdateShapeButtonAppearance();
+            DrawingCanvas.Invalidate();
+        };
     }
 
     internal void Configure(AppController controller) => _controller = controller;
@@ -134,9 +138,12 @@ public sealed partial class MainPage : Page
 
         ImageRect viewport = _editor!.Current.Viewport;
         int padding = _editor.Current.HasWindowShadow ? ShnappRenderer.ShadowPadding : 0;
+        const double toolbarInset = 64;
+        const double bottomInset = 24;
+        double availableHeight = Math.Max(1, DrawingCanvas.ActualHeight - toolbarInset - bottomInset);
         double fit = Math.Max(0.01, Math.Min(1,
             Math.Min(Math.Max(1, DrawingCanvas.ActualWidth - 48) / _flattened.Size.Width,
-                Math.Max(1, DrawingCanvas.ActualHeight - 48) / _flattened.Size.Height)));
+                availableHeight / _flattened.Size.Height)));
         if (_viewCanvasWidth == DrawingCanvas.ActualWidth && _viewCanvasHeight == DrawingCanvas.ActualHeight &&
             _viewImageWidth == _flattened.Size.Width && _viewImageHeight == _flattened.Size.Height)
         {
@@ -150,7 +157,7 @@ public sealed partial class MainPage : Page
             _viewCanvasHeight == DrawingCanvas.ActualHeight &&
             _viewImageWidth > 0 && _viewImageHeight > 0 && _scale > 0;
         Point anchor = _pendingContentAnchor ??
-            new Point(DrawingCanvas.ActualWidth / 2, DrawingCanvas.ActualHeight / 2);
+            new Point(DrawingCanvas.ActualWidth / 2, toolbarInset + availableHeight / 2);
         double sourceX = preserveAnchor
             ? (anchor.X - _offsetX) / _scale - _viewShadowPadding + _viewViewport!.Value.X : 0;
         double sourceY = preserveAnchor
@@ -162,7 +169,7 @@ public sealed partial class MainPage : Page
             : (DrawingCanvas.ActualWidth - _flattened.Size.Width * _scale) / 2;
         _offsetY = preserveAnchor
             ? anchor.Y - (sourceY - viewport.Y + padding) * _scale
-            : (DrawingCanvas.ActualHeight - _flattened.Size.Height * _scale) / 2;
+            : toolbarInset + (availableHeight - _flattened.Size.Height * _scale) / 2;
         _viewCanvasWidth = DrawingCanvas.ActualWidth;
         _viewCanvasHeight = DrawingCanvas.ActualHeight;
         _viewImageWidth = _flattened.Size.Width;
@@ -209,9 +216,14 @@ public sealed partial class MainPage : Page
 
         UpdateTransform();
         CanvasDrawingSession drawing = args.DrawingSession;
+        DrawCanvasBackdrop(drawing, sender.ActualWidth, sender.ActualHeight);
         drawing.Transform = Matrix3x2.CreateScale((float)_scale)
             * Matrix3x2.CreateTranslation((float)_offsetX, (float)_offsetY);
         drawing.DrawImage(_dragBase ?? _flattened);
+        drawing.Transform = Matrix3x2.Identity;
+        Color canvasEdge = CanvasThemeColor("ShnappCanvasEdgeBrush");
+        drawing.DrawRectangle(new Rect(_offsetX, _offsetY,
+            _flattened.Size.Width * _scale, _flattened.Size.Height * _scale), canvasEdge, 1);
         drawing.Transform = ImageTransform();
         Annotation? preview = null;
         if (_draft is not null)
@@ -272,6 +284,7 @@ public sealed partial class MainPage : Page
 
     private void Canvas_SizeChanged(object sender, SizeChangedEventArgs args)
     {
+        InspectorPanel.MaxHeight = Math.Min(560, Math.Max(0, args.NewSize.Height - 88));
         CommitText();
         UpdateTransform();
         DrawingCanvas.Invalidate();
@@ -475,6 +488,37 @@ public sealed partial class MainPage : Page
         DrawingCanvas.Invalidate();
     }
 
+    private Color CanvasThemeColor(string resourceKey)
+    {
+        string themeKey = _accessibility.HighContrast ? "HighContrast" :
+            ActualTheme == ElementTheme.Light ? "Light" : "Default";
+        var theme = (ResourceDictionary)Application.Current.Resources.ThemeDictionaries[themeKey];
+        return ((SolidColorBrush)theme[resourceKey]).Color;
+    }
+
+    private void DrawCanvasBackdrop(CanvasDrawingSession drawing, double width, double height)
+    {
+        drawing.Transform = Matrix3x2.Identity;
+        drawing.FillRectangle(new Rect(0, 0, width, height), CanvasThemeColor("ShnappCanvasBrush"));
+        if (_accessibility.HighContrast)
+        {
+            return;
+        }
+
+        const int tileSize = 18;
+        Color alternate = CanvasThemeColor("ShnappCheckerAccentBrush");
+        int columns = (int)Math.Ceiling(width / tileSize);
+        int rows = (int)Math.Ceiling(height / tileSize);
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = row & 1; column < columns; column += 2)
+            {
+                drawing.FillRectangle(column * tileSize, row * tileSize,
+                    tileSize, tileSize, alternate);
+            }
+        }
+    }
+
     private void Canvas_PointerReleased(object sender, PointerRoutedEventArgs args)
     {
         if (_panning)
@@ -628,8 +672,7 @@ public sealed partial class MainPage : Page
         }
 
         _narrowInspector = narrow;
-        EditorSplitView.DisplayMode = narrow ? SplitViewDisplayMode.Overlay : SplitViewDisplayMode.Inline;
-        EditorSplitView.IsPaneOpen = !narrow;
+        InspectorPanel.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
         InspectorToggle.IsChecked = !narrow;
     }
 
@@ -793,7 +836,7 @@ public sealed partial class MainPage : Page
         DependencyObject? focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
         while (focused is not null)
         {
-            if (ReferenceEquals(focused, EditorSplitView.Pane) || focused is ColorPicker)
+            if (ReferenceEquals(focused, InspectorPanel) || focused is ColorPicker)
             {
                 return true;
             }
@@ -1027,7 +1070,7 @@ public sealed partial class MainPage : Page
         SetTool(Enum.Parse<EditorTool>((string)((FrameworkElement)sender).Tag));
 
     private void InspectorToggle_Click(object sender, RoutedEventArgs args) =>
-        EditorSplitView.IsPaneOpen = InspectorToggle.IsChecked == true;
+        InspectorPanel.Visibility = InspectorToggle.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
 
     private void Options_Changed(object sender, RoutedEventArgs args) => HandleOptionChanged(sender);
 
@@ -1088,7 +1131,7 @@ public sealed partial class MainPage : Page
         while (focused is not null)
         {
             if (focused is TextBox or ComboBox or NumberBox or ColorPicker or CheckBox ||
-                ReferenceEquals(focused, EditorSplitView.Pane))
+                ReferenceEquals(focused, InspectorPanel))
             {
                 return true;
             }

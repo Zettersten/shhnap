@@ -537,6 +537,10 @@ Preferred hierarchy:
 5. Compact capture date, canvas dimensions, and saved PNG size in the footer.
 
 Keep the right inspector contextual and collapsible so the capture remains dominant.
+The editor stage begins directly beneath the main command bar. Its quiet checkerboard
+stays fixed as the capture zooms or pans, and a one-pixel neutral outline marks the
+actual canvas extent, including transparent padding. Neither guide appears in copied
+or exported images.
 
 ### Floating toolbar
 
@@ -578,6 +582,9 @@ Examples:
 - Caption → placement, font, padding, margins, background, transparency
 
 Context panels should never consume more visual space than the capture itself.
+The options panel floats over the stage in a compact inset surface, rather than
+resizing the canvas. Keep its toggle visible, its controls scrollable, and its
+translucent surface readable in light and dark themes.
 
 ### Library layout
 

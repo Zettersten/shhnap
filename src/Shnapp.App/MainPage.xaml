@@ -33,13 +33,13 @@
                         Background="Transparent" BorderThickness="0" VerticalAlignment="Center"
                         Click="Back_Click" ToolTipService.ToolTip="Back · Alt+Left"
                         AutomationProperties.Name="Back" AutomationProperties.AutomationId="NavigateBack">
-                        <FontIcon Glyph="&#xE72B;" FontSize="14" />
+                        <FontIcon Glyph="&#xE72B;" FontSize="12" />
                     </Button>
                     <Button x:Name="ForwardButton" Width="40" Height="40" Padding="0" IsEnabled="False"
                         Background="Transparent" BorderThickness="0" VerticalAlignment="Center"
                         Click="Forward_Click" ToolTipService.ToolTip="Forward · Alt+Right"
                         AutomationProperties.Name="Forward" AutomationProperties.AutomationId="NavigateForward">
-                        <FontIcon Glyph="&#xE72A;" FontSize="14" />
+                        <FontIcon Glyph="&#xE72A;" FontSize="12" />
                     </Button>
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,0,0,0" VerticalAlignment="Center"
                         Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}">
@@ -114,161 +114,10 @@
                 <AppBarButton Label="Quit Shnapp" Icon="Cancel" Click="Quit_Click" AutomationProperties.AutomationId="QuitShnapp" />
             </CommandBar.SecondaryCommands>
         </CommandBar>
-        <InfoBar x:Name="MessageBar" Grid.Row="1" IsOpen="False" IsClosable="True" Margin="20,0,20,8" />
+        <InfoBar x:Name="MessageBar" Grid.Row="1" IsOpen="False" IsClosable="True" Margin="20,0" />
         <Grid x:Name="EditorHost" Grid.Row="2" Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
             SizeChanged="EditorHost_SizeChanged"
             Background="{ThemeResource ShnappCanvasBrush}">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            <Grid Padding="16,8" Background="{ThemeResource ShnappChromeBrush}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <CommandBar x:Name="Tools" HorizontalAlignment="Center" MaxWidth="900"
-                    DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" CornerRadius="12"
-                    Background="{ThemeResource ShnappToolbarBrush}"
-                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
-                    AutomationProperties.Name="Annotation tools">
-                    <CommandBar.Resources>
-                        <ResourceDictionary>
-                            <ResourceDictionary.ThemeDictionaries>
-                                <ResourceDictionary x:Key="Light">
-                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundChecked" Color="#0A84FF" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundCheckedPointerOver" Color="#0878EA" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundCheckedPressed" Color="#0668CC" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundChecked" Color="White" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundCheckedPointerOver" Color="White" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundCheckedPressed" Color="White" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonCheckGlyphForegroundChecked" Color="White" />
-                                </ResourceDictionary>
-                                <ResourceDictionary x:Key="Default">
-                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundChecked" Color="#0A84FF" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundCheckedPointerOver" Color="#0878EA" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundCheckedPressed" Color="#0668CC" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundChecked" Color="White" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundCheckedPointerOver" Color="White" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundCheckedPressed" Color="White" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonCheckGlyphForegroundChecked" Color="White" />
-                                </ResourceDictionary>
-                                <ResourceDictionary x:Key="HighContrast">
-                                    <StaticResource x:Key="AppBarToggleButtonBackgroundChecked" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="AppBarToggleButtonBackgroundCheckedPointerOver" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="AppBarToggleButtonBackgroundCheckedPressed" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="AppBarToggleButtonForegroundChecked" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                    <StaticResource x:Key="AppBarToggleButtonForegroundCheckedPointerOver" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                    <StaticResource x:Key="AppBarToggleButtonForegroundCheckedPressed" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                    <StaticResource x:Key="AppBarToggleButtonCheckGlyphForegroundChecked" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                </ResourceDictionary>
-                            </ResourceDictionary.ThemeDictionaries>
-                        </ResourceDictionary>
-                    </CommandBar.Resources>
-                <AppBarToggleButton x:Name="SelectTool" Label="Select" Tag="Select" IsChecked="True" Click="Tool_Click"
-                    ToolTipService.ToolTip="Select or move · V" AutomationProperties.AutomationId="ToolSelect">
-                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE8B0;" /></AppBarToggleButton.Icon>
-                </AppBarToggleButton>
-                <AppBarToggleButton x:Name="TextTool" Label="Text" Tag="Text" Click="Tool_Click"
-                    ToolTipService.ToolTip="Add text · T" AutomationProperties.AutomationId="ToolText">
-                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE8D2;" /></AppBarToggleButton.Icon>
-                </AppBarToggleButton>
-                <AppBarToggleButton x:Name="StepTool" Label="Step" Tag="Step" Click="Tool_Click"
-                    ToolTipService.ToolTip="Numbered step · N" AutomationProperties.AutomationId="ToolStep">
-                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE8FD;" /></AppBarToggleButton.Icon>
-                </AppBarToggleButton>
-                <AppBarToggleButton x:Name="LineTool" Label="Line" Tag="Line" Click="Tool_Click"
-                    ToolTipService.ToolTip="Line and arrows · L (arrow preset A)" AutomationProperties.AutomationId="ToolLine">
-                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE738;" /></AppBarToggleButton.Icon>
-                </AppBarToggleButton>
-                <AppBarButton x:Name="ShapesTool" Label="Shapes" Tag="Rectangle"
-                    ToolTipService.ToolTip="Rectangle, square, ellipse, or circle · R" AutomationProperties.AutomationId="ToolShapes">
-                    <AppBarButton.Icon><FontIcon Glyph="&#xE739;" /></AppBarButton.Icon>
-                    <AppBarButton.Flyout>
-                        <MenuFlyout>
-                            <MenuFlyoutItem x:Name="RectangleTool" Text="Rectangle" Tag="Rectangle" Click="ToolMenu_Click">
-                                <MenuFlyoutItem.Icon><PathIcon Data="F0 M1,3 L15,3 L15,13 L1,13 Z M2.5,4.5 L2.5,11.5 L13.5,11.5 L13.5,4.5 Z" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="SquareTool" Text="Square" Tag="Square" Click="ToolMenu_Click">
-                                <MenuFlyoutItem.Icon><PathIcon Data="F0 M2,2 L14,2 L14,14 L2,14 Z M3.5,3.5 L3.5,12.5 L12.5,12.5 L12.5,3.5 Z" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="EllipseTool" Text="Ellipse" Tag="Ellipse" Click="ToolMenu_Click">
-                                <MenuFlyoutItem.Icon><PathIcon Data="F0 M8,3 C12,3 15,5 15,8 C15,11 12,13 8,13 C4,13 1,11 1,8 C1,5 4,3 8,3 Z M8,4.5 C4.9,4.5 2.5,6 2.5,8 C2.5,10 4.9,11.5 8,11.5 C11.1,11.5 13.5,10 13.5,8 C13.5,6 11.1,4.5 8,4.5 Z" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="CircleTool" Text="Circle" Tag="Circle" Click="ToolMenu_Click">
-                                <MenuFlyoutItem.Icon><PathIcon Data="F0 M8,1 A7,7 0 1 1 8,15 A7,7 0 1 1 8,1 Z M8,2.5 A5.5,5.5 0 1 0 8,13.5 A5.5,5.5 0 1 0 8,2.5 Z" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                        </MenuFlyout>
-                    </AppBarButton.Flyout>
-                </AppBarButton>
-                <AppBarToggleButton x:Name="RedactTool" Label="Redact" Tag="Redaction" Click="Tool_Click"
-                    ToolTipService.ToolTip="Cover, blur, or pixelate · B" AutomationProperties.AutomationId="ToolRedact">
-                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE72E;" /></AppBarToggleButton.Icon>
-                </AppBarToggleButton>
-                <AppBarToggleButton x:Name="CropTool" Label="Crop" Tag="Crop" Click="Tool_Click"
-                    ToolTipService.ToolTip="Drag to crop · Enter confirms · Esc cancels" AutomationProperties.AutomationId="ToolCrop">
-                    <AppBarToggleButton.Icon><SymbolIcon Symbol="Crop" /></AppBarToggleButton.Icon>
-                </AppBarToggleButton>
-                <AppBarSeparator />
-                <AppBarButton Label="Undo" Icon="Undo" Click="Undo_Click" IsEnabled="{x:Bind ViewModel.CanUndo, Mode=OneWay}"
-                    ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.AutomationId="UndoEdit" />
-                <AppBarButton Label="Redo" Icon="Redo" Click="Redo_Click" IsEnabled="{x:Bind ViewModel.CanRedo, Mode=OneWay}"
-                    ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.AutomationId="RedoEdit" />
-                </CommandBar>
-                <ToggleButton x:Name="InspectorToggle" Grid.Column="1" IsChecked="True"
-                    VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="96" Height="36" Click="InspectorToggle_Click"
-                    AutomationProperties.Name="Show or hide tool options" AutomationProperties.AutomationId="ToolOptions">
-                    <ToggleButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <FontIcon Glyph="&#xE8A0;" FontSize="16" />
-                            <TextBlock Text="Options" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ToggleButton.Content>
-                    <ToggleButton.Resources>
-                        <ResourceDictionary>
-                            <ResourceDictionary.ThemeDictionaries>
-                                <ResourceDictionary x:Key="Light">
-                                    <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#0A84FF" />
-                                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#0878EA" />
-                                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#0668CC" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#0A84FF" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#0878EA" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#0668CC" />
-                                </ResourceDictionary>
-                                <ResourceDictionary x:Key="Default">
-                                    <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#0A84FF" />
-                                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#0878EA" />
-                                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#0668CC" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#0A84FF" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#0878EA" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#0668CC" />
-                                </ResourceDictionary>
-                                <ResourceDictionary x:Key="HighContrast">
-                                    <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonBorderBrushChecked" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonBorderBrushCheckedPointerOver" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="ToggleButtonBorderBrushCheckedPressed" ResourceKey="SystemColorHighlightColorBrush" />
-                                </ResourceDictionary>
-                            </ResourceDictionary.ThemeDictionaries>
-                        </ResourceDictionary>
-                    </ToggleButton.Resources>
-                </ToggleButton>
-            </Grid>
-            <SplitView x:Name="EditorSplitView" Grid.Row="1" PanePlacement="Right" DisplayMode="Inline"
-                OpenPaneLength="296" CompactPaneLength="0" IsPaneOpen="True"
-                Background="{ThemeResource ShnappCanvasBrush}">
-                <SplitView.Content>
                     <local:EditorCursorHost x:Name="CanvasHost" Background="{ThemeResource ShnappCanvasBrush}"
                         SizeChanged="GalleryCanvasHost_SizeChanged"
                         PointerMoved="GalleryCanvasHost_PointerMoved" PointerExited="GalleryCanvasHost_PointerExited">
@@ -322,24 +171,31 @@
                             </StackPanel>
                         </Border>
                     </local:EditorCursorHost>
-                </SplitView.Content>
-                <SplitView.Pane>
-                    <Border Width="296" Background="{ThemeResource ShnappToolbarBrush}"
-                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1,0,0,0">
+                    <Border x:Name="InspectorPanel" Visibility="Visible"
+                        Width="252" MaxHeight="560" Margin="12,64,12,12"
+                        HorizontalAlignment="Right" VerticalAlignment="Top"
+                        Background="{ThemeResource ShnappToolbarBrush}" CornerRadius="12"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
+                        AutomationProperties.Name="Tool options">
+                        <Border.Transitions>
+                            <TransitionCollection>
+                                <EntranceThemeTransition FromHorizontalOffset="24" />
+                            </TransitionCollection>
+                        </Border.Transitions>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel Padding="16,16,16,20" Spacing="12">
+                            <StackPanel Padding="12,12,12,16" Spacing="8">
                                 <StackPanel Spacing="4">
                                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                        <FontIcon x:Name="InspectorToolIcon" Glyph="&#xE8B0;" FontSize="18"
+                                        <FontIcon x:Name="InspectorToolIcon" Glyph="&#xE8B0;" FontSize="16"
                                             Foreground="{ThemeResource ShnappBlueBrush}" />
-                                        <TextBlock x:Name="InspectorTitle" Text="Select" FontSize="18" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="InspectorTitle" Text="Select" FontSize="16" FontWeight="SemiBold" />
                                     </StackPanel>
                                     <TextBlock x:Name="InspectorHelp" Text="Click markup to move it. Press Delete to remove it."
                                         TextWrapping="Wrap" FontSize="12"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                                 <Rectangle Height="1" Fill="{ThemeResource ControlStrokeColorDefaultBrush}" />
-                                <StackPanel x:Name="CropOptionsRow" Visibility="Collapsed" Spacing="12">
+                                <StackPanel x:Name="CropOptionsRow" Visibility="Collapsed" Spacing="8">
                                     <TextBlock Text="Crop in pixels" FontWeight="SemiBold" />
                                     <Grid ColumnSpacing="8" RowSpacing="8">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -552,8 +408,149 @@
                             </StackPanel>
                         </ScrollViewer>
                     </Border>
-                </SplitView.Pane>
-            </SplitView>
+            <Grid Margin="12,8,12,0" VerticalAlignment="Top">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <CommandBar x:Name="Tools" HorizontalAlignment="Center" MaxWidth="900"
+                    DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" CornerRadius="12"
+                    Background="{ThemeResource ShnappToolbarBrush}"
+                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
+                    AutomationProperties.Name="Annotation tools">
+                    <CommandBar.Resources>
+                        <ResourceDictionary>
+                            <ResourceDictionary.ThemeDictionaries>
+                                <ResourceDictionary x:Key="Light">
+                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundChecked" Color="#0A84FF" />
+                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundCheckedPointerOver" Color="#0878EA" />
+                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundCheckedPressed" Color="#0668CC" />
+                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundChecked" Color="White" />
+                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundCheckedPointerOver" Color="White" />
+                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundCheckedPressed" Color="White" />
+                                    <SolidColorBrush x:Key="AppBarToggleButtonCheckGlyphForegroundChecked" Color="White" />
+                                </ResourceDictionary>
+                                <ResourceDictionary x:Key="Default">
+                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundChecked" Color="#0A84FF" />
+                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundCheckedPointerOver" Color="#0878EA" />
+                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundCheckedPressed" Color="#0668CC" />
+                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundChecked" Color="White" />
+                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundCheckedPointerOver" Color="White" />
+                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundCheckedPressed" Color="White" />
+                                    <SolidColorBrush x:Key="AppBarToggleButtonCheckGlyphForegroundChecked" Color="White" />
+                                </ResourceDictionary>
+                                <ResourceDictionary x:Key="HighContrast">
+                                    <StaticResource x:Key="AppBarToggleButtonBackgroundChecked" ResourceKey="SystemColorHighlightColorBrush" />
+                                    <StaticResource x:Key="AppBarToggleButtonBackgroundCheckedPointerOver" ResourceKey="SystemColorHighlightColorBrush" />
+                                    <StaticResource x:Key="AppBarToggleButtonBackgroundCheckedPressed" ResourceKey="SystemColorHighlightColorBrush" />
+                                    <StaticResource x:Key="AppBarToggleButtonForegroundChecked" ResourceKey="SystemColorHighlightTextColorBrush" />
+                                    <StaticResource x:Key="AppBarToggleButtonForegroundCheckedPointerOver" ResourceKey="SystemColorHighlightTextColorBrush" />
+                                    <StaticResource x:Key="AppBarToggleButtonForegroundCheckedPressed" ResourceKey="SystemColorHighlightTextColorBrush" />
+                                    <StaticResource x:Key="AppBarToggleButtonCheckGlyphForegroundChecked" ResourceKey="SystemColorHighlightTextColorBrush" />
+                                </ResourceDictionary>
+                            </ResourceDictionary.ThemeDictionaries>
+                        </ResourceDictionary>
+                    </CommandBar.Resources>
+                <AppBarToggleButton x:Name="SelectTool" Label="Select" Tag="Select" IsChecked="True" Click="Tool_Click"
+                    ToolTipService.ToolTip="Select or move · V" AutomationProperties.AutomationId="ToolSelect">
+                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE8B0;" /></AppBarToggleButton.Icon>
+                </AppBarToggleButton>
+                <AppBarToggleButton x:Name="TextTool" Label="Text" Tag="Text" Click="Tool_Click"
+                    ToolTipService.ToolTip="Add text · T" AutomationProperties.AutomationId="ToolText">
+                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE8D2;" /></AppBarToggleButton.Icon>
+                </AppBarToggleButton>
+                <AppBarToggleButton x:Name="StepTool" Label="Step" Tag="Step" Click="Tool_Click"
+                    ToolTipService.ToolTip="Numbered step · N" AutomationProperties.AutomationId="ToolStep">
+                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE8FD;" /></AppBarToggleButton.Icon>
+                </AppBarToggleButton>
+                <AppBarToggleButton x:Name="LineTool" Label="Line" Tag="Line" Click="Tool_Click"
+                    ToolTipService.ToolTip="Line and arrows · L (arrow preset A)" AutomationProperties.AutomationId="ToolLine">
+                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE738;" /></AppBarToggleButton.Icon>
+                </AppBarToggleButton>
+                <AppBarButton x:Name="ShapesTool" Label="Shapes" Tag="Rectangle"
+                    ToolTipService.ToolTip="Rectangle, square, ellipse, or circle · R" AutomationProperties.AutomationId="ToolShapes">
+                    <AppBarButton.Icon><FontIcon Glyph="&#xE739;" /></AppBarButton.Icon>
+                    <AppBarButton.Flyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem x:Name="RectangleTool" Text="Rectangle" Tag="Rectangle" Click="ToolMenu_Click">
+                                <MenuFlyoutItem.Icon><PathIcon Data="F0 M1,3 L15,3 L15,13 L1,13 Z M2.5,4.5 L2.5,11.5 L13.5,11.5 L13.5,4.5 Z" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="SquareTool" Text="Square" Tag="Square" Click="ToolMenu_Click">
+                                <MenuFlyoutItem.Icon><PathIcon Data="F0 M2,2 L14,2 L14,14 L2,14 Z M3.5,3.5 L3.5,12.5 L12.5,12.5 L12.5,3.5 Z" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="EllipseTool" Text="Ellipse" Tag="Ellipse" Click="ToolMenu_Click">
+                                <MenuFlyoutItem.Icon><PathIcon Data="F0 M8,3 C12,3 15,5 15,8 C15,11 12,13 8,13 C4,13 1,11 1,8 C1,5 4,3 8,3 Z M8,4.5 C4.9,4.5 2.5,6 2.5,8 C2.5,10 4.9,11.5 8,11.5 C11.1,11.5 13.5,10 13.5,8 C13.5,6 11.1,4.5 8,4.5 Z" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="CircleTool" Text="Circle" Tag="Circle" Click="ToolMenu_Click">
+                                <MenuFlyoutItem.Icon><PathIcon Data="F0 M8,1 A7,7 0 1 1 8,15 A7,7 0 1 1 8,1 Z M8,2.5 A5.5,5.5 0 1 0 8,13.5 A5.5,5.5 0 1 0 8,2.5 Z" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </AppBarButton.Flyout>
+                </AppBarButton>
+                <AppBarToggleButton x:Name="RedactTool" Label="Redact" Tag="Redaction" Click="Tool_Click"
+                    ToolTipService.ToolTip="Cover, blur, or pixelate · B" AutomationProperties.AutomationId="ToolRedact">
+                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE72E;" /></AppBarToggleButton.Icon>
+                </AppBarToggleButton>
+                <AppBarToggleButton x:Name="CropTool" Label="Crop" Tag="Crop" Click="Tool_Click"
+                    ToolTipService.ToolTip="Drag to crop · Enter confirms · Esc cancels" AutomationProperties.AutomationId="ToolCrop">
+                    <AppBarToggleButton.Icon><SymbolIcon Symbol="Crop" /></AppBarToggleButton.Icon>
+                </AppBarToggleButton>
+                <AppBarSeparator />
+                <AppBarButton Label="Undo" Icon="Undo" Click="Undo_Click" IsEnabled="{x:Bind ViewModel.CanUndo, Mode=OneWay}"
+                    ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.AutomationId="UndoEdit" />
+                <AppBarButton Label="Redo" Icon="Redo" Click="Redo_Click" IsEnabled="{x:Bind ViewModel.CanRedo, Mode=OneWay}"
+                    ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.AutomationId="RedoEdit" />
+                </CommandBar>
+                <ToggleButton x:Name="InspectorToggle" Grid.Column="1" IsChecked="True"
+                    VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="96" Height="36" Click="InspectorToggle_Click"
+                    AutomationProperties.Name="Show or hide tool options" AutomationProperties.AutomationId="ToolOptions">
+                    <ToggleButton.Content>
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE8A0;" FontSize="16" />
+                            <TextBlock Text="Options" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton.Content>
+                    <ToggleButton.Resources>
+                        <ResourceDictionary>
+                            <ResourceDictionary.ThemeDictionaries>
+                                <ResourceDictionary x:Key="Light">
+                                    <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#0A84FF" />
+                                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#0878EA" />
+                                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#0668CC" />
+                                    <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White" />
+                                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White" />
+                                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White" />
+                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#0A84FF" />
+                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#0878EA" />
+                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#0668CC" />
+                                </ResourceDictionary>
+                                <ResourceDictionary x:Key="Default">
+                                    <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#0A84FF" />
+                                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#0878EA" />
+                                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#0668CC" />
+                                    <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White" />
+                                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White" />
+                                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White" />
+                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#0A84FF" />
+                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#0878EA" />
+                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#0668CC" />
+                                </ResourceDictionary>
+                                <ResourceDictionary x:Key="HighContrast">
+                                    <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="SystemColorHighlightColorBrush" />
+                                    <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="SystemColorHighlightColorBrush" />
+                                    <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="SystemColorHighlightColorBrush" />
+                                    <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="SystemColorHighlightTextColorBrush" />
+                                    <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="SystemColorHighlightTextColorBrush" />
+                                    <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="SystemColorHighlightTextColorBrush" />
+                                    <StaticResource x:Key="ToggleButtonBorderBrushChecked" ResourceKey="SystemColorHighlightColorBrush" />
+                                    <StaticResource x:Key="ToggleButtonBorderBrushCheckedPointerOver" ResourceKey="SystemColorHighlightColorBrush" />
+                                    <StaticResource x:Key="ToggleButtonBorderBrushCheckedPressed" ResourceKey="SystemColorHighlightColorBrush" />
+                                </ResourceDictionary>
+                            </ResourceDictionary.ThemeDictionaries>
+                        </ResourceDictionary>
+                    </ToggleButton.Resources>
+                </ToggleButton>
+            </Grid>
         </Grid>
         <Grid x:Name="LibraryRoot" Grid.Row="2" Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}"
             Padding="20,20,20,16" SizeChanged="LibraryRoot_SizeChanged">
