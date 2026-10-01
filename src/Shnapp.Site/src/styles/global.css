@@ -379,6 +379,7 @@ p { line-height: 1.62; }
   .feedback-actions { width: 100%; }
   .catalog-grid { grid-template-columns: 1fr; }
   .catalog-card { min-height: 180px; }
+  .catalog-available dl > div { grid-template-columns: 1fr; gap: .25rem; }
   .privacy-head h1 { font-size: clamp(3rem, 10.6vw, 4.5rem); }
   .privacy-toc { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .privacy-article section { margin-bottom: 2.5rem; padding-bottom: 2.5rem; }
