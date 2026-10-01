@@ -161,7 +161,7 @@ internal sealed partial class AppController
         catch (Exception exception)
         {
             Show();
-            _page.ShowMessage("Shnapp needs another try", exception.Message + " Your open shnapp remains in memory; try Copy or Save PNG.");
+            _page.ShowMessage("Shnapp needs another try", exception.Message + " Your open shnapp remains in memory; try Copy or Save.");
         }
     }
 

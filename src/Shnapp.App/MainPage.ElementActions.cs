@@ -31,6 +31,18 @@ public sealed partial class MainPage
         }
 
         SetTool(EditorTool.Select);
+        // Switching tools commits in-progress text and can remove an empty text mark.
+        // Recheck the committed document before selecting the hit element.
+        hit = _editor.Current.OrderedAnnotations.Reverse()
+            .FirstOrDefault(annotation => HitAnnotation(annotation, position));
+        if (hit is null)
+        {
+            _selectedId = null;
+            UpdateInspector();
+            DrawingCanvas.Invalidate();
+            return;
+        }
+
         _selectedId = hit.Id;
         OpenInspectorForSelection();
         UpdateInspector();

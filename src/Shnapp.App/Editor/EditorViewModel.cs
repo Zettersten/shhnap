@@ -52,6 +52,24 @@ public sealed partial class LibraryEntry : ObservableObject
     [ObservableProperty]
     public partial bool CanDrag { get; set; } = true;
 
+    /// <summary>Tracks selection across the grid, list, filtering, and layout changes.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GridSelectionVisibility))]
+    public partial bool IsSelected { get; set; }
+
+    /// <summary>Reveals the grid checkbox while the pointer is over its thumbnail.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GridSelectionVisibility))]
+    public partial bool IsGridHovered { get; set; }
+
+    /// <summary>Exposes selection to keyboard users when a grid card has focus.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GridSelectionVisibility))]
+    public partial bool IsGridKeyboardFocused { get; set; }
+
+    public Visibility GridSelectionVisibility => IsGridHovered || IsGridKeyboardFocused || IsSelected
+        ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>Stacks list metadata when aligned columns would hide the title.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ListRowHeight))]
@@ -77,14 +95,22 @@ public sealed partial class LibraryEntry : ObservableObject
     /// <summary>Gets the title shown beneath the thumbnail.</summary>
     public string Title { get; }
 
+    /// <summary>Names each selection checkbox for assistive technology.</summary>
+    public string SelectionLabel => $"Select {Title}";
+
     /// <summary>Gets the local capture date.</summary>
     public string DateText { get; }
 
-    /// <summary>Gets the concise capture date shown on thumbnail cards.</summary>
-    public string GridDateText { get; }
+    /// <summary>Gets compact details for the right edge of a thumbnail card.</summary>
+    public string GridMetadataText => CardWidth switch
+    {
+        < 180 => FileSizeText,
+        < 260 => $"{GridDateText} · {FileSizeText}",
+        _ => $"{GridDateText} · {GridDimensionsText} · {FileSizeText}",
+    };
 
-    /// <summary>Gets the quiet, single-line details beneath a thumbnail.</summary>
-    public string GridMetadataText { get; }
+    private string GridDateText { get; }
+    private string GridDimensionsText { get; }
 
     /// <summary>Gets the visible canvas dimensions in pixels.</summary>
     public string DimensionsText { get; }
@@ -112,6 +138,7 @@ public sealed partial class LibraryEntry : ObservableObject
 
     /// <summary>Gets the width of this entry in the selected grid layout.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GridMetadataText))]
     public partial double CardWidth { get; set; }
 
     /// <summary>Gets the width reserved for this card in the wrapping grid.</summary>
@@ -142,12 +169,12 @@ public sealed partial class LibraryEntry : ObservableObject
         CreatedAt = document.CreatedAt;
         DateTimeOffset localCapture = document.CreatedAt.ToLocalTime();
         DateText = localCapture.ToString("MMM d, yyyy · h:mm tt");
-        GridDateText = localCapture.ToString("MMM d, yyyy");
+        GridDateText = localCapture.ToString("MMM d");
         DimensionsText = $"{document.Viewport.Width:0} × {document.Viewport.Height:0} px";
+        GridDimensionsText = $"{document.Viewport.Width:0}×{document.Viewport.Height:0}";
         PixelArea = document.Viewport.Width * document.Viewport.Height;
         FileSizeBytes = fileSizeBytes;
         FileSizeText = fileSizeBytes is { } bytes ? ShnappMetadata.FormatFileSize(bytes) : "—";
-        GridMetadataText = $"{GridDateText}  ·  {document.Viewport.Width:0} × {document.Viewport.Height:0}  ·  {FileSizeText}";
         CompactMetadataSummary = $"{DateText}  ·  {DimensionsText}  ·  {FileSizeText}";
         MetadataDescription = $"{Title}, {DateText}, {DimensionsText}, " +
             (fileSizeBytes is null ? "file size unavailable" : FileSizeText);

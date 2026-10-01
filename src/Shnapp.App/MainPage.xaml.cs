@@ -1153,13 +1153,6 @@ public sealed partial class MainPage : Page
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(args.ItemContainer,
             entry is null ? string.Empty : $"Shnapp_{entry.Id:N}");
     }
-    private void Library_ItemClick(object sender, ItemClickEventArgs args)
-    {
-        if (!_librarySelectionMode && args.ClickedItem is LibraryEntry entry)
-        {
-            _controller?.OpenDocument(entry.Id);
-        }
-    }
     private void Capture_Click(object sender, RoutedEventArgs args) => _controller?.Capture(Enum.Parse<CaptureKind>((string)((FrameworkElement)sender).Tag));
     private void Library_Click(object sender, RoutedEventArgs args) => _controller?.OpenLibrary();
     private void Copy_Click(object sender, RoutedEventArgs args) => _controller?.Copy();

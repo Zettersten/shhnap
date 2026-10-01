@@ -44,11 +44,11 @@ Draw a crop and drag it into place, use exact X, Y, width, and height values, lo
 
 Right-click any placed element to clone it, delete it, or change which marks sit in front. The same actions work from the keyboard: `Ctrl+D`, `Delete`, `Ctrl+]` (front), and `Ctrl+[` (back).
 
-When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboard with its transparent areas intact, **Share** opens the Windows share sheet, **Save PNG** (`Ctrl+S`) lets you choose where to export it, and **Done** returns Shnapp to the tray.
+When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboard with its transparent areas intact, **Save** (`Ctrl+S`) lets you export a PNG, and **Done** returns Shnapp to the tray. The toolbar menu also offers Windows Share, Copy full path, and Delete shnapp.
 
 ## Find it again
 
-Shnapp keeps your captures in a local library, ready to search by title, date, or capture type and reopen for more editing. Browse as a list or choose small, medium, large, or extra-large thumbnail grids. Each shnapp shows its date, dimensions, and PNG size; sort by any of those or by name. Right-click a shnapp to clone, rename, share, delete, or copy its saved PNG path. Use **Select** at the bottom right of the grid to delete several at once. The Back and Forward buttons return you to places you visited; `Alt+Left` and `Alt+Right` work too, as do mouse Back and Forward buttons. Click the title above an open shnapp to rename it. When the library is empty, a getting-started view helps you take the first shnapp. Opt in to starting at sign-in if you want Shnapp waiting in the tray whenever Windows starts.
+Shnapp keeps your captures in a local library, ready to search by title, date, or capture type and reopen for more editing. Browse as a list or choose small, medium, large, or extra-large thumbnail grids. Each shnapp shows its date, dimensions, and PNG size; sort by any of those or by name. Right-click a shnapp to clone, rename, share, delete, or copy its saved PNG path. Hover over a grid thumbnail to reveal its checkbox, or use the always-visible checkboxes in list view. Once you select a shnapp, **Delete** appears beside search for bulk cleanup. The Back and Forward buttons return you to places you visited; `Alt+Left` and `Alt+Right` work too, as do mouse Back and Forward buttons. Click the title above an open shnapp to rename it. When the library is empty, a getting-started view helps you take the first shnapp. Opt in to starting at sign-in if you want Shnapp waiting in the tray whenever Windows starts.
 
 While editing, move to the canvas's left edge to reveal a small image-only gallery over your work, or open it with `Ctrl+Shift+G` or **Recent shnapps** in the menu. Hover to magnify nearby previews, use the arrows or scroll to browse, click a preview to open it, or drag one onto your canvas to add a copy as a movable image layer. Small cropped previews keep browsing quick.
 
@@ -62,7 +62,7 @@ Shnapp saves its library and preferences under `%LOCALAPPDATA%\Shnapp` for your 
 
 ## Get started
 
-Shnapp is an early preview for Windows 11 on x64 and ARM64. A public installer or GitHub Release has not been published yet. You can [build it from source](#build-from-source) today. Follow the [roadmap](ROADMAP.md) for planned captions, output resizing, polygon shapes, true free-form capture, and optional AI assistance. The [product website source](src/Shnapp.Site) lives alongside the app.
+Shnapp is an early preview for Windows 11 on x64 and ARM64. A public installer or GitHub Release has not been published yet. You can [build it from source](#build-from-source) today. Follow the [roadmap](ROADMAP.md) for planned captions, output resizing, polygon shapes, true free-form capture, and optional AI assistance. Visit [shhnap.com](https://shhnap.com/) for the product website; its [source](src/Shnapp.Site) lives alongside the app.
 
 ### Build from source
 

@@ -18,6 +18,22 @@ internal sealed partial class AppController
 
     internal void CopyDocumentPath(Guid id) => Run(() => CopyDocumentPathAsync(id));
 
+    internal void CopyCurrentDocumentPath() => Run(async () =>
+    {
+        if (_page.Document is not { } document)
+        {
+            return;
+        }
+
+        _page.CommitText();
+        _saveTimer.Stop();
+        await SaveCurrentAsync();
+        if (_page.Document?.Id == document.Id)
+        {
+            await CopyDocumentPathAsync(document.Id);
+        }
+    });
+
     private async Task CloneDocumentAsync(Guid id)
     {
         if (!await _captureGate.WaitAsync(0, _lifetime.Token))
@@ -234,15 +250,30 @@ internal sealed partial class AppController
                 return;
             }
 
-            foreach (Guid id in ids)
+            if (_page.Document is { } current && ids.Contains(current.Id))
             {
-                await Library.DeleteAsync(id, _lifetime.Token);
+                _saveTimer.Stop();
             }
 
-            ForgetNavigationDocuments(ids);
-            _page.RemoveLibrarySelection(ids);
-            await RefreshLibraryAfterActionAsync();
-            _page.ViewModel.Status = ids.Count == 1 ? "Shnapp deleted" : $"{ids.Count} shnapps deleted";
+            // A pending autosave must finish before the file is removed; holding
+            // the gate until the editor closes prevents a queued save restoring it.
+            await _saveGate.WaitAsync(_lifetime.Token);
+            try
+            {
+                foreach (Guid id in ids)
+                {
+                    await Library.DeleteAsync(id, _lifetime.Token);
+                }
+
+                ForgetNavigationDocuments(ids);
+                _page.RemoveLibrarySelection(ids);
+                await RefreshLibraryAfterActionAsync();
+                _page.ViewModel.Status = ids.Count == 1 ? "Shnapp deleted" : $"{ids.Count} shnapps deleted";
+            }
+            finally
+            {
+                _saveGate.Release();
+            }
         }
         finally
         {

@@ -26,6 +26,7 @@ public sealed partial class MainPage
     private bool _restoringLibrarySelection;
     private bool _libraryCompactList;
     private readonly HashSet<Guid> _selectedLibraryIds = [];
+    private LibraryEntry? _focusedGridEntry;
     private bool _focusSearchWhenLibraryOpens;
     private LibrarySortField _librarySortField = LibrarySortField.Date;
     private bool _librarySortDescending = true;
@@ -46,6 +47,11 @@ public sealed partial class MainPage
         }
 
         (double cardWidth, double thumbnailHeight) = LibrarySizes[_librarySizeIndex];
+        if (_focusedGridEntry is not null)
+        {
+            _focusedGridEntry.IsGridKeyboardFocused = false;
+            _focusedGridEntry = null;
+        }
         _libraryEntries.Clear();
         foreach (ShnappSummary document in _library)
         {
@@ -63,6 +69,7 @@ public sealed partial class MainPage
             {
                 CanDrag = !_librarySelectionMode,
                 CompactList = _libraryCompactList,
+                IsSelected = _selectedLibraryIds.Contains(document.Id),
             };
         }
 
@@ -123,14 +130,6 @@ public sealed partial class MainPage
                 ViewModel.Library.Add(entry);
             }
 
-            if (_librarySelectionMode)
-            {
-                foreach (LibraryEntry entry in ViewModel.Library.Where(entry => _selectedLibraryIds.Contains(entry.Id)))
-                {
-                    LibraryGrid.SelectedItems.Add(entry);
-                    LibraryList.SelectedItems.Add(entry);
-                }
-            }
         }
         finally
         {
@@ -287,7 +286,6 @@ public sealed partial class MainPage
         LibraryGridMode.IsChecked = !_libraryListMode;
         LibraryListMode.IsChecked = _libraryListMode;
         LibrarySizeButton.IsEnabled = !_libraryListMode;
-        LibrarySelectionBar.Visibility = hasResults ? Visibility.Visible : Visibility.Collapsed;
         UpdateLibrarySelectionStatus();
     }
 
@@ -351,12 +349,6 @@ public sealed partial class MainPage
             return;
         }
 
-        if (_librarySelectionMode)
-        {
-            // Native GridView/ListView selection handles the tap and its keyboard equivalent.
-            return;
-        }
-
         _controller?.OpenDocument(entry.Id);
 
         args.Handled = true;
@@ -387,61 +379,107 @@ public sealed partial class MainPage
         }
     }
 
-    private void LibrarySelectionToggle_Changed(object sender, RoutedEventArgs args)
+    private void LibraryCard_ItemClick(object sender, ItemClickEventArgs args)
     {
-        if (!IsLoaded)
+        if (args.ClickedItem is LibraryEntry entry)
+        {
+            _controller?.OpenDocument(entry.Id);
+        }
+    }
+
+    private void LibraryThumbnail_PointerEntered(object sender, PointerRoutedEventArgs args)
+    {
+        if (sender is FrameworkElement { Tag: LibraryEntry entry })
+        {
+            entry.IsGridHovered = true;
+        }
+    }
+
+    private void LibraryThumbnail_PointerExited(object sender, PointerRoutedEventArgs args)
+    {
+        if (sender is FrameworkElement { Tag: LibraryEntry entry })
+        {
+            entry.IsGridHovered = false;
+        }
+    }
+
+    private void LibraryGrid_GotFocus(object sender, RoutedEventArgs args)
+    {
+        SetFocusedGridEntry(FindFocusedGridEntry(args.OriginalSource));
+    }
+
+    private void LibraryGrid_LostFocus(object sender, RoutedEventArgs args)
+    {
+        // Focus can move from the card to its newly revealed checkbox. Recheck after
+        // that transition instead of hiding the checkbox before it receives focus.
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (XamlRoot is not null)
+            {
+                SetFocusedGridEntry(FindFocusedGridEntry(FocusManager.GetFocusedElement(XamlRoot)));
+            }
+        });
+    }
+
+    private void SetFocusedGridEntry(LibraryEntry? entry)
+    {
+        if (ReferenceEquals(entry, _focusedGridEntry))
         {
             return;
         }
 
-        _librarySelectionMode = LibrarySelectionToggle.IsChecked == true;
+        if (_focusedGridEntry is not null)
+        {
+            _focusedGridEntry.IsGridKeyboardFocused = false;
+        }
+        _focusedGridEntry = entry;
+        if (entry is not null)
+        {
+            entry.IsGridKeyboardFocused = true;
+        }
+    }
+
+    private static LibraryEntry? FindFocusedGridEntry(object? source)
+    {
+        for (DependencyObject? current = source as DependencyObject; current is not null;
+            current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is GridViewItem { Content: LibraryEntry entry })
+            {
+                return entry;
+            }
+        }
+
+        return null;
+    }
+
+    private void LibrarySelectionCheck_Tapped(object sender, TappedRoutedEventArgs args) => args.Handled = true;
+
+    private void LibrarySelectionCheck_Changed(object sender, RoutedEventArgs args)
+    {
+        if (!IsLoaded || _restoringLibrarySelection ||
+            sender is not CheckBox { Tag: LibraryEntry entry } checkbox)
+        {
+            return;
+        }
+
+        bool selected = checkbox.IsChecked == true;
         _restoringLibrarySelection = true;
         try
         {
-            if (!_librarySelectionMode)
+            entry.IsSelected = selected;
+            if (selected)
             {
-                _selectedLibraryIds.Clear();
-                LibraryGrid.SelectedItems.Clear();
-                LibraryList.SelectedItems.Clear();
+                _selectedLibraryIds.Add(entry.Id);
             }
-
-            LibraryGrid.SelectionMode = _librarySelectionMode ? ListViewSelectionMode.Multiple : ListViewSelectionMode.None;
-            LibraryList.SelectionMode = _librarySelectionMode ? ListViewSelectionMode.Multiple : ListViewSelectionMode.None;
-            LibraryGrid.IsItemClickEnabled = !_librarySelectionMode;
-            LibraryList.IsItemClickEnabled = !_librarySelectionMode;
-            foreach (LibraryEntry entry in _libraryEntries.Values)
+            else
             {
-                entry.CanDrag = !_librarySelectionMode;
+                _selectedLibraryIds.Remove(entry.Id);
             }
         }
         finally
         {
             _restoringLibrarySelection = false;
-        }
-
-        UpdateLibrarySelectionStatus();
-    }
-
-    private void Library_SelectionChanged(object sender, SelectionChangedEventArgs args)
-    {
-        if (_restoringLibrarySelection || !_librarySelectionMode)
-        {
-            return;
-        }
-
-        ListViewBase active = _libraryListMode ? LibraryList : LibraryGrid;
-        if (!ReferenceEquals(sender, active))
-        {
-            return;
-        }
-
-        foreach (LibraryEntry entry in args.RemovedItems.OfType<LibraryEntry>())
-        {
-            _selectedLibraryIds.Remove(entry.Id);
-        }
-        foreach (LibraryEntry entry in args.AddedItems.OfType<LibraryEntry>())
-        {
-            _selectedLibraryIds.Add(entry.Id);
         }
         UpdateLibrarySelectionStatus();
     }
@@ -449,10 +487,20 @@ public sealed partial class MainPage
     private void UpdateLibrarySelectionStatus()
     {
         int count = _selectedLibraryIds.Count;
-        LibrarySelectionCount.Text = $"{count} selected";
-        LibrarySelectionCount.Visibility = _librarySelectionMode ? Visibility.Visible : Visibility.Collapsed;
-        LibraryDeleteSelected.Visibility = _librarySelectionMode ? Visibility.Visible : Visibility.Collapsed;
-        LibraryDeleteSelected.IsEnabled = count > 0;
+        bool selectionMode = count > 0;
+        if (_librarySelectionMode != selectionMode)
+        {
+            _librarySelectionMode = selectionMode;
+            foreach (LibraryEntry entry in _libraryEntries.Values)
+            {
+                entry.CanDrag = !selectionMode;
+            }
+        }
+
+        LibrarySelectionCount.Text = $"Delete {count}";
+        LibraryDeleteSelected.Visibility = selectionMode ? Visibility.Visible : Visibility.Collapsed;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(LibraryDeleteSelected,
+            count == 1 ? "Delete 1 selected shnapp" : $"Delete {count} selected shnapps");
     }
 
     private void LibraryDeleteSelected_Click(object sender, RoutedEventArgs args)
@@ -465,7 +513,22 @@ public sealed partial class MainPage
 
     internal void RemoveLibrarySelection(IEnumerable<Guid> ids)
     {
-        _selectedLibraryIds.ExceptWith(ids);
+        _restoringLibrarySelection = true;
+        try
+        {
+            foreach (Guid id in ids)
+            {
+                _selectedLibraryIds.Remove(id);
+                if (_libraryEntries.TryGetValue(id, out LibraryEntry? entry))
+                {
+                    entry.IsSelected = false;
+                }
+            }
+        }
+        finally
+        {
+            _restoringLibrarySelection = false;
+        }
         UpdateLibrarySelectionStatus();
     }
 

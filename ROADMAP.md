@@ -14,11 +14,11 @@ Work on the product website and README can proceed in parallel with the app slic
 
 ### 0. Product presence and install path (now, independent of editor work)
 
-- Keep the Astro static site under `src/Shnapp.Site/` with a locked build and a GitHub Actions workflow that builds on pushes to `main` and deploys the generated output to GitHub Pages. Keep the repository and Pages settings, build, and deployment on one publish path. Configure `shnapp.com` in Pages settings; verify the required DNS records and HTTPS after DNS is configured. A successful workflow alone does not prove the custom domain works.
+- Keep the Astro static site under `src/Shnapp.Site/` with a locked build and a GitHub Actions workflow that builds on pushes to `main` and deploys the generated output to GitHub Pages. Keep the repository and Pages settings, build, and deployment on one publish path. Configure `shhnap.com` in Pages settings; verify the required DNS records and HTTPS after DNS is configured. A successful workflow alone does not prove the custom domain works.
 - Use the supplied `logo.png`, `icon.png`, and `DESIGN.md` on the site. Show the three shortcuts, a concise feature tour, Windows 11 support, an honest download state, and a clear path back to the GitHub repository. Do not advertise features or release downloads before they exist.
 - Rewrite `README.md` as the product's front door: a short promise, real app screenshots, shortcuts, a short feature tour, install/download guidance, privacy and local storage, and a link to the site. Keep build instructions in a brief contributor section or a separate document. Capture screenshots from a running app with safe sample content, including the library and annotated editor. Maintain screenshot files in the repository and reuse them on the site where useful.
 
-**Done when:** a push to `main` builds and deploys the site; its actual Pages URL and `shnapp.com` (once DNS is in place) load over HTTPS; the README and site show the real logo and real, legible screenshots; links and claims match a release that users can actually download. If no release exists, label the download as forthcoming or link to source builds.
+**Done when:** a push to `main` builds and deploys the site; its actual Pages URL and `shhnap.com` (once DNS is in place) load over HTTPS; the README and site show the real logo and real, legible screenshots; links and claims match a release that users can actually download. If no release exists, label the download as forthcoming or link to source builds.
 
 ### 1. Durable editing foundation (P0; before complex new document structures)
 

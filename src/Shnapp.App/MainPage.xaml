@@ -29,17 +29,17 @@
             Background="{ThemeResource ShnappChromeBrush}">
             <CommandBar.Content>
                 <StackPanel Orientation="Horizontal" Spacing="0" Margin="16,0,16,0" MinHeight="48" VerticalAlignment="Center">
-                    <AppBarButton x:Name="BackButton" Label="Back" Width="48" Height="48" IsCompact="True"
+                    <AppBarButton x:Name="BackButton" Label="Back" LabelPosition="Collapsed" Width="48" Height="48"
                         IsEnabled="False" VerticalAlignment="Center"
                         Click="Back_Click" ToolTipService.ToolTip="Back · Alt+Left"
                         AutomationProperties.Name="Back" AutomationProperties.AutomationId="NavigateBack">
-                        <AppBarButton.Icon><FontIcon Glyph="&#xE72B;" FontSize="16" /></AppBarButton.Icon>
+                        <AppBarButton.Icon><FontIcon Glyph="&#xE72B;" FontSize="14" /></AppBarButton.Icon>
                     </AppBarButton>
-                    <AppBarButton x:Name="ForwardButton" Label="Forward" Width="48" Height="48" IsCompact="True"
+                    <AppBarButton x:Name="ForwardButton" Label="Forward" LabelPosition="Collapsed" Width="48" Height="48"
                         IsEnabled="False" VerticalAlignment="Center"
                         Click="Forward_Click" ToolTipService.ToolTip="Forward · Alt+Right"
                         AutomationProperties.Name="Forward" AutomationProperties.AutomationId="NavigateForward">
-                        <AppBarButton.Icon><FontIcon Glyph="&#xE72A;" FontSize="16" /></AppBarButton.Icon>
+                        <AppBarButton.Icon><FontIcon Glyph="&#xE72A;" FontSize="14" /></AppBarButton.Icon>
                     </AppBarButton>
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,0,0,0" VerticalAlignment="Center"
                         Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}">
@@ -97,19 +97,28 @@
             <AppBarButton x:Name="CopyButton" Label="Copy" Icon="Copy" Click="Copy_Click"
                 IsEnabled="{x:Bind ViewModel.HasDocument, Mode=OneWay}" AutomationProperties.AutomationId="CopyShnapp"
                 ToolTipService.ToolTip="Copy flattened image · Ctrl+C" />
-            <AppBarButton x:Name="ShareButton" Label="Share" Icon="Share" Click="Share_Click"
-                IsEnabled="{x:Bind ViewModel.HasDocument, Mode=OneWay}" AutomationProperties.AutomationId="ShareShnapp"
-                ToolTipService.ToolTip="Share this shnapp with another app" />
-            <AppBarButton x:Name="SaveButton" Label="Save PNG" Icon="Save" Click="Save_Click"
+            <AppBarButton x:Name="SaveButton" Label="Save" Icon="Save" Click="Save_Click"
                 IsEnabled="{x:Bind ViewModel.HasDocument, Mode=OneWay}" AutomationProperties.AutomationId="SaveShnapp"
-                ToolTipService.ToolTip="Export PNG · Ctrl+S" />
+                ToolTipService.ToolTip="Save PNG to a chosen location · Ctrl+S" />
             <AppBarButton Label="Done" Icon="Accept" Click="Done_Click" AutomationProperties.AutomationId="DoneShnapp"
                 ToolTipService.ToolTip="Save locally and return to the tray" />
             <CommandBar.SecondaryCommands>
                 <AppBarButton Label="Recent shnapps" Icon="Pictures" Click="ToggleGallery_Click"
-                    IsEnabled="{x:Bind ViewModel.HasDocument, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
                     AutomationProperties.AutomationId="ShowGallery"
                     ToolTipService.ToolTip="Show the gallery · Ctrl+Shift+G" />
+                <AppBarButton Label="Share" Icon="Share" Click="Share_Click"
+                    Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
+                    AutomationProperties.AutomationId="ShareShnapp"
+                    ToolTipService.ToolTip="Share this shnapp with another app" />
+                <AppBarButton Label="Copy full path" Icon="Copy" Click="CopyCurrentPath_Click"
+                    Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
+                    AutomationProperties.AutomationId="CopyCurrentShnappPath"
+                    ToolTipService.ToolTip="Copy the saved PNG's full path" />
+                <AppBarButton Label="Delete shnapp" Icon="Delete" Click="DeleteCurrent_Click"
+                    Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
+                    AutomationProperties.AutomationId="DeleteCurrentShnapp"
+                    ToolTipService.ToolTip="Delete this shnapp from your Library" />
                 <AppBarButton Label="Settings" Icon="Setting" Click="Settings_Click" AutomationProperties.AutomationId="OpenSettings" />
                 <AppBarButton Label="Quit Shnapp" Icon="Cancel" Click="Quit_Click" AutomationProperties.AutomationId="QuitShnapp" />
             </CommandBar.SecondaryCommands>
@@ -174,7 +183,7 @@
                     <Border x:Name="InspectorPanel" Visibility="Visible"
                         Width="252" MaxHeight="560" Margin="12,64,12,12"
                         HorizontalAlignment="Right" VerticalAlignment="Top"
-                        Background="{ThemeResource ShnappToolbarBrush}" CornerRadius="12"
+                        Background="{ThemeResource ShnappChromeBrush}" CornerRadius="12"
                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
                         AutomationProperties.Name="Tool options">
                         <Border.Transitions>
@@ -539,11 +548,22 @@
             </Grid.RowDefinitions>
             <Grid Grid.Row="0" Margin="0,0,0,16" ColumnSpacing="12">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <AutoSuggestBox x:Name="LibrarySearch" HorizontalAlignment="Stretch"
-                    QueryIcon="Find" PlaceholderText="Search shnapps" TextChanged="LibrarySearch_TextChanged"
-                    QuerySubmitted="LibrarySearch_QuerySubmitted" KeyDown="LibrarySearch_KeyDown"
-                    ToolTipService.ToolTip="Search by title, date, dimensions, or capture type"
-                    AutomationProperties.Name="Search library" AutomationProperties.AutomationId="LibrarySearch" />
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <AutoSuggestBox x:Name="LibrarySearch" HorizontalAlignment="Stretch"
+                        QueryIcon="Find" PlaceholderText="Search shnapps" TextChanged="LibrarySearch_TextChanged"
+                        QuerySubmitted="LibrarySearch_QuerySubmitted" KeyDown="LibrarySearch_KeyDown"
+                        ToolTipService.ToolTip="Search by title, date, dimensions, or capture type"
+                        AutomationProperties.Name="Search library" AutomationProperties.AutomationId="LibrarySearch" />
+                    <Button x:Name="LibraryDeleteSelected" Grid.Column="1" Height="36" Padding="10,0"
+                        Visibility="Collapsed" Click="LibraryDeleteSelected_Click"
+                        AutomationProperties.Name="Delete selected shnapps" AutomationProperties.AutomationId="LibraryDeleteSelected">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <SymbolIcon Symbol="Delete" />
+                            <TextBlock x:Name="LibrarySelectionCount" Text="Delete 0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                     <DropDownButton x:Name="LibrarySortButton" Height="36" Padding="10,0"
                         ToolTipService.ToolTip="Sort library by date, name, file size, or dimensions"
@@ -592,8 +612,8 @@
             <Grid Grid.Row="2">
                 <GridView x:Name="LibraryGrid" ItemsSource="{x:Bind ViewModel.Library}"
                     Padding="0,0,0,64" ScrollViewer.VerticalScrollBarVisibility="Hidden"
-                    SelectionMode="None" IsItemClickEnabled="True" ItemClick="Library_ItemClick"
-                    SelectionChanged="Library_SelectionChanged"
+                    SelectionMode="None" IsItemClickEnabled="True" ItemClick="LibraryCard_ItemClick"
+                    GotFocus="LibraryGrid_GotFocus" LostFocus="LibraryGrid_LostFocus"
                     ContainerContentChanging="Library_ContainerContentChanging"
                     AutomationProperties.Name="Saved shnapps grid" AutomationProperties.AutomationId="ShnappLibrary">
                     <GridView.Resources>
@@ -614,27 +634,39 @@
                                 Tag="{x:Bind}" RightTapped="LibraryCard_RightTapped"
                                 ToolTipService.ToolTip="{x:Bind MetadataDescription}"
                                 AutomationProperties.Name="{x:Bind MetadataDescription}">
-                                <Border Width="{x:Bind CardWidth, Mode=OneWay}" Height="{x:Bind ThumbnailHeight, Mode=OneWay}"
-                                    HorizontalAlignment="Left" Background="{ThemeResource ShnappPreviewBrush}"
-                                    CornerRadius="8" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="6"
-                                        Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
-                                        Tapped="LibraryPreview_Tapped" />
-                                </Border>
-                                <TextBlock Width="{x:Bind CardWidth, Mode=OneWay}" HorizontalAlignment="Left"
-                                    Text="{x:Bind Title}" FontSize="12" FontWeight="SemiBold"
-                                    TextTrimming="CharacterEllipsis" MaxLines="1" />
-                                <TextBlock Width="{x:Bind CardWidth, Mode=OneWay}" HorizontalAlignment="Left"
-                                    Text="{x:Bind GridMetadataText}" FontSize="11"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                <Grid Width="{x:Bind CardWidth, Mode=OneWay}" Height="{x:Bind ThumbnailHeight, Mode=OneWay}"
+                                    HorizontalAlignment="Left" Tag="{x:Bind}"
+                                    PointerEntered="LibraryThumbnail_PointerEntered" PointerExited="LibraryThumbnail_PointerExited">
+                                    <Border Background="{ThemeResource ShnappPreviewBrush}"
+                                        CornerRadius="8" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+                                        <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="6"
+                                            Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
+                                            Tapped="LibraryPreview_Tapped" />
+                                    </Border>
+                                    <CheckBox Width="32" MinWidth="0" Height="32" Padding="0" Margin="0,6,6,0"
+                                        HorizontalAlignment="Right" VerticalAlignment="Top" Tag="{x:Bind}"
+                                        IsChecked="{x:Bind IsSelected, Mode=OneWay}"
+                                        Visibility="{x:Bind GridSelectionVisibility, Mode=OneWay}"
+                                        Checked="LibrarySelectionCheck_Changed" Unchecked="LibrarySelectionCheck_Changed"
+                                        Tapped="LibrarySelectionCheck_Tapped"
+                                        ToolTipService.ToolTip="Select shnapp"
+                                        AutomationProperties.Name="{x:Bind SelectionLabel}" />
+                                </Grid>
+                                <Grid Width="{x:Bind CardWidth, Mode=OneWay}" HorizontalAlignment="Left" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{x:Bind Title}" FontSize="11" FontWeight="SemiBold"
+                                        TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                    <TextBlock Grid.Column="1" Text="{x:Bind GridMetadataText, Mode=OneWay}" FontSize="10"
+                                        HorizontalAlignment="Right" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                </Grid>
                             </StackPanel>
                         </DataTemplate>
                     </GridView.ItemTemplate>
                 </GridView>
                 <ListView x:Name="LibraryList" ItemsSource="{x:Bind ViewModel.Library}" Visibility="Collapsed"
                     Padding="0,0,0,64" ScrollViewer.VerticalScrollBarVisibility="Hidden"
-                    SelectionMode="None" IsItemClickEnabled="True" ItemClick="Library_ItemClick"
-                    SelectionChanged="Library_SelectionChanged"
+                    SelectionMode="None" IsItemClickEnabled="True" ItemClick="LibraryCard_ItemClick"
                     ContainerContentChanging="Library_ContainerContentChanging"
                     AutomationProperties.Name="Saved shnapps list" AutomationProperties.AutomationId="ShnappLibraryList">
                     <ListView.ItemContainerStyle>
@@ -646,25 +678,33 @@
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="editor:LibraryEntry">
-                            <Grid Height="{x:Bind ListRowHeight, Mode=OneWay}" Padding="0,4" ColumnSpacing="16"
+                            <Grid Height="{x:Bind ListRowHeight, Mode=OneWay}" Padding="0,4" ColumnSpacing="12"
                                 Background="Transparent"
                                 Tag="{x:Bind}" RightTapped="LibraryCard_RightTapped"
                                 ToolTipService.ToolTip="{x:Bind MetadataDescription}"
                                 AutomationProperties.Name="{x:Bind MetadataDescription}">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="32" />
                                     <ColumnDefinition Width="{x:Bind ListThumbnailWidth, Mode=OneWay}" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="{x:Bind ListDateWidth, Mode=OneWay}" />
                                     <ColumnDefinition Width="{x:Bind ListDimensionsWidth, Mode=OneWay}" />
                                     <ColumnDefinition Width="{x:Bind ListSizeWidth, Mode=OneWay}" />
                                 </Grid.ColumnDefinitions>
-                                <Border Background="{ThemeResource ShnappPreviewBrush}" CornerRadius="4"
+                                <CheckBox Grid.Column="0" Width="32" MinWidth="0" Height="32" Padding="0"
+                                    VerticalAlignment="Center" Tag="{x:Bind}"
+                                    IsChecked="{x:Bind IsSelected, Mode=OneWay}"
+                                    Checked="LibrarySelectionCheck_Changed" Unchecked="LibrarySelectionCheck_Changed"
+                                    Tapped="LibrarySelectionCheck_Tapped"
+                                    ToolTipService.ToolTip="Select shnapp"
+                                    AutomationProperties.Name="{x:Bind SelectionLabel}" />
+                                <Border Grid.Column="1" Background="{ThemeResource ShnappPreviewBrush}" CornerRadius="4"
                                     BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                                     <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="2"
                                         Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
                                         Tapped="LibraryPreview_Tapped" />
                                 </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock Text="{x:Bind Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Text="{x:Bind CaptureType}" FontSize="11"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
@@ -673,39 +713,24 @@
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
                                         Visibility="{x:Bind CompactListVisibility, Mode=OneWay}" />
                                 </StackPanel>
-                                <TextBlock Grid.Column="2" Text="{x:Bind DateText}" VerticalAlignment="Center"
+                                <TextBlock Grid.Column="3" Text="{x:Bind DateText}" VerticalAlignment="Center"
                                     FontSize="11"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
                                     Visibility="{x:Bind WideListVisibility, Mode=OneWay}" />
-                                <TextBlock Grid.Column="3" Text="{x:Bind DimensionsText}" VerticalAlignment="Center"
+                                <TextBlock Grid.Column="4" Text="{x:Bind DimensionsText}" VerticalAlignment="Center"
                                     FontSize="11"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
                                     Visibility="{x:Bind WideListVisibility, Mode=OneWay}" />
-                                <TextBlock Grid.Column="4" Text="{x:Bind FileSizeText}" VerticalAlignment="Center"
+                                <TextBlock Grid.Column="5" Text="{x:Bind FileSizeText}" VerticalAlignment="Center"
                                     HorizontalAlignment="Right" FontSize="11"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
                                     Visibility="{x:Bind WideListVisibility, Mode=OneWay}" />
-                                <Border Grid.ColumnSpan="5" Height="1" VerticalAlignment="Bottom" IsHitTestVisible="False"
+                                <Border Grid.ColumnSpan="6" Height="1" VerticalAlignment="Bottom" IsHitTestVisible="False"
                                     Background="{ThemeResource ControlStrokeColorDefaultBrush}" Opacity="0.45" />
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
-                <Border x:Name="LibrarySelectionBar" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                    Margin="12" Padding="12,8" CornerRadius="12" Visibility="Collapsed"
-                    Background="{ThemeResource ShnappChromeBrush}"
-                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                        <TextBlock x:Name="LibrarySelectionCount" VerticalAlignment="Center" Visibility="Collapsed"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <Button x:Name="LibraryDeleteSelected" Content="Delete selected" Visibility="Collapsed"
-                            Click="LibraryDeleteSelected_Click" AutomationProperties.Name="Delete selected shnapps" />
-                        <CheckBox x:Name="LibrarySelectionToggle" Content="Select"
-                            Checked="LibrarySelectionToggle_Changed" Unchecked="LibrarySelectionToggle_Changed"
-                            ToolTipService.ToolTip="Select shnapps for bulk actions"
-                            AutomationProperties.Name="Select shnapps" AutomationProperties.AutomationId="LibrarySelectionToggle" />
-                    </StackPanel>
-                </Border>
                 <ScrollViewer x:Name="LibraryEmpty" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                     HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
                 <Border MaxWidth="500" Margin="8" Padding="24" Background="Transparent">
