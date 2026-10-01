@@ -69,6 +69,13 @@ Shnapp saves its library and preferences under `%LOCALAPPDATA%\Shnapp` for your 
 
 Download [Shnapp for Windows 11](https://shhnap.com/download/) as an x64 or ARM64 ZIP. Extract the entire archive to a folder and run `Shnapp.exe` from that folder. The [latest GitHub release](https://github.com/Zettersten/shhnap/releases/latest) includes SHA-256 checksum files and release notes. You can also [build it from source](#build-from-source). Captions, output resizing, polygon shapes, true free-form capture, and optional AI assistance are planned.
 
+If you use Scoop, install from the [Shnapp bucket](https://github.com/Zettersten/scoop-bucket):
+
+```powershell
+scoop bucket add shnapp https://github.com/Zettersten/scoop-bucket
+scoop install shnapp/shnapp
+```
+
 The portable app checks for newer stable GitHub releases at most once a day and shows an update notice that opens **Settings → About & Updates**. You can check manually there too. Download and extract the new ZIP to update a portable copy; your library and preferences remain under `%LOCALAPPDATA%\Shnapp`. See the [download page](https://shhnap.com/download/) for current package manager availability and update commands.
 
 ### Build from source

@@ -61,8 +61,8 @@ export const catalogChannels: CatalogChannel[] = [
   {
     id: 'scoop',
     name: 'Scoop',
-    state: 'planned',
-    listingUrl: null,
+    state: 'live',
+    listingUrl: 'https://github.com/Zettersten/scoop-bucket/blob/master/bucket/shnapp.json',
     installCommand: 'scoop bucket add shnapp https://github.com/Zettersten/scoop-bucket\nscoop install shnapp/shnapp',
     updateCommand: 'scoop update shnapp',
     description: 'A command-line route for portable apps.',
