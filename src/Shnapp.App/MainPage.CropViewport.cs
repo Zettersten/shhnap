@@ -35,6 +35,7 @@ public sealed partial class MainPage
     private DateTimeOffset _panLastSample;
     private DateTimeOffset _panLastMovement;
     private DispatcherTimer? _panTimer;
+    private bool _panCursorRefreshQueued;
     private bool? _axisLockHorizontal;
     private bool _updatingCropOptions;
     private double _cropAspectRatio;
@@ -121,7 +122,7 @@ public sealed partial class MainPage
             _zoomTimer.Start();
         }
 
-        ViewModel.Status = "Scroll to zoom · Space + drag to pan";
+        ViewModel.Status = "Wheel to zoom · Space to pan";
     }
 
     private DispatcherTimer CreateZoomTimer()
@@ -190,6 +191,7 @@ public sealed partial class MainPage
         CommitText();
         _panning = true;
         UpdatePanCursor();
+        QueuePanCursorRefresh();
         _panLastPoint = args.GetCurrentPoint(DrawingCanvas).Position;
         _panLastSample = DateTimeOffset.UtcNow;
         _panLastMovement = _panLastSample;
@@ -220,6 +222,8 @@ public sealed partial class MainPage
             DrawingCanvas.Invalidate();
         }
 
+        CanvasHost.ReinforcePanCursor();
+        QueuePanCursorRefresh();
         args.Handled = true;
     }
 
@@ -227,6 +231,7 @@ public sealed partial class MainPage
     {
         _panning = false;
         UpdatePanCursor();
+        QueuePanCursorRefresh();
         DrawingCanvas.ReleasePointerCapture(args.Pointer);
         if ((DateTimeOffset.UtcNow - _panLastMovement).TotalMilliseconds < 65 &&
             _panVelocity.Length() > 0.12f)
@@ -275,9 +280,24 @@ public sealed partial class MainPage
         CanvasHost.SetPanCursor(_editor is not null && (_panning || IsSpaceHeld()) && !EditorInputHasFocus(),
             dragging: _panning);
 
+    private void QueuePanCursorRefresh()
+    {
+        if (_panCursorRefreshQueued)
+        {
+            return;
+        }
+
+        _panCursorRefreshQueued = DispatcherQueue.TryEnqueue(() =>
+        {
+            _panCursorRefreshQueued = false;
+            CanvasHost.ReinforcePanCursor();
+        });
+    }
+
     private void Canvas_PointerEntered(object sender, PointerRoutedEventArgs args)
     {
         UpdatePanCursor();
+        QueuePanCursorRefresh();
         UpdateCanvasElementCursor(args.GetCurrentPoint(DrawingCanvas).Position);
         UpdateCropHover(args.GetCurrentPoint(DrawingCanvas).Position);
     }

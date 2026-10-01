@@ -111,10 +111,16 @@ public sealed partial class LibraryEntry : ObservableObject
     public BitmapImage Preview { get; }
 
     /// <summary>Gets the width of this entry in the selected grid layout.</summary>
-    public double CardWidth { get; }
+    [ObservableProperty]
+    public partial double CardWidth { get; set; }
+
+    /// <summary>Gets the width reserved for this card in the wrapping grid.</summary>
+    [ObservableProperty]
+    public partial double CardTileWidth { get; set; }
 
     /// <summary>Gets the thumbnail height in the selected grid layout.</summary>
-    public double ThumbnailHeight { get; }
+    [ObservableProperty]
+    public partial double ThumbnailHeight { get; set; }
 
     /// <summary>Gets the capture type shown in list view.</summary>
     public string CaptureType { get; }
@@ -146,6 +152,7 @@ public sealed partial class LibraryEntry : ObservableObject
         MetadataDescription = $"{Title}, {DateText}, {DimensionsText}, " +
             (fileSizeBytes is null ? "file size unavailable" : FileSizeText);
         CardWidth = cardWidth;
+        CardTileWidth = cardWidth;
         ThumbnailHeight = thumbnailHeight;
         Preview = new BitmapImage { DecodePixelWidth = previewPixelWidth };
         if (File.Exists(previewPath))

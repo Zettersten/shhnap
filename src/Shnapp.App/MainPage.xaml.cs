@@ -126,7 +126,7 @@ public sealed partial class MainPage : Page
         UpdateDocumentMetadata();
         ViewModel.CanUndo = _editor.CanUndo;
         ViewModel.CanRedo = _editor.CanRedo;
-        ViewModel.Status = ToolHint();
+        ViewModel.Status = FooterToolHint();
         UpdateTransform();
         UpdateInspector();
         UpdateCropInspector();
@@ -414,6 +414,12 @@ public sealed partial class MainPage : Page
         {
             MoveCanvasPan(args);
             return;
+        }
+
+        if (IsSpaceHeld())
+        {
+            UpdatePanCursor();
+            QueuePanCursorRefresh();
         }
 
         UpdateCanvasElementCursor(canvasPosition);
@@ -1070,9 +1076,19 @@ public sealed partial class MainPage : Page
         UpdateShapeButtonAppearance();
         UpdateInspector();
         UpdateCropInspector();
-        ViewModel.Status = ToolHint();
+        ViewModel.Status = FooterToolHint();
         DrawingCanvas.Invalidate();
     }
+
+    private string FooterToolHint() => _tool switch
+    {
+        EditorTool.Select => "Select · drag to move",
+        EditorTool.Text => "Text · click or drag",
+        EditorTool.Step => "Step · click to place",
+        EditorTool.Redaction => "Redact · drag an area",
+        EditorTool.Crop => "Crop · drag a frame",
+        _ => $"{_tool} · drag to draw",
+    };
 
     private string ToolHint() => _tool switch
     {
@@ -1196,7 +1212,8 @@ public sealed partial class MainPage : Page
     {
         if (args.Key == VirtualKey.Space && _editor is not null && !EditorInputHasFocus())
         {
-            CanvasHost.SetPanCursor(true);
+            CanvasHost.SetPanCursor(true, _panning);
+            QueuePanCursorRefresh();
         }
 
         if (EditorInputHasFocus() || _editor is null)
@@ -1262,6 +1279,7 @@ public sealed partial class MainPage : Page
         if (args.Key == VirtualKey.Space)
         {
             CanvasHost.SetPanCursor(_panning, _panning);
+            QueuePanCursorRefresh();
         }
     }
 

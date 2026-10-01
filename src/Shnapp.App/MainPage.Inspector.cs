@@ -119,6 +119,7 @@ public sealed partial class MainPage
         bool line = tool is EditorTool.Line or EditorTool.Arrow;
         bool shape = tool is EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle;
         bool redaction = tool == EditorTool.Redaction;
+        bool select = tool == EditorTool.Select;
         bool styleable = text || step || line || shape;
         bool fixedTextBox = selected is { Kind: AnnotationKind.Text, TextBoxWidth: > 0, TextBoxHeight: > 0 };
         bool editingText = _textBox is not null && _textDraft is not null;
@@ -150,6 +151,19 @@ public sealed partial class MainPage
             : selected is null
                 ? ToolHint()
                 : "Change options here, drag to move, or use arrow keys to nudge (Shift: 10 px). Drag handles to resize.";
+
+        InspectorHelp.Visibility = Visible(!select);
+        SelectGuideRow.Visibility = Visible(select);
+        InspectorSeparator.Visibility = Visible(!select);
+        if (select)
+        {
+            bool imageSelected = selected?.Kind == AnnotationKind.Image;
+            SelectGuideFirstLabel.Text = imageSelected ? "Move" : "Click";
+            SelectGuideFirstText.Text = imageSelected ? "Drag the image" : "Choose an element";
+            SelectGuideSecondLabel.Text = imageSelected ? "Resize" : "Drag";
+            SelectGuideSecondText.Text = imageSelected
+                ? "Drag a corner handle" : "Move it or resize with handles";
+        }
 
         RedactionModeRow.Visibility = Visible(redaction);
         PrimaryColorRow.Visibility = Visible(styleable);

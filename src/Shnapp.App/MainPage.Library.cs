@@ -71,6 +71,7 @@ public sealed partial class MainPage
 
     private void LibraryRoot_SizeChanged(object sender, SizeChangedEventArgs args)
     {
+        UpdateLibraryGridGeometry(args.NewSize.Width);
         bool compact = args.NewSize.Width < 680;
         if (_libraryCompactList == compact)
         {
@@ -152,7 +153,43 @@ public sealed partial class MainPage
         LibraryEmptyCapture.Visibility = noMatches ? Visibility.Collapsed : Visibility.Visible;
         LibraryEmptyClear.Visibility = noMatches ? Visibility.Visible : Visibility.Collapsed;
         LibraryEmptyShortcuts.Visibility = noMatches ? Visibility.Collapsed : Visibility.Visible;
+        UpdateLibraryGridGeometry(LibraryRoot.ActualWidth);
         UpdateLibraryView();
+    }
+
+    private void UpdateLibraryGridGeometry(double rootWidth)
+    {
+        double availableWidth = rootWidth - LibraryRoot.Padding.Left - LibraryRoot.Padding.Right;
+        if (availableWidth <= 0 || ViewModel.Library.Count == 0)
+        {
+            return;
+        }
+
+        const double gutter = 16;
+        (double preferredWidth, double preferredHeight) = LibrarySizes[_librarySizeIndex];
+        int columns = Math.Max(1, (int)Math.Floor((availableWidth + gutter) / (preferredWidth + gutter)));
+        int entryCount = ViewModel.Library.Count;
+        if (entryCount >= 3 && entryCount < columns &&
+            availableWidth / entryCount <= preferredWidth * 1.5)
+        {
+            // Fill a short first row when the extra width still honors the chosen thumbnail size.
+            columns = entryCount;
+        }
+        // ItemsWrapGrid can round fractional item widths upward and wrap the last column.
+        double tileWidth = Math.Floor(availableWidth / columns);
+        double trailingPixelRemainder = availableWidth - tileWidth * columns;
+        double cardWidth = tileWidth - (columns > 1 ? gutter : 0);
+        double thumbnailHeight = preferredHeight * cardWidth / preferredWidth;
+
+        for (int index = 0; index < ViewModel.Library.Count; index++)
+        {
+            LibraryEntry entry = ViewModel.Library[index];
+            entry.CardTileWidth = tileWidth;
+            entry.CardWidth = index % columns == columns - 1
+                ? tileWidth + trailingPixelRemainder
+                : cardWidth;
+            entry.ThumbnailHeight = thumbnailHeight;
+        }
     }
 
     private IEnumerable<LibraryEntry> SortLibraryEntries(IEnumerable<LibraryEntry> entries)
