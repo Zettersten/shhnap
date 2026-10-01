@@ -24,6 +24,11 @@ public sealed partial class MainPage
 
     private void NewShnappButton_Loaded(object sender, RoutedEventArgs e)
     {
+        if (FindNewShnappPart<TextBlock>(NewShnappButton, "TextLabel") is { } label)
+        {
+            label.RenderTransform = new TranslateTransform { X = -6 };
+        }
+
         if (!_newShnappMotionAttached)
         {
             App.Window.AppWindow.Changed += NewShnappAppWindow_Changed;
@@ -88,7 +93,7 @@ public sealed partial class MainPage
             return;
         }
 
-        Border? background = FindNewShnappBackground(NewShnappButton);
+        Border? background = FindNewShnappPart<Border>(NewShnappButton, "AppBarButtonInnerBorder");
         if (background is null || background.ActualWidth < 24 || background.ActualHeight < 24)
         {
             return;
@@ -129,16 +134,17 @@ public sealed partial class MainPage
         }
     }
 
-    private static Border? FindNewShnappBackground(DependencyObject parent)
+    private static T? FindNewShnappPart<T>(DependencyObject parent, string name)
+        where T : FrameworkElement
     {
-        if (parent is Border { Name: "AppBarButtonInnerBorder" } border)
+        if (parent is T { } element && element.Name == name)
         {
-            return border;
+            return element;
         }
 
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
         {
-            Border? child = FindNewShnappBackground(VisualTreeHelper.GetChild(parent, i));
+            T? child = FindNewShnappPart<T>(VisualTreeHelper.GetChild(parent, i), name);
             if (child is not null)
             {
                 return child;

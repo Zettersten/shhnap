@@ -26,7 +26,7 @@ Shnapp waits quietly in your tray until you need it. Capture part of your screen
 | `Ctrl+Shift+3` | The display under your pointer |
 | `Ctrl+Shift+2` | A region you drag out |
 
-You can start any capture from the tray icon or **New shnapp** in the app. Region capture currently uses a rectangle; a drawn free-form selection is on the [roadmap](ROADMAP.md).
+You can start any capture from the tray icon or **New shnapp** in the app. Region capture currently uses a rectangle; a drawn free-form selection is planned.
 
 The grabber freezes the visible desktop when capture starts, so moving content holds still while you choose. A crosshair and live pixel measurements help you draw a region; hold Shift for a square. A bright pulse frames the window or display you are about to capture. Window shnapps use the visible pixels from that frozen moment, including anything overlapping the window.
 
@@ -67,7 +67,7 @@ Shnapp saves its library and preferences under `%LOCALAPPDATA%\Shnapp` for your 
 
 ## Get started
 
-Shnapp is an early preview for Windows 11 on x64 and ARM64. A public installer or GitHub Release has not been published yet. You can [build it from source](#build-from-source) today. Follow the [roadmap](ROADMAP.md) for planned captions, output resizing, polygon shapes, true free-form capture, and optional AI assistance. Visit [shhnap.com](https://shhnap.com/) for the product website; its [source](src/Shnapp.Site) lives alongside the app.
+Shnapp is an early preview for Windows 11 on x64 and ARM64. A public installer or GitHub Release has not been published yet. You can [build it from source](#build-from-source) today. Captions, output resizing, polygon shapes, true free-form capture, and optional AI assistance are planned. Visit [shhnap.com](https://shhnap.com/) for the product website; its [source](src/Shnapp.Site) lives alongside the app.
 
 ### Build from source
 
