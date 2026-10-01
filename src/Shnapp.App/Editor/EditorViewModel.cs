@@ -72,6 +72,13 @@ public sealed partial class LibraryEntry : ObservableObject
     public Visibility GridSelectionVisibility => IsGridHovered || IsGridKeyboardFocused || IsSelected
         ? Visibility.Visible : Visibility.Collapsed;
 
+    /// <summary>Hides the trailing divider of the current filtered and sorted list.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SeparatorVisibility))]
+    public partial bool IsLastVisible { get; set; }
+
+    public Visibility SeparatorVisibility => IsLastVisible ? Visibility.Collapsed : Visibility.Visible;
+
     /// <summary>Stacks list metadata when aligned columns would hide the title.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ListRowHeight))]
@@ -83,7 +90,7 @@ public sealed partial class LibraryEntry : ObservableObject
     [NotifyPropertyChangedFor(nameof(CompactListVisibility))]
     public partial bool CompactList { get; set; }
 
-    public double ListRowHeight => CompactList ? 60 : 56;
+    public double ListRowHeight => CompactList ? 68 : 64;
     public GridLength ListThumbnailWidth => new(48);
     public GridLength ListDateWidth => new(CompactList ? 0 : 152);
     public GridLength ListDimensionsWidth => new(CompactList ? 0 : 124);

@@ -125,8 +125,11 @@ public sealed partial class MainPage
                 .Where(document => MatchesLibraryQuery(document, query))
                 .Select(document => _libraryEntries.GetValueOrDefault(document.Id))
                 .OfType<LibraryEntry>();
-            foreach (LibraryEntry entry in SortLibraryEntries(filtered))
+            LibraryEntry[] visible = SortLibraryEntries(filtered).ToArray();
+            for (int index = 0; index < visible.Length; index++)
             {
+                LibraryEntry entry = visible[index];
+                entry.IsLastVisible = index == visible.Length - 1;
                 ViewModel.Library.Add(entry);
             }
 

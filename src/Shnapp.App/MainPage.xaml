@@ -727,12 +727,13 @@
                         <Style TargetType="ListViewItem">
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             <Setter Property="Padding" Value="0" />
-                            <Setter Property="Margin" Value="4,0,4,0" />
+                            <Setter Property="Margin" Value="0" />
+                            <Setter Property="FocusVisualMargin" Value="0" />
                         </Style>
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="editor:LibraryEntry">
-                            <Grid Height="{x:Bind ListRowHeight, Mode=OneWay}" Padding="0,4" ColumnSpacing="12"
+                            <Grid Height="{x:Bind ListRowHeight, Mode=OneWay}" Padding="16,0" ColumnSpacing="12"
                                 Background="Transparent"
                                 Tag="{x:Bind}" RightTapped="LibraryCard_RightTapped"
                                 ToolTipService.ToolTip="{x:Bind MetadataDescription}"
@@ -752,7 +753,8 @@
                                     Tapped="LibrarySelectionCheck_Tapped"
                                     ToolTipService.ToolTip="Select shnapp"
                                     AutomationProperties.Name="{x:Bind SelectionLabel}" />
-                                <Border Grid.Column="1" Background="{ThemeResource ShnappPreviewBrush}" CornerRadius="4"
+                                <Border Grid.Column="1" Height="48" VerticalAlignment="Center"
+                                    Background="{ThemeResource ShnappPreviewBrush}" CornerRadius="4"
                                     BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                                     <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="2"
                                         Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
@@ -780,7 +782,8 @@
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
                                     Visibility="{x:Bind WideListVisibility, Mode=OneWay}" />
                                 <Border Grid.ColumnSpan="6" Height="1" VerticalAlignment="Bottom" IsHitTestVisible="False"
-                                    Background="{ThemeResource ControlStrokeColorDefaultBrush}" Opacity="0.45" />
+                                    Background="{ThemeResource ControlStrokeColorDefaultBrush}" Opacity="0.45"
+                                    Visibility="{x:Bind SeparatorVisibility, Mode=OneWay}" />
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
