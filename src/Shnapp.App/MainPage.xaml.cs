@@ -311,7 +311,7 @@ public sealed partial class MainPage : Page
                 _editor.AddAnnotation(step);
                 break;
             case EditorTool.Select:
-                _moving = _editor.Current.Annotations.Reverse().FirstOrDefault(a => HitAnnotation(a, point));
+                _moving = _editor.Current.OrderedAnnotations.Reverse().FirstOrDefault(a => HitAnnotation(a, point));
                 _selectedId = _moving?.Id;
                 _dragStart = _moving is null ? null : point;
                 if (_moving is not null)
@@ -541,7 +541,7 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        Annotation? text = _editor.Current.Annotations.Reverse().FirstOrDefault(annotation =>
+        Annotation? text = _editor.Current.OrderedAnnotations.Reverse().FirstOrDefault(annotation =>
             annotation.Kind == AnnotationKind.Text && HitBounds(annotation).Contains(new Point(point.X, point.Y)));
         if (text is null)
         {
@@ -898,11 +898,9 @@ public sealed partial class MainPage : Page
             ApplyCurrentCrop();
             args.Handled = true;
         }
-        else if (args.Key == VirtualKey.Delete && _selectedId is Guid id)
+        else if (HandleElementActionKeyDown(args))
         {
-            _selectedId = null;
-            _editor.RemoveAnnotation(id);
-            args.Handled = true;
+            return;
         }
         else if (args.Key is VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down &&
             _dragStart is null && !_panning &&

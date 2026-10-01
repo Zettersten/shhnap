@@ -50,6 +50,12 @@ public sealed class DocumentEditor(ShnappDocument document)
             throw new ArgumentException("An annotation with this identifier already exists.", nameof(annotation));
         }
 
+        if (annotation.LayerOrder == 0 && Current.Annotations.Any(item => item.LayerOrder > 0))
+        {
+            int highest = Current.Annotations.Max(item => item.LayerOrder);
+            annotation = annotation with { LayerOrder = highest == int.MaxValue ? highest : highest + 1 };
+        }
+
         ShnappDocument next = ExpandCanvasForImage(Current, annotation);
         Commit(next with { Annotations = RenumberSteps(next.Annotations.Add(annotation)) });
     }
@@ -70,7 +76,12 @@ public sealed class DocumentEditor(ShnappDocument document)
             return;
         }
 
-        annotation = CarryVisibilityWithGeometry(Current.Annotations[index], annotation);
+        Annotation previous = Current.Annotations[index];
+        annotation = CarryVisibilityWithGeometry(previous, annotation);
+        if (annotation.LayerOrder == 0 && previous.LayerOrder > 0)
+        {
+            annotation = annotation with { LayerOrder = previous.LayerOrder };
+        }
         DocumentValidation.ValidateAnnotation(annotation, Current);
         ShnappDocument next = ExpandCanvasForImage(Current, annotation, annotation.Id);
         Commit(next with { Annotations = RenumberSteps(next.Annotations.SetItem(index, annotation)) });
@@ -87,6 +98,93 @@ public sealed class DocumentEditor(ShnappDocument document)
         {
             Commit(Current with { Annotations = RenumberSteps(Current.Annotations.RemoveAt(index)) });
         }
+    }
+
+    /// <summary>Duplicates an annotation just above its source in drawing order.</summary>
+    /// <remarks>The copy keeps its styles, image data, and crop visibility. It is offset by up to
+    /// 12 canvas pixels where possible, and can be moved independently afterward.</remarks>
+    /// <returns>The new annotation, or null if the identifier is unknown.</returns>
+    public Annotation? CloneAnnotation(Guid id, Guid? cloneId = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfEqual(id, Guid.Empty);
+        if (cloneId is Guid proposed && (proposed == Guid.Empty || FindAnnotation(proposed) >= 0))
+        {
+            throw new ArgumentException("The clone must have a unique, nonempty identifier.", nameof(cloneId));
+        }
+
+        int index = FindAnnotation(id);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        Annotation source = Current.Annotations[index];
+        if (source.HiddenByCrop)
+        {
+            return null;
+        }
+
+        ImageRect bounds = source.Bounds;
+        ImageRect visible = Current.Viewport;
+        double dx = source.Kind == AnnotationKind.Image
+            ? 12 : CloneOffset(bounds.X, bounds.Right, visible.X, visible.Right);
+        double dy = source.Kind == AnnotationKind.Image
+            ? 12 : CloneOffset(bounds.Y, bounds.Bottom, visible.Y, visible.Bottom);
+        Guid nextId = cloneId ?? Guid.NewGuid();
+        while (cloneId is null && FindAnnotation(nextId) >= 0)
+        {
+            nextId = Guid.NewGuid();
+        }
+
+        Annotation clone = ShiftClone(source, nextId, dx, dy);
+        ShnappDocument next;
+        try
+        {
+            next = ExpandCanvasForImage(Current, clone);
+        }
+        catch (ArgumentException) when (source.Kind == AnnotationKind.Image && (dx != 0 || dy != 0))
+        {
+            // The existing image fits even when the canvas has reached its export limit.
+            clone = ShiftClone(source, clone.Id, 0, 0);
+            next = ExpandCanvasForImage(Current, clone);
+        }
+        DocumentValidation.ValidateAnnotation(clone, next);
+        Commit(next with { Annotations = RenumberSteps(next.Annotations.Insert(index + 1, clone)) });
+        return Current.Annotations[index + 1];
+    }
+
+    /// <summary>Moves an annotation above every other mark. Missing and topmost IDs are no-ops.</summary>
+    public void MoveAnnotationToFront(Guid id)
+    {
+        ArgumentOutOfRangeException.ThrowIfEqual(id, Guid.Empty);
+        List<Annotation> layers = Current.OrderedAnnotations.ToList();
+        int index = layers.FindIndex(annotation => annotation.Id == id);
+        if (index < 0 || index == layers.Count - 1)
+        {
+            return;
+        }
+
+        Annotation moved = layers[index];
+        layers.RemoveAt(index);
+        layers.Add(moved);
+        Commit(Current with { Annotations = WithLayerRanks(Current.Annotations, layers) });
+    }
+
+    /// <summary>Moves an annotation below every other mark. Missing and backmost IDs are no-ops.</summary>
+    public void MoveAnnotationToBack(Guid id)
+    {
+        ArgumentOutOfRangeException.ThrowIfEqual(id, Guid.Empty);
+        List<Annotation> layers = Current.OrderedAnnotations.ToList();
+        int index = layers.FindIndex(annotation => annotation.Id == id);
+        if (index <= 0)
+        {
+            return;
+        }
+
+        Annotation moved = layers[index];
+        layers.RemoveAt(index);
+        layers.Insert(0, moved);
+        Commit(Current with { Annotations = WithLayerRanks(Current.Annotations, layers) });
     }
 
     /// <summary>
@@ -182,6 +280,55 @@ public sealed class DocumentEditor(ShnappDocument document)
         }
 
         return builder?.ToImmutable() ?? annotations;
+    }
+
+    private static ImmutableArray<Annotation> WithLayerRanks(
+        ImmutableArray<Annotation> annotations, IReadOnlyList<Annotation> drawingOrder)
+    {
+        var rankById = new Dictionary<Guid, int>(drawingOrder.Count);
+        for (int index = 0; index < drawingOrder.Count; index++)
+        {
+            rankById.Add(drawingOrder[index].Id, index + 1);
+        }
+
+        var builder = annotations.ToBuilder();
+        for (int index = 0; index < builder.Count; index++)
+        {
+            Annotation annotation = builder[index];
+            int rank = rankById[annotation.Id];
+            if (annotation.LayerOrder != rank)
+            {
+                builder[index] = annotation with { LayerOrder = rank };
+            }
+        }
+
+        return builder.ToImmutable();
+    }
+
+    private static Annotation ShiftClone(Annotation source, Guid id, double dx, double dy)
+    {
+        ImageRect? clip = source.VisibilityClip is ImageRect area
+            ? area with { X = area.X + dx, Y = area.Y + dy }
+            : null;
+        return source with
+        {
+            Id = id,
+            Start = new ImagePoint(source.Start.X + dx, source.Start.Y + dy),
+            End = new ImagePoint(source.End.X + dx, source.End.Y + dy),
+            VisibilityClip = clip,
+        };
+    }
+
+    private static double CloneOffset(double near, double far, double visibleNear, double visibleFar)
+    {
+        double forward = Math.Max(0, visibleFar - far);
+        double backward = Math.Max(0, near - visibleNear);
+        if (forward >= 12 || forward >= backward)
+        {
+            return Math.Min(12, forward);
+        }
+
+        return -Math.Min(12, backward);
     }
 
     private static ShnappDocument ExpandCanvasForImage(ShnappDocument document, Annotation annotation,

@@ -209,14 +209,16 @@
                 OpenPaneLength="296" CompactPaneLength="0" IsPaneOpen="True"
                 Background="{ThemeResource ShnappCanvasBrush}">
                 <SplitView.Content>
-                    <local:EditorCursorHost x:Name="CanvasHost" Background="{ThemeResource ShnappCanvasBrush}">
+                    <local:EditorCursorHost x:Name="CanvasHost" Background="{ThemeResource ShnappCanvasBrush}"
+                        SizeChanged="GalleryCanvasHost_SizeChanged">
                         <canvas:CanvasControl x:Name="DrawingCanvas" Draw="Canvas_Draw" SizeChanged="Canvas_SizeChanged"
                             PointerPressed="Canvas_PointerPressed" PointerMoved="Canvas_PointerMoved"
                             PointerReleased="Canvas_PointerReleased" PointerCanceled="Canvas_PointerCanceled"
                             PointerCaptureLost="Canvas_PointerCaptureLost"
                             PointerEntered="Canvas_PointerEntered" PointerExited="Canvas_PointerExited"
                             PointerWheelChanged="Canvas_PointerWheelChanged"
-                            DoubleTapped="Canvas_DoubleTapped"
+                            DoubleTapped="Canvas_DoubleTapped" RightTapped="Canvas_RightTapped" AllowDrop="True"
+                            DragOver="Canvas_DragOver" Drop="Canvas_Drop"
                             IsTabStop="True" AutomationProperties.Name="Shnapp annotation canvas"
                             AutomationProperties.AutomationId="ShnappCanvas" />
                         <Canvas x:Name="TextOverlay" />
@@ -230,6 +232,17 @@
                                 </StackPanel>
                             </Border>
                         </Canvas>
+                        <Border x:Name="GalleryDock" Visibility="Collapsed" Width="80"
+                            HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0"
+                            Padding="11" CornerRadius="12"
+                            Background="{ThemeResource ShnappToolbarBrush}"
+                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
+                            PointerMoved="GalleryDock_PointerMoved" PointerExited="GalleryDock_PointerExited"
+                            PointerWheelChanged="GalleryDock_PointerWheelChanged"
+                            ActualThemeChanged="GalleryDock_ActualThemeChanged"
+                            AutomationProperties.Name="Recent shnapps gallery. Scroll to browse; drag a preview onto the canvas to add a copy.">
+                            <StackPanel x:Name="GalleryDockItems" Spacing="6" />
+                        </Border>
                     </local:EditorCursorHost>
                 </SplitView.Content>
                 <SplitView.Pane>
@@ -472,7 +485,8 @@
                             <StackPanel Width="{x:Bind CardWidth}" Margin="4" Spacing="6">
                                 <Border Height="{x:Bind ThumbnailHeight}" Background="{ThemeResource ShnappPreviewBrush}"
                                     CornerRadius="10" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="5" />
+                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="5"
+                                        Tag="{Binding}" CanDrag="True" DragStarting="LibraryPreview_DragStarting" />
                                 </Border>
                                 <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxLines="1" />
                                 <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextBlockStyle}"
@@ -495,7 +509,8 @@
                                 </Grid.ColumnDefinitions>
                                 <Border Background="{ThemeResource ShnappPreviewBrush}" CornerRadius="6"
                                     BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="4" />
+                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="4"
+                                        Tag="{Binding}" CanDrag="True" DragStarting="LibraryPreview_DragStarting" />
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />

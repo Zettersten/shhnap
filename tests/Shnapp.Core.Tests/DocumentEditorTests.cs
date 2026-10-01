@@ -119,6 +119,156 @@ public sealed class DocumentEditorTests
     }
 
     [TestMethod]
+    public void CloneInsertsAboveSourceAndIsOneUndoableEdit()
+    {
+        Annotation source = TestDocuments.Annotation();
+        Annotation above = TestDocuments.Annotation(AnnotationKind.Text) with { Text = "Above" };
+        ShnappDocument original = TestDocuments.Create() with { Annotations = [source, above] };
+        var editor = new DocumentEditor(original);
+        int changes = 0;
+        editor.Changed += (_, _) => changes++;
+
+        Annotation clone = editor.CloneAnnotation(source.Id)!;
+
+        Assert.AreNotEqual(source.Id, clone.Id);
+        Assert.AreEqual(source.Start with { X = source.Start.X + 12, Y = source.Start.Y + 12 }, clone.Start);
+        Assert.AreEqual(source.End with { X = source.End.X + 12, Y = source.End.Y + 12 }, clone.End);
+        Assert.AreEqual(source, editor.Current.Annotations[0]);
+        Assert.AreEqual(clone, editor.Current.Annotations[1]);
+        Assert.AreEqual(above, editor.Current.Annotations[2]);
+        Assert.AreEqual(1, changes);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreSame(original, editor.Current);
+        Assert.IsTrue(editor.Redo());
+        Assert.AreEqual(clone, editor.Current.Annotations[1]);
+    }
+
+    [TestMethod]
+    public void CloneImageSharesPngAndExpandsTransparentCanvas()
+    {
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(630, 470),
+            End = new ImagePoint(640, 480),
+            VisibilityClip = new ImageRect(631, 471, 8, 8),
+        };
+        var editor = new DocumentEditor(TestDocuments.Create() with { Annotations = [image] });
+
+        Annotation clone = editor.CloneAnnotation(image.Id)!;
+
+        Assert.AreEqual(AnnotationKind.Image, clone.Kind);
+        Assert.AreNotEqual(image.Id, clone.Id);
+        Assert.AreSame(image.ImagePngBase64, clone.ImagePngBase64);
+        Assert.AreEqual(new ImagePoint(642, 482), clone.Start);
+        Assert.AreEqual(new ImageRect(643, 483, 8, 8), clone.VisibilityClip);
+        Assert.AreEqual(new ImageRect(0, 0, 652, 492), editor.Current.CanvasBounds);
+        Assert.AreEqual(new ImageRect(0, 0, 652, 492), editor.Current.Viewport);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreEqual(new ImageRect(0, 0, 640, 480), editor.Current.CanvasBounds);
+    }
+
+    [TestMethod]
+    public void CloneAfterCropMovesIntoVisibleRoomAndSkipsHiddenMarks()
+    {
+        Annotation visible = TestDocuments.Annotation() with
+        {
+            Start = new ImagePoint(270, 210),
+            End = new ImagePoint(300, 250),
+        };
+        Annotation hidden = TestDocuments.Annotation(AnnotationKind.Text) with
+        {
+            HiddenByCrop = true,
+        };
+        var editor = new DocumentEditor(TestDocuments.Create() with
+        {
+            Crop = new ImageRect(100, 100, 200, 150),
+            Annotations = [visible, hidden],
+        });
+        Assert.IsNull(editor.CloneAnnotation(hidden.Id));
+        Assert.IsFalse(editor.CanUndo);
+
+        Annotation clone = editor.CloneAnnotation(visible.Id)!;
+
+        Assert.AreEqual(new ImagePoint(258, 198), clone.Start);
+        Assert.AreEqual(new ImagePoint(288, 238), clone.End);
+        Assert.AreEqual(editor.Current.Viewport, new ImageRect(100, 100, 200, 150));
+    }
+
+    [TestMethod]
+    public void LayerMovesPreserveStepLabelsAndCanBeUndone()
+    {
+        Annotation first = TestDocuments.Annotation(AnnotationKind.Step);
+        Annotation reset = TestDocuments.Annotation(AnnotationKind.Step) with { StepReset = true };
+        Annotation last = TestDocuments.Annotation(AnnotationKind.Step);
+        Annotation shape = TestDocuments.Annotation();
+        ShnappDocument original = TestDocuments.Create() with { Annotations = [first, shape, reset, last] };
+        var editor = new DocumentEditor(original);
+
+        editor.MoveAnnotationToFront(first.Id);
+        CollectionAssert.AreEqual(new[] { shape.Id, reset.Id, last.Id, first.Id },
+            editor.Current.OrderedAnnotations.Select(item => item.Id).ToArray());
+        CollectionAssert.AreEqual(new[] { first.Id, shape.Id, reset.Id, last.Id },
+            editor.Current.Annotations.Select(item => item.Id).ToArray());
+        AssertStepNumbers(editor, 1, 1, 2);
+
+        editor.MoveAnnotationToBack(last.Id);
+        CollectionAssert.AreEqual(new[] { last.Id, shape.Id, reset.Id, first.Id },
+            editor.Current.OrderedAnnotations.Select(item => item.Id).ToArray());
+        AssertStepNumbers(editor, 1, 1, 2);
+        Assert.IsTrue(editor.Undo());
+        CollectionAssert.AreEqual(new[] { shape.Id, reset.Id, last.Id, first.Id },
+            editor.Current.OrderedAnnotations.Select(item => item.Id).ToArray());
+        AssertStepNumbers(editor, 1, 1, 2);
+        Assert.IsTrue(editor.Undo());
+        AssertStepNumbers(editor, 1, 1, 2);
+        Assert.IsTrue(editor.Redo());
+        AssertStepNumbers(editor, 1, 1, 2);
+    }
+
+    [TestMethod]
+    public void ClonesStayAboveTheirSourceAndNewMarksStayOnTopAfterReordering()
+    {
+        Annotation first = TestDocuments.Annotation();
+        Annotation second = TestDocuments.Annotation(AnnotationKind.Ellipse);
+        Annotation third = TestDocuments.Annotation(AnnotationKind.Line);
+        var editor = new DocumentEditor(TestDocuments.Create() with { Annotations = [first, second, third] });
+        editor.MoveAnnotationToFront(first.Id);
+
+        Annotation clone = editor.CloneAnnotation(second.Id)!;
+        CollectionAssert.AreEqual(new[] { second.Id, clone.Id, third.Id, first.Id },
+            editor.Current.OrderedAnnotations.Select(annotation => annotation.Id).ToArray());
+
+        Annotation newMark = TestDocuments.Annotation(AnnotationKind.Text);
+        editor.AddAnnotation(newMark);
+        Assert.AreEqual(newMark.Id, editor.Current.OrderedAnnotations.Last().Id);
+        Assert.AreEqual(first.Id, editor.Current.Annotations[0].Id);
+    }
+
+    [TestMethod]
+    public void MissingAndAlreadyExtremeLayerActionsDoNotChangeHistory()
+    {
+        Annotation first = TestDocuments.Annotation();
+        Annotation last = TestDocuments.Annotation(AnnotationKind.Text);
+        ShnappDocument original = TestDocuments.Create() with { Annotations = [first, last] };
+        var editor = new DocumentEditor(original);
+        int changes = 0;
+        editor.Changed += (_, _) => changes++;
+
+        Assert.IsNull(editor.CloneAnnotation(Guid.NewGuid()));
+        editor.MoveAnnotationToFront(Guid.NewGuid());
+        editor.MoveAnnotationToBack(Guid.NewGuid());
+        editor.MoveAnnotationToFront(last.Id);
+        editor.MoveAnnotationToBack(first.Id);
+
+        Assert.AreSame(original, editor.Current);
+        Assert.AreEqual(0, changes);
+        Assert.IsFalse(editor.CanUndo);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => editor.CloneAnnotation(Guid.Empty));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => editor.MoveAnnotationToFront(Guid.Empty));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => editor.MoveAnnotationToBack(Guid.Empty));
+    }
+
+    [TestMethod]
     public void UpdatePreservesIdentityOrderAndRestoresExactSnapshots()
     {
         Annotation first = TestDocuments.Annotation();
@@ -394,6 +544,7 @@ public sealed class DocumentEditorTests
             valid with { LinePattern = (LinePattern)99 },
             valid with { StepLabelFormat = (StepLabelFormat)99 },
             valid with { StepReset = true },
+            valid with { LayerOrder = -1 },
             valid with { Start = new ImagePoint(double.NaN, 1) },
             valid with { Start = new ImagePoint(1, double.PositiveInfinity) },
             valid with { Start = new ImagePoint(-1, 0) },

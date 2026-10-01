@@ -79,7 +79,9 @@ internal sealed class AppController
         {
             _settings = await Library.LoadSettingsAsync(_lifetime.Token);
             ApplyTheme();
-            _page.ShowLibrary(await Library.ListAsync(_lifetime.Token));
+            IReadOnlyList<ShnappDocument> documents = await Library.ListAsync(_lifetime.Token);
+            _page.ShowLibrary(documents);
+            _page.SetGalleryDocuments(documents);
             _page.ViewModel.Status = "Ready to shnapp · close returns to the tray";
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
@@ -108,6 +110,37 @@ internal sealed class AppController
     internal void Hide() => Run(HideAsync);
     internal void OpenSettings() => Run(SettingsAsync);
     internal void Quit() => Run(QuitAsync);
+
+    /// <summary>Opens a saved shnapp's rendered PNG for adding it as an image layer.</summary>
+    internal async Task<StorageFile> OpenSavedImageForLayerAsync(Guid id)
+    {
+        if (_page.Document?.Id == id)
+        {
+            _page.CommitText();
+            _saveTimer.Stop();
+            await SaveCurrentAsync();
+        }
+
+        if (await Library.OpenAsync(id, _lifetime.Token) is null)
+        {
+            throw new FileNotFoundException("This shnapp is no longer in your Library.");
+        }
+
+        EnsureLibraryImagesSafe(id, create: false);
+        string path = Library.GetExportPath(id);
+        var file = new FileInfo(path);
+        if (!file.Exists)
+        {
+            throw new FileNotFoundException("This shnapp has no saved image to add.", path);
+        }
+
+        if (file.Length > 32L * 1024 * 1024)
+        {
+            throw new InvalidDataException("This shnapp is too large to add as an image layer (32 MB limit).");
+        }
+
+        return await StorageFile.GetFileFromPathAsync(path);
+    }
 
     private async void Run(Func<Task> action)
     {
@@ -228,6 +261,7 @@ internal sealed class AppController
             watch.Stop();
             Debug.WriteLine($"Shnapp {kind}: {watch.ElapsedMilliseconds} ms to editor.");
             await SaveCurrentAsync();
+            _page.SetGalleryDocuments(await Library.ListAsync(_lifetime.Token));
             if (_settings.AutoCopy)
             {
                 await CopyAsync();
@@ -344,7 +378,9 @@ internal sealed class AppController
             _page.CommitText();
             _saveTimer.Stop();
             await SaveCurrentAsync();
-            _page.ShowLibrary(await Library.ListAsync(_lifetime.Token));
+            IReadOnlyList<ShnappDocument> documents = await Library.ListAsync(_lifetime.Token);
+            _page.ShowLibrary(documents);
+            _page.SetGalleryDocuments(documents);
             Renderer.ClearPastedImages();
             _page.ViewModel.Status = "Saved on this PC · New shnapp or Ctrl+Shift+4 to capture";
             Show();
@@ -394,6 +430,7 @@ internal sealed class AppController
             }
             _saved = document;
             _page.OpenDocument(document, bitmap);
+            _page.SetGalleryDocuments(await Library.ListAsync(_lifetime.Token));
             Renderer.RetainPastedImages(document);
             Show();
         }

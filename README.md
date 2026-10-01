@@ -42,11 +42,15 @@ Paste with `Ctrl+V` to turn copied words into an editable text mark or a copied 
 
 Draw a crop and drag it into place, use exact X, Y, width, and height values, lock proportions, or pick a ratio such as 1:1, 9:16, or 5:7. Scroll the canvas to zoom; hold Space and drag to pan with a short, gentle glide. Hold Shift while moving a mark to keep it on one axis, or while resizing to keep its proportions. Nudge a selected mark with the arrow keys, one pixel at a time or ten with Shift. Click a number field, then scroll to change it by one; hold Shift for ten. Undo or redo as you go. Window captures get a soft drop shadow by default.
 
+Right-click any placed element to clone it, delete it, or change which marks sit in front. The same actions work from the keyboard: `Ctrl+D`, `Delete`, `Ctrl+]` (front), and `Ctrl+[` (back).
+
 When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboard, **Save PNG** (`Ctrl+S`) lets you choose where to export it, and **Done** returns Shnapp to the tray.
 
 ## Find it again
 
 Shnapp keeps your captures in a local library, ready to search by title, date, or capture type and reopen for more editing. Browse as a list or choose small, medium, large, or extra-large thumbnail grids. When the library is empty, a getting-started view helps you take the first shnapp. Opt in to starting at sign-in if you want Shnapp waiting in the tray whenever Windows starts.
+
+While editing, a small image-only gallery sits beside the canvas. Move the pointer along it to magnify nearby previews, scroll over it to browse more shnapps, or drag a preview onto your canvas to add a copy as a movable image layer.
 
 ![The Shnapp library showing three locally saved captures with preview thumbnails, dates, and dimensions](src/Shnapp.Site/public/screenshots/library.png)
 

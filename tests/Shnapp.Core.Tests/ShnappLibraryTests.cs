@@ -116,6 +116,31 @@ public sealed class ShnappLibraryTests
     }
 
     [TestMethod]
+    public async Task LayerOrderSurvivesSaveWithoutChangingStepNumbers()
+    {
+        using var temporary = new TemporaryLibrary();
+        Annotation first = TestDocuments.Annotation(AnnotationKind.Step);
+        Annotation second = TestDocuments.Annotation(AnnotationKind.Step);
+        Annotation shape = TestDocuments.Annotation();
+        var editor = new DocumentEditor(TestDocuments.Create() with
+        {
+            Annotations = [first, second, shape],
+        });
+        editor.MoveAnnotationToFront(first.Id);
+
+        await temporary.Library.SaveAsync(editor.Current);
+        ShnappDocument reopened = (await temporary.Library.OpenAsync(editor.Current.Id))!;
+        var reopenedEditor = new DocumentEditor(reopened);
+
+        CollectionAssert.AreEqual(new[] { second.Id, shape.Id, first.Id },
+            reopenedEditor.Current.OrderedAnnotations.Select(annotation => annotation.Id).ToArray());
+        CollectionAssert.AreEqual(new[] { 1, 2 }, reopenedEditor.Current.Annotations
+            .Where(annotation => annotation.Kind == AnnotationKind.Step)
+            .Select(annotation => annotation.StepNumber).ToArray());
+        Assert.AreEqual(first.Id, reopenedEditor.Current.Annotations[0].Id);
+    }
+
+    [TestMethod]
     public async Task ExistingSchemaOneAnnotationsWithoutOptionalStyleFieldsStillOpen()
     {
         using var temporary = new TemporaryLibrary();

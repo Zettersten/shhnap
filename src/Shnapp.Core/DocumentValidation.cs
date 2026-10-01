@@ -83,6 +83,8 @@ internal static class DocumentValidation
         Require(Enum.IsDefined(annotation.StepLabelFormat), "The step label format is not supported.", nameof(annotation));
         Require(annotation.Kind == AnnotationKind.Step || !annotation.StepReset,
             "Only a step can restart numbering.", nameof(annotation));
+        Require(annotation.LayerOrder >= 0,
+            "An annotation layer order cannot be negative.", nameof(annotation));
         ValidatePoint(annotation.Start, document, nameof(annotation), annotation.Kind == AnnotationKind.Image);
         ValidatePoint(annotation.End, document, nameof(annotation), annotation.Kind == AnnotationKind.Image);
         if (annotation.Kind == AnnotationKind.Image)

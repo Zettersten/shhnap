@@ -25,8 +25,10 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         var content = new CanvasRenderTarget(_device, (float)viewport.Width, (float)viewport.Height, 96);
         try
         {
-            using (CanvasDrawingSession drawing = content.CreateDrawingSession())
+            CanvasDrawingSession? drawing = null;
+            try
             {
+                drawing = content.CreateDrawingSession();
                 drawing.Clear(Colors.Transparent);
                 drawing.Transform = Matrix3x2.CreateTranslation(-(float)viewport.X, -(float)viewport.Y);
                 ImageRect originalVisible = document.HideOriginalImage
@@ -41,16 +43,58 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                     drawing.DrawImage(original, ToRect(originalVisible), ToRect(originalVisible));
                 }
 
-                foreach (Annotation annotation in document.Annotations.Where(a => a.Kind != AnnotationKind.Redaction))
+                foreach (Annotation annotation in document.OrderedAnnotations)
                 {
                     if (annotation.HiddenByCrop)
                     {
                         continue;
                     }
 
-                    if (annotation.VisibilityClip is ImageRect clip)
+                    if (annotation.Kind == AnnotationKind.Redaction &&
+                        annotation.RedactionMode != RedactionMode.Solid)
                     {
-                        using var layer = drawing.CreateLayer(1, ToRect(clip));
+                        // An effect reads the layers beneath it. Finish writing that source
+                        // before sampling it, then continue later layers on the new target.
+                        drawing.Dispose();
+                        drawing = null;
+                        var effected = new CanvasRenderTarget(_device,
+                            (float)viewport.Width, (float)viewport.Height, 96);
+                        try
+                        {
+                            using CanvasDrawingSession effectDrawing = effected.CreateDrawingSession();
+                            effectDrawing.Clear(Colors.Transparent);
+                            effectDrawing.DrawImage(content);
+                            effectDrawing.Transform = Matrix3x2.CreateTranslation(
+                                -(float)viewport.X, -(float)viewport.Y);
+                            if (annotation.VisibilityClip is ImageRect clip)
+                            {
+                                using var layer = effectDrawing.CreateLayer(1, ToRect(clip));
+                                DrawRedactionPreview(effectDrawing, content, annotation,
+                                    new ImagePoint(viewport.X, viewport.Y));
+                            }
+                            else
+                            {
+                                DrawRedactionPreview(effectDrawing, content, annotation,
+                                    new ImagePoint(viewport.X, viewport.Y));
+                            }
+                        }
+                        catch
+                        {
+                            effected.Dispose();
+                            throw;
+                        }
+
+                        content.Dispose();
+                        content = effected;
+                        drawing = content.CreateDrawingSession();
+                        drawing.Transform = Matrix3x2.CreateTranslation(
+                            -(float)viewport.X, -(float)viewport.Y);
+                        continue;
+                    }
+
+                    if (annotation.VisibilityClip is ImageRect visibility)
+                    {
+                        using var layer = drawing.CreateLayer(1, ToRect(visibility));
                         DrawLayer(annotation);
                     }
                     else
@@ -71,91 +115,9 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                     }
                 }
             }
-
-            bool hasEffects = document.Annotations.Any(a =>
-                a.Kind == AnnotationKind.Redaction && a.RedactionMode != RedactionMode.Solid);
-            if (hasEffects)
+            finally
             {
-                var redacted = new CanvasRenderTarget(_device, (float)viewport.Width, (float)viewport.Height, 96);
-                try
-                {
-                    using (CanvasDrawingSession drawing = redacted.CreateDrawingSession())
-                    {
-                        drawing.Clear(Colors.Transparent);
-                        drawing.DrawImage(content);
-                        drawing.Transform = Matrix3x2.CreateTranslation(-(float)viewport.X, -(float)viewport.Y);
-                        foreach (Annotation annotation in document.Annotations.Where(a =>
-                                     a.Kind == AnnotationKind.Redaction && a.RedactionMode != RedactionMode.Solid))
-                        {
-                            if (annotation.HiddenByCrop)
-                            {
-                                continue;
-                            }
-
-                            if (annotation.VisibilityClip is ImageRect clip)
-                            {
-                                using var layer = drawing.CreateLayer(1, ToRect(clip));
-                                DrawRedactionPreview(drawing, content, annotation,
-                                    new ImagePoint(viewport.X, viewport.Y));
-                            }
-                            else
-                            {
-                                DrawRedactionPreview(drawing, content, annotation,
-                                    new ImagePoint(viewport.X, viewport.Y));
-                            }
-                        }
-
-                        // Opaque masks are last so another effect can never reveal their source pixels.
-                        foreach (Annotation annotation in document.Annotations.Where(a =>
-                                     a.Kind == AnnotationKind.Redaction && a.RedactionMode == RedactionMode.Solid))
-                        {
-                            if (annotation.HiddenByCrop)
-                            {
-                                continue;
-                            }
-
-                            if (annotation.VisibilityClip is ImageRect clip)
-                            {
-                                using var layer = drawing.CreateLayer(1, ToRect(clip));
-                                DrawAnnotation(drawing, annotation);
-                            }
-                            else
-                            {
-                                DrawAnnotation(drawing, annotation);
-                            }
-                        }
-                    }
-
-                    content.Dispose();
-                    content = redacted;
-                }
-                catch
-                {
-                    redacted.Dispose();
-                    throw;
-                }
-            }
-            else if (document.Annotations.Any(a => a.Kind == AnnotationKind.Redaction))
-            {
-                using CanvasDrawingSession drawing = content.CreateDrawingSession();
-                drawing.Transform = Matrix3x2.CreateTranslation(-(float)viewport.X, -(float)viewport.Y);
-                foreach (Annotation annotation in document.Annotations.Where(a => a.Kind == AnnotationKind.Redaction))
-                {
-                    if (annotation.HiddenByCrop)
-                    {
-                        continue;
-                    }
-
-                    if (annotation.VisibilityClip is ImageRect clip)
-                    {
-                        using var layer = drawing.CreateLayer(1, ToRect(clip));
-                        DrawAnnotation(drawing, annotation);
-                    }
-                    else
-                    {
-                        DrawAnnotation(drawing, annotation);
-                    }
-                }
+                drawing?.Dispose();
             }
 
             if (!document.HasWindowShadow)
@@ -167,17 +129,17 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                 (float)viewport.Height + ShadowPadding * 2 + 8, 96);
             try
             {
-                using (CanvasDrawingSession drawing = output.CreateDrawingSession())
+                using (CanvasDrawingSession shadowDrawing = output.CreateDrawingSession())
                 {
-                    drawing.Clear(Colors.Transparent);
+                    shadowDrawing.Clear(Colors.Transparent);
                     using var shadow = new ShadowEffect
                     {
                         Source = content,
                         BlurAmount = 12,
                         ShadowColor = Color.FromArgb(86, 0, 0, 0),
                     };
-                    drawing.DrawImage(shadow, ShadowPadding, ShadowPadding + 8);
-                    drawing.DrawImage(content, ShadowPadding, ShadowPadding);
+                    shadowDrawing.DrawImage(shadow, ShadowPadding, ShadowPadding + 8);
+                    shadowDrawing.DrawImage(content, ShadowPadding, ShadowPadding);
                 }
                 content.Dispose();
                 return output;

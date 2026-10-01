@@ -190,6 +190,12 @@ public sealed record Annotation
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool HiddenByCrop { get; init; }
 
+    /// <summary>Gets this mark's drawing order, independent of numbered-step order.</summary>
+    /// <remarks>Zero uses the annotation's array position for older documents. A layer move
+    /// assigns explicit positive ranks to every annotation.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int LayerOrder { get; init; }
+
     /// <summary>Gets the font family for text and step labels.</summary>
     public string FontFamily { get; init; } = "Segoe UI Variable Text";
 
@@ -264,8 +270,12 @@ public sealed record ShnappDocument
     /// <summary>Gets whether the exported image includes a window shadow.</summary>
     public bool HasWindowShadow { get; init; }
 
-    /// <summary>Gets the immutable ordered annotations.</summary>
+    /// <summary>Gets annotations in editing order, which also determines numbered-step labels.</summary>
     public ImmutableArray<Annotation> Annotations { get; init; } = [];
+
+    /// <summary>Gets annotations from back to front; equal ranks retain array order.</summary>
+    [JsonIgnore]
+    public IEnumerable<Annotation> OrderedAnnotations => Annotations.OrderBy(annotation => annotation.LayerOrder);
 
     /// <summary>Gets the unmodified original image bounds in source coordinates.</summary>
     [JsonIgnore]
