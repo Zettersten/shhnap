@@ -52,7 +52,7 @@ export const catalogChannels: CatalogChannel[] = [
   {
     id: 'winget',
     name: 'WinGet',
-    state: 'planned',
+    state: 'awaiting-listing',
     listingUrl: null,
     installCommand: 'winget install --id Zettersten.Shnapp -e',
     updateCommand: 'winget upgrade --id Zettersten.Shnapp -e',
@@ -61,8 +61,8 @@ export const catalogChannels: CatalogChannel[] = [
   {
     id: 'scoop',
     name: 'Scoop',
-    state: 'planned',
-    listingUrl: null,
+    state: 'live',
+    listingUrl: 'https://github.com/Zettersten/scoop-bucket/blob/master/bucket/shnapp.json',
     installCommand: 'scoop bucket add shnapp https://github.com/Zettersten/scoop-bucket\nscoop install shnapp/shnapp',
     updateCommand: 'scoop update shnapp',
     description: 'A command-line route for portable apps.',
