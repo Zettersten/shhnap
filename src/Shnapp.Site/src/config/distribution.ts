@@ -52,7 +52,7 @@ export const catalogChannels: CatalogChannel[] = [
   {
     id: 'winget',
     name: 'WinGet',
-    state: 'planned',
+    state: 'awaiting-listing',
     listingUrl: null,
     installCommand: 'winget install --id Zettersten.Shnapp -e',
     updateCommand: 'winget upgrade --id Zettersten.Shnapp -e',
