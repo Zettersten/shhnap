@@ -6,6 +6,11 @@
     <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
     <RootNamespace>Shnapp.App</RootNamespace>
     <AssemblyName>Shnapp</AssemblyName>
+    <Product>Shnapp</Product>
+    <Authors>Erik Zettersten</Authors>
+    <Company>Erik Zettersten</Company>
+    <Copyright>Copyright © Erik Zettersten</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Version>0.1.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64;ARM64</Platforms>
@@ -15,8 +20,11 @@
     <PublishProfile Condition="Exists('Properties\PublishProfiles\win-$(Platform).pubxml')">win-$(Platform).pubxml</PublishProfile>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
-    <WindowsPackageType>None</WindowsPackageType>
-    <EnableMsixTooling>false</EnableMsixTooling>
+    <!-- CI opts into Store packaging with -p:ShnappDistribution=Store. -->
+    <WindowsPackageType Condition="'$(ShnappDistribution)' == 'Store'">MSIX</WindowsPackageType>
+    <WindowsPackageType Condition="'$(WindowsPackageType)' == ''">None</WindowsPackageType>
+    <EnableMsixTooling Condition="'$(ShnappDistribution)' == 'Store'">true</EnableMsixTooling>
+    <EnableMsixTooling Condition="'$(EnableMsixTooling)' == ''">false</EnableMsixTooling>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <EnableWinAppRunSupport>false</EnableWinAppRunSupport>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -26,6 +34,7 @@
 
   <!-- Store artwork is retained in source, but the portable build has no package manifest. -->
   <ItemGroup Condition="'$(WindowsPackageType)' != 'None'">
+    <AppxManifest Include="Package.appxmanifest" />
     <Content Include="Assets\SplashScreen.scale-200.png" />
     <Content Include="Assets\LockScreenLogo.scale-200.png" />
     <Content Include="Assets\Square150x150Logo.scale-200.png" />
@@ -37,10 +46,19 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\ShnappLogo.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\NewShnappButton*.svg" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\provenance.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The Store job generates these from the exact runtime/NuGet versions before MSIX packaging. -->
+  <ItemGroup Condition="'$(ShnappDistribution)' == 'Store'">
+    <Content Include="obj\$(Platform)\DistributionNotices\**\*"
+             Link="%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -54,12 +72,43 @@
     <PropertyGroup>
       <_ShnappAssetDirectory>$([System.String]::Copy('$(MSBuildProjectDirectory)').Replace('\', '/'))/Assets</_ShnappAssetDirectory>
       <_ShnappManifestPath>$([System.String]::Copy('$(ApplicationManifest)').Replace('\', '/'))</_ShnappManifestPath>
+      <_ShnappNativeVersion Condition="'$(FileVersion)' != ''">$(FileVersion)</_ShnappNativeVersion>
+      <_ShnappNativeVersion Condition="'$(FileVersion)' == ''">$(Version).0</_ShnappNativeVersion>
+      <_ShnappNativeVersionCommas>$([System.String]::Copy('$(_ShnappNativeVersion)').Replace('.', ','))</_ShnappNativeVersionCommas>
     </PropertyGroup>
     <ItemGroup>
       <_ShnappNativeResourceLine Include="1 ICON &quot;$(_ShnappAssetDirectory)/AppIcon.ico&quot;" />
       <_ShnappNativeResourceLine Include="1 24 &quot;$(_ShnappManifestPath)&quot;" />
       <_ShnappNativeResourceLine Include="101 CURSOR &quot;$(_ShnappAssetDirectory)/PanOpen.cur&quot;" />
       <_ShnappNativeResourceLine Include="102 CURSOR &quot;$(_ShnappAssetDirectory)/PanClosed.cur&quot;" />
+      <_ShnappNativeResourceLine Include="1 VERSIONINFO" />
+      <_ShnappNativeResourceLine Include="FILEVERSION $(_ShnappNativeVersionCommas)" />
+      <_ShnappNativeResourceLine Include="PRODUCTVERSION $(_ShnappNativeVersionCommas)" />
+      <_ShnappNativeResourceLine Include="FILEFLAGSMASK 0x3fL" />
+      <_ShnappNativeResourceLine Include="FILEFLAGS 0x0L" />
+      <_ShnappNativeResourceLine Include="FILEOS 0x40004L" />
+      <_ShnappNativeResourceLine Include="FILETYPE 0x1L" />
+      <_ShnappNativeResourceLine Include="FILESUBTYPE 0x0L" />
+      <_ShnappNativeResourceLine Include="BEGIN" />
+      <_ShnappNativeResourceLine Include="BLOCK &quot;StringFileInfo&quot;" />
+      <_ShnappNativeResourceLine Include="BEGIN" />
+      <_ShnappNativeResourceLine Include="BLOCK &quot;040904B0&quot;" />
+      <_ShnappNativeResourceLine Include="BEGIN" />
+      <_ShnappNativeResourceLine Include="VALUE &quot;CompanyName&quot;, &quot;$(Company)\0&quot;" />
+      <_ShnappNativeResourceLine Include="VALUE &quot;FileDescription&quot;, &quot;$(Product)\0&quot;" />
+      <_ShnappNativeResourceLine Include="VALUE &quot;FileVersion&quot;, &quot;$(_ShnappNativeVersion)\0&quot;" />
+      <_ShnappNativeResourceLine Include="VALUE &quot;InternalName&quot;, &quot;$(AssemblyName)\0&quot;" />
+      <_ShnappNativeResourceLine Include="VALUE &quot;LegalCopyright&quot;, &quot;Copyright 2026 Erik Zettersten\0&quot;" />
+      <_ShnappNativeResourceLine Include="VALUE &quot;OriginalFilename&quot;, &quot;$(AssemblyName).exe\0&quot;" />
+      <_ShnappNativeResourceLine Include="VALUE &quot;ProductName&quot;, &quot;$(Product)\0&quot;" />
+      <_ShnappNativeResourceLine Include="VALUE &quot;ProductVersion&quot;, &quot;$(_ShnappNativeVersion)\0&quot;" />
+      <_ShnappNativeResourceLine Include="END" />
+      <_ShnappNativeResourceLine Include="END" />
+      <_ShnappNativeResourceLine Include="BLOCK &quot;VarFileInfo&quot;" />
+      <_ShnappNativeResourceLine Include="BEGIN" />
+      <_ShnappNativeResourceLine Include="VALUE &quot;Translation&quot;, 0x409, 1200" />
+      <_ShnappNativeResourceLine Include="END" />
+      <_ShnappNativeResourceLine Include="END" />
     </ItemGroup>
     <WriteLinesToFile File="$(IntermediateOutputPath)ShnappNative.rc"
                       Lines="@(_ShnappNativeResourceLine)" Overwrite="true" />

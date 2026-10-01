@@ -1158,7 +1158,11 @@ public sealed partial class MainPage : Page
     private void Library_Click(object sender, RoutedEventArgs args) => _controller?.OpenLibrary();
     private void Copy_Click(object sender, RoutedEventArgs args) => _controller?.Copy();
     private void Save_Click(object sender, RoutedEventArgs args) => _controller?.Export();
-    private void Settings_Click(object sender, RoutedEventArgs args) => _controller?.OpenSettings();
+    private void Settings_Click(object sender, RoutedEventArgs args)
+    {
+        if (ReferenceEquals(sender, UpdateAvailableButton)) { _controller?.OpenSettingsUpdates(); }
+        else { _controller?.OpenSettings(); }
+    }
     private void Quit_Click(object sender, RoutedEventArgs args) => _controller?.Quit();
     private void Undo_Click(object sender, RoutedEventArgs args) { CancelInteraction(); _editor?.Undo(); }
     private void Redo_Click(object sender, RoutedEventArgs args) { CancelInteraction(); _editor?.Redo(); }
@@ -1278,9 +1282,22 @@ public sealed partial class MainPage : Page
 
     internal void ShowMessage(string title, string message, InfoBarSeverity severity = InfoBarSeverity.Error)
     {
+        MessageBar.ActionButton = null;
         MessageBar.Title = title;
         MessageBar.Message = message;
         MessageBar.Severity = severity;
+        MessageBar.IsOpen = true;
+    }
+
+    internal void ShowAvailableUpdate(string message)
+    {
+        UpdateAvailableButton.Visibility = Visibility.Visible;
+        MessageBar.Title = "Shnapp update available";
+        MessageBar.Message = message;
+        MessageBar.Severity = InfoBarSeverity.Informational;
+        var action = new Button { Content = "About & Updates" };
+        action.Click += (_, _) => _controller?.OpenSettingsUpdates();
+        MessageBar.ActionButton = action;
         MessageBar.IsOpen = true;
     }
 

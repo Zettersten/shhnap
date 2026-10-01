@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest a way to make Shnapp more useful.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tell us about the task you want Shnapp to help with. Please do not include private capture content.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation or workflow.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like Shnapp to do?
+      description: Describe the behavior you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today?
+      description: Optional. Include workarounds or examples that may help explain the request.
+    validations:
+      required: false

@@ -1,0 +1,81 @@
+---
+import styles from '../styles/global.css?inline';
+import { distribution, issueUrls } from '../config/distribution';
+
+interface Props {
+  title: string;
+  description: string;
+  page?: 'home' | 'download' | 'privacy';
+}
+
+const { title, description, page = 'home' } = Astro.props;
+const canonical = new URL(Astro.url.pathname, 'https://shhnap.com').href;
+const github = distribution.repositoryUrl;
+const contactHref = `mailto:${distribution.contactEmail}`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f9fc" />
+    <meta name="description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Shnapp" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content="https://shhnap.com/screenshots/editor.png" />
+    <meta property="og:image:alt" content="The Shnapp editor showing a real annotated capture" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="canonical" href={canonical} />
+    <style is:global set:html={styles} />
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="/" aria-label="Shnapp home">
+          <img src="/assets/logo.png" alt="Shnapp" width="137" height="43" />
+        </a>
+        <nav class="main-nav" aria-label="Main navigation">
+          <a href="/#workflow" class="nav-secondary">How it works</a>
+          <a href="/#details" class="nav-secondary">Tools</a>
+          <a href="/download/" aria-current={page === 'download' ? 'page' : undefined}>Download</a>
+        </nav>
+        <a class="header-action" href="/download/">
+          Get Shnapp
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </a>
+      </div>
+    </header>
+
+    <main id="main"><slot /></main>
+
+    <footer class="site-footer">
+      <div class="shell footer-main">
+        <div class="footer-identity">
+          <a href="/" aria-label="Shnapp home"><img src="/assets/logo.png" alt="Shnapp" width="125" height="39" loading="lazy" /></a>
+          <p>Capture first. Think less.</p>
+        </div>
+        <nav aria-label="Footer navigation" class="footer-links">
+          <a href="/download/">Download</a>
+          <a href="/#workflow">How it works</a>
+          <a href="/privacy/">Privacy</a>
+          {distribution.publicRepository && <a href={`${github}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer">MIT license</a>}
+          {distribution.publicRepository && <a href={github} target="_blank" rel="noopener noreferrer">Source on GitHub</a>}
+          <a href={distribution.publicRepository ? issueUrls.bug : contactHref} target={distribution.publicRepository ? '_blank' : undefined} rel={distribution.publicRepository ? 'noopener noreferrer' : undefined}>Report a bug</a>
+          <a href={distribution.publicRepository ? issueUrls.feature : contactHref} target={distribution.publicRepository ? '_blank' : undefined} rel={distribution.publicRepository ? 'noopener noreferrer' : undefined}>Request a feature</a>
+        </nav>
+      </div>
+      <div class="shell footer-bottom">
+        <span>© {new Date().getFullYear()} Erik Zettersten</span>
+        <a href="https://zettersten.com/" target="_blank" rel="noopener noreferrer">zettersten.com</a>
+        <span>Made for Windows 11</span>
+      </div>
+    </footer>
+  </body>
+</html>

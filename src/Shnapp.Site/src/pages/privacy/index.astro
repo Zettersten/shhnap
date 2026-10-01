@@ -1,0 +1,65 @@
+---
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import { distribution } from '../../config/distribution';
+
+const contactHref = `mailto:${distribution.contactEmail}`;
+---
+
+<SiteLayout
+  page="privacy"
+  title="Privacy · Shnapp"
+  description="How Shnapp stores your captures, checks for updates, and shares information on Windows."
+>
+  <section class="privacy-hero" aria-labelledby="privacy-page-title">
+    <div class="shell privacy-head">
+      <p class="page-eyebrow">PRIVACY · UPDATED OCTOBER 1, 2026</p>
+      <h1 id="privacy-page-title">Your screenshots<br /><span>stay yours.</span></h1>
+      <p>Shnapp captures and edits images on your Windows PC. There is no Shnapp account, and the app does not include analytics or telemetry. The details below describe the current Windows app and this website.</p>
+    </div>
+  </section>
+
+  <section class="privacy-content section-pad" aria-label="Privacy details">
+    <div class="shell privacy-document">
+      <nav class="privacy-toc" aria-label="On this page">
+        <span>ON THIS PAGE</span>
+        <a href="#local-files">Local files</a>
+        <a href="#network">Network and updates</a>
+        <a href="#sharing">Sharing and feedback</a>
+        <a href="#choices">Your choices</a>
+        <a href="#contact">Contact</a>
+      </nav>
+
+      <div class="privacy-article">
+        <section id="local-files" aria-labelledby="local-title">
+          <h2 id="local-title">Local files</h2>
+          <p>Shnapp keeps your capture library, editable originals, rendered previews, preferences, and update-check state on your PC. The default folder is <code>%LOCALAPPDATA%\Shnapp</code>. An advanced <code>--data-root</code> launch option can move that folder elsewhere.</p>
+          <p>When you copy a PNG, Shnapp places it on your Windows clipboard. When you choose Save, the exported PNG goes to the location you select. Shnapp does not automatically upload captures to us or GitHub.</p>
+        </section>
+
+        <section id="network" aria-labelledby="network-title">
+          <h2 id="network-title">Network and updates</h2>
+          <p>The portable app checks the Shnapp repository’s latest GitHub Release over HTTPS when it starts, at most once per day. You can also run a check from Settings. The request contacts <code>api.github.com</code> and includes an app user-agent and, when available, an ETag so GitHub can answer without repeating release data. Shnapp stores the check time, latest release information, and notification state locally. The check does not send your captures.</p>
+          <p>If you install a Microsoft Store package in the future, Windows Store services manage its updates. A manual update check in that build asks the Store for available package updates.</p>
+          <p>The site itself has no analytics script or tracking cookies. As with any website, your browser makes requests to the site host to load the page and images.</p>
+        </section>
+
+        <section id="sharing" aria-labelledby="sharing-title">
+          <h2 id="sharing-title">Sharing and feedback</h2>
+          <p>Shnapp opens the Windows Share sheet only when you choose Share. It gives Windows the finished PNG and, when available, a thumbnail. You choose the destination; that destination’s privacy practices apply after you share.</p>
+          <p>Links to bug reports and feature requests open GitHub when the public issue tracker is available. GitHub handles information you submit there under its <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener noreferrer">privacy statement</a>. If you email us, your message is handled by our email provider. Please avoid including sensitive screenshots in a public issue.</p>
+        </section>
+
+        <section id="choices" aria-labelledby="choices-title">
+          <h2 id="choices-title">Your choices</h2>
+          <p>You choose what to capture, copy, export, and share. To remove local Shnapp data, quit the app and delete <code>%LOCALAPPDATA%\Shnapp</code>, or the folder you set with <code>--data-root</code>. This removes the local library and preferences; PNGs saved elsewhere must be deleted separately.</p>
+          <p>For a capture containing sensitive details, use opaque Cover on the exported image. Blur and Pixelate may leave text or shapes recognizable. The editable original remains in your local library until you delete it.</p>
+        </section>
+
+        <section id="contact" aria-labelledby="contact-title">
+          <h2 id="contact-title">Contact</h2>
+          <p>Shnapp is published by Erik Zettersten. For privacy or security questions, write to <a href={contactHref}>{distribution.contactEmail}</a>.</p>
+        </section>
+      </div>
+    </div>
+  </section>
+</SiteLayout>

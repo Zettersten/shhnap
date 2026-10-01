@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.10.0.schema.json
+# Replace __VERSION__ after the public GitHub release exists.
+PackageIdentifier: Zettersten.Shnapp
+PackageVersion: __VERSION__
+PackageLocale: en-US
+Publisher: Erik Zettersten
+PublisherUrl: https://zettersten.com
+PublisherSupportUrl: https://github.com/Zettersten/shhnap/issues
+Author: Erik Zettersten
+PackageName: Shnapp
+PackageUrl: https://shhnap.com
+License: MIT
+LicenseUrl: https://github.com/Zettersten/shhnap/blob/main/LICENSE
+ShortDescription: Screenshot capture and annotation for Windows.
+Tags:
+  - screenshot
+  - capture
+  - annotation
+ManifestType: defaultLocale
+ManifestVersion: 1.10.0

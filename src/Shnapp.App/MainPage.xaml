@@ -146,6 +146,10 @@
                 </AppBarButton.Flyout>
             </AppBarButton>
             <AppBarButton Label="Library" Icon="Pictures" Click="Library_Click" AutomationProperties.AutomationId="OpenLibrary" />
+            <AppBarButton x:Name="UpdateAvailableButton" Label="Update available" Icon="Download"
+                Click="Settings_Click" Visibility="Collapsed"
+                AutomationProperties.AutomationId="UpdateAvailable"
+                ToolTipService.ToolTip="A newer Shnapp release is available; open Settings" />
             <AppBarSeparator />
             <AppBarButton x:Name="CopyButton" Label="Copy" Icon="Copy" Click="Copy_Click"
                 IsEnabled="{x:Bind ViewModel.HasDocument, Mode=OneWay}" AutomationProperties.AutomationId="CopyShnapp"

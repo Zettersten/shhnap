@@ -28,6 +28,7 @@ internal sealed partial class AppController
     private readonly SemaphoreSlim _captureGate = new(1, 1);
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private readonly DispatcherQueueTimer _saveTimer;
+    private readonly DispatcherQueueTimer _updateTimer;
     private ShnappSettings _settings = new();
     private ShnappDocument? _saved;
     private CancellationTokenSource? _activeCapture;
@@ -47,16 +48,22 @@ internal sealed partial class AppController
         Renderer = new(_device);
         _capture = new(_device);
         Library = new(options.DataRoot);
+        _releaseChecker = new(options.DataRoot);
         _page.Configure(this);
         _tray = new(App.WindowHandle, activationMessage);
         _tray.CaptureRequested += Capture;
         _tray.LibraryRequested += OpenLibrary;
         _tray.SettingsRequested += OpenSettings;
+        _tray.UpdateNotificationClicked += OpenSettingsUpdates;
         _tray.QuitRequested += Quit;
         _saveTimer = App.DispatcherQueue.CreateTimer();
         _saveTimer.IsRepeating = false;
         _saveTimer.Interval = TimeSpan.FromMilliseconds(600);
         _saveTimer.Tick += (_, _) => Run(SaveCurrentAsync);
+        _updateTimer = App.DispatcherQueue.CreateTimer();
+        _updateTimer.IsRepeating = true;
+        _updateTimer.Interval = TimeSpan.FromHours(1);
+        _updateTimer.Tick += (_, _) => Run(() => CheckForUpdatesAsync(manual: false));
         _page.DocumentChanged += (_, _) =>
         {
             _saveTimer.Stop();
@@ -90,6 +97,19 @@ internal sealed partial class AppController
             _page.ShowMessage("Local library unavailable", exception.Message + " Your capture can still be copied or exported.");
         }
 
+        if (!_options.Isolated && !HasPackageIdentity)
+        {
+            try
+            {
+                // Scoop, WinGet, and Chocolatey may install each version in a new folder.
+                StartupPreference.ReconcilePortable(_settings.StartOnLogin);
+            }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                _page.ShowMessage("Sign-in setting unavailable", exception.Message, InfoBarSeverity.Warning);
+            }
+        }
+
         if (_tray.Conflicts.Count > 0)
         {
             _page.ShowMessage("Shortcut already in use",
@@ -101,6 +121,9 @@ internal sealed partial class AppController
             _page.ShowMessage("Tray icon unavailable", "Closing will quit Shnapp until the Windows notification area is available.",
                 InfoBarSeverity.Warning);
         }
+
+        Run(async () => { await CheckForUpdatesAsync(manual: false); });
+        if (!HasPackageIdentity) { _updateTimer.Start(); }
     }
 
     internal void Capture(CaptureKind kind) => Run(() => CaptureAsync(kind));
@@ -115,6 +138,7 @@ internal sealed partial class AppController
     }
     internal void Hide() => Run(HideAsync);
     internal void OpenSettings() => Run(SettingsAsync);
+    internal void OpenSettingsUpdates() => Run(() => SettingsAsync(showUpdates: true));
     internal void Quit() => Run(QuitAsync);
 
     /// <summary>Opens a saved shnapp's rendered PNG for adding it as an image layer.</summary>
@@ -180,6 +204,7 @@ internal sealed partial class AppController
         }
 
         bool wasVisible = NativeMethods.IsWindowVisible(App.WindowHandle);
+        _window.ShowMainPage();
         CanvasBitmap? bitmap = null;
         Task? previousSave = null;
         _activeCapture = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -445,6 +470,7 @@ internal sealed partial class AppController
 
     private async Task OpenLibraryAsync(bool recordHistory = true)
     {
+        _window.ShowMainPage();
         _activeCapture?.Cancel();
         await _captureGate.WaitAsync(_lifetime.Token);
         try
@@ -468,6 +494,7 @@ internal sealed partial class AppController
 
     private async Task OpenDocumentAsync(Guid id, bool recordHistory = true)
     {
+        _window.ShowMainPage();
         if (!await _captureGate.WaitAsync(0, _lifetime.Token))
         {
             return;
@@ -532,131 +559,65 @@ internal sealed partial class AppController
         _window.AppWindow.Hide();
     }
 
-    private async Task SettingsAsync()
+    private Task SettingsAsync() => SettingsAsync(showUpdates: false);
+
+    private async Task SettingsAsync(bool showUpdates)
     {
         if (_dialogOpen || _activeCapture is not null)
         {
             return;
         }
 
-        _dialogOpen = true;
-        Show();
-        try
+        ShnappSettings displayedSettings = _settings;
+        if (HasPackageIdentity && !_options.Isolated)
         {
-            var startup = new ToggleSwitch
+            try
             {
-                IsOn = _settings.StartOnLogin,
-                IsEnabled = !_options.Isolated,
-            };
-            var autoCopy = new ToggleSwitch { IsOn = _settings.AutoCopy };
-            var shadow = new ToggleSwitch { IsOn = _settings.WindowShadow };
-            var theme = new ComboBox { Header = "Theme", ItemsSource = new[] { "System", "Light", "Dark" }, SelectedItem = _settings.Theme };
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(startup, "Start Shnapp at sign-in");
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(autoCopy, "Copy new shnapps automatically");
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(shadow, "Soft shadow on window shnapps");
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(startup, "StartOnLogin");
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(autoCopy, "AutoCopy");
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(shadow, "WindowShadow");
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(theme, "ShnappTheme");
-            var content = new StackPanel { Spacing = 12, MinWidth = 320, MaxWidth = 420 };
-            var captureGroup = new StackPanel { Spacing = 8 };
-            captureGroup.Children.Add(PreferenceRow("Start Shnapp at sign-in", startup));
-            captureGroup.Children.Add(PreferenceRow("Copy new shnapps automatically", autoCopy));
-            captureGroup.Children.Add(PreferenceRow("Soft shadow on window shnapps", shadow));
-            content.Children.Add(new TextBlock { Text = "CAPTURE", FontSize = 12, Opacity = 0.68 });
-            content.Children.Add(captureGroup);
-            content.Children.Add(new TextBlock { Text = "APPEARANCE", FontSize = 12, Opacity = 0.68 });
-            content.Children.Add(theme);
-            content.Children.Add(new TextBlock { Text = "SHORTCUTS", FontSize = 12, Opacity = 0.68 });
-            content.Children.Add(new TextBlock
-            {
-                Text = "Window          Ctrl+Shift+4\nFull screen     Ctrl+Shift+3\nRegion          Ctrl+Shift+2",
-                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono"),
-                FontSize = 12,
-                TextWrapping = TextWrapping.Wrap,
-            });
-            content.Children.Add(new TextBlock { Text = "LOCAL LIBRARY", FontSize = 12, Opacity = 0.68 });
-            content.Children.Add(new TextBlock
-            {
-                Text = Library.RootPath,
-                TextWrapping = TextWrapping.Wrap,
-                FontSize = 12,
-                MaxWidth = 380,
-            });
-            content.Children.Add(new TextBlock
-            {
-                Text = _options.Isolated
-                    ? "Verification library. Startup changes are disabled."
-                    : "Editable originals stay here. Share the exported PNG when a capture contains private details.",
-                TextWrapping = TextWrapping.Wrap,
-                FontSize = 12,
-                Opacity = 0.72,
-                MaxWidth = 380,
-            });
-            var dialog = new ContentDialog
-            {
-                XamlRoot = _page.XamlRoot,
-                RequestedTheme = _page.RequestedTheme,
-                Title = "Settings",
-                Content = new ScrollViewer
+                displayedSettings = _settings with
                 {
-                    Content = content,
-                    MaxHeight = 460,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                },
-                PrimaryButtonText = "Save",
-                CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Primary,
-            };
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-            {
-                var settings = new ShnappSettings
-                {
-                    StartOnLogin = startup.IsOn,
-                    AutoCopy = autoCopy.IsOn,
-                    WindowShadow = shadow.IsOn,
-                    Theme = (string)theme.SelectedItem,
+                    StartOnLogin = await StartupPreference.IsPackagedEnabledAsync(),
                 };
-                bool startupChanged = !_options.Isolated && settings.StartOnLogin != _settings.StartOnLogin;
-                if (startupChanged) { StartupPreference.Apply(settings.StartOnLogin); }
-                try
-                {
-                    await Library.SaveSettingsAsync(settings);
-                }
-                catch
-                {
-                    if (startupChanged) { StartupPreference.Apply(_settings.StartOnLogin); }
-                    throw;
-                }
-
-                _settings = settings;
-                ApplyTheme();
-                _page.ViewModel.Status = "Preferences saved";
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or System.Runtime.InteropServices.COMException)
+            {
+                // A development or sideloaded package may not have a registered startup task.
             }
         }
-        finally
+
+        var page = new SettingsPage();
+        page.Configure(this, displayedSettings, _options.Isolated, Library.RootPath,
+            InstalledVersionText, HasPackageIdentity, showUpdates);
+        if (_lastUpdateResult is not null)
         {
-            _dialogOpen = false;
+            page.SetUpdateResult(_lastUpdateResult);
         }
+
+        _window.ShowSettings(page);
+        Show();
     }
 
-    private static Grid PreferenceRow(string label, ToggleSwitch toggle)
+    internal void CloseSettings() => _window.ShowMainPage();
+
+    internal async Task SavePreferencesAsync(ShnappSettings settings)
     {
-        var row = new Grid { ColumnSpacing = 16, MinHeight = 42 };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.Children.Add(new TextBlock
+        bool packaged = HasPackageIdentity;
+        bool startupChanged = !_options.Isolated &&
+            (packaged || settings.StartOnLogin != _settings.StartOnLogin);
+        if (startupChanged) { await StartupPreference.ApplyAsync(settings.StartOnLogin, packaged); }
+        try
         {
-            Text = label,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = toggle.IsEnabled ? 1 : 0.55,
-        });
-        Grid.SetColumn(toggle, 1);
-        row.Children.Add(toggle);
-        return row;
-    }
+            await Library.SaveSettingsAsync(settings);
+        }
+        catch
+        {
+            if (startupChanged) { await StartupPreference.ApplyAsync(_settings.StartOnLogin, packaged); }
+            throw;
+        }
 
+        _settings = settings;
+        ApplyTheme();
+        _page.ViewModel.Status = "Preferences saved";
+    }
     private void ApplyTheme() => _window.ApplyTheme(_settings.Theme switch
     {
         "Light" => ElementTheme.Light,
@@ -668,6 +629,7 @@ internal sealed partial class AppController
     {
         _activeCapture?.Cancel();
         _saveTimer.Stop();
+        _updateTimer.Stop();
         await _captureGate.WaitAsync();
         try
         {
