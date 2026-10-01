@@ -46,8 +46,12 @@ public sealed partial class EditorViewModel : ObservableObject
 }
 
 /// <summary>A display-only entry backed by an editable local document.</summary>
-public sealed class LibraryEntry
+public sealed partial class LibraryEntry : ObservableObject
 {
+    /// <summary>Enables dragging a saved image into the editor outside selection mode.</summary>
+    [ObservableProperty]
+    public partial bool CanDrag { get; set; } = true;
+
     /// <summary>Gets the stable document identifier.</summary>
     public Guid Id { get; }
 

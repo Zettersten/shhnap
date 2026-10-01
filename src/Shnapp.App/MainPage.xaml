@@ -28,8 +28,40 @@
         <CommandBar DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True"
             Background="{ThemeResource ShnappChromeBrush}">
             <CommandBar.Content>
-                <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" FontWeight="SemiBold"
-                    VerticalAlignment="Center" Margin="20,0,16,0" MaxWidth="260" TextTrimming="CharacterEllipsis" />
+                <StackPanel Orientation="Horizontal" Spacing="4" Margin="8,0,12,0" VerticalAlignment="Center">
+                    <Button x:Name="BackButton" Width="34" Height="34" Padding="0" IsEnabled="False"
+                        Click="Back_Click" ToolTipService.ToolTip="Back · Alt+Left"
+                        AutomationProperties.Name="Back" AutomationProperties.AutomationId="NavigateBack">
+                        <SymbolIcon Symbol="Back" />
+                    </Button>
+                    <Button x:Name="ForwardButton" Width="34" Height="34" Padding="0" IsEnabled="False"
+                        Click="Forward_Click" ToolTipService.ToolTip="Forward · Alt+Right"
+                        AutomationProperties.Name="Forward" AutomationProperties.AutomationId="NavigateForward">
+                        <SymbolIcon Symbol="Forward" />
+                    </Button>
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,0,0,0" VerticalAlignment="Center"
+                        Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}">
+                        <TextBlock Text="Library" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock x:Name="LibraryResultCount" Text="0 shnapps" VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            AutomationProperties.LiveSetting="Polite" />
+                    </StackPanel>
+                    <Grid Margin="10,0,0,0" VerticalAlignment="Center"
+                        Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
+                        <Button x:Name="DocumentTitleButton" Click="DocumentTitleButton_Click" Padding="8,4"
+                            Background="Transparent" BorderThickness="0" ToolTipService.ToolTip="Rename shnapp"
+                            AutomationProperties.Name="Rename shnapp" AutomationProperties.AutomationId="DocumentTitle">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" FontSize="16" FontWeight="SemiBold"
+                                    MaxWidth="220" TextTrimming="CharacterEllipsis" />
+                                <FontIcon Glyph="&#xE70F;" FontSize="12" Opacity="0.65" />
+                            </StackPanel>
+                        </Button>
+                        <TextBox x:Name="DocumentTitleEditor" Visibility="Collapsed" Width="240" MaxLength="120"
+                            KeyDown="DocumentTitleEditor_KeyDown" LostFocus="DocumentTitleEditor_LostFocus"
+                            AutomationProperties.Name="Shnapp title" AutomationProperties.AutomationId="DocumentTitleEditor" />
+                    </Grid>
+                </StackPanel>
             </CommandBar.Content>
             <AppBarButton Label="New shnapp" Icon="Camera" Foreground="{ThemeResource ShnappBlueBrush}"
                 ToolTipService.ToolTip="Capture a window, display, or region"
@@ -496,12 +528,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <StackPanel Margin="0,0,0,20" Spacing="4">
-                <TextBlock Text="Library" FontFamily="Segoe UI Variable Display" FontSize="28" FontWeight="SemiBold" />
-                <TextBlock x:Name="LibraryResultCount" Text="0 shnapps" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    AutomationProperties.LiveSetting="Polite" />
-            </StackPanel>
-            <Grid Grid.Row="1" Margin="0,0,0,18" ColumnSpacing="12">
+            <Grid Grid.Row="0" Margin="0,0,0,18" ColumnSpacing="12">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <AutoSuggestBox x:Name="LibrarySearch" HorizontalAlignment="Stretch"
                     QueryIcon="Find" PlaceholderText="Search shnapps" TextChanged="LibrarySearch_TextChanged"
@@ -536,7 +563,9 @@
             </Grid>
             <Grid Grid.Row="2">
                 <GridView x:Name="LibraryGrid" ItemsSource="{x:Bind ViewModel.Library}"
+                    Padding="0,0,0,64"
                     SelectionMode="None" IsItemClickEnabled="True" ItemClick="Library_ItemClick"
+                    SelectionChanged="Library_SelectionChanged"
                     ContainerContentChanging="Library_ContainerContentChanging"
                     AutomationProperties.Name="Saved shnapps grid" AutomationProperties.AutomationId="ShnappLibrary">
                     <GridView.ItemsPanel>
@@ -544,11 +573,13 @@
                     </GridView.ItemsPanel>
                     <GridView.ItemTemplate>
                         <DataTemplate x:DataType="editor:LibraryEntry">
-                            <StackPanel Width="{x:Bind CardWidth}" Margin="4" Spacing="6">
+                            <StackPanel Width="{x:Bind CardWidth}" Margin="4" Spacing="6"
+                                Tag="{Binding}" RightTapped="LibraryCard_RightTapped">
                                 <Border Height="{x:Bind ThumbnailHeight}" Background="{ThemeResource ShnappPreviewBrush}"
                                     CornerRadius="10" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                                     <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="5"
-                                        Tag="{Binding}" CanDrag="True" DragStarting="LibraryPreview_DragStarting" />
+                                        Tag="{Binding}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
+                                        Tapped="LibraryPreview_Tapped" />
                                 </Border>
                                 <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxLines="1" />
                                 <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextBlockStyle}"
@@ -558,12 +589,15 @@
                     </GridView.ItemTemplate>
                 </GridView>
                 <ListView x:Name="LibraryList" ItemsSource="{x:Bind ViewModel.Library}" Visibility="Collapsed"
+                    Padding="0,0,0,64"
                     SelectionMode="None" IsItemClickEnabled="True" ItemClick="Library_ItemClick"
+                    SelectionChanged="Library_SelectionChanged"
                     ContainerContentChanging="Library_ContainerContentChanging"
                     AutomationProperties.Name="Saved shnapps list" AutomationProperties.AutomationId="ShnappLibraryList">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="editor:LibraryEntry">
-                            <Grid Height="74" Padding="4" ColumnSpacing="14">
+                            <Grid Height="74" Padding="4" ColumnSpacing="14"
+                                Tag="{Binding}" RightTapped="LibraryCard_RightTapped">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="104" />
                                     <ColumnDefinition Width="*" />
@@ -572,7 +606,8 @@
                                 <Border Background="{ThemeResource ShnappPreviewBrush}" CornerRadius="6"
                                     BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
                                     <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="4"
-                                        Tag="{Binding}" CanDrag="True" DragStarting="LibraryPreview_DragStarting" />
+                                        Tag="{Binding}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
+                                        Tapped="LibraryPreview_Tapped" />
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -585,6 +620,21 @@
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
+                <Border x:Name="LibrarySelectionBar" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    Margin="12" Padding="12,4" CornerRadius="8" Visibility="Collapsed"
+                    Background="{ThemeResource ShnappChromeBrush}"
+                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <TextBlock x:Name="LibrarySelectionCount" VerticalAlignment="Center" Visibility="Collapsed"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button x:Name="LibraryDeleteSelected" Content="Delete selected" Visibility="Collapsed"
+                            Click="LibraryDeleteSelected_Click" AutomationProperties.Name="Delete selected shnapps" />
+                        <CheckBox x:Name="LibrarySelectionToggle" Content="Select"
+                            Checked="LibrarySelectionToggle_Changed" Unchecked="LibrarySelectionToggle_Changed"
+                            ToolTipService.ToolTip="Select shnapps for bulk actions"
+                            AutomationProperties.Name="Select shnapps" AutomationProperties.AutomationId="LibrarySelectionToggle" />
+                    </StackPanel>
+                </Border>
                 <ScrollViewer x:Name="LibraryEmpty" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                     HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
                 <Border MaxWidth="500" Margin="8" Padding="28,22" Background="Transparent">

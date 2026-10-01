@@ -15,7 +15,7 @@ using Windows.Storage.Streams;
 
 namespace Shnapp.App;
 
-internal sealed class AppController
+internal sealed partial class AppController
 {
     private readonly MainWindow _window;
     private readonly MainPage _page;
@@ -81,6 +81,7 @@ internal sealed class AppController
             ApplyTheme();
             IReadOnlyList<ShnappDocument> documents = await Library.ListAsync(_lifetime.Token);
             _page.ShowLibrary(documents);
+            UpdateNavigationButtons();
             _page.SetGalleryDocuments(documents);
             _page.ViewModel.Status = "Ready to shnapp · close returns to the tray";
         }
@@ -103,10 +104,15 @@ internal sealed class AppController
     }
 
     internal void Capture(CaptureKind kind) => Run(() => CaptureAsync(kind));
-    internal void OpenLibrary() => Run(OpenLibraryAsync);
+    internal void OpenLibrary() => Run(() => OpenLibraryAsync());
     internal void OpenDocument(Guid id) => Run(() => OpenDocumentAsync(id));
     internal void Copy() => Run(CopyAsync);
     internal void Export() => Run(ExportAsync);
+    internal void SaveCurrent()
+    {
+        _saveTimer.Stop();
+        Run(SaveCurrentAsync);
+    }
     internal void Hide() => Run(HideAsync);
     internal void OpenSettings() => Run(SettingsAsync);
     internal void Quit() => Run(QuitAsync);
@@ -261,6 +267,7 @@ internal sealed class AppController
             watch.Stop();
             Debug.WriteLine($"Shnapp {kind}: {watch.ElapsedMilliseconds} ms to editor.");
             await SaveCurrentAsync();
+            RecordNavigation(document.Id);
             _page.SetGalleryDocuments(await Library.ListAsync(_lifetime.Token));
             if (_settings.AutoCopy)
             {
@@ -278,6 +285,7 @@ internal sealed class AppController
 
     private async Task SaveCurrentAsync()
     {
+        _page.CommitTitleRename();
         await _saveGate.WaitAsync();
         try
         {
@@ -375,7 +383,7 @@ internal sealed class AppController
         }
     }
 
-    private async Task OpenLibraryAsync()
+    private async Task OpenLibraryAsync(bool recordHistory = true)
     {
         _activeCapture?.Cancel();
         await _captureGate.WaitAsync(_lifetime.Token);
@@ -386,6 +394,7 @@ internal sealed class AppController
             await SaveCurrentAsync();
             IReadOnlyList<ShnappDocument> documents = await Library.ListAsync(_lifetime.Token);
             _page.ShowLibrary(documents);
+            if (recordHistory) { RecordNavigation(null); }
             _page.SetGalleryDocuments(documents);
             Renderer.ClearPastedImages();
             _page.ViewModel.Status = "Saved on this PC · New shnapp or Ctrl+Shift+4 to capture";
@@ -397,7 +406,7 @@ internal sealed class AppController
         }
     }
 
-    private async Task OpenDocumentAsync(Guid id)
+    private async Task OpenDocumentAsync(Guid id, bool recordHistory = true)
     {
         if (!await _captureGate.WaitAsync(0, _lifetime.Token))
         {
@@ -436,6 +445,7 @@ internal sealed class AppController
             }
             _saved = document;
             _page.OpenDocument(document, bitmap);
+            if (recordHistory) { RecordNavigation(id); }
             _page.SetGalleryDocuments(await Library.ListAsync(_lifetime.Token));
             Renderer.RetainPastedImages(document);
             Show();
@@ -457,6 +467,7 @@ internal sealed class AppController
         _saveTimer.Stop();
         await SaveCurrentAsync();
         _page.ShowLibrary([]);
+        RecordNavigation(null);
         Renderer.ClearPastedImages();
         _window.AppWindow.Hide();
     }

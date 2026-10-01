@@ -19,6 +19,31 @@ public sealed class DocumentEditorTests
     }
 
     [TestMethod]
+    public void RenameIsValidatedUndoableAndLeavesAnUnchangedTitleOutOfHistory()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create() with { Title = "Original" });
+        int changes = 0;
+        editor.Changed += (_, _) => changes++;
+
+        editor.Rename("  A useful shnapp  ");
+        Assert.AreEqual("A useful shnapp", editor.Current.Title);
+        Assert.AreEqual(1, changes);
+        Assert.IsTrue(editor.CanUndo);
+
+        editor.Rename("A useful shnapp");
+        Assert.AreEqual(1, changes);
+        Assert.ThrowsExactly<ArgumentException>(() => editor.Rename(" \r\n "));
+        Assert.ThrowsExactly<ArgumentException>(() => editor.Rename(new string('x', 121)));
+        Assert.ThrowsExactly<ArgumentException>(() => editor.Rename("Line\nbreak"));
+        Assert.AreEqual(1, changes);
+
+        Assert.IsTrue(editor.Undo());
+        Assert.AreEqual("Original", editor.Current.Title);
+        Assert.IsTrue(editor.Redo());
+        Assert.AreEqual("A useful shnapp", editor.Current.Title);
+    }
+
+    [TestMethod]
     public void ConstructorNormalizesStepsWithoutMutatingTheSuppliedSnapshot()
     {
         Annotation first = TestDocuments.Annotation(AnnotationKind.Step) with { StepNumber = 42 };

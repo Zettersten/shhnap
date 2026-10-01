@@ -57,6 +57,8 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         InitializeComponent();
+        InitializeNavigationInput();
+        AddHandler(KeyUpEvent, new KeyEventHandler(Page_KeyUp), true);
         InitializeFontFamilies();
         EditorSplitView.PaneOpened += (_, _) => InspectorToggle.IsChecked = true;
         EditorSplitView.PaneClosed += (_, _) => InspectorToggle.IsChecked = false;
@@ -67,6 +69,7 @@ public sealed partial class MainPage : Page
 
     internal void OpenDocument(ShnappDocument document, CanvasBitmap original)
     {
+        CancelTitleRename();
         ReleaseDocument();
         ResetCanvasView();
         _editor = new DocumentEditor(document);
@@ -82,6 +85,7 @@ public sealed partial class MainPage : Page
 
     internal void ShowLibrary(IReadOnlyList<ShnappDocument> documents)
     {
+        CancelTitleRename();
         ReleaseDocument();
         _library = documents;
         ViewModel.HasDocument = false;
@@ -104,6 +108,7 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        ViewModel.Title = _editor.Current.Title;
         CanvasRenderTarget rendered = _controller.Renderer.Flatten(_original, _editor.Current);
         _flattened?.Dispose();
         _flattened = rendered;
@@ -1058,7 +1063,13 @@ public sealed partial class MainPage : Page
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(args.ItemContainer,
             entry is null ? string.Empty : $"Shnapp_{entry.Id:N}");
     }
-    private void Library_ItemClick(object sender, ItemClickEventArgs args) => _controller?.OpenDocument(((LibraryEntry)args.ClickedItem).Id);
+    private void Library_ItemClick(object sender, ItemClickEventArgs args)
+    {
+        if (!_librarySelectionMode && args.ClickedItem is LibraryEntry entry)
+        {
+            _controller?.OpenDocument(entry.Id);
+        }
+    }
     private void Capture_Click(object sender, RoutedEventArgs args) => _controller?.Capture(Enum.Parse<CaptureKind>((string)((FrameworkElement)sender).Tag));
     private void Library_Click(object sender, RoutedEventArgs args) => _controller?.OpenLibrary();
     private void Copy_Click(object sender, RoutedEventArgs args) => _controller?.Copy();
@@ -1109,6 +1120,11 @@ public sealed partial class MainPage : Page
 
     private void Page_KeyDown(object sender, KeyRoutedEventArgs args)
     {
+        if (args.Key == VirtualKey.Space && _editor is not null && !EditorInputHasFocus())
+        {
+            CanvasHost.SetPanCursor(true);
+        }
+
         if (EditorInputHasFocus() || _editor is null)
         {
             return;
@@ -1130,7 +1146,7 @@ public sealed partial class MainPage : Page
             return;
         }
         else if (args.Key is VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down &&
-            _dragStart is null && !_panning &&
+            _dragStart is null && !_panning && !IsKeyHeld(VirtualKey.Menu) &&
             ReferenceEquals(FocusManager.GetFocusedElement(XamlRoot), DrawingCanvas) &&
             (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control) &
                 global::Windows.UI.Core.CoreVirtualKeyStates.Down) == 0)
@@ -1145,7 +1161,7 @@ public sealed partial class MainPage : Page
             };
             args.Handled = NudgeSelected(dx, dy);
         }
-        else if ((InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control) & global::Windows.UI.Core.CoreVirtualKeyStates.Down) == 0)
+        else if (!IsKeyHeld(VirtualKey.Control) && !IsKeyHeld(VirtualKey.Menu))
         {
             EditorTool? tool = args.Key switch
             {
@@ -1164,6 +1180,14 @@ public sealed partial class MainPage : Page
                 SetTool(selectedTool);
                 args.Handled = true;
             }
+        }
+    }
+
+    private void Page_KeyUp(object sender, KeyRoutedEventArgs args)
+    {
+        if (args.Key == VirtualKey.Space)
+        {
+            CanvasHost.SetPanCursor(_panning);
         }
     }
 

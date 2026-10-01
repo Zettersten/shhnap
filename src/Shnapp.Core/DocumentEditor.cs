@@ -38,6 +38,16 @@ public sealed class DocumentEditor(ShnappDocument document)
     /// <summary>Occurs once after a real edit, undo, or redo, after the new state is available.</summary>
     public event EventHandler? Changed;
 
+    /// <summary>Renames this shnapp as an undoable document edit.</summary>
+    public void Rename(string title)
+    {
+        string normalized = ShnappTitles.Normalize(title);
+        if (!string.Equals(Current.Title, normalized, StringComparison.Ordinal))
+        {
+            Commit(Current with { Title = normalized });
+        }
+    }
+
     /// <summary>Adds an annotation and assigns step numbers, restarting at marked steps.</summary>
     /// <param name="annotation">An annotation with a unique, nonempty identifier and valid source coordinates.</param>
     /// <exception cref="ArgumentNullException">The annotation is null.</exception>
@@ -618,7 +628,7 @@ public sealed class DocumentEditor(ShnappDocument document)
 
     private void Commit(ShnappDocument next)
     {
-        if (next.Crop == Current.Crop && next.BaseImageCrop == Current.BaseImageCrop &&
+        if (next.Title == Current.Title && next.Crop == Current.Crop && next.BaseImageCrop == Current.BaseImageCrop &&
             next.HideOriginalImage == Current.HideOriginalImage &&
             next.ExpandedCanvasBounds == Current.ExpandedCanvasBounds &&
             next.Annotations.SequenceEqual(Current.Annotations))

@@ -93,6 +93,7 @@ public sealed partial class MainPage
         StopCanvasPan();
         CommitText();
         _panning = true;
+        UpdatePanCursor();
         _panLastPoint = args.GetCurrentPoint(DrawingCanvas).Position;
         _panLastSample = DateTimeOffset.UtcNow;
         _panLastMovement = _panLastSample;
@@ -129,6 +130,7 @@ public sealed partial class MainPage
     private void EndCanvasPan(PointerRoutedEventArgs args)
     {
         _panning = false;
+        UpdatePanCursor();
         DrawingCanvas.ReleasePointerCapture(args.Pointer);
         if ((DateTimeOffset.UtcNow - _panLastMovement).TotalMilliseconds < 65 &&
             _panVelocity.Length() > 0.12f)
@@ -170,10 +172,17 @@ public sealed partial class MainPage
         _panTimer?.Stop();
         _panning = false;
         _panVelocity = Vector2.Zero;
+        UpdatePanCursor();
     }
 
-    private void Canvas_PointerEntered(object sender, PointerRoutedEventArgs args) =>
+    private void UpdatePanCursor() =>
+        CanvasHost.SetPanCursor(_editor is not null && (_panning || IsSpaceHeld()) && !EditorInputHasFocus());
+
+    private void Canvas_PointerEntered(object sender, PointerRoutedEventArgs args)
+    {
+        UpdatePanCursor();
         UpdateCropHover(args.GetCurrentPoint(DrawingCanvas).Position);
+    }
 
     private void Canvas_PointerExited(object sender, PointerRoutedEventArgs args)
     {

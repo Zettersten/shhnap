@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Shnapp.App.Editor;
@@ -21,6 +22,9 @@ public sealed partial class MainPage
     private readonly Dictionary<Guid, LibraryEntry> _libraryEntries = [];
     private int _librarySizeIndex = 2;
     private bool _libraryListMode;
+    private bool _librarySelectionMode;
+    private bool _restoringLibrarySelection;
+    private readonly HashSet<Guid> _selectedLibraryIds = [];
     private bool _focusSearchWhenLibraryOpens;
 
     private void RebuildLibraryEntries()
@@ -39,7 +43,10 @@ public sealed partial class MainPage
                 ? compact
                 : _controller.Library.GetPreviewPath(document.Id);
             _libraryEntries[document.Id] = new LibraryEntry(document,
-                preview, cardWidth, thumbnailHeight, preview == compact ? 192 : 384);
+                preview, cardWidth, thumbnailHeight, preview == compact ? 192 : 384)
+            {
+                CanDrag = !_librarySelectionMode,
+            };
         }
 
         FilterLibrary();
@@ -53,13 +60,30 @@ public sealed partial class MainPage
         }
 
         string query = LibrarySearch.Text.Trim();
-        ViewModel.Library.Clear();
-        foreach (ShnappDocument document in _library)
+        _restoringLibrarySelection = true;
+        try
         {
-            if (MatchesLibraryQuery(document, query) && _libraryEntries.TryGetValue(document.Id, out LibraryEntry? entry))
+            ViewModel.Library.Clear();
+            foreach (ShnappDocument document in _library)
             {
-                ViewModel.Library.Add(entry);
+                if (MatchesLibraryQuery(document, query) && _libraryEntries.TryGetValue(document.Id, out LibraryEntry? entry))
+                {
+                    ViewModel.Library.Add(entry);
+                }
             }
+
+            if (_librarySelectionMode)
+            {
+                foreach (LibraryEntry entry in ViewModel.Library.Where(entry => _selectedLibraryIds.Contains(entry.Id)))
+                {
+                    LibraryGrid.SelectedItems.Add(entry);
+                    LibraryList.SelectedItems.Add(entry);
+                }
+            }
+        }
+        finally
+        {
+            _restoringLibrarySelection = false;
         }
 
         int count = ViewModel.Library.Count;
@@ -111,6 +135,8 @@ public sealed partial class MainPage
         LibraryGridMode.IsChecked = !_libraryListMode;
         LibraryListMode.IsChecked = _libraryListMode;
         LibrarySizeButton.IsEnabled = !_libraryListMode;
+        LibrarySelectionBar.Visibility = hasResults ? Visibility.Visible : Visibility.Collapsed;
+        UpdateLibrarySelectionStatus();
     }
 
     private void LibrarySearch_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args) => FilterLibrary();
@@ -164,6 +190,130 @@ public sealed partial class MainPage
     {
         _libraryListMode = true;
         RebuildLibraryEntries();
+    }
+
+    private void LibraryPreview_Tapped(object sender, TappedRoutedEventArgs args)
+    {
+        if (sender is not FrameworkElement { Tag: LibraryEntry entry })
+        {
+            return;
+        }
+
+        if (_librarySelectionMode)
+        {
+            // Native GridView/ListView selection handles the tap and its keyboard equivalent.
+            return;
+        }
+
+        _controller?.OpenDocument(entry.Id);
+
+        args.Handled = true;
+    }
+
+    private void LibraryCard_RightTapped(object sender, RightTappedRoutedEventArgs args)
+    {
+        if (sender is not FrameworkElement { Tag: LibraryEntry entry } card || _controller is null)
+        {
+            return;
+        }
+
+        var menu = new MenuFlyout();
+        AddAction("Clone", () => _controller.CloneDocument(entry.Id));
+        AddAction("Rename", () => _controller.RequestRenameDocument(entry.Id));
+        AddAction("Copy full path", () => _controller.CopyDocumentPath(entry.Id));
+        menu.Items.Add(new MenuFlyoutSeparator());
+        AddAction("Delete", () => _controller.RequestDeleteDocuments([entry.Id]));
+        menu.ShowAt(card, new FlyoutShowOptions { Position = args.GetPosition(card) });
+        args.Handled = true;
+
+        void AddAction(string label, Action action)
+        {
+            var item = new MenuFlyoutItem { Text = label };
+            item.Click += (_, _) => action();
+            menu.Items.Add(item);
+        }
+    }
+
+    private void LibrarySelectionToggle_Changed(object sender, RoutedEventArgs args)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        _librarySelectionMode = LibrarySelectionToggle.IsChecked == true;
+        _restoringLibrarySelection = true;
+        try
+        {
+            if (!_librarySelectionMode)
+            {
+                _selectedLibraryIds.Clear();
+                LibraryGrid.SelectedItems.Clear();
+                LibraryList.SelectedItems.Clear();
+            }
+
+            LibraryGrid.SelectionMode = _librarySelectionMode ? ListViewSelectionMode.Multiple : ListViewSelectionMode.None;
+            LibraryList.SelectionMode = _librarySelectionMode ? ListViewSelectionMode.Multiple : ListViewSelectionMode.None;
+            LibraryGrid.IsItemClickEnabled = !_librarySelectionMode;
+            LibraryList.IsItemClickEnabled = !_librarySelectionMode;
+            foreach (LibraryEntry entry in _libraryEntries.Values)
+            {
+                entry.CanDrag = !_librarySelectionMode;
+            }
+        }
+        finally
+        {
+            _restoringLibrarySelection = false;
+        }
+
+        UpdateLibrarySelectionStatus();
+    }
+
+    private void Library_SelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (_restoringLibrarySelection || !_librarySelectionMode)
+        {
+            return;
+        }
+
+        ListViewBase active = _libraryListMode ? LibraryList : LibraryGrid;
+        if (!ReferenceEquals(sender, active))
+        {
+            return;
+        }
+
+        foreach (LibraryEntry entry in args.RemovedItems.OfType<LibraryEntry>())
+        {
+            _selectedLibraryIds.Remove(entry.Id);
+        }
+        foreach (LibraryEntry entry in args.AddedItems.OfType<LibraryEntry>())
+        {
+            _selectedLibraryIds.Add(entry.Id);
+        }
+        UpdateLibrarySelectionStatus();
+    }
+
+    private void UpdateLibrarySelectionStatus()
+    {
+        int count = _selectedLibraryIds.Count;
+        LibrarySelectionCount.Text = $"{count} selected";
+        LibrarySelectionCount.Visibility = _librarySelectionMode ? Visibility.Visible : Visibility.Collapsed;
+        LibraryDeleteSelected.Visibility = _librarySelectionMode ? Visibility.Visible : Visibility.Collapsed;
+        LibraryDeleteSelected.IsEnabled = count > 0;
+    }
+
+    private void LibraryDeleteSelected_Click(object sender, RoutedEventArgs args)
+    {
+        if (_selectedLibraryIds.Count > 0)
+        {
+            _controller?.RequestDeleteDocuments(_selectedLibraryIds.ToArray());
+        }
+    }
+
+    internal void RemoveLibrarySelection(IEnumerable<Guid> ids)
+    {
+        _selectedLibraryIds.ExceptWith(ids);
+        UpdateLibrarySelectionStatus();
     }
 
     private void FocusLibrarySearch_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
