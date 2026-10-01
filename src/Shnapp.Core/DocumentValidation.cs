@@ -82,6 +82,9 @@ internal static class DocumentValidation
             "The line end cap is not supported.", nameof(annotation));
         Require(Enum.IsDefined(annotation.LinePattern), "The line pattern is not supported.", nameof(annotation));
         Require(Enum.IsDefined(annotation.StepLabelFormat), "The step label format is not supported.", nameof(annotation));
+        Require(Enum.IsDefined(annotation.TextAlignment) && Enum.IsDefined(annotation.TextTruncation) &&
+            Enum.IsDefined(annotation.TextTransform),
+            "A text formatting option is not supported.", nameof(annotation));
         Require(annotation.Kind == AnnotationKind.Step || !annotation.StepReset,
             "Only a step can restart numbering.", nameof(annotation));
         Require(annotation.LayerOrder >= 0,
@@ -126,6 +129,22 @@ internal static class DocumentValidation
         Require(double.IsFinite(annotation.TextBoxWidth) &&
             (annotation.TextBoxWidth == 0 || annotation.TextBoxWidth is >= 48 and <= 12_000),
             "A text box width must be zero or between 48 and 12,000 pixels.", nameof(annotation));
+        Require(double.IsFinite(annotation.TextBoxHeight) &&
+            (annotation.TextBoxHeight == 0 || annotation.TextBoxHeight is >= 24 and <= 12_000) &&
+            (annotation.TextBoxHeight == 0 || annotation.TextBoxWidth > 0),
+            "A fixed text box height must be zero or between 24 and 12,000 pixels and requires a width.",
+            nameof(annotation));
+        if (annotation.Kind == AnnotationKind.Text && annotation.TextBoxHeight > 0)
+        {
+            Require(Math.Abs(annotation.End.X - (annotation.Start.X + annotation.TextBoxWidth)) < 0.01 &&
+                Math.Abs(annotation.End.Y - (annotation.Start.Y + annotation.TextBoxHeight)) < 0.01,
+                "A fixed text box's end point must match its width and height.", nameof(annotation));
+        }
+        Require(double.IsFinite(annotation.TextLineHeight) &&
+            (annotation.TextLineHeight == 0 || annotation.TextLineHeight is >= 8 and <= 320),
+            "A text line height must be zero or between 8 and 320 pixels.", nameof(annotation));
+        Require(double.IsFinite(annotation.TextLetterSpacing) && annotation.TextLetterSpacing is >= 0 and <= 50,
+            "Text letter spacing must be between 0 and 50 pixels.", nameof(annotation));
         Require(!string.IsNullOrWhiteSpace(annotation.FontFamily),
             "A font family is required.", nameof(annotation));
     }

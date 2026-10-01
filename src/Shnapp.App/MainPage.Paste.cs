@@ -159,6 +159,12 @@ public sealed partial class MainPage
             FontSize = style.FontSize,
             FontWeight = style.FontWeight,
             Italic = style.Italic,
+            TextKerning = style.TextKerning,
+            TextLetterSpacing = style.TextLetterSpacing,
+            TextTransform = style.TextTransform,
+            TextAlignment = style.TextAlignment,
+            TextTruncation = style.TextTruncation,
+            TextLineHeight = style.TextLineHeight,
         });
     }
 

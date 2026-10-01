@@ -92,6 +92,16 @@ public sealed partial class MainPage
 
         if (annotation.Kind == AnnotationKind.Text)
         {
+            if (annotation.TextBoxWidth > 0 && annotation.TextBoxHeight > 0)
+            {
+                return [
+                    new(ResizeHandle.TopLeft, new(bounds.X, bounds.Y)),
+                    new(ResizeHandle.TopRight, new(bounds.Right, bounds.Y)),
+                    new(ResizeHandle.BottomRight, new(bounds.Right, bounds.Bottom)),
+                    new(ResizeHandle.BottomLeft, new(bounds.X, bounds.Bottom)),
+                ];
+            }
+
             return [new(ResizeHandle.BottomRight, new(bounds.Right, bounds.Bottom))];
         }
 
@@ -260,6 +270,11 @@ public sealed partial class MainPage
 
         if (original.Kind == AnnotationKind.Text)
         {
+            if (original.TextBoxWidth > 0 && original.TextBoxHeight > 0)
+            {
+                return ResizeFixedText(original, handle, point, maintainProportions);
+            }
+
             Rect bounds = SelectionBounds(original);
             double scaleX = (point.X - bounds.X) / Math.Max(1, bounds.Width);
             double scaleY = (point.Y - bounds.Y) / Math.Max(1, bounds.Height);
@@ -273,13 +288,13 @@ public sealed partial class MainPage
                 return MeasureTextAnnotation(original with { FontSize = fontSize, TextBoxWidth = width });
             }
 
-            double wrappedWidth = Math.Clamp(
+            double fixedWidth = Math.Clamp(
                 (original.TextBoxWidth > 0 ? original.TextBoxWidth : bounds.Width) * scaleX, 48, 12000);
-            double resizedFontSize = Math.Clamp(original.FontSize * scaleY, 8, 144);
+            double fixedHeight = Math.Clamp(bounds.Height * scaleY, 24, 12000);
             return MeasureTextAnnotation(original with
             {
-                TextBoxWidth = wrappedWidth,
-                FontSize = resizedFontSize,
+                TextBoxWidth = fixedWidth,
+                TextBoxHeight = fixedHeight,
             });
         }
 
@@ -356,6 +371,39 @@ public sealed partial class MainPage
         double left = fromLeft ? anchorX - width : anchorX;
         double top = fromTop ? anchorY - height : anchorY;
         return original with { Start = new(left, top), End = new(left + width, top + height) };
+    }
+
+    private static Annotation ResizeFixedText(Annotation original, ResizeHandle handle, ImagePoint point,
+        bool maintainProportions)
+    {
+        ImageRect bounds = original.Bounds;
+        bool fromLeft = handle is ResizeHandle.TopLeft or ResizeHandle.BottomLeft;
+        bool fromTop = handle is ResizeHandle.TopLeft or ResizeHandle.TopRight;
+        double anchorX = fromLeft ? bounds.Right : bounds.X;
+        double anchorY = fromTop ? bounds.Bottom : bounds.Y;
+        double width = Math.Clamp(fromLeft ? anchorX - point.X : point.X - anchorX, 48, 12000);
+        double height = Math.Clamp(fromTop ? anchorY - point.Y : point.Y - anchorY, 24, 12000);
+        if (maintainProportions)
+        {
+            double scaleX = width / bounds.Width;
+            double scaleY = height / bounds.Height;
+            double scale = Math.Abs(scaleX - 1) >= Math.Abs(scaleY - 1) ? scaleX : scaleY;
+            double minimum = Math.Max(48 / bounds.Width, 24 / bounds.Height);
+            double maximum = Math.Min(12000 / bounds.Width, 12000 / bounds.Height);
+            scale = Math.Clamp(scale, minimum, maximum);
+            width = bounds.Width * scale;
+            height = bounds.Height * scale;
+        }
+
+        double left = fromLeft ? anchorX - width : anchorX;
+        double top = fromTop ? anchorY - height : anchorY;
+        return original with
+        {
+            Start = new ImagePoint(left, top),
+            End = new ImagePoint(left + width, top + height),
+            TextBoxWidth = width,
+            TextBoxHeight = height,
+        };
     }
 
     private static Annotation ResizeProportionalShape(Annotation original, Rect shape,

@@ -387,6 +387,45 @@
                                         SmallChange="1" SpinButtonPlacementMode="Compact" ValueChanged="NumberOption_Changed"
                                         Loaded="NumberBox_Loaded" />
                                 </StackPanel>
+                                <StackPanel x:Name="TextCharacterRow" Visibility="Collapsed" Spacing="10">
+                                    <TextBlock Text="Characters" FontWeight="SemiBold" />
+                                    <CheckBox x:Name="TextKerningChoice" Content="Kern letter pairs" IsChecked="True"
+                                        Click="Options_Changed" AutomationProperties.AutomationId="TextKerningChoice" />
+                                    <NumberBox x:Name="TextLetterSpacingChoice" Header="Letter spacing (px)" Value="0"
+                                        Minimum="0" Maximum="50" SmallChange="1" SpinButtonPlacementMode="Compact"
+                                        ValueChanged="NumberOption_Changed" Loaded="NumberBox_Loaded"
+                                        AutomationProperties.AutomationId="TextLetterSpacingChoice" />
+                                    <ComboBox x:Name="TextTransformChoice" Header="Text transform" SelectedIndex="0"
+                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed"
+                                        AutomationProperties.AutomationId="TextTransformChoice">
+                                        <ComboBoxItem Content="As typed" Tag="None" />
+                                        <ComboBoxItem Content="UPPERCASE" Tag="Uppercase" />
+                                        <ComboBoxItem Content="lowercase" Tag="Lowercase" />
+                                        <ComboBoxItem Content="Title Case" Tag="TitleCase" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel x:Name="TextBoxLayoutRow" Visibility="Collapsed" Spacing="10">
+                                    <TextBlock Text="Text box" FontWeight="SemiBold" />
+                                    <ComboBox x:Name="TextAlignmentChoice" Header="Alignment" SelectedIndex="0"
+                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed"
+                                        AutomationProperties.AutomationId="TextAlignmentChoice">
+                                        <ComboBoxItem Content="Left" Tag="Left" />
+                                        <ComboBoxItem Content="Center" Tag="Center" />
+                                        <ComboBoxItem Content="Right" Tag="Right" />
+                                        <ComboBoxItem Content="Justified" Tag="Justify" />
+                                    </ComboBox>
+                                    <ComboBox x:Name="TextTruncationChoice" Header="Overflow" SelectedIndex="0"
+                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed"
+                                        AutomationProperties.AutomationId="TextTruncationChoice">
+                                        <ComboBoxItem Content="Clip at box edge" Tag="Clip" />
+                                        <ComboBoxItem Content="End ellipsis" Tag="EndEllipsis" />
+                                    </ComboBox>
+                                    <NumberBox x:Name="TextLineHeightChoice" Header="Line height (px)" Value="0"
+                                        Minimum="0" Maximum="320" SmallChange="1" SpinButtonPlacementMode="Compact"
+                                        ValueChanged="NumberOption_Changed" Loaded="NumberBox_Loaded"
+                                        ToolTipService.ToolTip="0 uses the font's default line height"
+                                        AutomationProperties.AutomationId="TextLineHeightChoice" />
+                                </StackPanel>
                                 <StackPanel x:Name="StepSizeRow" Visibility="Collapsed">
                                     <NumberBox x:Name="StepSize" Header="Dot diameter (px)" Value="28" Minimum="16" Maximum="120"
                                         SmallChange="1" SpinButtonPlacementMode="Compact" ValueChanged="NumberOption_Changed"

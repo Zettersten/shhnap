@@ -78,6 +78,17 @@ public sealed class ShnappLibraryTests
                 Start = new ImagePoint(10.25, 20.5),
                 End = new ImagePoint(300.75, 200.125),
                 Text = "Text with \"quotes\", \\paths\\, line breaks\nand Unicode: shnapp \u2728 \u754c",
+                TextBoxWidth = kind == AnnotationKind.Text ? 290.5 : 0,
+                TextBoxHeight = kind == AnnotationKind.Text ? 179.625 : 0,
+                TextAlignment = kind == AnnotationKind.Text
+                    ? TextHorizontalAlignment.Justify : TextHorizontalAlignment.Left,
+                TextTruncation = kind == AnnotationKind.Text
+                    ? TextTruncation.EndEllipsis : TextTruncation.Clip,
+                TextLineHeight = kind == AnnotationKind.Text ? 31.5 : 0,
+                TextKerning = kind != AnnotationKind.Text,
+                TextLetterSpacing = kind == AnnotationKind.Text ? 2.25 : 0,
+                TextTransform = kind == AnnotationKind.Text
+                    ? TextTransformMode.TitleCase : TextTransformMode.None,
                 FontFamily = "Segoe UI Variable Text",
                 FontSize = 22.25,
                 FontWeight = 700,
@@ -156,8 +167,10 @@ public sealed class ShnappLibraryTests
                 TestDocuments.Annotation(AnnotationKind.Step) with { FillArgb = 0x40E5484D, StepNumber = 1 },
                 TestDocuments.Annotation(AnnotationKind.Redaction),
                 TestDocuments.Annotation(AnnotationKind.Rectangle),
+                TestDocuments.Annotation(AnnotationKind.Text) with { Text = "Legacy text" },
             ],
         };
+        Assert.IsTrue(document.Annotations[4].TextKerning);
         await temporary.Library.SaveAsync(document);
         string path = temporary.GetMetadataPath(document.Id);
         JsonObject root = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
@@ -174,6 +187,13 @@ public sealed class ShnappLibraryTests
             annotation.Remove("stepLabelFormat");
             annotation.Remove("stepReset");
             annotation.Remove("hideOutline");
+            annotation.Remove("textBoxHeight");
+            annotation.Remove("textAlignment");
+            annotation.Remove("textTruncation");
+            annotation.Remove("textLineHeight");
+            annotation.Remove("textKerningDisabled");
+            annotation.Remove("textLetterSpacing");
+            annotation.Remove("textTransform");
         }
         await File.WriteAllTextAsync(path, root.ToJsonString());
 
@@ -191,6 +211,8 @@ public sealed class ShnappLibraryTests
         Assert.AreEqual(0x40E5484Du, opened.Annotations[1].FillArgb);
         Assert.AreEqual(RedactionMode.Solid, opened.Annotations[2].RedactionMode);
         Assert.IsFalse(opened.Annotations[3].HideOutline);
+        Assert.IsTrue(opened.Annotations[4].TextKerning);
+        Assert.AreEqual(0, opened.Annotations[4].TextBoxHeight);
     }
 
     [TestMethod]

@@ -35,7 +35,7 @@ The editor gives your capture room to breathe. Place a mark and it stays selecte
 
 Paste with `Ctrl+V` to turn copied words into an editable text mark or a copied picture into a movable image. If either reaches past the capture, Shnapp grows the transparent canvas around it. Remove or move that mark and the unused space falls away.
 
-- **Text:** click to write freely across as many lines as you need, or drag out a width to wrap your words. Press Enter for another line and `Ctrl+Enter` to finish. Choose a font, weight, italic style, size, and color; double-click placed text to rewrite it.
+- **Text:** click once to write without a box; your words can grow in width or across lines. Drag to draw a fixed width and height when text needs to fit a specific space. Choose whether overflow is clipped or ends with an ellipsis, align or justify the text, and set its line height. Both styles offer font, weight, italic style, size, color, kerning, letter spacing, and case controls. Press Enter for another line, `Ctrl+Enter` to finish, or double-click placed text to rewrite it.
 - **Steps:** place dots labeled with numbers, letters, or Roman numerals. Restart the count at any dot, and adjust its size, colors, font, and weight. The next dot keeps your last size.
 - **Lines and shapes:** use one line tool for solid, dashed, or dotted strokes. Choose a cap for either end: triangle, open arrow, circle, diamond, bar, or none. Draw rectangles, squares, ellipses, and circles with adjustable outlines and fills, including fill-only shapes.
 - **Privacy:** choose Cover, Blur, or Pixelate for a rectangular area. Use opaque Cover for sensitive details; Blur and Pixelate only obscure the view.

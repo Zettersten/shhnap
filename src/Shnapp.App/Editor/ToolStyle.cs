@@ -13,6 +13,12 @@ internal sealed class ToolStyle
     internal int FontWeight { get; set; } = 600;
     internal bool Italic { get; set; }
     internal double FontSize { get; set; } = 18;
+    internal bool TextKerning { get; set; } = true;
+    internal double TextLetterSpacing { get; set; }
+    internal TextTransformMode TextTransform { get; set; }
+    internal TextHorizontalAlignment TextAlignment { get; set; }
+    internal TextTruncation TextTruncation { get; set; }
+    internal double TextLineHeight { get; set; }
     internal double StepDiameter { get; set; } = 28;
     internal bool FillShape { get; set; }
     internal double FillOpacity { get; set; } = 25;

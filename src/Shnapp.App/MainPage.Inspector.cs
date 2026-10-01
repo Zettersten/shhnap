@@ -48,6 +48,9 @@ public sealed partial class MainPage
         _editor?.Current.Annotations.FirstOrDefault(annotation =>
             annotation.Id == _selectedId && !annotation.HiddenByCrop);
 
+    private Annotation? InspectorAnnotation() =>
+        _textBox is not null && _textDraft is { } draft ? draft : SelectedAnnotation();
+
     private static EditorTool ToolFor(Annotation annotation) => annotation.Kind switch
     {
         AnnotationKind.Text => EditorTool.Text,
@@ -60,7 +63,7 @@ public sealed partial class MainPage
         _ => EditorTool.Select,
     };
 
-    private EditorTool InspectorTool() => SelectedAnnotation() is { } selected ? ToolFor(selected) : _tool;
+    private EditorTool InspectorTool() => InspectorAnnotation() is { } selected ? ToolFor(selected) : _tool;
 
     private ToolStyle StyleFor(Annotation? selected, EditorTool tool)
     {
@@ -82,6 +85,12 @@ public sealed partial class MainPage
             FontWeight = selected.FontWeight,
             Italic = selected.Italic,
             FontSize = selected.FontSize,
+            TextKerning = selected.TextKerning,
+            TextLetterSpacing = selected.TextLetterSpacing,
+            TextTransform = selected.TextTransform,
+            TextAlignment = selected.TextAlignment,
+            TextTruncation = selected.TextTruncation,
+            TextLineHeight = selected.TextLineHeight,
             StepDiameter = selected.StepDiameter,
             FillShape = selected.FillArgb != 0,
             FillOpacity = selected.FillArgb == 0 ? defaults.FillOpacity : Math.Round((selected.FillArgb >> 24) * 100.0 / 255),
@@ -102,7 +111,7 @@ public sealed partial class MainPage
             return;
         }
 
-        Annotation? selected = SelectedAnnotation();
+        Annotation? selected = InspectorAnnotation();
         EditorTool tool = selected is null ? _tool : ToolFor(selected);
         ToolStyle style = StyleFor(selected, tool);
         bool text = tool == EditorTool.Text;
@@ -111,15 +120,23 @@ public sealed partial class MainPage
         bool shape = tool is EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle;
         bool redaction = tool == EditorTool.Redaction;
         bool styleable = text || step || line || shape;
+        bool fixedTextBox = selected is { Kind: AnnotationKind.Text, TextBoxWidth: > 0, TextBoxHeight: > 0 };
+        bool editingText = _textBox is not null && _textDraft is not null;
 
         _updatingOptions = true;
-        InspectorTitle.Text = redaction
+        InspectorTitle.Text = editingText ? "Editing text" : redaction
             ? selected is null ? RedactionModeLabel(style.RedactionMode) : $"Selected {RedactionModeLabel(style.RedactionMode).ToLowerInvariant()}"
             : selected is null ? tool.ToString() : line ? "Selected line" : $"Selected {selected.Kind.ToString().ToLowerInvariant()}";
-        InspectorHelp.Text = redaction
+        InspectorHelp.Text = editingText
+            ? fixedTextBox
+                ? "Text stays within the drawn box. Set alignment and overflow here. Press Ctrl+Enter to finish."
+                : "Text grows as you type. Press Ctrl+Enter to finish."
+            : redaction
             ? selected is null
                 ? "Drag to apply. Cover fully hides pixels in shared images; blur and pixelate obscure them."
                 : "Change the mode, drag handles to resize, or use arrow keys to nudge. Use Cover for private details."
+            : fixedTextBox
+                ? "Text stays within this box. Resize with the handles; choose alignment, overflow and line height below."
             : selected is null
                 ? ToolHint()
                 : "Change options here, drag to move, or use arrow keys to nudge (Shift: 10 px). Drag handles to resize.";
@@ -132,6 +149,8 @@ public sealed partial class MainPage
         FontWeightRow.Visibility = Visible(text || step);
         ItalicRow.Visibility = Visible(text);
         FontSizeRow.Visibility = Visible(text || step);
+        TextCharacterRow.Visibility = Visible(text);
+        TextBoxLayoutRow.Visibility = Visible(fixedTextBox);
         StepSizeRow.Visibility = Visible(step);
         StepLabelRow.Visibility = Visible(step);
         OutlineToggleRow.Visibility = Visible(shape);
@@ -159,6 +178,9 @@ public sealed partial class MainPage
         StrokeSize.IsEnabled = !shape || style.OutlineShape;
         PrimaryColorButton.IsEnabled = !shape || style.OutlineShape;
         FontSizeChoice.Value = style.FontSize;
+        TextKerningChoice.IsChecked = style.TextKerning;
+        TextLetterSpacingChoice.Value = style.TextLetterSpacing;
+        TextLineHeightChoice.Value = style.TextLineHeight;
         StepSize.Value = style.StepDiameter;
         FillOpacityChoice.Value = style.FillOpacity;
         FillShape.IsChecked = style.FillShape;
@@ -174,6 +196,9 @@ public sealed partial class MainPage
         SelectComboValue(RedactionModeChoice, style.RedactionMode.ToString());
         SelectComboValue(FontFamilyChoice, style.FontFamily);
         SelectComboValue(FontWeightChoice, style.FontWeight.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SelectComboValue(TextTransformChoice, style.TextTransform.ToString());
+        SelectComboValue(TextAlignmentChoice, style.TextAlignment.ToString());
+        SelectComboValue(TextTruncationChoice, style.TextTruncation.ToString());
         _updatingOptions = false;
     }
 
@@ -210,7 +235,7 @@ public sealed partial class MainPage
 
         EditorTool tool = InspectorTool();
         ToolStyle style = _toolStyles[tool];
-        ToolStyle current = StyleFor(SelectedAnnotation(), tool);
+        ToolStyle current = StyleFor(InspectorAnnotation(), tool);
         if (ReferenceEquals(sender, StrokeSize))
         {
             style.StrokeWidth = Math.Clamp(FiniteValue(StrokeSize.Value, 3), 1, 24);
@@ -220,6 +245,49 @@ public sealed partial class MainPage
         {
             style.FontSize = Math.Clamp(FiniteValue(FontSizeChoice.Value, 18), 8, 144);
             UpdateSelected(annotation => annotation with { FontSize = style.FontSize });
+        }
+        else if (ReferenceEquals(sender, TextKerningChoice))
+        {
+            style.TextKerning = TextKerningChoice.IsChecked == true;
+            UpdateSelected(annotation => annotation with { TextKerning = style.TextKerning });
+        }
+        else if (ReferenceEquals(sender, TextLetterSpacingChoice))
+        {
+            style.TextLetterSpacing = Math.Clamp(FiniteValue(TextLetterSpacingChoice.Value, 0), 0, 50);
+            UpdateSelected(annotation => annotation with { TextLetterSpacing = style.TextLetterSpacing });
+        }
+        else if (ReferenceEquals(sender, TextTransformChoice) &&
+            TextTransformChoice.SelectedItem is ComboBoxItem transformChoice &&
+            Enum.TryParse(transformChoice.Tag?.ToString(), out TextTransformMode textTransform))
+        {
+            style.TextTransform = textTransform;
+            UpdateSelected(annotation => annotation with { TextTransform = textTransform });
+        }
+        else if (ReferenceEquals(sender, TextAlignmentChoice) &&
+            TextAlignmentChoice.SelectedItem is ComboBoxItem alignmentChoice &&
+            Enum.TryParse(alignmentChoice.Tag?.ToString(), out TextHorizontalAlignment textAlignment))
+        {
+            style.TextAlignment = textAlignment;
+            UpdateSelected(annotation => annotation with { TextAlignment = textAlignment });
+        }
+        else if (ReferenceEquals(sender, TextTruncationChoice) &&
+            TextTruncationChoice.SelectedItem is ComboBoxItem truncationChoice &&
+            Enum.TryParse(truncationChoice.Tag?.ToString(), out TextTruncation textTruncation))
+        {
+            style.TextTruncation = textTruncation;
+            UpdateSelected(annotation => annotation with { TextTruncation = textTruncation });
+        }
+        else if (ReferenceEquals(sender, TextLineHeightChoice))
+        {
+            double requested = Math.Clamp(FiniteValue(TextLineHeightChoice.Value, 0), 0, 320);
+            style.TextLineHeight = requested == 0 ? 0 : Math.Max(8, requested);
+            if (TextLineHeightChoice.Value != style.TextLineHeight)
+            {
+                _updatingOptions = true;
+                TextLineHeightChoice.Value = style.TextLineHeight;
+                _updatingOptions = false;
+            }
+            UpdateSelected(annotation => annotation with { TextLineHeight = style.TextLineHeight });
         }
         else if (ReferenceEquals(sender, StepSize))
         {
@@ -391,7 +459,7 @@ public sealed partial class MainPage
 
         EditorTool tool = InspectorTool();
         ToolStyle style = _toolStyles[tool];
-        ToolStyle current = StyleFor(SelectedAnnotation(), tool);
+        ToolStyle current = StyleFor(InspectorAnnotation(), tool);
         uint argb = 0xFF000000 | ((uint)color.R << 16) | ((uint)color.G << 8) | color.B;
         if (sender == PrimaryColorPicker)
         {
@@ -420,6 +488,19 @@ public sealed partial class MainPage
 
     private void UpdateSelected(Func<Annotation, Annotation> change)
     {
+        if (_textBox is not null && _textDraft is { } draft)
+        {
+            Annotation updatedDraft = change(draft);
+            if (updatedDraft != draft)
+            {
+                _textDraft = updatedDraft;
+                RefreshActiveTextEditorStyle();
+                UpdateInspector();
+            }
+
+            return;
+        }
+
         Annotation? selected = SelectedAnnotation();
         if (selected is not null)
         {

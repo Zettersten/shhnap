@@ -563,6 +563,25 @@ public sealed class DocumentEditorTests
             valid with { FontWeight = 901 },
             valid with { FontFamily = " " },
             valid with { Text = null! },
+            valid with { TextAlignment = (TextHorizontalAlignment)99 },
+            valid with { TextTruncation = (TextTruncation)99 },
+            valid with { TextTransform = (TextTransformMode)99 },
+            valid with { TextBoxWidth = 47 },
+            valid with { TextBoxHeight = 24 },
+            valid with { TextBoxWidth = 48, TextBoxHeight = 23 },
+            valid with { TextBoxWidth = 48, TextBoxHeight = double.PositiveInfinity },
+            TestDocuments.Annotation(AnnotationKind.Text) with
+            {
+                TextBoxWidth = 48,
+                TextBoxHeight = 24,
+                End = new ImagePoint(59, 44),
+            },
+            valid with { TextLineHeight = 7 },
+            valid with { TextLineHeight = 321 },
+            valid with { TextLineHeight = double.NaN },
+            valid with { TextLetterSpacing = -0.1 },
+            valid with { TextLetterSpacing = 50.1 },
+            valid with { TextLetterSpacing = double.NaN },
         ];
         var editor = new DocumentEditor(TestDocuments.Create());
         foreach (Annotation annotation in invalid)

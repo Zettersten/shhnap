@@ -100,6 +100,7 @@ public sealed class DocumentEditor(ShnappDocument document)
         bool boundsChanged = annotation.Kind != previous.Kind || annotation.Start != previous.Start ||
             annotation.End != previous.End || annotation.StepDiameter != previous.StepDiameter ||
             annotation.TextBoxWidth != previous.TextBoxWidth ||
+            annotation.TextBoxHeight != previous.TextBoxHeight ||
             annotation.VisibilityClip != previous.VisibilityClip ||
             annotation.HiddenByCrop != previous.HiddenByCrop;
         Commit(boundsChanged ? TrimCanvasToContent(next) : next);

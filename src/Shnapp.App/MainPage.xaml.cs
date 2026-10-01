@@ -255,8 +255,8 @@ public sealed partial class MainPage : Page
         {
             double left = Math.Min(textStart.X, textEnd.X);
             double top = Math.Min(textStart.Y, textEnd.Y);
-            double width = Math.Max(48, Math.Abs(textEnd.X - textStart.X));
-            double height = 28 / _scale;
+            double width = Math.Clamp(Math.Abs(textEnd.X - textStart.X), 48, 12000);
+            double height = Math.Clamp(Math.Abs(textEnd.Y - textStart.Y), 24, 12000);
             Rect textFrame = new(left, top, width, height);
             drawing.FillRectangle(textFrame, Color.FromArgb(36, 42, 138, 245));
             drawing.DrawRectangle(textFrame, Colors.DodgerBlue, (float)(2 / _scale));
@@ -488,13 +488,14 @@ public sealed partial class MainPage : Page
             _textDragStart = null;
             _textDragEnd = null;
             DrawingCanvas.ReleasePointerCapture(args.Pointer);
-            bool wrapped = Math.Max(Math.Abs(end.X - textStart.X),
+            bool bounded = Math.Max(Math.Abs(end.X - textStart.X),
                 Math.Abs(end.Y - textStart.Y)) * _scale >= 8;
-            ImagePoint origin = wrapped
+            ImagePoint origin = bounded
                 ? new(Math.Min(textStart.X, end.X), Math.Min(textStart.Y, end.Y))
                 : textStart;
-            double width = wrapped ? Math.Clamp(Math.Abs(end.X - textStart.X), 48, 12000) : 0;
-            StartText(origin, width: width);
+            double width = bounded ? Math.Clamp(Math.Abs(end.X - textStart.X), 48, 12000) : 0;
+            double height = bounded ? Math.Clamp(Math.Abs(end.Y - textStart.Y), 24, 12000) : 0;
+            StartText(origin, width: width, height: height);
             DrawingCanvas.Invalidate();
             args.Handled = true;
             return;
@@ -643,6 +644,12 @@ public sealed partial class MainPage : Page
             FontSize = style.FontSize,
             FontWeight = style.FontWeight,
             Italic = style.Italic,
+            TextKerning = style.TextKerning,
+            TextLetterSpacing = style.TextLetterSpacing,
+            TextTransform = style.TextTransform,
+            TextAlignment = style.TextAlignment,
+            TextTruncation = style.TextTruncation,
+            TextLineHeight = style.TextLineHeight,
             StepDiameter = style.StepDiameter,
             StepTextArgb = style.Secondary,
             StartArrow = style.StartArrow,
@@ -668,16 +675,29 @@ public sealed partial class MainPage : Page
             Math.Max(1, bounds.Height) + tolerance * 2);
     }
 
-    private void StartText(ImagePoint point, Annotation? existing = null, double width = 0)
+    private void StartText(ImagePoint point, Annotation? existing = null, double width = 0, double height = 0)
     {
         _textOrigin = point;
         _textEditId = existing?.Id;
-        _textDraft = existing ?? NewAnnotation(AnnotationKind.Text, point) with { TextBoxWidth = width };
+        _textDraft = existing ?? NewAnnotation(AnnotationKind.Text, point) with
+        {
+            TextBoxWidth = width,
+            TextBoxHeight = height,
+        };
+        bool fixedBox = _textDraft.TextBoxWidth > 0 && _textDraft.TextBoxHeight > 0;
+        ToolStyle style = StyleFor(existing, EditorTool.Text);
+        double editScale = fixedBox ? _scale : Math.Max(_scale, 12 / Math.Max(8, style.FontSize));
         Vector2 position = Vector2.Transform(new((float)point.X, (float)point.Y), ImageTransform());
         // Pan just enough to keep the live editor on screen when text begins at
         // the right or bottom edge. The annotation itself stays at the clicked point.
-        double editorLeftLimit = Math.Max(0, DrawingCanvas.ActualWidth - 180);
-        double editorTopLimit = Math.Max(0, DrawingCanvas.ActualHeight - 80);
+        double visibleEditorWidth = fixedBox
+            ? Math.Min(_textDraft.TextBoxWidth * editScale, Math.Max(0, DrawingCanvas.ActualWidth - 12))
+            : 180;
+        double visibleEditorHeight = fixedBox
+            ? Math.Min(_textDraft.TextBoxHeight * editScale, Math.Max(0, DrawingCanvas.ActualHeight - 12))
+            : 80;
+        double editorLeftLimit = Math.Max(0, DrawingCanvas.ActualWidth - visibleEditorWidth);
+        double editorTopLimit = Math.Max(0, DrawingCanvas.ActualHeight - visibleEditorHeight);
         double shiftX = Math.Max(0, position.X - editorLeftLimit);
         double shiftY = Math.Max(0, position.Y - editorTopLimit);
         if (shiftX > 0 || shiftY > 0)
@@ -687,22 +707,27 @@ public sealed partial class MainPage : Page
             position -= new Vector2((float)shiftX, (float)shiftY);
             DrawingCanvas.Invalidate();
         }
-        ToolStyle style = StyleFor(existing, EditorTool.Text);
-        double editScale = Math.Max(_scale, 12 / Math.Max(8, style.FontSize));
         _textBox = new TextBox
         {
             Text = existing?.Text ?? string.Empty,
             PlaceholderText = "Type here · Ctrl+Enter to finish",
             AcceptsReturn = true,
             TextWrapping = _textDraft.TextBoxWidth > 0 ? TextWrapping.Wrap : TextWrapping.NoWrap,
-            MinWidth = 64,
-            MinHeight = 40,
+            TextAlignment = (fixedBox ? _textDraft.TextAlignment : TextHorizontalAlignment.Left) switch
+            {
+                TextHorizontalAlignment.Center => TextAlignment.Center,
+                TextHorizontalAlignment.Right => TextAlignment.Right,
+                TextHorizontalAlignment.Justify => TextAlignment.Justify,
+                _ => TextAlignment.Left,
+            },
+            MinWidth = fixedBox ? 0 : 64,
+            MinHeight = fixedBox ? 0 : 40,
             FontFamily = new FontFamily(style.FontFamily),
             FontSize = style.FontSize * editScale,
             FontWeight = new FontWeight { Weight = (ushort)style.FontWeight },
             FontStyle = style.Italic ? FontStyle.Italic : FontStyle.Normal,
             Foreground = new SolidColorBrush(ShnappRenderer.FromArgb(style.Primary)),
-            Padding = new Thickness(8, 5, 8, 5),
+            Padding = fixedBox ? new Thickness(0) : new Thickness(8, 5, 8, 5),
         };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_textBox, "Annotation text");
         Canvas.SetLeft(_textBox, position.X);
@@ -732,7 +757,19 @@ public sealed partial class MainPage : Page
             }
         };
         _textBox.TextChanged += (_, _) => UpdateTextEditorSize();
-        _textBox.LostFocus += (_, _) => CommitText();
+        TextBox activeTextBox = _textBox;
+        _textBox.LostFocus += (_, _) =>
+        {
+            // Inspector controls take focus while the text is still being styled.
+            // Wait for focus to settle so their change events can edit the draft.
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (ReferenceEquals(_textBox, activeTextBox) && !FocusIsInTextInspector())
+                {
+                    CommitText();
+                }
+            });
+        };
         TextOverlay.Children.Add(_textBox);
         UpdateTextEditorSize();
         _textBox.Focus(FocusState.Programmatic);
@@ -740,6 +777,50 @@ public sealed partial class MainPage : Page
         {
             _textBox.SelectAll();
         }
+
+        UpdateInspector();
+    }
+
+    private bool FocusIsInTextInspector()
+    {
+        DependencyObject? focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
+        while (focused is not null)
+        {
+            if (ReferenceEquals(focused, EditorSplitView.Pane) || focused is ColorPicker)
+            {
+                return true;
+            }
+
+            focused = VisualTreeHelper.GetParent(focused);
+        }
+
+        return false;
+    }
+
+    private void RefreshActiveTextEditorStyle()
+    {
+        if (_textBox is null || _textDraft is null)
+        {
+            return;
+        }
+
+        Annotation draft = _textDraft;
+        bool fixedBox = draft.TextBoxWidth > 0 && draft.TextBoxHeight > 0;
+        double editScale = fixedBox ? _scale : Math.Max(_scale, 12 / Math.Max(8, draft.FontSize));
+        _textBox.FontFamily = new FontFamily(draft.FontFamily);
+        _textBox.FontSize = draft.FontSize * editScale;
+        _textBox.FontWeight = new FontWeight { Weight = (ushort)draft.FontWeight };
+        _textBox.FontStyle = draft.Italic ? FontStyle.Italic : FontStyle.Normal;
+        _textBox.Foreground = new SolidColorBrush(ShnappRenderer.FromArgb(draft.StrokeArgb));
+        _textBox.TextAlignment = (fixedBox ? draft.TextAlignment : TextHorizontalAlignment.Left) switch
+        {
+            TextHorizontalAlignment.Center => TextAlignment.Center,
+            TextHorizontalAlignment.Right => TextAlignment.Right,
+            TextHorizontalAlignment.Justify => TextAlignment.Justify,
+            _ => TextAlignment.Left,
+        };
+        _textBox.TextWrapping = draft.TextBoxWidth > 0 ? TextWrapping.Wrap : TextWrapping.NoWrap;
+        UpdateTextEditorSize();
     }
 
     private void UpdateTextEditorSize()
@@ -752,6 +833,15 @@ public sealed partial class MainPage : Page
         Annotation preview = _textDraft with { Text = _textBox.Text };
         Rect measured = _controller.Renderer.MeasureTextBounds(preview);
         double editScale = _textBox.FontSize / preview.FontSize;
+        if (preview.TextBoxWidth > 0 && preview.TextBoxHeight > 0)
+        {
+            // The live editor keeps the exact box drawn on the canvas. Overflow
+            // stays editable here and is clipped or ellipsized in the finished layer.
+            _textBox.Width = Math.Max(1, preview.TextBoxWidth * editScale);
+            _textBox.Height = Math.Max(1, preview.TextBoxHeight * editScale);
+            return;
+        }
+
         double left = Canvas.GetLeft(_textBox);
         double top = Canvas.GetTop(_textBox);
         double availableWidth = Math.Max(80, DrawingCanvas.ActualWidth - left - 12);
@@ -764,6 +854,15 @@ public sealed partial class MainPage : Page
 
     private Annotation MeasureTextAnnotation(Annotation annotation)
     {
+        if (annotation.TextBoxWidth > 0 && annotation.TextBoxHeight > 0)
+        {
+            return annotation with
+            {
+                End = new ImagePoint(annotation.Start.X + annotation.TextBoxWidth,
+                    annotation.Start.Y + annotation.TextBoxHeight),
+            };
+        }
+
         Rect bounds = _controller!.Renderer.MeasureTextBounds(annotation);
         return annotation with
         {
@@ -778,7 +877,8 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        string text = _textBox.Text;
+        string text = _textBox.Text.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n');
         Guid? editId = _textEditId;
         Annotation? draft = _textDraft;
         CancelText();
@@ -814,6 +914,8 @@ public sealed partial class MainPage : Page
             {
                 _editor.AddAnnotation(annotation);
                 _selectedId = annotation.Id;
+                UpdateInspector();
+                DrawingCanvas.Invalidate();
             }
             catch (ArgumentException exception)
             {
@@ -833,6 +935,7 @@ public sealed partial class MainPage : Page
             TextOverlay.Children.Remove(textBox);
             ClampCanvasPan();
             DrawingCanvas.Invalidate();
+            UpdateInspector();
         }
     }
 
@@ -904,7 +1007,7 @@ public sealed partial class MainPage : Page
     private string ToolHint() => _tool switch
     {
         EditorTool.Select => "Select to move · Drag handles to resize · Ctrl+V pastes text or images · Arrow keys nudge 1 px (Shift: 10 px) · Delete removes",
-        EditorTool.Text => "Click to type freely · Drag for wrapped text · Enter adds a line · Ctrl+Enter finishes",
+        EditorTool.Text => "Click to type freely · Drag a fixed text box · Enter adds a line · Ctrl+Enter finishes",
         EditorTool.Step => "Click to place the next numbered step",
         EditorTool.Redaction => "Drag to obscure an area · Solid fully masks; blur and pixelate soften detail",
         EditorTool.Crop => "Drag or enter a crop · Pick a ratio · Enter confirms · Esc cancels",

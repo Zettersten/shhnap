@@ -75,6 +75,31 @@ public enum StepLabelFormat
     LowerRoman,
 }
 
+/// <summary>Horizontal placement of text inside a fixed text box.</summary>
+public enum TextHorizontalAlignment
+{
+    Left,
+    Center,
+    Right,
+    Justify,
+}
+
+/// <summary>How text that exceeds a fixed text box is shown.</summary>
+public enum TextTruncation
+{
+    Clip,
+    EndEllipsis,
+}
+
+/// <summary>A visual case change that leaves the editable text untouched.</summary>
+public enum TextTransformMode
+{
+    None,
+    Uppercase,
+    Lowercase,
+    TitleCase,
+}
+
 /// <summary>A canvas-pixel position anchored to the original image at (0, 0), never window DIPs.</summary>
 /// <param name="X">Horizontal coordinate.</param>
 /// <param name="Y">Vertical coordinate.</param>
@@ -177,8 +202,47 @@ public sealed record Annotation
     public string Text { get; init; } = string.Empty;
 
     /// <summary>Gets the text wrap width in source pixels; zero lets each line grow freely.</summary>
+    /// <remarks>With <see cref="TextBoxHeight"/>, this is a fixed box. Older width-only
+    /// documents retain their unbounded-height wrapped text.</remarks>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public double TextBoxWidth { get; init; }
+
+    /// <summary>Gets the fixed text box height in source pixels; zero allows vertical growth.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double TextBoxHeight { get; init; }
+
+    /// <summary>Gets horizontal alignment inside a fixed text box.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public TextHorizontalAlignment TextAlignment { get; init; }
+
+    /// <summary>Gets how excess text is shown inside a fixed text box.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public TextTruncation TextTruncation { get; init; }
+
+    /// <summary>Gets the fixed text line height in source pixels; zero uses the font default.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double TextLineHeight { get; init; }
+
+    /// <summary>Gets whether OpenType kerning is enabled for text.</summary>
+    /// <remarks>Older documents omit this option and keep native font kerning enabled.</remarks>
+    [JsonIgnore]
+    public bool TextKerning
+    {
+        get => !TextKerningDisabled;
+        init => TextKerningDisabled = !value;
+    }
+
+    /// <summary>Gets the stored opt-out from native font kerning.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool TextKerningDisabled { get; init; }
+
+    /// <summary>Gets extra spacing after each character in source pixels.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double TextLetterSpacing { get; init; }
+
+    /// <summary>Gets the visual case change applied while rendering text.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public TextTransformMode TextTransform { get; init; }
 
     /// <summary>Gets the pasted PNG encoded in base64 for an image annotation.</summary>
     /// <remarks>The payload lives in the editable document so it survives undo, save, and reopening.</remarks>
