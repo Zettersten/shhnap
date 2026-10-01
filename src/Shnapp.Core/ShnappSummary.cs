@@ -6,5 +6,6 @@ namespace Shnapp.Core;
 /// <param name="CreatedAt">When the capture was created.</param>
 /// <param name="CaptureKind">The type of screen capture.</param>
 /// <param name="Viewport">The visible canvas bounds in source pixels.</param>
+/// <param name="ModifiedAt">When the editable shnapp was last saved.</param>
 public sealed record ShnappSummary(Guid Id, string Title, DateTimeOffset CreatedAt,
-    CaptureKind CaptureKind, ImageRect Viewport);
+    CaptureKind CaptureKind, ImageRect Viewport, DateTimeOffset ModifiedAt);

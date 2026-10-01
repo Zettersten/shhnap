@@ -66,9 +66,60 @@
                     </Grid>
                 </StackPanel>
             </CommandBar.Content>
-            <AppBarButton Label="New shnapp" Icon="Camera" Foreground="{ThemeResource ShnappBlueBrush}"
+            <AppBarButton Label="New shnapp" Icon="Camera" CornerRadius="8"
                 ToolTipService.ToolTip="Capture a window, display, or region"
                 AutomationProperties.AutomationId="NewShnapp">
+                <AppBarButton.Resources>
+                    <ResourceDictionary>
+                        <ResourceDictionary.ThemeDictionaries>
+                            <ResourceDictionary x:Key="Light">
+                                <ImageBrush x:Key="AppBarButtonBackground" Stretch="Fill">
+                                    <ImageBrush.ImageSource><SvgImageSource UriSource="ms-appx:///Assets/NewShnappButton.svg" /></ImageBrush.ImageSource>
+                                </ImageBrush>
+                                <ImageBrush x:Key="AppBarButtonBackgroundPointerOver" Stretch="Fill">
+                                    <ImageBrush.ImageSource><SvgImageSource UriSource="ms-appx:///Assets/NewShnappButtonHover.svg" /></ImageBrush.ImageSource>
+                                </ImageBrush>
+                                <ImageBrush x:Key="AppBarButtonBackgroundPressed" Stretch="Fill">
+                                    <ImageBrush.ImageSource><SvgImageSource UriSource="ms-appx:///Assets/NewShnappButtonPressed.svg" /></ImageBrush.ImageSource>
+                                </ImageBrush>
+                                <SolidColorBrush x:Key="AppBarButtonForeground" Color="White" />
+                                <SolidColorBrush x:Key="AppBarButtonForegroundPointerOver" Color="White" />
+                                <SolidColorBrush x:Key="AppBarButtonForegroundPressed" Color="White" />
+                                <SolidColorBrush x:Key="AppBarButtonSubItemChevronForeground" Color="White" />
+                                <SolidColorBrush x:Key="AppBarButtonSubItemChevronForegroundPointerOver" Color="White" />
+                                <SolidColorBrush x:Key="AppBarButtonSubItemChevronForegroundPressed" Color="White" />
+                            </ResourceDictionary>
+                            <ResourceDictionary x:Key="Default">
+                                <ImageBrush x:Key="AppBarButtonBackground" Stretch="Fill">
+                                    <ImageBrush.ImageSource><SvgImageSource UriSource="ms-appx:///Assets/NewShnappButton.svg" /></ImageBrush.ImageSource>
+                                </ImageBrush>
+                                <ImageBrush x:Key="AppBarButtonBackgroundPointerOver" Stretch="Fill">
+                                    <ImageBrush.ImageSource><SvgImageSource UriSource="ms-appx:///Assets/NewShnappButtonHover.svg" /></ImageBrush.ImageSource>
+                                </ImageBrush>
+                                <ImageBrush x:Key="AppBarButtonBackgroundPressed" Stretch="Fill">
+                                    <ImageBrush.ImageSource><SvgImageSource UriSource="ms-appx:///Assets/NewShnappButtonPressed.svg" /></ImageBrush.ImageSource>
+                                </ImageBrush>
+                                <SolidColorBrush x:Key="AppBarButtonForeground" Color="White" />
+                                <SolidColorBrush x:Key="AppBarButtonForegroundPointerOver" Color="White" />
+                                <SolidColorBrush x:Key="AppBarButtonForegroundPressed" Color="White" />
+                                <SolidColorBrush x:Key="AppBarButtonSubItemChevronForeground" Color="White" />
+                                <SolidColorBrush x:Key="AppBarButtonSubItemChevronForegroundPointerOver" Color="White" />
+                                <SolidColorBrush x:Key="AppBarButtonSubItemChevronForegroundPressed" Color="White" />
+                            </ResourceDictionary>
+                            <ResourceDictionary x:Key="HighContrast">
+                                <SolidColorBrush x:Key="AppBarButtonBackground" Color="{ThemeResource SystemColorHighlightColor}" />
+                                <SolidColorBrush x:Key="AppBarButtonBackgroundPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+                                <SolidColorBrush x:Key="AppBarButtonBackgroundPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+                                <SolidColorBrush x:Key="AppBarButtonForeground" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                <SolidColorBrush x:Key="AppBarButtonForegroundPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                <SolidColorBrush x:Key="AppBarButtonForegroundPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                <SolidColorBrush x:Key="AppBarButtonSubItemChevronForeground" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                <SolidColorBrush x:Key="AppBarButtonSubItemChevronForegroundPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                <SolidColorBrush x:Key="AppBarButtonSubItemChevronForegroundPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                            </ResourceDictionary>
+                        </ResourceDictionary.ThemeDictionaries>
+                    </ResourceDictionary>
+                </AppBarButton.Resources>
                 <AppBarButton.Flyout>
                     <MenuFlyout>
                         <MenuFlyoutItem Text="Window" Tag="Window" Click="Capture_Click">
@@ -618,11 +669,13 @@
                     AutomationProperties.Name="Saved shnapps grid" AutomationProperties.AutomationId="ShnappLibrary">
                     <GridView.Resources>
                         <SolidColorBrush x:Key="GridViewItemBackgroundPointerOver" Color="Transparent" />
+                        <SolidColorBrush x:Key="GridViewItemBackgroundPressed" Color="Transparent" />
                     </GridView.Resources>
                     <GridView.ItemContainerStyle>
                         <Style TargetType="GridViewItem">
                             <Setter Property="Padding" Value="0" />
                             <Setter Property="Margin" Value="0" />
+                            <Setter Property="FocusVisualMargin" Value="0" />
                         </Style>
                     </GridView.ItemContainerStyle>
                     <GridView.ItemsPanel>
@@ -643,8 +696,8 @@
                                             Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
                                             Tapped="LibraryPreview_Tapped" />
                                     </Border>
-                                    <CheckBox Width="32" MinWidth="0" Height="32" Padding="0" Margin="0,6,6,0"
-                                        HorizontalAlignment="Right" VerticalAlignment="Top" Tag="{x:Bind}"
+                                    <CheckBox Width="32" MinWidth="0" Height="32" Padding="0" Margin="0,0,6,6"
+                                        HorizontalAlignment="Right" VerticalAlignment="Bottom" Tag="{x:Bind}"
                                         IsChecked="{x:Bind IsSelected, Mode=OneWay}"
                                         Visibility="{x:Bind GridSelectionVisibility, Mode=OneWay}"
                                         Checked="LibrarySelectionCheck_Changed" Unchecked="LibrarySelectionCheck_Changed"
@@ -665,7 +718,7 @@
                     </GridView.ItemTemplate>
                 </GridView>
                 <ListView x:Name="LibraryList" ItemsSource="{x:Bind ViewModel.Library}" Visibility="Collapsed"
-                    Padding="0,0,0,64" ScrollViewer.VerticalScrollBarVisibility="Hidden"
+                    Margin="-4,0,-4,0" Padding="0,0,0,64" ScrollViewer.VerticalScrollBarVisibility="Hidden"
                     SelectionMode="None" IsItemClickEnabled="True" ItemClick="LibraryCard_ItemClick"
                     ContainerContentChanging="Library_ContainerContentChanging"
                     AutomationProperties.Name="Saved shnapps list" AutomationProperties.AutomationId="ShnappLibraryList">
@@ -673,7 +726,7 @@
                         <Style TargetType="ListViewItem">
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             <Setter Property="Padding" Value="0" />
-                            <Setter Property="Margin" Value="0" />
+                            <Setter Property="Margin" Value="4,0,4,0" />
                         </Style>
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>

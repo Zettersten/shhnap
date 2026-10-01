@@ -181,17 +181,23 @@ internal sealed partial class AppController
 
         bool wasVisible = NativeMethods.IsWindowVisible(App.WindowHandle);
         CanvasBitmap? bitmap = null;
+        Task? previousSave = null;
         _activeCapture = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         CancellationToken cancellationToken = _activeCapture.Token;
         NativeMethods.GetCursorPos(out NativeMethods.Point pointer);
+        DateTimeOffset capturedAt = DateTimeOffset.Now;
         var watch = Stopwatch.StartNew();
         try
         {
-            _page.CommitText();
             _saveTimer.Stop();
-            await SaveCurrentAsync();
-            _window.AppWindow.Hide();
-            await Task.Delay(100, cancellationToken);
+            // Capture first: saving the current document can take longer than a changing
+            // desktop frame. A visible editor must leave the screen before its first frame.
+            if (wasVisible)
+            {
+                _window.AppWindow.Hide();
+                await Task.Delay(50, cancellationToken);
+            }
+
             string title;
             if (kind == CaptureKind.FullScreen)
             {
@@ -199,6 +205,8 @@ internal sealed partial class AppController
                 bitmap = await _capture.MonitorAsync(monitor, cancellationToken);
                 MonitorTarget display = NativeMethods.Monitors().FirstOrDefault(target => target.Handle == monitor)
                     ?? throw new InvalidOperationException("The selected display is no longer available.");
+                _page.CommitText();
+                previousSave = SaveCurrentAsync();
                 using (var preview = new SelectionWindow(bitmap, display.Bounds, null, previewDisplay: true))
                 {
                     if (await preview.PickAsync(cancellationToken) is null)
@@ -212,10 +220,16 @@ internal sealed partial class AppController
             }
             else
             {
-                IReadOnlyList<WindowTarget>? windows = kind == CaptureKind.Window ? NativeMethods.Windows(App.WindowHandle) : null;
                 (CanvasBitmap desktop, NativeMethods.Rect bounds) = await _capture.DesktopAsync(cancellationToken);
                 using (desktop)
                 {
+                    // The picker and finished image share one desktop snapshot. In window mode
+                    // this intentionally captures the pixels visible at invocation, including
+                    // any overlapping window, instead of recapturing a later live window frame.
+                    IReadOnlyList<WindowTarget>? windows = kind == CaptureKind.Window
+                        ? NativeMethods.Windows(App.WindowHandle) : null;
+                    _page.CommitText();
+                    previousSave = SaveCurrentAsync();
                     CaptureSelection? selection;
                     using (var picker = new SelectionWindow(desktop, bounds, windows))
                     {
@@ -230,18 +244,16 @@ internal sealed partial class AppController
 
                     if (selection.Window is WindowTarget window)
                     {
-                        await Task.Delay(60, cancellationToken);
-                        bitmap = await _capture.WindowAsync(window.Handle, cancellationToken);
+                        bitmap = CropSnapshot(desktop, new ImageRect(
+                            (double)window.Bounds.Left - bounds.Left,
+                            (double)window.Bounds.Top - bounds.Top,
+                            window.Bounds.Width,
+                            window.Bounds.Height));
                         title = window.Title;
                     }
                     else if (selection.Region is ImageRect region)
                     {
-                        int left = (int)Math.Floor(region.X);
-                        int top = (int)Math.Floor(region.Y);
-                        int width = (int)Math.Ceiling(region.Right) - left;
-                        int height = (int)Math.Ceiling(region.Bottom) - top;
-                        bitmap = CanvasBitmap.CreateFromBytes(_device, desktop.GetPixelBytes(left, top, width, height),
-                            width, height, DirectXPixelFormat.B8G8R8A8UIntNormalized, 96, CanvasAlphaMode.Premultiplied);
+                        bitmap = CropSnapshot(desktop, region);
                         title = "Free-form shnapp";
                     }
                     else
@@ -251,9 +263,14 @@ internal sealed partial class AppController
                 }
             }
 
+            if (previousSave is not null)
+            {
+                await previousSave;
+            }
             var document = new ShnappDocument
             {
-                Title = title + $" · {DateTime.Now:MMM d, HH:mm}",
+                Title = title + $" · {capturedAt:MMM d, HH:mm}",
+                CreatedAt = capturedAt,
                 CaptureKind = kind,
                 PixelWidth = checked((int)bitmap.SizeInPixels.Width),
                 PixelHeight = checked((int)bitmap.SizeInPixels.Height),
@@ -276,11 +293,40 @@ internal sealed partial class AppController
         }
         finally
         {
-            bitmap?.Dispose();
-            _activeCapture.Dispose();
-            _activeCapture = null;
-            _captureGate.Release();
+            try
+            {
+                if (previousSave is not null)
+                {
+                    await previousSave;
+                }
+            }
+            finally
+            {
+                bitmap?.Dispose();
+                _activeCapture.Dispose();
+                _activeCapture = null;
+                _captureGate.Release();
+            }
         }
+    }
+
+    private CanvasBitmap CropSnapshot(CanvasBitmap snapshot, ImageRect region)
+    {
+        int sourceWidth = checked((int)snapshot.SizeInPixels.Width);
+        int sourceHeight = checked((int)snapshot.SizeInPixels.Height);
+        int left = Math.Clamp((int)Math.Floor(region.X), 0, sourceWidth);
+        int top = Math.Clamp((int)Math.Floor(region.Y), 0, sourceHeight);
+        int right = Math.Clamp((int)Math.Ceiling(region.Right), 0, sourceWidth);
+        int bottom = Math.Clamp((int)Math.Ceiling(region.Bottom), 0, sourceHeight);
+        int width = right - left;
+        int height = bottom - top;
+        if (width < 2 || height < 2)
+        {
+            throw new InvalidOperationException("The selected area is outside the captured desktop.");
+        }
+
+        return CanvasBitmap.CreateFromBytes(_device, snapshot.GetPixelBytes(left, top, width, height),
+            width, height, DirectXPixelFormat.B8G8R8A8UIntNormalized, 96, CanvasAlphaMode.Premultiplied);
     }
 
     private async Task SaveCurrentAsync()

@@ -27,7 +27,7 @@ Shnapp waits quietly in your tray until you need it. Capture part of your screen
 | `Ctrl+Shift+2` | A region you drag out |
 
 You can start any capture from the tray icon or **New shnapp** in the app, too. Region capture currently uses a rectangle; a drawn free-form selection is on the [roadmap](ROADMAP.md).
-The grabber shows a crosshair and live X, Y, width, and height in pixels as you drag. Hold Shift while choosing a region to make it square. A bright pulse frames the window or display being captured.
+The grabber freezes the visible desktop as capture starts, so moving content holds still while you choose. It shows a crosshair and live X, Y, width, and height in pixels as you drag. Hold Shift while choosing a region to make it square. A bright pulse frames the window or display being captured. Window shnapps use the visible pixels from that frozen moment, including anything overlapping the window.
 
 ## Explain it in a few clicks
 
@@ -48,7 +48,7 @@ When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboa
 
 ## Find it again
 
-Shnapp keeps your captures in a local library, ready to search by title, date, or capture type and reopen for more editing. Browse as a list or choose small, medium, large, or extra-large thumbnail grids. Each shnapp shows its date, dimensions, and PNG size; sort by any of those or by name. Right-click a shnapp to clone, rename, share, delete, or copy its saved PNG path. Hover over a grid thumbnail to reveal its checkbox, or use the always-visible checkboxes in list view. Once you select a shnapp, **Delete** appears beside search for bulk cleanup. The Back and Forward buttons return you to places you visited; `Alt+Left` and `Alt+Right` work too, as do mouse Back and Forward buttons. Click the title above an open shnapp to rename it. When the library is empty, a getting-started view helps you take the first shnapp. Opt in to starting at sign-in if you want Shnapp waiting in the tray whenever Windows starts.
+Shnapp keeps your captures in a local library, ready to search by title, last saved date, or capture type and reopen for more editing. Browse as a list or choose small, medium, large, or extra-large thumbnail grids. Each shnapp shows its last saved date, dimensions, and PNG size; sort by any of those or by name. A new mark or pasted image refreshes its preview when you return to the library. Right-click a shnapp to clone, rename, share, delete, or copy its saved PNG path. Hover over a grid thumbnail to reveal its checkbox at the bottom right, or use the always-visible checkboxes in list view. Once you select a shnapp, **Delete** appears beside search for bulk cleanup. The Back and Forward buttons return you to places you visited; `Alt+Left` and `Alt+Right` work too, as do mouse Back and Forward buttons. Click the title above an open shnapp to rename it. When the library is empty, a getting-started view helps you take the first shnapp. Opt in to starting at sign-in if you want Shnapp waiting in the tray whenever Windows starts.
 
 While editing, move to the canvas's left edge to reveal a small image-only gallery over your work, or open it with `Ctrl+Shift+G` or **Recent shnapps** in the menu. Hover to magnify nearby previews, use the arrows or scroll to browse, click a preview to open it, or drag one onto your canvas to add a copy as a movable image layer. Small cropped previews keep browsing quick.
 

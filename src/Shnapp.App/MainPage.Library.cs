@@ -210,9 +210,9 @@ public sealed partial class MainPage
             LibrarySortField.Dimensions =>
                 entries.OrderBy(entry => entry.PixelArea),
             _ when _librarySortDescending =>
-                entries.OrderByDescending(entry => entry.CreatedAt),
+                entries.OrderByDescending(entry => entry.ModifiedAt),
             _ =>
-                entries.OrderBy(entry => entry.CreatedAt),
+                entries.OrderBy(entry => entry.ModifiedAt),
         };
 
         return sorted.ThenBy(entry => entry.Title, StringComparer.CurrentCultureIgnoreCase)
@@ -271,7 +271,7 @@ public sealed partial class MainPage
             CaptureKind.FullScreen => "full screen display",
             _ => "region",
         };
-        string terms = $"{document.Title} {type} {document.CreatedAt.ToLocalTime():MMM d yyyy HH:mm} " +
+        string terms = $"{document.Title} {type} {document.ModifiedAt.ToLocalTime():MMM d yyyy HH:mm} " +
             $"{document.Viewport.Width:0}x{document.Viewport.Height:0} " +
             $"{document.Viewport.Width:0}×{document.Viewport.Height:0}";
         return query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

@@ -16,8 +16,8 @@ internal sealed class GraphicsCapture(CanvasDevice device)
     internal Task<CanvasBitmap> WindowAsync(nint hwnd, CancellationToken cancellationToken) =>
         CaptureAsync(CreateItem(hwnd, isMonitor: false), cancellationToken);
 
-    internal Task<CanvasBitmap> MonitorAsync(nint monitor, CancellationToken cancellationToken) =>
-        CaptureAsync(CreateItem(monitor, isMonitor: true), cancellationToken);
+    internal async Task<CanvasBitmap> MonitorAsync(nint monitor, CancellationToken cancellationToken) =>
+        await CaptureAsync(CreateItem(monitor, isMonitor: true), cancellationToken);
 
     private static GraphicsCaptureItem CreateItem(nint handle, bool isMonitor)
     {
@@ -130,23 +130,47 @@ internal sealed class GraphicsCapture(CanvasDevice device)
             throw new InvalidOperationException("The combined desktop exceeds the 64-megapixel capture limit.");
         }
 
-        var desktop = new CanvasRenderTarget(_device, bounds.Width, bounds.Height, 96);
+        // Start every display capture before waiting for a frame. Capturing displays one
+        // at a time can show different moments on a multi-monitor desktop.
+        Task<CanvasBitmap>[] frames = monitors.Select(monitor => MonitorAsync(monitor.Handle, cancellationToken)).ToArray();
         try
         {
-            using CanvasDrawingSession drawing = desktop.CreateDrawingSession();
-            drawing.Clear(Colors.Transparent);
-            foreach (MonitorTarget monitor in monitors)
+            await Task.WhenAll(frames);
+            var desktop = new CanvasRenderTarget(_device, bounds.Width, bounds.Height, 96);
+            try
             {
-                using CanvasBitmap bitmap = await MonitorAsync(monitor.Handle, cancellationToken);
-                drawing.DrawImage(bitmap, monitor.Bounds.Left - bounds.Left, monitor.Bounds.Top - bounds.Top);
-            }
+                using CanvasDrawingSession drawing = desktop.CreateDrawingSession();
+                drawing.Clear(Colors.Transparent);
+                for (int index = 0; index < monitors.Count; index++)
+                {
+                    MonitorTarget monitor = monitors[index];
+                    CanvasBitmap bitmap = frames[index].Result;
+                    if (bitmap.SizeInPixels.Width != monitor.Bounds.Width ||
+                        bitmap.SizeInPixels.Height != monitor.Bounds.Height)
+                    {
+                        throw new InvalidOperationException("A display changed size while Shnapp was capturing. Try again.");
+                    }
 
-            return (desktop, bounds);
+                    drawing.DrawImage(bitmap, monitor.Bounds.Left - bounds.Left, monitor.Bounds.Top - bounds.Top);
+                }
+
+                return (desktop, bounds);
+            }
+            catch
+            {
+                desktop.Dispose();
+                throw;
+            }
         }
-        catch
+        finally
         {
-            desktop.Dispose();
-            throw;
+            foreach (Task<CanvasBitmap> frame in frames)
+            {
+                if (frame.IsCompletedSuccessfully)
+                {
+                    frame.Result.Dispose();
+                }
+            }
         }
     }
 

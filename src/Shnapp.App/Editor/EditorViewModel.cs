@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
+using System.Runtime.InteropServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Shnapp.Core;
+using Windows.Storage.Streams;
 
 namespace Shnapp.App.Editor;
 
@@ -98,7 +100,7 @@ public sealed partial class LibraryEntry : ObservableObject
     /// <summary>Names each selection checkbox for assistive technology.</summary>
     public string SelectionLabel => $"Select {Title}";
 
-    /// <summary>Gets the local capture date.</summary>
+    /// <summary>Gets the local date of the last save.</summary>
     public string DateText { get; }
 
     /// <summary>Gets compact details for the right edge of a thumbnail card.</summary>
@@ -124,8 +126,8 @@ public sealed partial class LibraryEntry : ObservableObject
     /// <summary>Gets the visible pixel count used to sort dimensions.</summary>
     public double PixelArea { get; }
 
-    /// <summary>Gets the source date used to sort entries.</summary>
-    public DateTimeOffset CreatedAt { get; }
+    /// <summary>Gets the last save date used to sort entries.</summary>
+    public DateTimeOffset ModifiedAt { get; }
 
     /// <summary>Gets all metadata for the card tooltip and accessibility tree.</summary>
     public string MetadataDescription { get; }
@@ -166,10 +168,10 @@ public sealed partial class LibraryEntry : ObservableObject
             CaptureKind.FullScreen => "Full screen",
             _ => "Region",
         };
-        CreatedAt = document.CreatedAt;
-        DateTimeOffset localCapture = document.CreatedAt.ToLocalTime();
-        DateText = localCapture.ToString("MMM d, yyyy · h:mm tt");
-        GridDateText = localCapture.ToString("MMM d");
+        ModifiedAt = document.ModifiedAt;
+        DateTimeOffset localSave = document.ModifiedAt.ToLocalTime();
+        DateText = localSave.ToString("MMM d, yyyy · h:mm tt");
+        GridDateText = localSave.ToString("MMM d");
         DimensionsText = $"{document.Viewport.Width:0} × {document.Viewport.Height:0} px";
         GridDimensionsText = $"{document.Viewport.Width:0}×{document.Viewport.Height:0}";
         PixelArea = document.Viewport.Width * document.Viewport.Height;
@@ -184,8 +186,24 @@ public sealed partial class LibraryEntry : ObservableObject
         Preview = new BitmapImage { DecodePixelWidth = previewPixelWidth };
         if (File.Exists(previewPath))
         {
-            Preview.UriSource = new Uri(previewPath, UriKind.Absolute);
+            // The preview path is stable across saves. UriSource can reuse a cached
+            // decode after an edit, so read the latest file bytes for each entry.
+            _ = LoadPreviewAsync(previewPath);
         }
+    }
+
+    private async Task LoadPreviewAsync(string path)
+    {
+        try
+        {
+            await using FileStream file = new(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using IRandomAccessStream stream = file.AsRandomAccessStream();
+            await Preview.SetSourceAsync(stream);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        catch (COMException) { }
     }
 }
 

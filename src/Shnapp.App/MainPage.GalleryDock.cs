@@ -41,7 +41,7 @@ public sealed partial class MainPage
     /// <summary>Updates the image-only rail from the saved library, newest first.</summary>
     internal void SetGalleryDocuments(IReadOnlyList<ShnappSummary> documents)
     {
-        _galleryDocuments = documents.OrderByDescending(document => document.CreatedAt).ToArray();
+        _galleryDocuments = documents.OrderByDescending(document => document.ModifiedAt).ToArray();
         _galleryPage = 0;
         _galleryWheelDelta = 0;
         RefreshGalleryDock();

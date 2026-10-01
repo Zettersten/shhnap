@@ -499,9 +499,37 @@ public sealed class ShnappLibraryTests
         Assert.AreEqual(editor.Current.Id, summary.Id);
         Assert.AreEqual(editor.Current.Title, summary.Title);
         Assert.AreEqual(editor.Current.CreatedAt, summary.CreatedAt);
+        Assert.IsTrue(summary.ModifiedAt > DateTimeOffset.UnixEpoch);
         Assert.AreEqual(editor.Current.CaptureKind, summary.CaptureKind);
         Assert.AreEqual(editor.Current.Viewport, summary.Viewport);
         Assert.IsNotNull((await temporary.Library.OpenAsync(summary.Id))!.Annotations.Single().ImagePngBase64);
+    }
+
+    [TestMethod]
+    public async Task EditingOlderCaptureUpdatesLibraryDateAndNewestFirstOrder()
+    {
+        using var temporary = new TemporaryLibrary();
+        ShnappDocument newerCapture = TestDocuments.Create() with
+        {
+            CreatedAt = DateTimeOffset.UtcNow.AddHours(-1),
+        };
+        ShnappDocument olderCapture = TestDocuments.Create() with
+        {
+            CreatedAt = DateTimeOffset.UtcNow.AddDays(-7),
+        };
+        await temporary.Library.SaveAsync(newerCapture);
+        await temporary.Library.SaveAsync(olderCapture);
+
+        File.SetLastWriteTimeUtc(temporary.GetMetadataPath(newerCapture.Id), DateTime.UtcNow.AddDays(-1));
+        File.SetLastWriteTimeUtc(temporary.GetMetadataPath(olderCapture.Id), DateTime.UtcNow.AddDays(-2));
+        await temporary.Library.SaveAsync(olderCapture with { Title = "Edited capture" });
+
+        IReadOnlyList<ShnappSummary> summaries = await temporary.Library.ListSummariesAsync();
+        Assert.AreEqual(olderCapture.Id, summaries[0].Id);
+        Assert.AreEqual("Edited capture", summaries[0].Title);
+        Assert.AreEqual(olderCapture.CreatedAt, summaries[0].CreatedAt);
+        Assert.IsTrue(summaries[0].ModifiedAt > summaries[1].ModifiedAt);
+        Assert.IsTrue(summaries[0].ModifiedAt > DateTimeOffset.UtcNow.AddMinutes(-1));
     }
 
     [TestMethod]

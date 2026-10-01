@@ -224,7 +224,7 @@ public sealed class ShnappLibrary(string rootPath)
 
     /// <summary>Lists display metadata without deserializing embedded image layers.</summary>
     /// <param name="cancellationToken">Cancels enumeration or an individual asynchronous read.</param>
-    /// <returns>Newest-first summaries; missing or empty libraries produce an empty list.</returns>
+    /// <returns>Most recently saved summaries first; missing or empty libraries produce an empty list.</returns>
     /// <remarks>
     /// The entire JSON is parsed for structural checks, but pasted-image strings are not retained.
     /// Top-level values are validated here. A document with an invalid annotation value can appear
@@ -232,12 +232,12 @@ public sealed class ShnappLibrary(string rootPath)
     /// </remarks>
     public Task<IReadOnlyList<ShnappSummary>> ListSummariesAsync(
         CancellationToken cancellationToken = default) =>
-        ListReadableAsync(OpenSummaryAsync, static summary => summary.CreatedAt,
+        ListReadableAsync(OpenSummaryAsync, static summary => summary.ModifiedAt,
             static summary => summary.Id, cancellationToken);
 
     private async Task<IReadOnlyList<T>> ListReadableAsync<T>(
         Func<Guid, CancellationToken, Task<T?>> open,
-        Func<T, DateTimeOffset> createdAt, Func<T, Guid> identity,
+        Func<T, DateTimeOffset> sortDate, Func<T, Guid> identity,
         CancellationToken cancellationToken) where T : class
     {
         IReadOnlyList<Guid> ids = await ListDocumentIdsAsync(cancellationToken).ConfigureAwait(false);
@@ -267,7 +267,7 @@ public sealed class ShnappLibrary(string rootPath)
             }
         }
 
-        return items.OrderByDescending(createdAt).ThenBy(identity).ToArray();
+        return items.OrderByDescending(sortDate).ThenBy(identity).ToArray();
     }
 
     private async Task<IReadOnlyList<Guid>> ListDocumentIdsAsync(CancellationToken cancellationToken)
@@ -327,8 +327,9 @@ public sealed class ShnappLibrary(string rootPath)
                     throw new InvalidDataException("The document identifier does not match its directory.");
                 }
 
+                DateTimeOffset modifiedAt = File.GetLastWriteTimeUtc(path);
                 return new ShnappSummary(id, header.Title, header.CreatedAt,
-                    header.CaptureKind, header.Viewport);
+                    header.CaptureKind, header.Viewport, modifiedAt);
             }
             catch (FileNotFoundException)
             {

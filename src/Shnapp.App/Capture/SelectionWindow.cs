@@ -37,6 +37,7 @@ internal sealed class SelectionWindow : Window, IDisposable
     private ImagePoint _pointer;
     private ImageRect? _selection;
     private WindowTarget? _hovered;
+    private bool _windowPressed;
     private bool _disposed;
 
     internal SelectionWindow(CanvasBitmap desktop, NativeMethods.Rect bounds, IReadOnlyList<WindowTarget>? windows,
@@ -57,12 +58,13 @@ internal sealed class SelectionWindow : Window, IDisposable
         _canvas.PointerCanceled += (_, _) => Cancel();
         _canvas.PointerCaptureLost += (_, _) =>
         {
-            if (_start is null || _completion.Task.IsCompleted)
+            if ((_start is null && !_windowPressed) || _completion.Task.IsCompleted)
             {
                 return;
             }
 
             _start = null;
+            _windowPressed = false;
             _selection = null;
             _canvas.Invalidate();
         };
@@ -168,8 +170,13 @@ internal sealed class SelectionWindow : Window, IDisposable
         if (_windows is null)
         {
             _start = _pointer;
-            _canvas.CapturePointer(args.Pointer);
         }
+        else
+        {
+            _windowPressed = true;
+        }
+
+        _canvas.CapturePointer(args.Pointer);
 
         args.Handled = true;
         _canvas.Invalidate();
@@ -189,7 +196,7 @@ internal sealed class SelectionWindow : Window, IDisposable
         }
 
         UpdatePointer();
-        if (_windows is not null && _hovered is not null)
+        if (_windows is not null && _windowPressed && _hovered is not null)
         {
             _completion.TrySetResult(new(null, _hovered));
         }
@@ -203,6 +210,7 @@ internal sealed class SelectionWindow : Window, IDisposable
             _selection = null;
         }
 
+        _windowPressed = false;
         _canvas.ReleasePointerCapture(args.Pointer);
         args.Handled = true;
         _canvas.Invalidate();
