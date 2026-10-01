@@ -117,9 +117,9 @@ public sealed partial class LibraryEntry : ObservableObject
     public string CaptureType { get; }
 
     /// <summary>Creates a library presentation entry without loading the original image.</summary>
-    /// <param name="document">The validated local metadata.</param>
+    /// <param name="document">The validated local display metadata.</param>
     /// <param name="previewPath">The absolute PNG preview path.</param>
-    public LibraryEntry(ShnappDocument document, string previewPath, double cardWidth = 224,
+    public LibraryEntry(ShnappSummary document, string previewPath, double cardWidth = 224,
         double thumbnailHeight = 144, int previewPixelWidth = 384, long? fileSizeBytes = null)
     {
         Id = document.Id;

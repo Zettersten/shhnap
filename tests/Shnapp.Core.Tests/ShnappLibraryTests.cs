@@ -482,6 +482,75 @@ public sealed class ShnappLibraryTests
     }
 
     [TestMethod]
+    public async Task SummariesRetainVisibleMetadataWithoutLoadingEditableLayers()
+    {
+        using var temporary = new TemporaryLibrary();
+        var editor = new DocumentEditor(TestDocuments.Create());
+        editor.ApplyCrop(new ImageRect(100, 100, 200, 150));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(-20, -20),
+            End = new ImagePoint(40, 40),
+        });
+        await temporary.Library.SaveAsync(editor.Current);
+
+        ShnappSummary summary = (await temporary.Library.ListSummariesAsync()).Single();
+
+        Assert.AreEqual(editor.Current.Id, summary.Id);
+        Assert.AreEqual(editor.Current.Title, summary.Title);
+        Assert.AreEqual(editor.Current.CreatedAt, summary.CreatedAt);
+        Assert.AreEqual(editor.Current.CaptureKind, summary.CaptureKind);
+        Assert.AreEqual(editor.Current.Viewport, summary.Viewport);
+        Assert.IsNotNull((await temporary.Library.OpenAsync(summary.Id))!.Annotations.Single().ImagePngBase64);
+    }
+
+    [TestMethod]
+    public async Task SummariesSkipMalformedMetadataAndMismatchedDirectoryIds()
+    {
+        using var temporary = new TemporaryLibrary();
+        ShnappDocument valid = TestDocuments.Create();
+        ShnappDocument invalidCanvas = TestDocuments.Create();
+        ShnappDocument mismatchedId = TestDocuments.Create();
+        await temporary.Library.SaveAsync(valid);
+        await temporary.Library.SaveAsync(invalidCanvas);
+        await temporary.Library.SaveAsync(mismatchedId);
+
+        string canvasPath = temporary.GetMetadataPath(invalidCanvas.Id);
+        JsonObject canvasJson = JsonNode.Parse(await File.ReadAllTextAsync(canvasPath))!.AsObject();
+        canvasJson["pixelWidth"] = 0;
+        await File.WriteAllTextAsync(canvasPath, canvasJson.ToJsonString());
+        string mismatchPath = temporary.GetMetadataPath(mismatchedId.Id);
+        JsonObject mismatchJson = JsonNode.Parse(await File.ReadAllTextAsync(mismatchPath))!.AsObject();
+        mismatchJson["id"] = Guid.NewGuid().ToString();
+        await File.WriteAllTextAsync(mismatchPath, mismatchJson.ToJsonString());
+
+        IReadOnlyList<ShnappSummary> summaries = await temporary.Library.ListSummariesAsync();
+
+        Assert.HasCount(1, summaries);
+        Assert.AreEqual(valid.Id, summaries[0].Id);
+        await Assert.ThrowsAsync<InvalidDataException>(() => temporary.Library.OpenAsync(invalidCanvas.Id));
+        await Assert.ThrowsAsync<InvalidDataException>(() => temporary.Library.OpenAsync(mismatchedId.Id));
+    }
+
+    [TestMethod]
+    public async Task SummaryDefersInvalidLayerValuesUntilTheDocumentIsOpened()
+    {
+        using var temporary = new TemporaryLibrary();
+        ShnappDocument document = TestDocuments.Create() with
+        {
+            Annotations = [TestDocuments.Annotation(AnnotationKind.Image)],
+        };
+        await temporary.Library.SaveAsync(document);
+        string path = temporary.GetMetadataPath(document.Id);
+        JsonObject json = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        json["annotations"]![0]!["imagePngBase64"] = "invalid image data";
+        await File.WriteAllTextAsync(path, json.ToJsonString());
+
+        Assert.AreEqual(document.Id, (await temporary.Library.ListSummariesAsync()).Single().Id);
+        await Assert.ThrowsAsync<InvalidDataException>(() => temporary.Library.OpenAsync(document.Id));
+    }
+
+    [TestMethod]
     public async Task DeleteRemovesOnlyTheRequestedDocumentAndIsIdempotent()
     {
         using var temporary = new TemporaryLibrary();

@@ -35,7 +35,7 @@ internal sealed partial class AppController
                 throw new FileNotFoundException("This shnapp's original image is missing.");
             }
 
-            IReadOnlyList<ShnappDocument> existing = await Library.ListAsync(_lifetime.Token);
+            IReadOnlyList<ShnappSummary> existing = await Library.ListSummariesAsync(_lifetime.Token);
             string title = UniqueCopyTitle(source.Title, existing);
             ShnappDocument clone = source with
             {
@@ -118,7 +118,7 @@ internal sealed partial class AppController
         }
     }
 
-    private static string UniqueCopyTitle(string original, IReadOnlyList<ShnappDocument> existing)
+    private static string UniqueCopyTitle(string original, IReadOnlyList<ShnappSummary> existing)
     {
         var names = existing.Select(document => document.Title).ToHashSet(StringComparer.OrdinalIgnoreCase);
         for (int index = 1; ; index++)
@@ -266,7 +266,7 @@ internal sealed partial class AppController
 
     private async Task RefreshLibraryAfterActionAsync()
     {
-        IReadOnlyList<ShnappDocument> documents = await Library.ListAsync(_lifetime.Token);
+        IReadOnlyList<ShnappSummary> documents = await Library.ListSummariesAsync(_lifetime.Token);
         _page.ShowLibrary(documents);
         RecordNavigation(null);
         _page.SetGalleryDocuments(documents);

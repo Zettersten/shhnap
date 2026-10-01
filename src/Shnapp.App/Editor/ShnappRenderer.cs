@@ -68,17 +68,10 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                             effectDrawing.DrawImage(content);
                             effectDrawing.Transform = Matrix3x2.CreateTranslation(
                                 -(float)viewport.X, -(float)viewport.Y);
-                            if (annotation.VisibilityClip is ImageRect clip)
-                            {
-                                using var layer = effectDrawing.CreateLayer(1, ToRect(clip));
-                                DrawRedactionPreview(effectDrawing, content, annotation,
-                                    new ImagePoint(viewport.X, viewport.Y));
-                            }
-                            else
-                            {
-                                DrawRedactionPreview(effectDrawing, content, annotation,
-                                    new ImagePoint(viewport.X, viewport.Y));
-                            }
+                            using var layer = annotation.VisibilityClip is ImageRect clip
+                                ? effectDrawing.CreateLayer(1, ToRect(clip)) : null;
+                            DrawRedactionPreview(effectDrawing, content, annotation,
+                                new ImagePoint(viewport.X, viewport.Y));
                         }
                         catch
                         {

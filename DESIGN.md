@@ -532,11 +532,11 @@ Preferred hierarchy:
 
 1. Capture centered in the available viewport.
 2. Main annotation toolbar floating near the top-center.
-3. Contextual property panel attached to or adjacent to the active tool.
+3. Collapsible contextual property panel on the right for the active tool or selected element.
 4. Save/copy/export controls located consistently near the top-right.
-5. Secondary metadata hidden unless requested.
+5. Compact capture date, canvas dimensions, and saved PNG size in the footer.
 
-Avoid permanent left or right inspector panels.
+Keep the right inspector contextual and collapsible so the capture remains dominant.
 
 ### Floating toolbar
 
@@ -585,22 +585,20 @@ The library uses a responsive thumbnail grid.
 
 Desktop defaults:
 
-- 4–6 cards per row depending on width
+- 3–6 cards per row depending on width and selected thumbnail size
 - 16px card gap
 - 8px internal card padding
 - thumbnail aspect ratio preserved
 - file name secondary to visual content
-- timestamp and dimensions displayed quietly
+- timestamp, dimensions, and PNG size displayed quietly
 
 The library should support:
 
 - search
-- sort by newest/oldest
-- pin/favorite
+- sort by date, name, file size, and dimensions
 - open
-- copy
-- reveal in folder
-- delete
+- clone, rename, share, and copy the saved PNG path
+- select and delete multiple items
 
 Advanced filtering should not be shown unless the product grows to justify it.
 
@@ -616,11 +614,11 @@ Only essential indicators appear:
 - minimal cancel guidance
 - optional magnifier near precise edges
 
-For window capture, the hovered window should receive a subtle highlight before click.
+For window capture, the hovered window receives a clear pulsing border before click.
 
 For free-form capture, the user should draw the selection directly.
 
-For full-screen capture, capture immediately unless multiple monitors require selection.
+For full-screen capture, highlight the candidate display with a pulsing border before confirmation.
 
 ### Multi-monitor behavior
 
@@ -770,11 +768,15 @@ Deleting a step should intelligently re-number later steps unless the user expli
 
 ### Lines and arrows
 
-Line endings:
+Line endings at either end:
 
 - none
-- arrow
-- optionally dot in a later version
+- triangle arrow
+- open arrow
+- circle
+- diamond
+
+Lines support solid, dashed, and dotted patterns.
 
 Arrowheads should scale proportionally with line thickness.
 
@@ -1038,11 +1040,11 @@ Each card includes:
 - capture time
 - dimensions
 - optional short caption/title
-- overflow menu
+- file size
 
-Hover reveals quick actions.
+Right-click opens item actions across the entire card or list row.
 
-Double-click opens the editor.
+Single-click opens the editor.
 
 ### Empty states
 

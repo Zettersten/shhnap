@@ -215,7 +215,59 @@ public sealed class ShnappLibrary(string rootPath)
     /// <param name="cancellationToken">Cancels enumeration or an individual asynchronous read.</param>
     /// <returns>A stable metadata snapshot; missing or empty libraries produce an empty list.</returns>
     /// <remarks>Failure to access the library root is surfaced rather than disguised as an empty library.</remarks>
-    public async Task<IReadOnlyList<ShnappDocument>> ListAsync(CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<ShnappDocument>> ListAsync(CancellationToken cancellationToken = default) =>
+        ListReadableAsync(OpenAsync, static document => document.CreatedAt,
+            static document => document.Id, cancellationToken);
+
+    /// <summary>Lists display metadata without deserializing embedded image layers.</summary>
+    /// <param name="cancellationToken">Cancels enumeration or an individual asynchronous read.</param>
+    /// <returns>Newest-first summaries; missing or empty libraries produce an empty list.</returns>
+    /// <remarks>
+    /// The entire JSON is parsed for structural checks, but pasted-image strings are not retained.
+    /// Top-level values are validated here. A document with an invalid annotation value can appear
+    /// in the library; OpenAsync rejects it before editing or mutation.
+    /// </remarks>
+    public Task<IReadOnlyList<ShnappSummary>> ListSummariesAsync(
+        CancellationToken cancellationToken = default) =>
+        ListReadableAsync(OpenSummaryAsync, static summary => summary.CreatedAt,
+            static summary => summary.Id, cancellationToken);
+
+    private async Task<IReadOnlyList<T>> ListReadableAsync<T>(
+        Func<Guid, CancellationToken, Task<T?>> open,
+        Func<T, DateTimeOffset> createdAt, Func<T, Guid> identity,
+        CancellationToken cancellationToken) where T : class
+    {
+        IReadOnlyList<Guid> ids = await ListDocumentIdsAsync(cancellationToken).ConfigureAwait(false);
+        var items = new List<T>(ids.Count);
+        foreach (Guid id in ids)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                T? item = await open(id, cancellationToken).ConfigureAwait(false);
+                if (item is not null)
+                {
+                    items.Add(item);
+                }
+            }
+            catch (InvalidDataException)
+            {
+                // A damaged or future-version item must not hide the rest of the library.
+            }
+            catch (IOException)
+            {
+                // A concurrently removed, locked, or linked item does not prevent listing other items.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Permissions on individual items can differ from the accessible library root.
+            }
+        }
+
+        return items.OrderByDescending(createdAt).ThenBy(identity).ToArray();
+    }
+
+    private async Task<IReadOnlyList<Guid>> ListDocumentIdsAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         string libraryPath = Path.Combine(RootPath, "shnapps");
@@ -228,42 +280,113 @@ public sealed class ShnappLibrary(string rootPath)
         }
         catch (DirectoryNotFoundException)
         {
-            return Array.Empty<ShnappDocument>();
+            return [];
         }
 
-        var documents = new List<ShnappDocument>(directories.Length);
+        var ids = new List<Guid>(directories.Length);
         foreach (string directory in directories)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!Guid.TryParseExact(Path.GetFileName(directory), "N", out Guid id) || id == Guid.Empty)
+            if (Guid.TryParseExact(Path.GetFileName(directory), "N", out Guid id) && id != Guid.Empty)
             {
-                continue;
-            }
-
-            try
-            {
-                ShnappDocument? document = await OpenAsync(id, cancellationToken).ConfigureAwait(false);
-                if (document is not null)
-                {
-                    documents.Add(document);
-                }
-            }
-            catch (InvalidDataException)
-            {
-                // A single damaged or future-version shnapp must not hide the rest of the library.
-            }
-            catch (IOException)
-            {
-                // A concurrently removed, locked, or linked item does not prevent listing other items.
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // Permissions on individual items can differ from the accessible library root.
+                ids.Add(id);
             }
         }
 
-        return documents.OrderByDescending(document => document.CreatedAt).ThenBy(document => document.Id).ToArray();
+        return ids;
     }
+
+    private async Task<ShnappSummary?> OpenSummaryAsync(Guid id, CancellationToken cancellationToken)
+    {
+        string directory = GetDocumentDirectory(id);
+        await _access.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureSafeDirectories(directory, create: false);
+            string path = Path.Combine(directory, "document.json");
+            EnsureNotReparsePoint(path);
+            try
+            {
+                await using FileStream stream = OpenRead(path);
+                if (stream.Length > MaximumDocumentBytes)
+                {
+                    throw new InvalidDataException("This shnapp exceeds the 256 MiB editable document limit.");
+                }
+
+                using JsonDocument json = await JsonDocument.ParseAsync(stream,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                JsonElement root = json.RootElement;
+                JsonSchema.ValidateDocument(root);
+                ShnappDocument header = ReadSummaryHeader(root);
+                DocumentValidation.Validate(header);
+                if (header.Id != id)
+                {
+                    throw new InvalidDataException("The document identifier does not match its directory.");
+                }
+
+                return new ShnappSummary(id, header.Title, header.CreatedAt,
+                    header.CaptureKind, header.Viewport);
+            }
+            catch (FileNotFoundException)
+            {
+                return null;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return null;
+            }
+            catch (JsonException exception)
+            {
+                throw new InvalidDataException("The stored document is not valid Shnapp JSON.", exception);
+            }
+            catch (Exception exception) when (exception is ArgumentException or FormatException or
+                InvalidOperationException or KeyNotFoundException)
+            {
+                throw new InvalidDataException("The stored document contains invalid values.", exception);
+            }
+        }
+        finally
+        {
+            _access.Release();
+        }
+    }
+
+    private static ShnappDocument ReadSummaryHeader(JsonElement root)
+    {
+        JsonElement capture = root.GetProperty("captureKind");
+        CaptureKind kind = capture.ValueKind switch
+        {
+            JsonValueKind.String when Enum.TryParse(capture.GetString(), ignoreCase: true,
+                out CaptureKind parsed) => parsed,
+            JsonValueKind.Number => (CaptureKind)capture.GetInt32(),
+            _ => throw new InvalidDataException("The stored capture type is invalid."),
+        };
+
+        return new ShnappDocument
+        {
+            SchemaVersion = root.GetProperty("schemaVersion").GetInt32(),
+            Id = root.GetProperty("id").GetGuid(),
+            Title = root.GetProperty("title").GetString()!,
+            CreatedAt = root.GetProperty("createdAt").GetDateTimeOffset(),
+            CaptureKind = kind,
+            PixelWidth = root.GetProperty("pixelWidth").GetInt32(),
+            PixelHeight = root.GetProperty("pixelHeight").GetInt32(),
+            Crop = ReadRectangle(root.GetProperty("crop")),
+            BaseImageCrop = root.TryGetProperty("baseImageCrop", out JsonElement baseCrop)
+                ? ReadRectangle(baseCrop) : null,
+            HideOriginalImage = root.TryGetProperty("hideOriginalImage", out JsonElement hideOriginal) &&
+                hideOriginal.GetBoolean(),
+            ExpandedCanvasBounds = root.TryGetProperty("expandedCanvasBounds", out JsonElement expanded)
+                ? ReadRectangle(expanded) : null,
+            HasWindowShadow = root.GetProperty("hasWindowShadow").GetBoolean(),
+            Annotations = [],
+        };
+    }
+
+    private static ImageRect? ReadRectangle(JsonElement element) => element.ValueKind == JsonValueKind.Null
+        ? null
+        : new ImageRect(element.GetProperty("x").GetDouble(), element.GetProperty("y").GetDouble(),
+            element.GetProperty("width").GetDouble(), element.GetProperty("height").GetDouble());
 
     /// <summary>Deletes only the identified shnapp directory and its image/metadata files.</summary>
     /// <param name="id">The nonempty identifier to delete; a missing directory is a no-op.</param>

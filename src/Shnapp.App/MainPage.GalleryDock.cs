@@ -20,8 +20,8 @@ public sealed partial class MainPage
     private const double GalleryRevealDistance = 28;
     private const double GalleryHideDistance = 122;
 
-    private IReadOnlyList<ShnappDocument> _galleryDocuments = [];
-    private IReadOnlyList<ShnappDocument> _galleryVisibleDocuments = [];
+    private IReadOnlyList<ShnappSummary> _galleryDocuments = [];
+    private IReadOnlyList<ShnappSummary> _galleryVisibleDocuments = [];
     private readonly Dictionary<Button, double> _galleryTargets = [];
     private readonly UISettings _galleryMotionSettings = new();
     private int _galleryPage;
@@ -39,7 +39,7 @@ public sealed partial class MainPage
     private long _galleryLastOpenedAt;
 
     /// <summary>Updates the image-only rail from the saved library, newest first.</summary>
-    internal void SetGalleryDocuments(IReadOnlyList<ShnappDocument> documents)
+    internal void SetGalleryDocuments(IReadOnlyList<ShnappSummary> documents)
     {
         _galleryDocuments = documents.OrderByDescending(document => document.CreatedAt).ToArray();
         _galleryPage = 0;
@@ -181,7 +181,7 @@ public sealed partial class MainPage
         _galleryPressedButton = null;
 
         int index = 0;
-        foreach (ShnappDocument document in _galleryVisibleDocuments
+        foreach (ShnappSummary document in _galleryVisibleDocuments
             .Skip(_galleryPage * _galleryPageSize).Take(_galleryPageSize))
         {
             string dockPreview = _controller!.Library.GetGalleryPreviewPath(document.Id);

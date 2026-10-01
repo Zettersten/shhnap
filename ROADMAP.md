@@ -63,6 +63,8 @@ Work on the product website and README can proceed in parallel with the app slic
 
 **Done when:** measured values and budgets are published, the agreed budgets pass on release builds, a responsive top-level window launches on Windows 11 x64 and ARM64, and the primary flow passes keyboard, high contrast, and screen reader review.
 
+**October 2026 review baseline:** On an isolated library of 20 documents, each with a 2.36 MB embedded PNG, lightweight summaries reduced list time from 607 ms to 217 ms and allocations from 132 MiB to 7 MiB. A portable x64 publish measured 174.28 MiB unpacked and 68.91 MiB zipped. ReadyToRun grew the ZIP to 83.04 MiB; one warm launch was about 105 ms faster, too little evidence to accept the 20.5% download increase. Native AOT remains a separate project: the current publish conflicts with trimming, two UI classes need CsWinRT changes, and COM interop needs migration and validation. Profile full-canvas rendering on editor changes before adding a render cache.
+
 ### 6. Public release and later Store delivery (P1 release; P2 Store)
 
 - Exercise the existing version-tag release workflow end to end: clean x64 and ARM64 publish, archive checksums, GitHub Release assets, a first-run smoke test from extracted archives, and installation/upgrade/rollback instructions. Validate ARM64 on ARM64 hardware; cross-publishing on x64 is not runtime verification. Add code signing and a trustworthy distribution story before broad promotion.

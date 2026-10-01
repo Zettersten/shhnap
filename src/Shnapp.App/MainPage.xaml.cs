@@ -44,7 +44,7 @@ public sealed partial class MainPage : Page
     private bool? _narrowInspector;
     private readonly Dictionary<EditorTool, ToolStyle> _toolStyles =
         Enum.GetValues<EditorTool>().ToDictionary(tool => tool, ToolStyle.Defaults);
-    private IReadOnlyList<ShnappDocument> _library = [];
+    private IReadOnlyList<ShnappSummary> _library = [];
 
     /// <summary>Gets observable state consumed by compiled XAML bindings.</summary>
     public EditorViewModel ViewModel { get; } = new();
@@ -83,7 +83,7 @@ public sealed partial class MainPage : Page
         DrawingCanvas.Focus(FocusState.Programmatic);
     }
 
-    internal void ShowLibrary(IReadOnlyList<ShnappDocument> documents)
+    internal void ShowLibrary(IReadOnlyList<ShnappSummary> documents)
     {
         CancelTitleRename();
         ReleaseDocument();

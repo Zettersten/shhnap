@@ -47,7 +47,7 @@ public sealed partial class MainPage
 
         (double cardWidth, double thumbnailHeight) = LibrarySizes[_librarySizeIndex];
         _libraryEntries.Clear();
-        foreach (ShnappDocument document in _library)
+        foreach (ShnappSummary document in _library)
         {
             string compact = _controller.Library.GetCompactPreviewPath(document.Id);
             string preview = (_libraryListMode || _librarySizeIndex == 0) && File.Exists(compact)
@@ -218,7 +218,7 @@ public sealed partial class MainPage
 
     private static string ShnappWord(int count) => count == 1 ? "shnapp" : "shnapps";
 
-    private static bool MatchesLibraryQuery(ShnappDocument document, string query)
+    private static bool MatchesLibraryQuery(ShnappSummary document, string query)
     {
         if (query.Length == 0)
         {

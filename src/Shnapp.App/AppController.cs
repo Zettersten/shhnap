@@ -79,7 +79,7 @@ internal sealed partial class AppController
         {
             _settings = await Library.LoadSettingsAsync(_lifetime.Token);
             ApplyTheme();
-            IReadOnlyList<ShnappDocument> documents = await Library.ListAsync(_lifetime.Token);
+            IReadOnlyList<ShnappSummary> documents = await Library.ListSummariesAsync(_lifetime.Token);
             _page.ShowLibrary(documents);
             UpdateNavigationButtons();
             _page.SetGalleryDocuments(documents);
@@ -268,7 +268,7 @@ internal sealed partial class AppController
             Debug.WriteLine($"Shnapp {kind}: {watch.ElapsedMilliseconds} ms to editor.");
             await SaveCurrentAsync();
             RecordNavigation(document.Id);
-            _page.SetGalleryDocuments(await Library.ListAsync(_lifetime.Token));
+            _page.SetGalleryDocuments(await Library.ListSummariesAsync(_lifetime.Token));
             if (_settings.AutoCopy)
             {
                 await CopyAsync();
@@ -402,7 +402,7 @@ internal sealed partial class AppController
             _page.CommitText();
             _saveTimer.Stop();
             await SaveCurrentAsync();
-            IReadOnlyList<ShnappDocument> documents = await Library.ListAsync(_lifetime.Token);
+            IReadOnlyList<ShnappSummary> documents = await Library.ListSummariesAsync(_lifetime.Token);
             _page.ShowLibrary(documents);
             if (recordHistory) { RecordNavigation(null); }
             _page.SetGalleryDocuments(documents);
@@ -456,7 +456,7 @@ internal sealed partial class AppController
             _saved = document;
             _page.OpenDocument(document, bitmap);
             if (recordHistory) { RecordNavigation(id); }
-            _page.SetGalleryDocuments(await Library.ListAsync(_lifetime.Token));
+            _page.SetGalleryDocuments(await Library.ListSummariesAsync(_lifetime.Token));
             Renderer.RetainPastedImages(document);
             Show();
         }
