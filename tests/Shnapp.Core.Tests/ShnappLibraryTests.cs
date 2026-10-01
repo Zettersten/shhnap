@@ -165,6 +165,102 @@ public sealed class ShnappLibraryTests
     }
 
     [TestMethod]
+    public async Task ExpandedCanvasPastedImageAndOriginalCropSurviveReopening()
+    {
+        using var temporary = new TemporaryLibrary();
+        var editor = new DocumentEditor(TestDocuments.Create());
+        editor.ApplyCrop(new ImageRect(100, 100, 200, 150));
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(-20, -20),
+            End = new ImagePoint(40, 40),
+        };
+        editor.AddAnnotation(image);
+
+        await temporary.Library.SaveAsync(editor.Current);
+        ShnappDocument? reopened = await temporary.Library.OpenAsync(editor.Current.Id);
+
+        Assert.IsNotNull(reopened);
+        TestDocuments.AssertEquivalent(editor.Current, reopened);
+        Assert.AreEqual(new ImageRect(-20, -20, 660, 500), reopened.CanvasBounds);
+        Assert.AreEqual(new ImageRect(-20, -20, 320, 270), reopened.Viewport);
+        Assert.AreEqual(new ImageRect(100, 100, 200, 150), reopened.BaseImageCrop);
+        Assert.AreEqual(TestDocuments.OnePixelPngBase64, reopened.Annotations.Single().ImagePngBase64);
+
+        editor.ApplyCrop(new ImageRect(-20, -20, 60, 60));
+        await temporary.Library.SaveAsync(editor.Current);
+        ShnappDocument? reopenedWithoutOriginal = await temporary.Library.OpenAsync(editor.Current.Id);
+        Assert.IsNotNull(reopenedWithoutOriginal);
+        Assert.IsTrue(reopenedWithoutOriginal.HideOriginalImage);
+        Assert.IsNull(reopenedWithoutOriginal.BaseImageCrop);
+    }
+
+    [TestMethod]
+    public async Task CroppedLayerVisibilitySurvivesReopening()
+    {
+        using var temporary = new TemporaryLibrary();
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation text = TestDocuments.Annotation(AnnotationKind.Text) with
+        {
+            Start = new ImagePoint(400, 400),
+            End = new ImagePoint(400, 400),
+            Text = "Hidden caption",
+        };
+        editor.AddAnnotation(text);
+        editor.ApplyCrop(new ImageRect(100, 100, 100, 100));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(500, 500),
+            End = new ImagePoint(550, 550),
+        });
+        await temporary.Library.SaveAsync(editor.Current);
+
+        ShnappDocument? reopened = await temporary.Library.OpenAsync(editor.Current.Id);
+        Assert.IsNotNull(reopened);
+        Assert.AreEqual(new ImageRect(100, 100, 100, 100),
+            reopened.Annotations.Single(item => item.Id == text.Id).VisibilityClip);
+
+        editor.ApplyCrop(new ImageRect(500, 500, 50, 50));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(0, 0),
+            End = new ImagePoint(20, 20),
+        });
+        await temporary.Library.SaveAsync(editor.Current);
+        reopened = await temporary.Library.OpenAsync(editor.Current.Id);
+        Assert.IsNotNull(reopened);
+        Assert.IsTrue(reopened.Annotations.Single(item => item.Id == text.Id).HiddenByCrop);
+    }
+
+    [TestMethod]
+    public async Task PreparedSaveChecksActualEscapedJsonBeforeReplacingExistingMetadata()
+    {
+        using var temporary = new TemporaryLibrary();
+        ShnappDocument original = TestDocuments.Create();
+        await temporary.Library.SaveAsync(original);
+        string path = temporary.GetMetadataPath(original.Id);
+        byte[] before = await File.ReadAllBytesAsync(path);
+
+        // JSON escapes '+' as six bytes, so this crosses the small test limit even though
+        // the source string is only 400 characters. The production limit remains 256 MiB.
+        ShnappDocument oversized = original with { Title = new string('+', 400) };
+        await Assert.ThrowsAsync<ArgumentException>(() => temporary.Library.PrepareSaveAsync(oversized, 1_024));
+        CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(path));
+        temporary.AssertNoTemporaryFiles();
+
+        ShnappDocument replacement = original with { Title = "Prepared shnapp" };
+        await using (ShnappLibrary.PreparedDocumentSave prepared =
+            await temporary.Library.PrepareSaveAsync(replacement, 1_024))
+        {
+            CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(path));
+            await prepared.CommitAsync();
+        }
+
+        Assert.AreEqual("Prepared shnapp", (await temporary.Library.OpenAsync(original.Id))!.Title);
+        temporary.AssertNoTemporaryFiles();
+    }
+
+    [TestMethod]
     [DataRow(RedactionMode.Blur)]
     [DataRow(RedactionMode.Pixelate)]
     public async Task RedactionModesRemainEditableAfterSaving(RedactionMode mode)

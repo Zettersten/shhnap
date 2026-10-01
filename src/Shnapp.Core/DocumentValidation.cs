@@ -3,6 +3,9 @@ namespace Shnapp.Core;
 internal static class DocumentValidation
 {
     internal const int SchemaVersion = 1;
+    private const int MaximumPastedPngBytes = 32 * 1024 * 1024;
+    private const int MaximumPastedImageSide = 12_000;
+    private const long MaximumPastedImagePixels = 40_000_000;
 
     internal static void Validate(ShnappDocument document, bool validateStepNumbers = true)
     {
@@ -15,21 +18,44 @@ internal static class DocumentValidation
             "Original image dimensions must be positive.", nameof(document));
         Require(!document.Annotations.IsDefault, "The annotation array must be initialized.", nameof(document));
 
+        ImageRect canvas = document.CanvasBounds;
+        ValidateRectangle(canvas, nameof(document));
+        Require(IsInteger(canvas.X) && IsInteger(canvas.Y) && IsInteger(canvas.Width) && IsInteger(canvas.Height) &&
+            canvas.X <= 0 && canvas.Y <= 0 &&
+            canvas.Right >= document.PixelWidth && canvas.Bottom >= document.PixelHeight,
+            "The canvas must use whole pixels and contain the original image.", nameof(document));
+        ValidateCanvasSize(document);
+
         if (document.Crop is ImageRect crop)
         {
             ValidateRectangle(crop, nameof(document));
-            Require(crop.X >= 0 && crop.Y >= 0 &&
-                crop.Right <= document.PixelWidth && crop.Bottom <= document.PixelHeight,
-                "The crop must be inside the original image.", nameof(document));
+            Require(Contains(canvas, crop), "The crop must be inside the canvas.", nameof(document));
             Require(IsInteger(crop.X) && IsInteger(crop.Y) && IsInteger(crop.Width) && IsInteger(crop.Height),
                 "The crop must use exact whole-pixel bounds.", nameof(document));
         }
+
+        if (document.BaseImageCrop is ImageRect baseCrop)
+        {
+            ValidateRectangle(baseCrop, nameof(document));
+            Require(!document.HideOriginalImage && document.Crop is not null && Contains(canvas, baseCrop) &&
+                IsInteger(baseCrop.X) && IsInteger(baseCrop.Y) &&
+                IsInteger(baseCrop.Width) && IsInteger(baseCrop.Height),
+                "The original-image crop must use whole pixels inside the canvas.", nameof(document));
+        }
+
+        Require(!document.HideOriginalImage || document.Crop is not null,
+            "Hiding the original image requires a crop.", nameof(document));
 
         var identifiers = new HashSet<Guid>();
         int stepNumber = 0;
         foreach (Annotation annotation in document.Annotations)
         {
             ValidateAnnotation(annotation, document);
+            if (annotation.Kind == AnnotationKind.Image)
+            {
+                Require(Contains(canvas, annotation.Bounds),
+                    "A pasted image must fit inside the expanded canvas.", nameof(document));
+            }
             Require(identifiers.Add(annotation.Id), "Annotation identifiers must be unique.", nameof(document));
             if (annotation.Kind == AnnotationKind.Step)
             {
@@ -57,8 +83,26 @@ internal static class DocumentValidation
         Require(Enum.IsDefined(annotation.StepLabelFormat), "The step label format is not supported.", nameof(annotation));
         Require(annotation.Kind == AnnotationKind.Step || !annotation.StepReset,
             "Only a step can restart numbering.", nameof(annotation));
-        ValidatePoint(annotation.Start, document, nameof(annotation));
-        ValidatePoint(annotation.End, document, nameof(annotation));
+        ValidatePoint(annotation.Start, document, nameof(annotation), annotation.Kind == AnnotationKind.Image);
+        ValidatePoint(annotation.End, document, nameof(annotation), annotation.Kind == AnnotationKind.Image);
+        if (annotation.Kind == AnnotationKind.Image)
+        {
+            ImageRect bounds = annotation.Bounds;
+            Require(bounds.Width >= 1 && bounds.Height >= 1,
+                "A pasted image must have positive visible dimensions.", nameof(annotation));
+            ValidatePastedPng(annotation.ImagePngBase64, nameof(annotation));
+        }
+        else
+        {
+            Require(annotation.ImagePngBase64 is null,
+                "Only a pasted image can contain PNG data.", nameof(annotation));
+        }
+        if (annotation.VisibilityClip is ImageRect visibilityClip)
+        {
+            ValidateRectangle(visibilityClip, nameof(annotation));
+            Require(!annotation.HiddenByCrop,
+                "A completely hidden annotation cannot also have a visibility clip.", nameof(annotation));
+        }
         Require(double.IsFinite(annotation.StrokeWidth) && annotation.StrokeWidth >= 0,
             "Stroke width must be finite and nonnegative.", nameof(annotation));
         Require(annotation.Kind is not (AnnotationKind.Rectangle or AnnotationKind.Ellipse) ||
@@ -108,11 +152,51 @@ internal static class DocumentValidation
             "A rectangle must have positive width and height.", parameterName);
     }
 
-    private static void ValidatePoint(ImagePoint point, ShnappDocument document, string parameterName) =>
+    private static void ValidatePoint(ImagePoint point, ShnappDocument document, string parameterName,
+        bool allowOutsideCanvas)
+    {
+        ImageRect canvas = document.CanvasBounds;
         Require(double.IsFinite(point.X) && double.IsFinite(point.Y) &&
-            point.X >= 0 && point.X <= document.PixelWidth &&
-            point.Y >= 0 && point.Y <= document.PixelHeight,
-            "Annotation points must be finite and inside the original image.", parameterName);
+            (allowOutsideCanvas || canvas.Contains(point)),
+            "Annotation points must be finite and inside the canvas.", parameterName);
+    }
+
+    internal static void ValidateCanvasSize(ShnappDocument document)
+    {
+        ImageRect canvas = document.CanvasBounds;
+        double width = canvas.Width + (document.HasWindowShadow ? 64 : 0);
+        double height = canvas.Height + (document.HasWindowShadow ? 72 : 0);
+        Require(double.IsFinite(width) && double.IsFinite(height) &&
+            width <= 16_384 && height <= 16_384 && width * height <= 64_000_000,
+            "The expanded canvas cannot exceed 16,384 pixels per side or 64 megapixels.", nameof(document));
+    }
+
+    private static void ValidatePastedPng(string? encoded, string parameterName)
+    {
+        int maximumEncodedLength = ((MaximumPastedPngBytes + 2) / 3) * 4;
+        Require(encoded is { Length: >= 44 } && encoded.Length <= maximumEncodedLength &&
+            encoded.Length % 4 == 0 && encoded.StartsWith("iVBORw0KGgo", StringComparison.Ordinal),
+            "A pasted image needs a PNG no larger than 32 MiB.", parameterName);
+
+        Span<byte> header = stackalloc byte[33];
+        Require(Convert.TryFromBase64Chars(encoded.AsSpan(0, 44), header, out int bytesWritten) &&
+            bytesWritten == header.Length && header[8] == 0 && header[9] == 0 &&
+            header[10] == 0 && header[11] == 13 &&
+            header[12] == (byte)'I' && header[13] == (byte)'H' &&
+            header[14] == (byte)'D' && header[15] == (byte)'R',
+            "A pasted image needs a valid PNG header.", parameterName);
+
+        uint width = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(header[16..20]);
+        uint height = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(header[20..24]);
+        Require(width is > 0 and <= MaximumPastedImageSide &&
+            height is > 0 and <= MaximumPastedImageSide &&
+            (long)width * height <= MaximumPastedImagePixels,
+            "A pasted image exceeds the 40-megapixel limit.", parameterName);
+    }
+
+    private static bool Contains(ImageRect outer, ImageRect inner) =>
+        inner.X >= outer.X && inner.Y >= outer.Y &&
+        inner.Right <= outer.Right && inner.Bottom <= outer.Bottom;
 
     private static bool IsInteger(double value) => value == Math.Truncate(value);
 

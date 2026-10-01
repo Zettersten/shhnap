@@ -222,6 +222,7 @@ internal sealed class AppController
             };
             _saved = null;
             _page.OpenDocument(document, bitmap);
+            Renderer.ClearPastedImages();
             bitmap = null;
             Show();
             watch.Stop();
@@ -255,6 +256,8 @@ internal sealed class AppController
             }
 
             using CanvasRenderTarget flattened = Renderer.Flatten(original, document);
+            await using ShnappLibrary.PreparedDocumentSave prepared =
+                await Library.PrepareSaveAsync(document);
             EnsureLibraryImagesSafe(document.Id, create: true);
             if (!File.Exists(Library.GetOriginalPath(document.Id)))
             {
@@ -264,7 +267,7 @@ internal sealed class AppController
             await ShnappRenderer.SavePngAtomicAsync(flattened, Library.GetExportPath(document.Id), CancellationToken.None);
             using CanvasRenderTarget preview = Renderer.Thumbnail(flattened);
             await ShnappRenderer.SavePngAtomicAsync(preview, Library.GetPreviewPath(document.Id), CancellationToken.None);
-            await Library.SaveAsync(document);
+            await prepared.CommitAsync();
             _saved = document;
             if (ReferenceEquals(document, _page.Document))
             {
@@ -342,6 +345,7 @@ internal sealed class AppController
             _saveTimer.Stop();
             await SaveCurrentAsync();
             _page.ShowLibrary(await Library.ListAsync(_lifetime.Token));
+            Renderer.ClearPastedImages();
             _page.ViewModel.Status = "Saved on this PC · New shnapp or Ctrl+Shift+4 to capture";
             Show();
         }
@@ -379,8 +383,18 @@ internal sealed class AppController
                 throw new InvalidDataException("This shnapp's original PNG does not match its editable document.");
             }
 
+            try
+            {
+                await Renderer.PreloadImagesAsync(document);
+            }
+            catch
+            {
+                bitmap.Dispose();
+                throw;
+            }
             _saved = document;
             _page.OpenDocument(document, bitmap);
+            Renderer.RetainPastedImages(document);
             Show();
         }
         finally
@@ -400,6 +414,7 @@ internal sealed class AppController
         _saveTimer.Stop();
         await SaveCurrentAsync();
         _page.ShowLibrary([]);
+        Renderer.ClearPastedImages();
         _window.AppWindow.Hide();
     }
 

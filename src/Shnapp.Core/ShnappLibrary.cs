@@ -17,6 +17,7 @@ namespace Shnapp.Core;
 /// </remarks>
 public sealed class ShnappLibrary(string rootPath)
 {
+    private const long MaximumDocumentBytes = 256L * 1024 * 1024;
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> RootAccessGates =
         new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     private readonly SemaphoreSlim _access = RootAccessGates.GetOrAdd(NormalizeRoot(rootPath), static _ => new(1, 1));
@@ -53,23 +54,96 @@ public sealed class ShnappLibrary(string rootPath)
     /// <param name="document">A supported, valid document with consecutive step numbering.</param>
     /// <param name="cancellationToken">Cancels waiting or writing before the atomic commit.</param>
     /// <returns>A task completed after the metadata has been atomically replaced.</returns>
-    /// <exception cref="ArgumentException">The document violates its schema or source-image bounds.</exception>
+    /// <exception cref="ArgumentException">The document violates its schema or canvas bounds.</exception>
     /// <remarks>Cancellation observed before replacement leaves the previous document unchanged.</remarks>
     public async Task SaveAsync(ShnappDocument document, CancellationToken cancellationToken = default)
     {
+        await using PreparedDocumentSave prepared = await PrepareSaveAsync(document, cancellationToken)
+            .ConfigureAwait(false);
+        await prepared.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Serializes and validates metadata before any companion PNG files are replaced.</summary>
+    /// <param name="document">The complete editable document to prepare.</param>
+    /// <param name="cancellationToken">Cancels waiting or preparation.</param>
+    /// <returns>A prepared save that must be committed or disposed.</returns>
+    /// <remarks>Disposing without committing leaves the existing metadata untouched.</remarks>
+    public Task<PreparedDocumentSave> PrepareSaveAsync(ShnappDocument document,
+        CancellationToken cancellationToken = default) =>
+        PrepareSaveAsync(document, MaximumDocumentBytes, cancellationToken);
+
+    internal async Task<PreparedDocumentSave> PrepareSaveAsync(ShnappDocument document,
+        long maximumBytes, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumBytes);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumBytes, MaximumDocumentBytes);
         cancellationToken.ThrowIfCancellationRequested();
         DocumentValidation.Validate(document);
+        long estimatedBytes = document.Annotations.Aggregate(0L, static (total, annotation) =>
+            total + (annotation.ImagePngBase64?.Length ?? 0) + (long)annotation.Text.Length * 4 + 4096);
+        if (estimatedBytes > maximumBytes)
+        {
+            throw new ArgumentException("This shnapp exceeds the editable document size limit.", nameof(document));
+        }
         string directory = GetDocumentDirectory(document.Id);
         await _access.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             EnsureSafeDirectories(directory, create: true);
-            await WriteAtomicAsync(Path.Combine(directory, "document.json"), document,
-                ShnappJsonContext.Default.ShnappDocument, cancellationToken).ConfigureAwait(false);
+            string path = Path.Combine(directory, "document.json");
+            string temporaryPath = await WriteTemporaryAsync(path, document,
+                ShnappJsonContext.Default.ShnappDocument, cancellationToken,
+                maximumBytes).ConfigureAwait(false);
+            return new PreparedDocumentSave(_access, temporaryPath, path);
         }
-        finally
+        catch
         {
             _access.Release();
+            throw;
+        }
+    }
+
+    /// <summary>A fully serialized metadata save awaiting its atomic replacement.</summary>
+    public sealed class PreparedDocumentSave : IAsyncDisposable
+    {
+        private readonly SemaphoreSlim _access;
+        private readonly string _temporaryPath;
+        private readonly string _path;
+        private bool _committed;
+        private bool _disposed;
+
+        internal PreparedDocumentSave(SemaphoreSlim access, string temporaryPath, string path)
+        {
+            _access = access;
+            _temporaryPath = temporaryPath;
+            _path = path;
+        }
+
+        /// <summary>Atomically replaces document.json with the prepared metadata.</summary>
+        /// <param name="cancellationToken">Cancels before replacement.</param>
+        public async Task CommitAsync(CancellationToken cancellationToken = default)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_committed)
+            {
+                return;
+            }
+
+            await CommitAtomicAsync(_temporaryPath, _path, cancellationToken).ConfigureAwait(false);
+            _committed = true;
+        }
+
+        /// <summary>Releases the metadata gate and deletes an uncommitted temporary file.</summary>
+        public ValueTask DisposeAsync()
+        {
+            if (!_disposed)
+            {
+                _disposed = true;
+                DeleteTemporaryFile(_temporaryPath);
+                _access.Release();
+            }
+
+            return ValueTask.CompletedTask;
         }
     }
 
@@ -91,6 +165,10 @@ public sealed class ShnappLibrary(string rootPath)
             try
             {
                 await using FileStream stream = OpenRead(path);
+                if (stream.Length > MaximumDocumentBytes)
+                {
+                    throw new InvalidDataException("This shnapp exceeds the 256 MiB editable document limit.");
+                }
                 using JsonDocument json = await JsonDocument.ParseAsync(stream,
                     cancellationToken: cancellationToken).ConfigureAwait(false);
                 JsonSchema.ValidateDocument(json.RootElement);
@@ -292,7 +370,22 @@ public sealed class ShnappLibrary(string rootPath)
             bufferSize: 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
 
     private static async Task WriteAtomicAsync<T>(string path, T value, JsonTypeInfo<T> typeInfo,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, long maximumBytes = long.MaxValue)
+    {
+        string temporaryPath = await WriteTemporaryAsync(path, value, typeInfo, cancellationToken,
+            maximumBytes).ConfigureAwait(false);
+        try
+        {
+            await CommitAtomicAsync(temporaryPath, path, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            DeleteTemporaryFile(temporaryPath);
+        }
+    }
+
+    private static async Task<string> WriteTemporaryAsync<T>(string path, T value, JsonTypeInfo<T> typeInfo,
+        CancellationToken cancellationToken, long maximumBytes)
     {
         string temporaryPath = Path.Combine(Path.GetDirectoryName(path)!, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
         bool created = false;
@@ -305,27 +398,38 @@ public sealed class ShnappLibrary(string rootPath)
                 created = true;
                 await JsonSerializer.SerializeAsync(stream, value, typeInfo, cancellationToken).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                if (stream.Length > maximumBytes)
+                {
+                    throw new ArgumentException("This shnapp exceeds the 256 MiB editable document limit.", nameof(value));
+                }
             }
 
-            await CommitAtomicAsync(temporaryPath, path, cancellationToken).ConfigureAwait(false);
+            return temporaryPath;
         }
-        finally
+        catch
         {
             if (created)
             {
-                try
-                {
-                    File.Delete(temporaryPath);
-                }
-                catch (IOException)
-                {
-                    // A failed cleanup leaves only an ignored, uniquely named temporary file.
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    // Preserve the original write/cancellation error if cleanup is denied.
-                }
+                DeleteTemporaryFile(temporaryPath);
             }
+
+            throw;
+        }
+    }
+
+    private static void DeleteTemporaryFile(string temporaryPath)
+    {
+        try
+        {
+            File.Delete(temporaryPath);
+        }
+        catch (IOException)
+        {
+            // A failed cleanup leaves only an ignored, uniquely named temporary file.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Preserve the original write/cancellation error if cleanup is denied.
         }
     }
 

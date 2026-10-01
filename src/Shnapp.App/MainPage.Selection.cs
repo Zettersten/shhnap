@@ -36,6 +36,12 @@ public sealed partial class MainPage
 
     private bool HitAnnotation(Annotation annotation, ImagePoint position)
     {
+        if (annotation.HiddenByCrop ||
+            annotation.VisibilityClip is ImageRect clip && !clip.Contains(position))
+        {
+            return false;
+        }
+
         if (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow)
         {
             double dx = annotation.End.X - annotation.Start.X;
@@ -89,6 +95,21 @@ public sealed partial class MainPage
             return [new(ResizeHandle.BottomRight, new(bounds.Right, bounds.Bottom))];
         }
 
+        if (annotation.Kind == AnnotationKind.Image)
+        {
+            if (VisibleImageBounds(annotation) is not ImageRect visible)
+            {
+                return [];
+            }
+
+            return [
+                new(ResizeHandle.TopLeft, new(visible.X, visible.Y)),
+                new(ResizeHandle.TopRight, new(visible.Right, visible.Y)),
+                new(ResizeHandle.BottomRight, new(visible.Right, visible.Bottom)),
+                new(ResizeHandle.BottomLeft, new(visible.X, visible.Bottom)),
+            ];
+        }
+
         double midX = bounds.X + bounds.Width / 2;
         double midY = bounds.Y + bounds.Height / 2;
         if (bounds.Width * _scale < 32 || bounds.Height * _scale < 32)
@@ -113,6 +134,35 @@ public sealed partial class MainPage
         ];
     }
 
+    private ImageRect? VisibleImageBounds(Annotation annotation)
+    {
+        ImageRect bounds = annotation.Bounds;
+        ImageRect viewport = _editor!.Current.Viewport;
+        double left = Math.Max(bounds.X, viewport.X);
+        double top = Math.Max(bounds.Y, viewport.Y);
+        double right = Math.Min(bounds.Right, viewport.Right);
+        double bottom = Math.Min(bounds.Bottom, viewport.Bottom);
+        if (annotation.VisibilityClip is ImageRect clip)
+        {
+            left = Math.Max(left, clip.X);
+            top = Math.Max(top, clip.Y);
+            right = Math.Min(right, clip.Right);
+            bottom = Math.Min(bottom, clip.Bottom);
+        }
+
+        return right > left && bottom > top
+            ? new ImageRect(left, top, right - left, bottom - top)
+            : null;
+    }
+
+    private static ImagePoint Corner(ImageRect bounds, ResizeHandle handle) => handle switch
+    {
+        ResizeHandle.TopLeft => new(bounds.X, bounds.Y),
+        ResizeHandle.TopRight => new(bounds.Right, bounds.Y),
+        ResizeHandle.BottomRight => new(bounds.Right, bounds.Bottom),
+        _ => new(bounds.X, bounds.Bottom),
+    };
+
     private ResizeHandle HitResizeHandle(Annotation annotation, Point canvasPosition)
     {
         ResizeHandle nearest = ResizeHandle.None;
@@ -120,6 +170,12 @@ public sealed partial class MainPage
         Matrix3x2 transform = ImageTransform();
         foreach (SelectionHandle handle in HandlesFor(annotation))
         {
+            if (annotation.HiddenByCrop ||
+                annotation.VisibilityClip is ImageRect clip && !clip.Contains(handle.Position))
+            {
+                continue;
+            }
+
             Vector2 center = Vector2.Transform(new((float)handle.Position.X, (float)handle.Position.Y), transform);
             double dx = canvasPosition.X - center.X;
             double dy = canvasPosition.Y - center.Y;
@@ -136,13 +192,29 @@ public sealed partial class MainPage
 
     private void DrawSelection(CanvasDrawingSession drawing, Annotation annotation)
     {
+        if (annotation.HiddenByCrop)
+        {
+            return;
+        }
+
+        if (annotation.Kind == AnnotationKind.Image && VisibleImageBounds(annotation) is null)
+        {
+            return;
+        }
+
+        using var clipLayer = annotation.VisibilityClip is ImageRect clip
+            ? drawing.CreateLayer(1, ShnappRenderer.ToRect(clip))
+            : null;
         var blue = ShnappRenderer.FromArgb(0xFF0A84FF);
         float outer = (float)(3 / _scale);
         float inner = (float)(1 / _scale);
         // Endpoint handles show a selected line without hiding its chosen stroke or color.
         if (annotation.Kind is not AnnotationKind.Line and not AnnotationKind.Arrow)
         {
-            Rect bounds = SelectionBounds(annotation);
+            Rect bounds = annotation.Kind == AnnotationKind.Image &&
+                VisibleImageBounds(annotation) is ImageRect visible
+                ? ShnappRenderer.ToRect(visible)
+                : SelectionBounds(annotation);
             drawing.DrawRectangle(bounds, Colors.White, outer);
             drawing.DrawRectangle(bounds, blue, inner);
         }
@@ -200,6 +272,19 @@ public sealed partial class MainPage
             return original with { FontSize = fontSize };
         }
 
+        if (original.Kind == AnnotationKind.Image)
+        {
+            if (VisibleImageBounds(original) is ImageRect visible)
+            {
+                ImagePoint fullCorner = Corner(original.Bounds, handle);
+                ImagePoint visibleCorner = Corner(visible, handle);
+                point = new ImagePoint(point.X + fullCorner.X - visibleCorner.X,
+                    point.Y + fullCorner.Y - visibleCorner.Y);
+            }
+
+            return ResizeImage(original, handle, point, maintainProportions);
+        }
+
         Rect shape = SelectionBounds(original);
         if (maintainProportions && shape.Width >= 2 && shape.Height >= 2)
         {
@@ -231,6 +316,35 @@ public sealed partial class MainPage
         }
 
         return original with { Start = new(left, top), End = new(right, bottom) };
+    }
+
+    private static Annotation ResizeImage(Annotation original, ResizeHandle handle, ImagePoint point,
+        bool maintainProportions)
+    {
+        ImageRect bounds = original.Bounds;
+        bool fromLeft = handle is ResizeHandle.TopLeft or ResizeHandle.BottomLeft;
+        bool fromTop = handle is ResizeHandle.TopLeft or ResizeHandle.TopRight;
+        double anchorX = fromLeft ? bounds.Right : bounds.X;
+        double anchorY = fromTop ? bounds.Bottom : bounds.Y;
+        double width = Math.Max(2, fromLeft ? anchorX - point.X : point.X - anchorX);
+        double height = Math.Max(2, fromTop ? anchorY - point.Y : point.Y - anchorY);
+
+        if (maintainProportions)
+        {
+            double ratio = bounds.Width / bounds.Height;
+            if (Math.Abs(width / bounds.Width - 1) >= Math.Abs(height / bounds.Height - 1))
+            {
+                height = Math.Max(2, width / ratio);
+            }
+            else
+            {
+                width = Math.Max(2, height * ratio);
+            }
+        }
+
+        double left = fromLeft ? anchorX - width : anchorX;
+        double top = fromTop ? anchorY - height : anchorY;
+        return original with { Start = new(left, top), End = new(left + width, top + height) };
     }
 
     private static Annotation ResizeProportionalShape(Annotation original, Rect shape,
@@ -374,15 +488,35 @@ public sealed partial class MainPage
 
         Rect bounds = SelectionBounds(selected);
         ImageRect viewport = _editor.Current.Viewport;
-        double offsetX = ClampNudge(dx, viewport.X - bounds.X, viewport.Right - bounds.Right);
-        double offsetY = ClampNudge(dy, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom);
+        double offsetX = selected.Kind == AnnotationKind.Image
+            ? dx : ClampNudge(dx, viewport.X - bounds.X, viewport.Right - bounds.Right);
+        double offsetY = selected.Kind == AnnotationKind.Image
+            ? dy : ClampNudge(dy, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom);
         if (offsetX != 0 || offsetY != 0)
         {
-            _editor.UpdateAnnotation(selected with
+            Annotation moved = selected with
             {
                 Start = new(selected.Start.X + offsetX, selected.Start.Y + offsetY),
                 End = new(selected.End.X + offsetX, selected.End.Y + offsetY),
-            });
+            };
+            try
+            {
+                if (selected.Kind == AnnotationKind.Image)
+                {
+                    Vector2 center = Vector2.Transform(new((float)(bounds.X + bounds.Width / 2),
+                        (float)(bounds.Y + bounds.Height / 2)), ImageTransform());
+                    _pendingContentAnchor = new Point(center.X, center.Y);
+                }
+                _editor.UpdateAnnotation(moved);
+            }
+            catch (ArgumentException exception) when (selected.Kind == AnnotationKind.Image)
+            {
+                ShowMessage("Image cannot expand the canvas", exception.Message);
+            }
+            finally
+            {
+                _pendingContentAnchor = null;
+            }
         }
 
         return true;
@@ -406,7 +540,7 @@ public sealed partial class MainPage
         {
             Annotations = _editor.Current.Annotations.Remove(_moving),
         };
-        _dragBase = _controller.Renderer.Flatten(_original, withoutSelection);
+        _dragBase = _controller.Renderer.Flatten(_original, withoutSelection, _editor.Current.Viewport);
     }
 
     private void DisposeDragBase()

@@ -33,6 +33,8 @@ The grabber shows a crosshair and live X, Y, width, and height in pixels as you 
 
 The editor gives your capture room to breathe. Place a mark and it stays selected: changes in the side panel update that mark right away. Select an earlier mark to adjust it, or drag its handles to resize it. When nothing is selected, your choices set up the next mark.
 
+Paste with `Ctrl+V` to turn copied words into an editable text mark or a copied picture into a movable image. If the picture reaches past the capture, Shnapp grows the canvas around it and keeps the added space transparent in the finished PNG.
+
 - **Text:** choose a font, weight, italic style, size, and color. Double-click placed text to rewrite it.
 - **Steps:** place dots labeled with numbers, letters, or Roman numerals. Restart the count at any dot, and adjust its size, colors, font, and weight. The next dot keeps your last size.
 - **Lines and shapes:** use one line tool for solid, dashed, or dotted strokes. Choose a cap for either end: triangle, open arrow, circle, diamond, bar, or none. Draw rectangles, squares, ellipses, and circles with adjustable outlines and fills, including fill-only shapes.

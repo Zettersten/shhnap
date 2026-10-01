@@ -442,6 +442,231 @@ public sealed class DocumentEditorTests
         Assert.AreEqual(annotation, editor.Current.Annotations.Single());
     }
 
+    [TestMethod]
+    public void PastedImageExpandsTransparentCanvasInEveryDirectionAndUndoRestoresIt()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(-50.25, -25.5),
+            End = new ImagePoint(700.4, 510.2),
+        };
+
+        editor.AddAnnotation(image);
+
+        Assert.AreEqual(new ImageRect(-51, -26, 752, 537), editor.Current.CanvasBounds);
+        Assert.AreEqual(editor.Current.CanvasBounds, editor.Current.Viewport);
+        Assert.AreEqual(new ImageRect(0, 0, 640, 480), editor.Current.OriginalBounds);
+        Assert.AreEqual(640, editor.Current.PixelWidth);
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Text) with
+        {
+            Start = new ImagePoint(-20, -10),
+            End = new ImagePoint(0, 0),
+            Text = "On transparent canvas",
+        });
+        Assert.HasCount(2, editor.Current.Annotations);
+
+        Assert.IsTrue(editor.Undo());
+        Assert.IsTrue(editor.Undo());
+        Assert.AreEqual(new ImageRect(0, 0, 640, 480), editor.Current.CanvasBounds);
+        Assert.IsTrue(editor.Redo());
+        Assert.AreEqual(new ImageRect(-51, -26, 752, 537), editor.Current.Viewport);
+        editor.RemoveAnnotation(image.Id);
+        Assert.AreEqual(new ImageRect(-51, -26, 752, 537), editor.Current.CanvasBounds);
+    }
+
+    [TestMethod]
+    public void PastingBeyondAnExistingCropKeepsOriginalMaskAndLaterCropClipsImage()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        ImageRect oldCrop = new(100, 100, 200, 150);
+        editor.ApplyCrop(oldCrop);
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(-20, -20),
+            End = new ImagePoint(40, 40),
+        };
+
+        editor.AddAnnotation(image);
+
+        Assert.AreEqual(oldCrop, editor.Current.BaseImageCrop);
+        Assert.AreEqual(new ImageRect(-20, -20, 320, 270), editor.Current.Crop);
+        Assert.AreEqual(new ImageRect(-20, -20, 660, 500), editor.Current.CanvasBounds);
+        editor.ApplyCrop(new ImageRect(100, 100, 200, 150));
+        Assert.AreEqual(oldCrop, editor.Current.Viewport);
+        Assert.AreEqual(oldCrop, editor.Current.BaseImageCrop);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreEqual(new ImageRect(-20, -20, 320, 270), editor.Current.Viewport);
+    }
+
+    [TestMethod]
+    public void RecroppingTightensOriginalMaskBeforeAnotherImageExpandsTheViewport()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        editor.ApplyCrop(new ImageRect(100, 100, 200, 150));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(-20, -20),
+            End = new ImagePoint(40, 40),
+        });
+
+        ImageRect narrow = new(150, 150, 50, 50);
+        editor.ApplyCrop(narrow);
+        Assert.AreEqual(narrow, editor.Current.BaseImageCrop);
+        Assert.IsFalse(editor.Current.HideOriginalImage);
+
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(320, 320),
+            End = new ImagePoint(350, 350),
+        });
+        Assert.AreEqual(narrow, editor.Current.BaseImageCrop);
+        Assert.AreEqual(new ImageRect(150, 150, 200, 200), editor.Current.Viewport);
+
+        editor.ApplyCrop(new ImageRect(320, 320, 30, 30));
+        Assert.IsNull(editor.Current.BaseImageCrop);
+        Assert.IsTrue(editor.Current.HideOriginalImage);
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(0, 0),
+            End = new ImagePoint(20, 20),
+        });
+        Assert.IsTrue(editor.Current.HideOriginalImage);
+        Assert.AreEqual(new ImageRect(0, 0, 350, 350), editor.Current.Viewport);
+    }
+
+    [TestMethod]
+    public void ExpandingARecroppedCanvasDoesNotRestoreOlderTextOrPastedImages()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation text = TestDocuments.Annotation(AnnotationKind.Text) with
+        {
+            Start = new ImagePoint(400, 400),
+            End = new ImagePoint(400, 400),
+            Text = "Previously cropped out",
+        };
+        Annotation olderImage = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(420, 410),
+            End = new ImagePoint(450, 440),
+        };
+        editor.AddAnnotation(text);
+        editor.AddAnnotation(olderImage);
+        editor.ApplyCrop(new ImageRect(100, 100, 100, 100));
+
+        Annotation newImage = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(500, 500),
+            End = new ImagePoint(550, 550),
+        };
+        editor.AddAnnotation(newImage);
+
+        Assert.AreEqual(new ImageRect(100, 100, 450, 450), editor.Current.Viewport);
+        Assert.AreEqual(new ImageRect(100, 100, 100, 100),
+            editor.Current.Annotations.Single(item => item.Id == text.Id).VisibilityClip);
+        Assert.AreEqual(new ImageRect(100, 100, 100, 100),
+            editor.Current.Annotations.Single(item => item.Id == olderImage.Id).VisibilityClip);
+        Assert.IsNull(editor.Current.Annotations.Single(item => item.Id == newImage.Id).VisibilityClip);
+
+        editor.ApplyCrop(new ImageRect(500, 500, 50, 50));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(0, 0),
+            End = new ImagePoint(20, 20),
+        });
+        Assert.IsTrue(editor.Current.Annotations.Single(item => item.Id == text.Id).HiddenByCrop);
+        Assert.IsTrue(editor.Current.Annotations.Single(item => item.Id == olderImage.Id).HiddenByCrop);
+
+        Assert.IsTrue(editor.Undo());
+        Assert.IsFalse(editor.Current.Annotations.Single(item => item.Id == text.Id).HiddenByCrop);
+    }
+
+    [TestMethod]
+    public void MovingClippedPastedImageMovesItsVisibleClip()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(125, 125, 50, 50));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(500, 400),
+            End = new ImagePoint(550, 450),
+        });
+
+        Annotation moved = image with
+        {
+            Start = new ImagePoint(200, 200),
+            End = new ImagePoint(300, 300),
+        };
+        Annotation preview = editor.PreviewAnnotation(moved);
+        Assert.AreEqual(new ImageRect(225, 225, 50, 50), preview.VisibilityClip);
+        Assert.AreEqual(new ImageRect(125, 125, 50, 50),
+            editor.Current.Annotations.Single(item => item.Id == image.Id).VisibilityClip);
+        editor.UpdateAnnotation(moved);
+
+        Assert.AreEqual(new ImageRect(225, 225, 50, 50),
+            editor.Current.Annotations.Single(item => item.Id == image.Id).VisibilityClip);
+    }
+
+    [TestMethod]
+    public void UpdatingACompletelyCroppedOutAnnotationKeepsItHidden()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation text = TestDocuments.Annotation(AnnotationKind.Text) with { Text = "secret" };
+        editor.AddAnnotation(text);
+        editor.ApplyCrop(new ImageRect(100, 100, 100, 100));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(300, 300),
+            End = new ImagePoint(350, 350),
+        });
+        editor.ApplyCrop(new ImageRect(300, 300, 50, 50));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(0, 0),
+            End = new ImagePoint(20, 20),
+        });
+        Assert.IsTrue(editor.Current.Annotations.Single(item => item.Id == text.Id).HiddenByCrop);
+
+        editor.UpdateAnnotation(new Annotation
+        {
+            Id = text.Id,
+            Kind = AnnotationKind.Text,
+            Start = new ImagePoint(10, 20),
+            End = new ImagePoint(10, 20),
+            Text = "still secret",
+        });
+
+        Assert.IsTrue(editor.Current.Annotations.Single(item => item.Id == text.Id).HiddenByCrop);
+    }
+
+    [TestMethod]
+    public void InvalidOrOversizedPastedImagesAreRejectedWithoutHistory()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation valid = TestDocuments.Annotation(AnnotationKind.Image);
+        Annotation[] invalid =
+        [
+            valid with { ImagePngBase64 = null },
+            valid with { ImagePngBase64 = "not a PNG" },
+            valid with { Start = new ImagePoint(0, 0), End = new ImagePoint(0, 10) },
+            valid with { Start = new ImagePoint(50_000, 0), End = new ImagePoint(50_010, 10) },
+        ];
+
+        foreach (Annotation image in invalid)
+        {
+            Assert.Throws<ArgumentException>(() => editor.AddAnnotation(image));
+        }
+
+        Assert.IsTrue(editor.Current.Annotations.IsEmpty);
+        Assert.IsFalse(editor.CanUndo);
+    }
+
     private static void AssertStepNumbers(DocumentEditor editor, params int[] expected) =>
         CollectionAssert.AreEqual(expected,
             editor.Current.Annotations.Where(annotation => annotation.Kind == AnnotationKind.Step)

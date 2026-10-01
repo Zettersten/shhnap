@@ -122,23 +122,43 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        ImageRect viewport = _editor!.Current.Viewport;
+        int padding = _editor.Current.HasWindowShadow ? ShnappRenderer.ShadowPadding : 0;
         double fit = Math.Max(0.01, Math.Min(1,
             Math.Min(Math.Max(1, DrawingCanvas.ActualWidth - 48) / _flattened.Size.Width,
                 Math.Max(1, DrawingCanvas.ActualHeight - 48) / _flattened.Size.Height)));
         if (_viewCanvasWidth == DrawingCanvas.ActualWidth && _viewCanvasHeight == DrawingCanvas.ActualHeight &&
             _viewImageWidth == _flattened.Size.Width && _viewImageHeight == _flattened.Size.Height)
         {
+            _viewViewport = viewport;
+            _viewShadowPadding = padding;
             return;
         }
 
+        bool preserveAnchor = _viewViewport is ImageRect &&
+            _viewCanvasWidth == DrawingCanvas.ActualWidth &&
+            _viewCanvasHeight == DrawingCanvas.ActualHeight &&
+            _viewImageWidth > 0 && _viewImageHeight > 0 && _scale > 0;
+        Point anchor = _pendingContentAnchor ??
+            new Point(DrawingCanvas.ActualWidth / 2, DrawingCanvas.ActualHeight / 2);
+        double sourceX = preserveAnchor
+            ? (anchor.X - _offsetX) / _scale - _viewShadowPadding + _viewViewport!.Value.X : 0;
+        double sourceY = preserveAnchor
+            ? (anchor.Y - _offsetY) / _scale - _viewShadowPadding + _viewViewport!.Value.Y : 0;
         _fitScale = fit;
         _scale = _fitScale * _zoomFactor;
-        _offsetX = (DrawingCanvas.ActualWidth - _flattened.Size.Width * _scale) / 2;
-        _offsetY = (DrawingCanvas.ActualHeight - _flattened.Size.Height * _scale) / 2;
+        _offsetX = preserveAnchor
+            ? anchor.X - (sourceX - viewport.X + padding) * _scale
+            : (DrawingCanvas.ActualWidth - _flattened.Size.Width * _scale) / 2;
+        _offsetY = preserveAnchor
+            ? anchor.Y - (sourceY - viewport.Y + padding) * _scale
+            : (DrawingCanvas.ActualHeight - _flattened.Size.Height * _scale) / 2;
         _viewCanvasWidth = DrawingCanvas.ActualWidth;
         _viewCanvasHeight = DrawingCanvas.ActualHeight;
         _viewImageWidth = _flattened.Size.Width;
         _viewImageHeight = _flattened.Size.Height;
+        _viewViewport = viewport;
+        _viewShadowPadding = padding;
         ClampCanvasPan();
     }
 
@@ -151,7 +171,7 @@ public sealed partial class MainPage : Page
             * Matrix3x2.CreateTranslation((float)_offsetX, (float)_offsetY);
     }
 
-    private ImagePoint? ImagePosition(Point position, bool clamp = false)
+    private ImagePoint? ImagePosition(Point position, bool clamp = false, bool allowOutside = false)
     {
         if (_editor is null)
         {
@@ -167,7 +187,7 @@ public sealed partial class MainPage : Page
             return new(Math.Clamp(point.X, viewport.X, viewport.Right), Math.Clamp(point.Y, viewport.Y, viewport.Bottom));
         }
 
-        return viewport.Contains(point) ? point : null;
+        return allowOutside || viewport.Contains(point) ? point : null;
     }
 
     private void Canvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
@@ -183,25 +203,37 @@ public sealed partial class MainPage : Page
             * Matrix3x2.CreateTranslation((float)_offsetX, (float)_offsetY);
         drawing.DrawImage(_dragBase ?? _flattened);
         drawing.Transform = ImageTransform();
+        Annotation? preview = null;
         if (_draft is not null)
         {
-            if (_draft.Kind == AnnotationKind.Redaction)
+            preview = _moving is null ? _draft : _editor.PreviewAnnotation(_draft);
+            if (!preview.HiddenByCrop)
             {
-                ImageRect viewport = _editor.Current.Viewport;
-                int padding = _editor.Current.HasWindowShadow ? ShnappRenderer.ShadowPadding : 0;
-                _controller!.Renderer.DrawRedactionPreview(drawing, _dragBase ?? _flattened, _draft,
-                    new ImagePoint(viewport.X - padding, viewport.Y - padding));
-            }
-            else
-            {
-                ShnappRenderer.DrawAnnotation(drawing, _draft);
+                using var clipLayer = preview.VisibilityClip is ImageRect clip
+                    ? drawing.CreateLayer(1, ShnappRenderer.ToRect(clip))
+                    : null;
+                if (preview.Kind == AnnotationKind.Image)
+                {
+                    _controller!.Renderer.DrawImageAnnotation(drawing, preview);
+                }
+                else if (preview.Kind == AnnotationKind.Redaction)
+                {
+                    ImageRect viewport = _editor.Current.Viewport;
+                    int padding = _editor.Current.HasWindowShadow ? ShnappRenderer.ShadowPadding : 0;
+                    _controller!.Renderer.DrawRedactionPreview(drawing, _dragBase ?? _flattened, preview,
+                        new ImagePoint(viewport.X - padding, viewport.Y - padding));
+                }
+                else
+                {
+                    ShnappRenderer.DrawAnnotation(drawing, preview);
+                }
             }
         }
 
         Annotation? selected = _editor.Current.Annotations.FirstOrDefault(a => a.Id == _selectedId);
         if (selected is not null)
         {
-            DrawSelection(drawing, _moving is not null ? _draft ?? selected : selected);
+            DrawSelection(drawing, _moving is not null ? preview ?? selected : selected);
         }
 
         if (_crop is ImageRect crop)
@@ -336,7 +368,9 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        ImagePoint point = ImagePosition(canvasPosition, clamp: true)!.Value;
+        ImagePoint point = (_moving?.Kind == AnnotationKind.Image
+            ? ImagePosition(canvasPosition, allowOutside: true)
+            : ImagePosition(canvasPosition, clamp: true))!.Value;
         if (_moving is not null)
         {
             if (_resizeHandle != ResizeHandle.None)
@@ -365,8 +399,11 @@ public sealed partial class MainPage : Page
                     _axisLockHorizontal = null;
                 }
 
-                dx = ClampMovement(dx, viewport.X - bounds.X, viewport.Right - bounds.Right);
-                dy = ClampMovement(dy, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom);
+                if (_moving.Kind != AnnotationKind.Image)
+                {
+                    dx = ClampMovement(dx, viewport.X - bounds.X, viewport.Right - bounds.Right);
+                    dy = ClampMovement(dy, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom);
+                }
                 _draft = _moving with
                 {
                     Start = new(_moving.Start.X + dx, _moving.Start.Y + dy),
@@ -435,8 +472,26 @@ public sealed partial class MainPage : Page
         {
             if (_moving is not null)
             {
-                _editor.UpdateAnnotation(annotation);
-                if (_resizeHandle != ResizeHandle.None && annotation.Kind == AnnotationKind.Step)
+                bool updated = false;
+                try
+                {
+                    if (annotation.Kind == AnnotationKind.Image)
+                    {
+                        _pendingContentAnchor = args.GetCurrentPoint(DrawingCanvas).Position;
+                    }
+                    _editor.UpdateAnnotation(annotation);
+                    updated = true;
+                }
+                catch (ArgumentException exception) when (annotation.Kind == AnnotationKind.Image)
+                {
+                    ShowMessage("Image cannot expand the canvas", exception.Message);
+                }
+                finally
+                {
+                    _pendingContentAnchor = null;
+                }
+
+                if (updated && _resizeHandle != ResizeHandle.None && annotation.Kind == AnnotationKind.Step)
                 {
                     ToolStyle stepStyle = _toolStyles[EditorTool.Step];
                     stepStyle.StepDiameter = annotation.StepDiameter;
@@ -724,7 +779,7 @@ public sealed partial class MainPage : Page
 
     private string ToolHint() => _tool switch
     {
-        EditorTool.Select => "Select to move · Drag handles to resize · Arrow keys nudge 1 px (Shift: 10 px) · Delete removes",
+        EditorTool.Select => "Select to move · Drag handles to resize · Ctrl+V pastes text or images · Arrow keys nudge 1 px (Shift: 10 px) · Delete removes",
         EditorTool.Text => "Click to type · Enter finishes",
         EditorTool.Step => "Click to place the next numbered step",
         EditorTool.Redaction => "Drag to obscure an area · Solid fully masks; blur and pixelate soften detail",

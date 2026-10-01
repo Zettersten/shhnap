@@ -31,6 +31,8 @@ public enum AnnotationKind
     Ellipse,
     /// <summary>An opaque privacy rectangle.</summary>
     Redaction,
+    /// <summary>A pasted PNG that can be moved and resized independently.</summary>
+    Image,
 }
 
 /// <summary>How a rectangular redaction obscures the image beneath it.</summary>
@@ -73,7 +75,7 @@ public enum StepLabelFormat
     LowerRoman,
 }
 
-/// <summary>A position in original-image pixels, never window DIPs.</summary>
+/// <summary>A canvas-pixel position anchored to the original image at (0, 0), never window DIPs.</summary>
 /// <param name="X">Horizontal coordinate.</param>
 /// <param name="Y">Vertical coordinate.</param>
 public readonly record struct ImagePoint(double X, double Y);
@@ -108,7 +110,7 @@ public readonly record struct ImageRect(double X, double Y, double Width, double
         point.X >= X && point.X <= Right && point.Y >= Y && point.Y <= Bottom;
 }
 
-/// <summary>An immutable, serializable annotation in source-image coordinates.</summary>
+/// <summary>An immutable, serializable annotation in canvas pixel coordinates.</summary>
 public sealed record Annotation
 {
     /// <summary>Gets the stable annotation identifier.</summary>
@@ -174,6 +176,20 @@ public sealed record Annotation
     /// <summary>Gets the user-entered text.</summary>
     public string Text { get; init; } = string.Empty;
 
+    /// <summary>Gets the pasted PNG encoded in base64 for an image annotation.</summary>
+    /// <remarks>The payload lives in the editable document so it survives undo, save, and reopening.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ImagePngBase64 { get; init; }
+
+    /// <summary>Limits an older annotation to the visible area kept by a crop.</summary>
+    /// <remarks>Used when a later pasted image widens the canvas without restoring cropped marks.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImageRect? VisibilityClip { get; init; }
+
+    /// <summary>Gets whether a crop has completely hidden this annotation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HiddenByCrop { get; init; }
+
     /// <summary>Gets the font family for text and step labels.</summary>
     public string FontFamily { get; init; } = "Segoe UI Variable Text";
 
@@ -230,15 +246,38 @@ public sealed record ShnappDocument
     /// <summary>Gets the non-destructive crop, or null for the complete image.</summary>
     public ImageRect? Crop { get; init; }
 
+    /// <summary>Gets the original capture's visibility mask when a pasted image expands a prior crop.</summary>
+    /// <remarks>Null means the current crop also determines which original pixels remain visible.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImageRect? BaseImageCrop { get; init; }
+
+    /// <summary>Gets whether cropping has completely excluded the original capture.</summary>
+    /// <remarks>A later pasted image may widen the viewport without revealing those pixels again.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HideOriginalImage { get; init; }
+
+    /// <summary>Gets expanded, whole-pixel canvas bounds, or null for the original image bounds.</summary>
+    /// <remarks>This stays expanded after an image is moved or removed, leaving a transparent canvas.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImageRect? ExpandedCanvasBounds { get; init; }
+
     /// <summary>Gets whether the exported image includes a window shadow.</summary>
     public bool HasWindowShadow { get; init; }
 
     /// <summary>Gets the immutable ordered annotations.</summary>
     public ImmutableArray<Annotation> Annotations { get; init; } = [];
 
-    /// <summary>Gets the currently visible source-image area.</summary>
+    /// <summary>Gets the unmodified original image bounds in source coordinates.</summary>
     [JsonIgnore]
-    public ImageRect Viewport => Crop ?? new(0, 0, PixelWidth, PixelHeight);
+    public ImageRect OriginalBounds => new(0, 0, PixelWidth, PixelHeight);
+
+    /// <summary>Gets the complete editable canvas, including transparent expansion.</summary>
+    [JsonIgnore]
+    public ImageRect CanvasBounds => ExpandedCanvasBounds ?? OriginalBounds;
+
+    /// <summary>Gets the currently visible source-coordinate canvas area.</summary>
+    [JsonIgnore]
+    public ImageRect Viewport => Crop ?? CanvasBounds;
 }
 
 /// <summary>User-scoped preferences. Startup is deliberately opt-in.</summary>

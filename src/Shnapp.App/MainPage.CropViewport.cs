@@ -18,6 +18,9 @@ public sealed partial class MainPage
     private double _viewCanvasHeight = double.NaN;
     private double _viewImageWidth = double.NaN;
     private double _viewImageHeight = double.NaN;
+    private ImageRect? _viewViewport;
+    private int _viewShadowPadding;
+    private Point? _pendingContentAnchor;
     private bool _panning;
     private Point _panLastPoint;
     private Vector2 _panVelocity;
@@ -48,6 +51,9 @@ public sealed partial class MainPage
         _scale = 1;
         _offsetX = _offsetY = 0;
         _viewCanvasWidth = _viewCanvasHeight = _viewImageWidth = _viewImageHeight = double.NaN;
+        _viewViewport = null;
+        _viewShadowPadding = 0;
+        _pendingContentAnchor = null;
     }
 
     private void Canvas_PointerWheelChanged(object sender, PointerRoutedEventArgs args)
@@ -273,10 +279,10 @@ public sealed partial class MainPage
         double imageWidth = _flattened.Size.Width * _scale;
         double imageHeight = _flattened.Size.Height * _scale;
         _offsetX = imageWidth <= DrawingCanvas.ActualWidth
-            ? (DrawingCanvas.ActualWidth - imageWidth) / 2
+            ? Math.Clamp(_offsetX, 0, DrawingCanvas.ActualWidth - imageWidth)
             : Math.Clamp(_offsetX, DrawingCanvas.ActualWidth - imageWidth, 0);
         _offsetY = imageHeight <= DrawingCanvas.ActualHeight
-            ? (DrawingCanvas.ActualHeight - imageHeight) / 2
+            ? Math.Clamp(_offsetY, 0, DrawingCanvas.ActualHeight - imageHeight)
             : Math.Clamp(_offsetY, DrawingCanvas.ActualHeight - imageHeight, 0);
     }
 

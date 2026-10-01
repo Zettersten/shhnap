@@ -7,6 +7,9 @@ namespace Shnapp.Core.Tests;
 
 internal static class TestDocuments
 {
+    internal const string OnePixelPngBase64 =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=";
+
     internal static ShnappDocument Create() => new()
     {
         Title = "A local shnapp",
@@ -21,6 +24,7 @@ internal static class TestDocuments
         Kind = kind,
         Start = new ImagePoint(10, 20),
         End = new ImagePoint(80, 100),
+        ImagePngBase64 = kind == AnnotationKind.Image ? OnePixelPngBase64 : null,
     };
 
     internal static void AssertEquivalent(ShnappDocument expected, ShnappDocument actual)

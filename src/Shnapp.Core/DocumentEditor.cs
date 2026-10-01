@@ -4,13 +4,15 @@ namespace Shnapp.Core;
 
 /// <summary>
 /// Edits immutable shnapp snapshots with up to 100 undoable operations.
-/// Annotations stay in original-image coordinates; cropping changes only the viewport.
+/// Annotations use canvas pixels anchored to the original image at (0, 0);
+/// cropping changes only the visible viewport.
 /// </summary>
 /// <param name="document">The valid original editable document.</param>
 /// <remarks>Use an editor on one thread, normally the application's UI thread.</remarks>
 public sealed class DocumentEditor(ShnappDocument document)
 {
     private const int HistoryLimit = 100;
+    private const long ImageHistoryByteLimit = 256L * 1024 * 1024;
     private readonly List<ShnappDocument> _undo = [];
     private readonly List<ShnappDocument> _redo = [];
     private ShnappDocument _current = CreateInitialSnapshot(document);
@@ -23,6 +25,15 @@ public sealed class DocumentEditor(ShnappDocument document)
 
     /// <summary>Gets whether an undone snapshot can be restored.</summary>
     public bool CanRedo => _redo.Count > 0;
+
+    /// <summary>Applies an existing annotation's crop mask to a moving or resizing preview.</summary>
+    /// <remarks>Does not change the document or its undo history.</remarks>
+    public Annotation PreviewAnnotation(Annotation annotation)
+    {
+        ArgumentNullException.ThrowIfNull(annotation);
+        int index = FindAnnotation(annotation.Id);
+        return index < 0 ? annotation : CarryVisibilityWithGeometry(Current.Annotations[index], annotation);
+    }
 
     /// <summary>Occurs once after a real edit, undo, or redo, after the new state is available.</summary>
     public event EventHandler? Changed;
@@ -39,7 +50,8 @@ public sealed class DocumentEditor(ShnappDocument document)
             throw new ArgumentException("An annotation with this identifier already exists.", nameof(annotation));
         }
 
-        Commit(Current with { Annotations = RenumberSteps(Current.Annotations.Add(annotation)) });
+        ShnappDocument next = ExpandCanvasForImage(Current, annotation);
+        Commit(next with { Annotations = RenumberSteps(next.Annotations.Add(annotation)) });
     }
 
     /// <summary>
@@ -58,7 +70,10 @@ public sealed class DocumentEditor(ShnappDocument document)
             return;
         }
 
-        Commit(Current with { Annotations = RenumberSteps(Current.Annotations.SetItem(index, annotation)) });
+        annotation = CarryVisibilityWithGeometry(Current.Annotations[index], annotation);
+        DocumentValidation.ValidateAnnotation(annotation, Current);
+        ShnappDocument next = ExpandCanvasForImage(Current, annotation, annotation.Id);
+        Commit(next with { Annotations = RenumberSteps(next.Annotations.SetItem(index, annotation)) });
     }
 
     /// <summary>Removes an annotation and renumbers remaining steps; an unknown identifier is a no-op.</summary>
@@ -86,7 +101,20 @@ public sealed class DocumentEditor(ShnappDocument document)
         ImageRect viewport = DocumentValidation.IntersectPixelCrop(crop, Current.Viewport);
         if (viewport != Current.Viewport)
         {
-            Commit(Current with { Crop = viewport });
+            ImageRect? baseImageCrop = Current.BaseImageCrop;
+            bool hideOriginalImage = Current.HideOriginalImage;
+            if (baseImageCrop is ImageRect previousMask)
+            {
+                baseImageCrop = Intersection(previousMask, viewport);
+                hideOriginalImage |= baseImageCrop is null;
+            }
+
+            Commit(Current with
+            {
+                Crop = viewport,
+                BaseImageCrop = baseImageCrop,
+                HideOriginalImage = hideOriginalImage,
+            });
         }
     }
 
@@ -101,6 +129,7 @@ public sealed class DocumentEditor(ShnappDocument document)
 
         _redo.Add(Current);
         _current = Pop(_undo);
+        TrimImageHistory();
         Changed?.Invoke(this, EventArgs.Empty);
         return true;
     }
@@ -116,6 +145,7 @@ public sealed class DocumentEditor(ShnappDocument document)
 
         Remember(Current);
         _current = Pop(_redo);
+        TrimImageHistory();
         Changed?.Invoke(this, EventArgs.Empty);
         return true;
     }
@@ -154,6 +184,132 @@ public sealed class DocumentEditor(ShnappDocument document)
         return builder?.ToImmutable() ?? annotations;
     }
 
+    private static ShnappDocument ExpandCanvasForImage(ShnappDocument document, Annotation annotation,
+        Guid? updatedId = null)
+    {
+        if (annotation.Kind != AnnotationKind.Image)
+        {
+            return document;
+        }
+
+        ImageRect canvas = UnionPixelBounds(document.CanvasBounds, annotation.Bounds);
+        ImageRect? crop = document.Crop;
+        ImageRect? baseImageCrop = document.BaseImageCrop;
+        ImmutableArray<Annotation> annotations = document.Annotations;
+        if (crop is ImageRect visible && !Contains(visible, annotation.Bounds))
+        {
+            if (!document.HideOriginalImage)
+            {
+                baseImageCrop ??= visible;
+            }
+            // The older layers were visible only inside the current crop. Keep that
+            // mask when this image widens the viewport; the new or moved image stays visible.
+            annotations = ClipExistingAnnotations(annotations, visible, updatedId);
+            crop = UnionPixelBounds(visible, annotation.Bounds);
+        }
+
+        if (canvas == document.CanvasBounds && crop == document.Crop &&
+            annotations == document.Annotations)
+        {
+            return document;
+        }
+
+        ShnappDocument expanded = document with
+        {
+            ExpandedCanvasBounds = canvas,
+            Crop = crop,
+            BaseImageCrop = baseImageCrop,
+            Annotations = annotations,
+        };
+        DocumentValidation.ValidateCanvasSize(expanded);
+        return expanded;
+    }
+
+    private static ImmutableArray<Annotation> ClipExistingAnnotations(
+        ImmutableArray<Annotation> annotations, ImageRect visible, Guid? updatedId)
+    {
+        ImmutableArray<Annotation>.Builder? builder = null;
+        for (int index = 0; index < annotations.Length; index++)
+        {
+            Annotation existing = annotations[index];
+            if (existing.Id == updatedId || existing.HiddenByCrop)
+            {
+                continue;
+            }
+
+            ImageRect? clip = existing.VisibilityClip is ImageRect previous
+                ? Intersection(previous, visible)
+                : visible;
+            Annotation masked = clip is ImageRect area
+                ? existing with { VisibilityClip = area }
+                : existing with { VisibilityClip = null, HiddenByCrop = true };
+            if (masked != existing)
+            {
+                builder ??= annotations.ToBuilder();
+                builder[index] = masked;
+            }
+        }
+
+        return builder?.ToImmutable() ?? annotations;
+    }
+
+    private static Annotation CarryVisibilityWithGeometry(Annotation previous, Annotation replacement)
+    {
+        if (previous.HiddenByCrop)
+        {
+            return replacement with { VisibilityClip = null, HiddenByCrop = true };
+        }
+
+        if (previous.VisibilityClip is not ImageRect clip)
+        {
+            return replacement with { VisibilityClip = null, HiddenByCrop = false };
+        }
+
+        if (replacement.Start == previous.Start && replacement.End == previous.End)
+        {
+            return replacement with { VisibilityClip = clip, HiddenByCrop = false };
+        }
+
+        ImageRect before = previous.Bounds;
+        ImageRect after = replacement.Bounds;
+        double scaleX = before.Width > 0 ? after.Width / before.Width : 1;
+        double scaleY = before.Height > 0 ? after.Height / before.Height : 1;
+        if (scaleX <= 0 || scaleY <= 0)
+        {
+            return replacement with { VisibilityClip = clip, HiddenByCrop = false };
+        }
+
+        ImageRect movedClip = new(
+            after.X + (clip.X - before.X) * scaleX,
+            after.Y + (clip.Y - before.Y) * scaleY,
+            clip.Width * scaleX, clip.Height * scaleY);
+        return replacement with { VisibilityClip = movedClip, HiddenByCrop = false };
+    }
+
+    private static ImageRect UnionPixelBounds(ImageRect area, ImageRect addition)
+    {
+        double left = Math.Floor(Math.Min(area.X, addition.X));
+        double top = Math.Floor(Math.Min(area.Y, addition.Y));
+        double right = Math.Ceiling(Math.Max(area.Right, addition.Right));
+        double bottom = Math.Ceiling(Math.Max(area.Bottom, addition.Bottom));
+        return new ImageRect(left, top, right - left, bottom - top);
+    }
+
+    private static bool Contains(ImageRect outer, ImageRect inner) =>
+        inner.X >= outer.X && inner.Y >= outer.Y &&
+        inner.Right <= outer.Right && inner.Bottom <= outer.Bottom;
+
+    private static ImageRect? Intersection(ImageRect first, ImageRect second)
+    {
+        double left = Math.Max(first.X, second.X);
+        double top = Math.Max(first.Y, second.Y);
+        double right = Math.Min(first.Right, second.Right);
+        double bottom = Math.Min(first.Bottom, second.Bottom);
+        return right > left && bottom > top
+            ? new ImageRect(left, top, right - left, bottom - top)
+            : null;
+    }
+
     private int FindAnnotation(Guid id)
     {
         for (int index = 0; index < Current.Annotations.Length; index++)
@@ -169,7 +325,10 @@ public sealed class DocumentEditor(ShnappDocument document)
 
     private void Commit(ShnappDocument next)
     {
-        if (next.Crop == Current.Crop && next.Annotations.SequenceEqual(Current.Annotations))
+        if (next.Crop == Current.Crop && next.BaseImageCrop == Current.BaseImageCrop &&
+            next.HideOriginalImage == Current.HideOriginalImage &&
+            next.ExpandedCanvasBounds == Current.ExpandedCanvasBounds &&
+            next.Annotations.SequenceEqual(Current.Annotations))
         {
             return;
         }
@@ -177,6 +336,7 @@ public sealed class DocumentEditor(ShnappDocument document)
         Remember(Current);
         _redo.Clear();
         _current = next;
+        TrimImageHistory();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -195,5 +355,54 @@ public sealed class DocumentEditor(ShnappDocument document)
         ShnappDocument snapshot = history[^1];
         history.RemoveAt(history.Count - 1);
         return snapshot;
+    }
+
+    private void TrimImageHistory()
+    {
+        // Snapshots share immutable PNG strings; count each distinct payload only once.
+        while (ImageHistoryBytes() > ImageHistoryByteLimit)
+        {
+            if (_undo.Count > 1)
+            {
+                _undo.RemoveAt(0);
+            }
+            else if (_redo.Count > 0)
+            {
+                _redo.RemoveAt(0);
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+
+    private long ImageHistoryBytes()
+    {
+        var seen = new HashSet<string>(ReferenceEqualityComparer.Instance);
+        long bytes = 0;
+        Include(Current);
+        foreach (ShnappDocument snapshot in _undo)
+        {
+            Include(snapshot);
+        }
+
+        foreach (ShnappDocument snapshot in _redo)
+        {
+            Include(snapshot);
+        }
+
+        return bytes;
+
+        void Include(ShnappDocument snapshot)
+        {
+            foreach (Annotation annotation in snapshot.Annotations)
+            {
+                if (annotation.ImagePngBase64 is string payload && seen.Add(payload))
+                {
+                    bytes += (long)payload.Length * sizeof(char);
+                }
+            }
+        }
     }
 }

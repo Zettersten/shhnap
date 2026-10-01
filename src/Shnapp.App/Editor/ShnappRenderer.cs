@@ -6,6 +6,7 @@ using Microsoft.Graphics.Canvas.Text;
 using Microsoft.UI;
 using Shnapp.Core;
 using Windows.Foundation;
+using Windows.Storage.Streams;
 using Windows.UI;
 using Windows.UI.Text;
 
@@ -15,21 +16,59 @@ internal sealed class ShnappRenderer(CanvasDevice device)
 {
     internal const int ShadowPadding = 32;
     private readonly CanvasDevice _device = device ?? throw new ArgumentNullException(nameof(device));
+    private readonly Dictionary<Guid, List<(string Payload, CanvasBitmap Bitmap)>> _pastedImages = [];
 
-    internal CanvasRenderTarget Flatten(CanvasBitmap original, ShnappDocument document)
+    internal CanvasRenderTarget Flatten(CanvasBitmap original, ShnappDocument document,
+        ImageRect? viewportOverride = null)
     {
-        ImageRect viewport = document.Viewport;
+        ImageRect viewport = viewportOverride ?? document.Viewport;
         var content = new CanvasRenderTarget(_device, (float)viewport.Width, (float)viewport.Height, 96);
         try
         {
             using (CanvasDrawingSession drawing = content.CreateDrawingSession())
             {
                 drawing.Clear(Colors.Transparent);
-                drawing.DrawImage(original, new Rect(0, 0, viewport.Width, viewport.Height), ToRect(viewport));
                 drawing.Transform = Matrix3x2.CreateTranslation(-(float)viewport.X, -(float)viewport.Y);
+                ImageRect originalVisible = document.HideOriginalImage
+                    ? new ImageRect(0, 0, 0, 0)
+                    : document.BaseImageCrop is ImageRect baseCrop
+                        ? Intersection(baseCrop, document.OriginalBounds)
+                        : document.Crop is ImageRect crop
+                            ? Intersection(crop, document.OriginalBounds)
+                            : document.OriginalBounds;
+                if (originalVisible.Width > 0 && originalVisible.Height > 0)
+                {
+                    drawing.DrawImage(original, ToRect(originalVisible), ToRect(originalVisible));
+                }
+
                 foreach (Annotation annotation in document.Annotations.Where(a => a.Kind != AnnotationKind.Redaction))
                 {
-                    DrawAnnotation(drawing, annotation);
+                    if (annotation.HiddenByCrop)
+                    {
+                        continue;
+                    }
+
+                    if (annotation.VisibilityClip is ImageRect clip)
+                    {
+                        using var layer = drawing.CreateLayer(1, ToRect(clip));
+                        DrawLayer(annotation);
+                    }
+                    else
+                    {
+                        DrawLayer(annotation);
+                    }
+
+                    void DrawLayer(Annotation item)
+                    {
+                        if (item.Kind == AnnotationKind.Image)
+                        {
+                            DrawImageAnnotation(drawing, item);
+                        }
+                        else
+                        {
+                            DrawAnnotation(drawing, item);
+                        }
+                    }
                 }
             }
 
@@ -48,15 +87,42 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                         foreach (Annotation annotation in document.Annotations.Where(a =>
                                      a.Kind == AnnotationKind.Redaction && a.RedactionMode != RedactionMode.Solid))
                         {
-                            DrawRedactionPreview(drawing, content, annotation,
-                                new ImagePoint(viewport.X, viewport.Y));
+                            if (annotation.HiddenByCrop)
+                            {
+                                continue;
+                            }
+
+                            if (annotation.VisibilityClip is ImageRect clip)
+                            {
+                                using var layer = drawing.CreateLayer(1, ToRect(clip));
+                                DrawRedactionPreview(drawing, content, annotation,
+                                    new ImagePoint(viewport.X, viewport.Y));
+                            }
+                            else
+                            {
+                                DrawRedactionPreview(drawing, content, annotation,
+                                    new ImagePoint(viewport.X, viewport.Y));
+                            }
                         }
 
                         // Opaque masks are last so another effect can never reveal their source pixels.
                         foreach (Annotation annotation in document.Annotations.Where(a =>
                                      a.Kind == AnnotationKind.Redaction && a.RedactionMode == RedactionMode.Solid))
                         {
-                            DrawAnnotation(drawing, annotation);
+                            if (annotation.HiddenByCrop)
+                            {
+                                continue;
+                            }
+
+                            if (annotation.VisibilityClip is ImageRect clip)
+                            {
+                                using var layer = drawing.CreateLayer(1, ToRect(clip));
+                                DrawAnnotation(drawing, annotation);
+                            }
+                            else
+                            {
+                                DrawAnnotation(drawing, annotation);
+                            }
                         }
                     }
 
@@ -75,7 +141,20 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                 drawing.Transform = Matrix3x2.CreateTranslation(-(float)viewport.X, -(float)viewport.Y);
                 foreach (Annotation annotation in document.Annotations.Where(a => a.Kind == AnnotationKind.Redaction))
                 {
-                    DrawAnnotation(drawing, annotation);
+                    if (annotation.HiddenByCrop)
+                    {
+                        continue;
+                    }
+
+                    if (annotation.VisibilityClip is ImageRect clip)
+                    {
+                        using var layer = drawing.CreateLayer(1, ToRect(clip));
+                        DrawAnnotation(drawing, annotation);
+                    }
+                    else
+                    {
+                        DrawAnnotation(drawing, annotation);
+                    }
                 }
             }
 
@@ -126,6 +205,160 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         drawing.Clear(Colors.Transparent);
         drawing.DrawImage(flattened, new Rect(0, 0, width, height), new Rect(0, 0, flattened.Size.Width, flattened.Size.Height));
         return preview;
+    }
+
+    /// <summary>Decodes a pasted PNG before a synchronous canvas draw needs it.</summary>
+    internal async Task PreloadImageAsync(Annotation annotation)
+    {
+        string payload = ImagePayload(annotation);
+        if (_pastedImages.TryGetValue(annotation.Id, out var existing) &&
+            existing.Any(entry => ReferenceEquals(entry.Payload, payload)))
+        {
+            return;
+        }
+
+        CanvasBitmap bitmap = await DecodeImageAsync(payload);
+        if (!_pastedImages.TryGetValue(annotation.Id, out var entries))
+        {
+            entries = [];
+            _pastedImages.Add(annotation.Id, entries);
+        }
+
+        entries.Add((payload, bitmap));
+    }
+
+    /// <summary>Prepares another document without invalidating an editor that is still visible.</summary>
+    internal async Task PreloadImagesAsync(ShnappDocument document)
+    {
+        var prepared = new Dictionary<Guid, (string Payload, CanvasBitmap Bitmap)>();
+        try
+        {
+            foreach (Annotation annotation in document.Annotations.Where(a => a.Kind == AnnotationKind.Image))
+            {
+                string payload = ImagePayload(annotation);
+                if (_pastedImages.TryGetValue(annotation.Id, out var existing) &&
+                    existing.Any(entry => ReferenceEquals(entry.Payload, payload)))
+                {
+                    continue;
+                }
+
+                prepared.Add(annotation.Id, (payload, await DecodeImageAsync(payload)));
+            }
+
+            // Keep the old document's bitmaps until AppController switches pages and prunes the cache.
+            foreach ((Guid id, var entry) in prepared)
+            {
+                if (!_pastedImages.TryGetValue(id, out var entries))
+                {
+                    entries = [];
+                    _pastedImages.Add(id, entries);
+                }
+
+                entries.Add(entry);
+            }
+        }
+        catch
+        {
+            foreach (var entry in prepared.Values)
+            {
+                entry.Bitmap.Dispose();
+            }
+
+            throw;
+        }
+    }
+
+    private static string ImagePayload(Annotation annotation)
+    {
+        if (annotation.Kind != AnnotationKind.Image)
+        {
+            throw new ArgumentException("Only a pasted image can be preloaded.", nameof(annotation));
+        }
+
+        string payload = annotation.ImagePngBase64
+            ?? throw new InvalidDataException("This pasted image has no PNG data.");
+        if (payload.Length > ((32 * 1024 * 1024 + 2) / 3) * 4)
+        {
+            throw new InvalidDataException("This pasted image exceeds the 32 MiB PNG limit.");
+        }
+
+        return payload;
+    }
+
+    private async Task<CanvasBitmap> DecodeImageAsync(string payload)
+    {
+        // PNG size and dimensions are checked by DocumentValidation before a stored document opens.
+        byte[] png = Convert.FromBase64String(payload);
+        using var memory = new MemoryStream(png, writable: false);
+        using IRandomAccessStream stream = memory.AsRandomAccessStream();
+        return await CanvasBitmap.LoadAsync(_device, stream, 96);
+    }
+
+    /// <summary>Releases decoded images that are no longer used after switching documents.</summary>
+    internal void RetainPastedImages(ShnappDocument document)
+    {
+        var retained = document.Annotations.Where(a => a.Kind == AnnotationKind.Image)
+            .ToLookup(a => a.Id);
+        foreach ((Guid id, var entries) in _pastedImages.ToArray())
+        {
+            for (int index = entries.Count - 1; index >= 0; index--)
+            {
+                if (!retained[id].Any(annotation =>
+                    ReferenceEquals(annotation.ImagePngBase64, entries[index].Payload)))
+                {
+                    entries[index].Bitmap.Dispose();
+                    entries.RemoveAt(index);
+                }
+            }
+
+            if (entries.Count == 0)
+            {
+                _pastedImages.Remove(id);
+            }
+        }
+    }
+
+    internal void ClearPastedImages()
+    {
+        foreach (var entries in _pastedImages.Values)
+        {
+            foreach (var entry in entries)
+            {
+                entry.Bitmap.Dispose();
+            }
+        }
+
+        _pastedImages.Clear();
+    }
+
+    internal void DiscardPastedImage(Guid id)
+    {
+        if (_pastedImages.Remove(id, out var entries))
+        {
+            foreach (var entry in entries)
+            {
+                entry.Bitmap.Dispose();
+            }
+        }
+    }
+
+    internal void DrawImageAnnotation(CanvasDrawingSession drawing, Annotation annotation)
+    {
+        if (!_pastedImages.TryGetValue(annotation.Id, out var entries))
+        {
+            throw new InvalidDataException("This pasted image could not be loaded for rendering.");
+        }
+
+        foreach (var entry in entries)
+        {
+            if (ReferenceEquals(entry.Payload, annotation.ImagePngBase64))
+            {
+                drawing.DrawImage(entry.Bitmap, ToRect(annotation.Bounds));
+                return;
+            }
+        }
+
+        throw new InvalidDataException("This pasted image could not be loaded for rendering.");
     }
 
     internal static void DrawAnnotation(CanvasDrawingSession drawing, Annotation annotation)
@@ -356,8 +589,30 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         drawing.FillGeometry(polygon, color);
     }
 
-    internal static Rect TextBounds(Annotation annotation) => new(annotation.Start.X, annotation.Start.Y,
-        Math.Max(16, annotation.Text.Length * annotation.FontSize * 0.6), annotation.FontSize * 1.5);
+    internal static Rect TextBounds(Annotation annotation)
+    {
+        int lineCount = 1;
+        int longestLine = 0;
+        int currentLine = 0;
+        foreach (char character in annotation.Text)
+        {
+            if (character == '\n')
+            {
+                longestLine = Math.Max(longestLine, currentLine);
+                currentLine = 0;
+                lineCount++;
+            }
+            else if (character != '\r')
+            {
+                currentLine++;
+            }
+        }
+
+        longestLine = Math.Max(longestLine, currentLine);
+        return new Rect(annotation.Start.X, annotation.Start.Y,
+            Math.Max(16, longestLine * annotation.FontSize * 0.6),
+            lineCount * annotation.FontSize * 1.5);
+    }
 
     internal static CanvasTextFormat TextFormat(Annotation annotation) => new()
     {
@@ -368,6 +623,14 @@ internal sealed class ShnappRenderer(CanvasDevice device)
     };
 
     internal static Rect ToRect(ImageRect rectangle) => new(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
+    private static ImageRect Intersection(ImageRect first, ImageRect second)
+    {
+        double left = Math.Max(first.X, second.X);
+        double top = Math.Max(first.Y, second.Y);
+        double right = Math.Min(first.Right, second.Right);
+        double bottom = Math.Min(first.Bottom, second.Bottom);
+        return new ImageRect(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+    }
     internal static Color FromArgb(uint argb) => Color.FromArgb(
         (byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb);
 

@@ -45,7 +45,8 @@ public sealed partial class MainPage
     }
 
     private Annotation? SelectedAnnotation() =>
-        _editor?.Current.Annotations.FirstOrDefault(annotation => annotation.Id == _selectedId);
+        _editor?.Current.Annotations.FirstOrDefault(annotation =>
+            annotation.Id == _selectedId && !annotation.HiddenByCrop);
 
     private static EditorTool ToolFor(Annotation annotation) => annotation.Kind switch
     {
@@ -370,7 +371,9 @@ public sealed partial class MainPage
 
         bool shift = (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift) &
             global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
-        double minimum = double.IsFinite(number.Minimum) ? Math.Max(0, number.Minimum) : 0;
+        // Positions may be negative after a pasted image expands the transparent canvas.
+        // Size fields declare their own nonnegative minimum in XAML.
+        double minimum = double.IsFinite(number.Minimum) ? number.Minimum : 0;
         double maximum = double.IsFinite(number.Maximum) ? Math.Max(minimum, number.Maximum) : double.MaxValue;
         double current = double.IsFinite(number.Value) ? number.Value : minimum;
         int notches = Math.Max(1, (int)Math.Round(Math.Abs((double)delta) / 120,
