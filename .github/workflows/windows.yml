@@ -15,6 +15,8 @@ on:
         options:
           - publish-github-release
           - build-store-msix
+          - verify-chocolatey
+          - publish-chocolatey
       release_tag:
         description: Existing stable tag (for example, v1.0.0)
         required: true
@@ -312,3 +314,125 @@ jobs:
           gh release download "$RELEASE_TAG" --dir downloaded-assets
           bash packaging/release/verify-release-assets.sh downloaded-assets
           gh release edit "$RELEASE_TAG" --draft=false
+
+  chocolatey-verify:
+    name: Pack and test Chocolatey
+    needs: publish-release
+    if: >-
+      always() && !cancelled() &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      ((inputs.operation == 'publish-github-release' && needs.publish-release.result == 'success') ||
+       inputs.operation == 'verify-chocolatey' ||
+       inputs.operation == 'publish-chocolatey')
+    runs-on: windows-2025
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: main
+      - name: Require a public stable release from main
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:RELEASE_TAG -notmatch '^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+            throw 'Provide a stable v1.0.0-style release tag.'
+          }
+          $tagCommit = git rev-parse "refs/tags/$($env:RELEASE_TAG)^{commit}"
+          if ($LASTEXITCODE -ne 0) { throw 'The release tag does not exist.' }
+          git merge-base --is-ancestor $tagCommit HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Release tag commit must be reachable from main.' }
+          $releaseJson = gh release view $env:RELEASE_TAG --json isDraft,isPrerelease,assets
+          if ($LASTEXITCODE -ne 0) { throw 'The GitHub release does not exist.' }
+          $release = $releaseJson | ConvertFrom-Json
+          if ($release.isDraft -or $release.isPrerelease) { throw 'Chocolatey requires a public stable GitHub release.' }
+          $expected = @(
+            'Shnapp-win-x64.zip', 'Shnapp-win-x64.zip.sha256',
+            'Shnapp-win-arm64.zip', 'Shnapp-win-arm64.zip.sha256'
+          ) | Sort-Object
+          $actual = @($release.assets | ForEach-Object { $_.name } | Sort-Object)
+          if (@(Compare-Object -ReferenceObject $expected -DifferenceObject $actual).Count -ne 0) {
+            throw 'The GitHub release must contain exactly two ZIPs and their checksum files.'
+          }
+      - name: Download immutable release assets
+        shell: pwsh
+        run: |
+          gh release download $env:RELEASE_TAG --dir release-assets
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Generate and pack Chocolatey package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./packaging/release/New-CatalogPackages.ps1 `
+            -ReleaseTag $env:RELEASE_TAG `
+            -AssetsDirectory release-assets `
+            -OutputDirectory catalog-candidates
+          $packageDir = Join-Path $env:GITHUB_WORKSPACE 'chocolatey-package'
+          New-Item -ItemType Directory -Path $packageDir | Out-Null
+          choco pack catalog-candidates/chocolatey/shnapp.nuspec --outputdirectory $packageDir --limit-output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $version = $env:RELEASE_TAG.Substring(1)
+          $package = Join-Path $packageDir "shnapp.$version.nupkg"
+          if (-not (Test-Path -LiteralPath $package -PathType Leaf)) { throw "Missing $package" }
+          $found = choco info shnapp --source $packageDir --limit-output
+          if ($LASTEXITCODE -ne 0 -or ($found | Out-String).Trim() -ne "shnapp|$version") {
+            throw 'Chocolatey cannot read the generated package.'
+          }
+      - name: Install and uninstall the package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:RELEASE_TAG.Substring(1)
+          $packageDir = Join-Path $env:GITHUB_WORKSPACE 'chocolatey-package'
+          choco install shnapp --version $version --source $packageDir --yes --no-progress --limit-output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $appDir = Join-Path $env:ChocolateyInstall 'lib/shnapp/tools/app'
+          foreach ($required in @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $appDir $required) -PathType Leaf)) {
+              throw "Installed Shnapp is missing $required."
+            }
+          }
+          choco uninstall shnapp --yes --no-progress --limit-output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Test-Path -LiteralPath (Join-Path $env:ChocolateyInstall 'lib/shnapp')) {
+            throw 'Chocolatey left the Shnapp package directory after uninstall.'
+          }
+      - name: Save tested Chocolatey package
+        uses: actions/upload-artifact@v7
+        with:
+          name: Chocolatey-${{ inputs.release_tag }}
+          path: chocolatey-package/*.nupkg
+          if-no-files-found: error
+
+  chocolatey-publish:
+    name: Submit Chocolatey package
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.operation == 'publish-chocolatey'
+    needs: chocolatey-verify
+    runs-on: windows-2025
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: Chocolatey-${{ inputs.release_tag }}
+          path: chocolatey-package
+      - name: Push tested package to Chocolatey Community
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CHOCOLATEY_API_KEY)) {
+            throw 'Set the CHOCOLATEY_API_KEY Actions repository secret before submission.'
+          }
+          $version = $env:RELEASE_TAG.Substring(1)
+          $package = Join-Path $env:GITHUB_WORKSPACE "chocolatey-package/shnapp.$version.nupkg"
+          if (-not (Test-Path -LiteralPath $package -PathType Leaf)) { throw "Missing $package" }
+          choco push $package --source https://push.chocolatey.org/ --key $env:CHOCOLATEY_API_KEY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
