@@ -1,0 +1,170 @@
+---
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import { assetUrl, catalogChannels, distribution, downloadsAvailable, issueUrls, latestReleaseUrl } from '../../config/distribution';
+import type { CatalogState } from '../../config/distribution';
+
+const builds = Object.values(distribution.builds);
+const contactHref = `mailto:${distribution.contactEmail}`;
+const bugHref = distribution.publicRepository ? issueUrls.bug : contactHref;
+const featureHref = distribution.publicRepository ? issueUrls.feature : contactHref;
+const catalogStatus: Record<CatalogState, string> = {
+  planned: 'Planned',
+  'awaiting-listing': 'Awaiting catalog listing',
+  live: 'Available',
+};
+if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listingUrl)) {
+  throw new Error('A live catalog channel needs a public listing URL.');
+}
+---
+
+<SiteLayout
+  page="download"
+  title="Download Shnapp for Windows 11"
+  description="Get Shnapp for Windows 11. Choose the x64 or ARM64 portable build, extract the ZIP, and start capturing."
+>
+  <section class="download-hero" aria-labelledby="download-title">
+    <div class="shell download-head">
+      <div>
+        <h1 id="download-title">Get Shnapp.<br /><span>Stay in flow.</span></h1>
+        <span class="download-state">{downloadsAvailable ? 'Available now' : 'First public release in preparation'}</span>
+      </div>
+      <p>A quick way to capture, annotate, and keep a useful screenshot. Built for Windows 11 on Intel, AMD, and ARM PCs.</p>
+    </div>
+  </section>
+
+  <section class="download-section" aria-labelledby="builds-title">
+    <div class="shell">
+      <div class="download-intro">
+        <h2 id="builds-title">Choose your build.</h2>
+        <p>These portable ZIP packages contain the app and its runtime. Keep the extracted files together and launch <code>Shnapp.exe</code>.</p>
+      </div>
+
+      {!downloadsAvailable && (
+        <div class="availability-message" role="status">
+          <strong>Public downloads are being prepared.</strong>
+          <p>Shnapp is in preview, and the first release has not been published yet. The download buttons will appear here when the packages are ready.</p>
+        </div>
+      )}
+
+      <div class="build-list">
+        {builds.map((build) => (
+          <article class="build-option">
+            <div>
+              <h3>{build.label}</h3>
+              <p>{build.processor}</p>
+            </div>
+            <div class="build-file">
+              <span>{build.fileName}</span>
+              {downloadsAvailable && <a class="build-hash" href={assetUrl(`${build.fileName}.sha256`)}>SHA-256 checksum file</a>}
+            </div>
+            {downloadsAvailable
+              ? <a class="build-action" href={assetUrl(build.fileName)} aria-label={`Download Shnapp for ${build.label}`}>Download ZIP <span aria-hidden="true">↗</span></a>
+              : <span class="build-pending">Coming with first release</span>}
+          </article>
+        ))}
+      </div>
+      <p class="architecture-help">Unsure which one fits? In Windows Settings, open <strong>System → About</strong> and read <strong>System type</strong>. {downloadsAvailable && <a href={latestReleaseUrl} target="_blank" rel="noopener noreferrer">See release notes</a>}</p>
+    </div>
+  </section>
+
+  <section class="download-section catalog-section" aria-labelledby="catalog-title">
+    <div class="shell">
+      <div class="download-intro">
+        <h2 id="catalog-title">More ways to install.</h2>
+        <p>Choose a listed package manager or the Microsoft Store when its listing is available. Channels still in progress show their current status below.</p>
+      </div>
+      <div class="catalog-grid">
+        {catalogChannels.map((channel) => (
+          <article class="catalog-card">
+            <div class="catalog-card-top">
+              <h3>{channel.name}</h3>
+              <span class="catalog-status" data-state={channel.state}>{catalogStatus[channel.state]}</span>
+            </div>
+            <p>{channel.description}</p>
+            {channel.state === 'live' && channel.listingUrl ? (
+              <div class="catalog-available">
+                <a href={channel.listingUrl} target="_blank" rel="noopener noreferrer">Open listing <span aria-hidden="true">↗</span></a>
+                <dl>
+                  <div>
+                    <dt>Install</dt>
+                    <dd>{channel.installCommand ? <code>{channel.installCommand}</code> : 'Use the store listing'}</dd>
+                  </div>
+                  <div>
+                    <dt>Update</dt>
+                    <dd>{channel.id === 'microsoft-store' ? channel.updateCommand : <code>{channel.updateCommand}</code>}</dd>
+                  </div>
+                </dl>
+              </div>
+            ) : (
+              <p class="catalog-pending">Install and update details will appear after listing.</p>
+            )}
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="download-section getting-started" aria-labelledby="setup-title">
+    <div class="shell">
+      <h2 id="setup-title">From ZIP to first capture.</h2>
+      <ol class="setup-list">
+        <li>
+          <span class="setup-index">01 / DOWNLOAD</span>
+          <h3>Get the right ZIP.</h3>
+          <p>Choose x64 for an Intel or AMD PC, or ARM64 for a Windows on ARM PC.</p>
+        </li>
+        <li>
+          <span class="setup-index">02 / EXTRACT</span>
+          <h3>Keep the files together.</h3>
+          <p>Extract the entire archive to a folder you choose. Run <code>Shnapp.exe</code> from that folder.</p>
+        </li>
+        <li>
+          <span class="setup-index">03 / CAPTURE</span>
+          <h3>Press a shortcut.</h3>
+          <p>Use Ctrl + Shift + 4 for a window, 3 for the full screen, or 2 for a region.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="download-section" aria-labelledby="know-title">
+    <div class="shell download-info">
+      <div>
+        <h2 id="know-title">Good to know.</h2>
+        <p>Shnapp saves its library and preferences in your Windows user folder. You can keep the app folder wherever it is convenient.</p>
+        <a class="inline-link" href="/privacy/">Read how Shnapp handles your data <span aria-hidden="true">↗</span></a>
+      </div>
+      <div class="download-faq">
+        <details>
+          <summary>Does Shnapp need an account?</summary>
+          <p>No. Capturing, editing, copying, and saving do not require an account.</p>
+        </details>
+        <details>
+          <summary>Where are my captures stored?</summary>
+          <p>By default, your library and settings live under <code>%LOCALAPPDATA%\Shnapp</code>. PNGs you save elsewhere go to the location you choose. <a href="/privacy/">See the privacy details.</a></p>
+        </details>
+        <details>
+          <summary>How do updates work?</summary>
+          <p>The portable app checks GitHub Releases for a newer version at startup, at most once a day, and lets you know when one is available. It does not replace the app files for you. You can also check from Settings. A Microsoft Store version, if published, uses Store updates.</p>
+        </details>
+        <details>
+          <summary>What if my capture contains sensitive information?</summary>
+          <p>Use opaque Cover before copying, saving, or sharing the finished image. Blur and Pixelate are visual obscuring tools and may leave details recognizable. Your editable original stays in your local library.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="download-section feedback-section" aria-labelledby="feedback-title">
+    <div class="shell feedback-layout">
+      <div>
+        <h2 id="feedback-title">Something we should know?</h2>
+        <p>Report a bug or tell us what would make Shnapp more useful. {distribution.publicRepository ? 'The links open a GitHub issue form.' : 'Until the public issue tracker opens, email Erik directly.'}</p>
+      </div>
+      <div class="feedback-actions">
+        <a href={bugHref} target={distribution.publicRepository ? '_blank' : undefined} rel={distribution.publicRepository ? 'noopener noreferrer' : undefined}>Report a bug <span aria-hidden="true">↗</span></a>
+        <a href={featureHref} target={distribution.publicRepository ? '_blank' : undefined} rel={distribution.publicRepository ? 'noopener noreferrer' : undefined}>Request a feature <span aria-hidden="true">↗</span></a>
+      </div>
+    </div>
+  </section>
+</SiteLayout>

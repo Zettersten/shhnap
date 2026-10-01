@@ -57,7 +57,7 @@ Back and Forward retrace the places you visited. You can also use `Alt+Left`, `A
 
 While editing, move to the canvas's left edge to reveal a small image-only gallery over your work, or open it with `Ctrl+Shift+G` or **Recent shnapps** in the menu. Hover to magnify nearby previews, use the arrows or scroll to browse, click a preview to open it, or drag one onto your canvas to add a copy as a movable image layer. Small cropped previews keep browsing quick.
 
-![The Shnapp library showing three locally saved captures with preview thumbnails, dates, dimensions, and file sizes](src/Shnapp.Site/public/screenshots/library.png)
+![The Shnapp library showing four locally saved fictional captures with preview thumbnails, dates, dimensions, and file sizes](src/Shnapp.Site/public/screenshots/library.png)
 
 *Your shnapps stay on this PC, with previews that make the right capture easy to find.*
 
@@ -79,3 +79,11 @@ dotnet build src\Shnapp.App\Shnapp.App.csproj -c Debug -p:Platform=x64
 ```
 
 For ARM64, use `-p:Platform=ARM64`; its output is under `bin\ARM64\Debug\...\win-arm64`.
+
+## Feedback and security
+
+Use the [bug report](https://github.com/Zettersten/shhnap/issues/new?template=01-bug.yml) or [feature request](https://github.com/Zettersten/shhnap/issues/new?template=02-feature-request.yml) form to tell us about Shnapp. Report vulnerabilities through [private vulnerability reporting](https://github.com/Zettersten/shhnap/security/advisories/new) rather than a public issue.
+
+## License
+
+Shnapp's source code, website code, and original first-party artwork in this repository are licensed under the [MIT License](LICENSE). Copyright 2026 Erik Zettersten. Third-party components keep their own licenses.

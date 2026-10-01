@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="Shnapp.App.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    FontFamily="Segoe UI Variable Text"
+    Background="Transparent">
+    <NavigationView x:Name="SettingsNavigation"
+        Header="Settings"
+        PaneDisplayMode="Top"
+        IsPaneToggleButtonVisible="False"
+        IsSettingsVisible="False"
+        IsBackButtonVisible="Collapsed"
+        SelectionChanged="SettingsNavigation_SelectionChanged">
+        <NavigationView.MenuItems>
+            <NavigationViewItem Content="General" Tag="general" AutomationProperties.AutomationId="SettingsGeneral" />
+            <NavigationViewItem Content="About &amp; Updates" Tag="updates" AutomationProperties.AutomationId="SettingsUpdates" />
+            <NavigationViewItem Content="Feedback" Tag="feedback" AutomationProperties.AutomationId="SettingsFeedback" />
+        </NavigationView.MenuItems>
+        <NavigationView.Content>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel MaxWidth="740" HorizontalAlignment="Left" Margin="32,24,32,48" Spacing="24">
+                    <Button Content="Back to editor" Click="BackToEditor_Click"
+                        HorizontalAlignment="Left" AutomationProperties.AutomationId="BackToEditor" />
+                    <StackPanel x:Name="GeneralPanel" Spacing="18">
+                        <TextBlock Text="General" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock Text="Capture" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <ToggleSwitch x:Name="StartAtSignIn" Header="Start Shnapp at sign-in"
+                            AutomationProperties.AutomationId="StartOnLogin" />
+                        <ToggleSwitch x:Name="AutoCopy" Header="Copy new shnapps automatically"
+                            AutomationProperties.AutomationId="AutoCopy" />
+                        <ToggleSwitch x:Name="WindowShadow" Header="Soft shadow on window shnapps"
+                            AutomationProperties.AutomationId="WindowShadow" />
+                        <TextBlock Text="Appearance" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,14,0,0" />
+                        <ComboBox x:Name="ThemePicker" Header="Theme" Width="220"
+                            AutomationProperties.AutomationId="ShnappTheme">
+                            <ComboBoxItem Content="System" />
+                            <ComboBoxItem Content="Light" />
+                            <ComboBoxItem Content="Dark" />
+                        </ComboBox>
+                        <Button Content="Save preferences" Click="SavePreferences_Click"
+                            HorizontalAlignment="Left" AutomationProperties.AutomationId="SavePreferences" />
+                        <InfoBar x:Name="PreferenceMessage" IsOpen="False" IsClosable="True" />
+                        <TextBlock Text="Shortcuts" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,14,0,0" />
+                        <TextBlock Text="Window: Ctrl+Shift+4&#x0a;Full screen: Ctrl+Shift+3&#x0a;Region: Ctrl+Shift+2"
+                            TextWrapping="Wrap" />
+                        <TextBlock Text="Local library" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,14,0,0" />
+                        <TextBlock x:Name="LibraryPath" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                        <TextBlock x:Name="LibraryNote" TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="UpdatesPanel" Spacing="16" Visibility="Collapsed">
+                        <TextBlock Text="About &amp; Updates" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock Text="Shnapp" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <TextBlock x:Name="VersionLabel" IsTextSelectionEnabled="True" />
+                        <TextBlock x:Name="RuntimeLabel" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+                        <TextBlock Text="Published by Erik Zettersten · MIT licensed" TextWrapping="Wrap" />
+                        <TextBlock Text="https://github.com/Zettersten/shhnap" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+                        <TextBlock x:Name="UpdateChannelLabel" TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <InfoBar x:Name="UpdateMessage" IsOpen="True" IsClosable="False"
+                            Severity="Informational" Title="Updates" />
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button x:Name="CheckUpdatesButton" Content="Check for updates" Click="CheckUpdates_Click"
+                                AutomationProperties.AutomationId="CheckForUpdates" />
+                            <Button x:Name="OpenLatestButton" Content="View release" Click="OpenLatest_Click"
+                                Visibility="Collapsed" AutomationProperties.AutomationId="ViewLatestRelease" />
+                            <Button x:Name="OpenStoreButton" Content="Open Microsoft Store updates" Click="OpenStore_Click"
+                                Visibility="Collapsed" AutomationProperties.AutomationId="OpenStoreUpdates" />
+                        </StackPanel>
+                        <TextBlock Text="Shnapp only checks for newer versions. Downloads and installation stay in your control."
+                            TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button Content="Visit shhnap.com" Click="OpenWebsite_Click" HorizontalAlignment="Left"
+                            AutomationProperties.AutomationId="OpenWebsite" />
+                        <Button Content="Open source repository" Click="OpenRepository_Click" HorizontalAlignment="Left"
+                            AutomationProperties.AutomationId="OpenRepository" />
+                        <Button Content="About the publisher" Click="OpenPublisher_Click" HorizontalAlignment="Left"
+                            AutomationProperties.AutomationId="OpenPublisher" />
+                        <Button Content="Privacy" Click="OpenPrivacy_Click" HorizontalAlignment="Left"
+                            AutomationProperties.AutomationId="OpenPrivacy" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="FeedbackPanel" Spacing="16" Visibility="Collapsed">
+                        <TextBlock Text="Feedback" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock Text="Found a problem or have an idea? Open a GitHub issue so it can be tracked."
+                            TextWrapping="Wrap" />
+                        <Button Content="Report a bug" Click="ReportBug_Click" HorizontalAlignment="Left"
+                            AutomationProperties.AutomationId="ReportBug" />
+                        <Button Content="Request a feature" Click="RequestFeature_Click" HorizontalAlignment="Left"
+                            AutomationProperties.AutomationId="RequestFeature" />
+                        <Button Content="Browse existing issues" Click="BrowseIssues_Click" HorizontalAlignment="Left"
+                            AutomationProperties.AutomationId="BrowseIssues" />
+                        <TextBlock Text="Include your Shnapp version and Windows version when reporting a bug. Avoid sharing private captures."
+                            TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </NavigationView.Content>
+    </NavigationView>
+</Page>

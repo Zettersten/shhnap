@@ -28,6 +28,8 @@ public static class ShnappSmokeNative
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int command);
     [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr hwnd, int id, uint modifiers, uint key);
     [DllImport("user32.dll")] public static extern bool UnregisterHotKey(IntPtr hwnd, int id);
     [DllImport("shell32.dll")] public static extern int Shell_NotifyIconGetRect(ref IconIdentifier identifier, out Rect bounds);
@@ -100,6 +102,36 @@ function Open-Settings {
     Invoke-Ui -Arguments @('wait-for', 'ShnappTheme', '-a', "$AppPid", '-t', '3000') | Out-Null
 }
 
+function Select-Theme {
+    param([string]$Name)
+    Invoke-Ui -Arguments @('invoke', 'ShnappTheme', '-a', "$AppPid") | Out-Null
+    $option = (Invoke-Ui -Arguments @('search', $Name, '-a', "$AppPid")).matches |
+        Where-Object { $_.type -eq 'ListItem' -and $_.name -eq $Name } | Select-Object -First 1
+    Assert-True ($null -ne $option) "Theme option $Name was not found."
+    Invoke-Ui -Arguments @('invoke', $option.selector, '-a', "$AppPid") | Out-Null
+}
+
+function Activate-Fixture {
+    [ShnappSmokeNative]::SetForegroundWindow([IntPtr]$fixture.hwnd) | Out-Null
+    Start-Sleep -Milliseconds 150
+    if ([ShnappSmokeNative]::GetForegroundWindow() -ne [IntPtr]$fixture.hwnd) {
+        Invoke-Ui -Arguments @('click', "$($fixture.x + 160),$($fixture.y + 220)", '-w', "$($fixture.hwnd)") | Out-Null
+    }
+    Wait-Until { [ShnappSmokeNative]::GetForegroundWindow() -eq [IntPtr]$fixture.hwnd } 'The safe capture fixture could not become the foreground window.' 3000
+}
+
+function Capture-Evidence {
+    param([string]$Name)
+    $path = Join-Path $media $Name
+    Invoke-Ui -Arguments @('screenshot', '-w', "$script:MainHwnd", '-o', $path) | Out-Null
+    $image = [System.Drawing.Image]::FromFile($path)
+    try {
+        Assert-True ($image.Width -ge 1366 -and $image.Height -ge 768) "$Name is smaller than the Store desktop screenshot minimum (1366 x 768)."
+    } finally {
+        $image.Dispose()
+    }
+}
+
 function Image-Point {
     param([double]$X, [double]$Y)
     $element = (Invoke-Ui -Arguments @('wait-for', 'ShnappCanvas', '-a', "$AppPid", '-t', '2000')).element
@@ -120,10 +152,13 @@ function Image-Point {
 
 $fixture = [System.IO.File]::ReadAllText($FixturePath) | ConvertFrom-Json
 $script:MainHwnd = (Get-Process -Id $AppPid).MainWindowHandle.ToInt64()
+[ShnappSmokeNative]::ShowWindow([IntPtr]$script:MainHwnd, 3) | Out-Null # SW_MAXIMIZE
 $media = Join-Path $DataRoot 'evidence'
 [System.IO.Directory]::CreateDirectory($media) | Out-Null
 Assert-True (@(Documents).Count -eq 0) 'Use a fresh isolated data root; existing shnapps must not be used as verification evidence.'
 Assert-True ((Get-Process -Id $fixture.processId).Responding) 'The non-sensitive capture fixture is not running.'
+$initialTree = & winapp ui inspect -a "$AppPid" --json
+Assert-True ($LASTEXITCODE -eq 0 -and ($initialTree -join "`n") -notmatch 'Shortcut already in use') 'Capture shortcuts are in use; close the conflicting app before running the full UI smoke.'
 
 Test-Flow 'Responsive shell and native tray registration' {
     Assert-True ((Get-Process -Id $AppPid).Responding) 'Shnapp is not responding.'
@@ -136,7 +171,7 @@ Test-Flow 'Responsive shell and native tray registration' {
 }
 
 Test-Flow 'Window shortcut selects the fixture and opens the editor' {
-    [ShnappSmokeNative]::SetForegroundWindow([IntPtr]$fixture.hwnd) | Out-Null
+    Activate-Fixture
     [ShnappSmokeNative]::SetCursorPos(($fixture.x + 160), ($fixture.y + 220)) | Out-Null
     Invoke-Ui -Arguments @('send-keys', 'ctrl+shift+4', '-w', "$($fixture.hwnd)", '--via', 'send-input') | Out-Null
     Wait-Until { @(Invoke-Ui -Arguments @('list-windows', '-a', "$AppPid") | Where-Object { $_.title -match 'Shnapp.*Window' }).Count -gt 0 } 'Window picker did not appear.'
@@ -164,9 +199,10 @@ Test-Flow 'Annotations, numbering, and undo/redo persist' {
     Wait-Until { @((Latest-Document).annotations | Where-Object { $_.kind -eq 'Step' }).Count -eq 2 } 'Redo was not saved.'
     $steps = @((Latest-Document).annotations | Where-Object { $_.kind -eq 'Step' })
     Assert-True ($steps[0].stepNumber -eq 1 -and $steps[1].stepNumber -eq 2) 'Step numbering is not consecutive.'
-    Invoke-Ui -Arguments @('invoke', 'ToolArrow', '-a', "$AppPid") | Out-Null
+    [ShnappSmokeNative]::SetForegroundWindow([IntPtr]$script:MainHwnd) | Out-Null
+    Invoke-Ui -Arguments @('send-keys', 'a', '-w', "$script:MainHwnd", '--via', 'send-input') | Out-Null
     Invoke-Ui -Arguments @('drag', (Image-Point 500 230), (Image-Point 285 245), '-w', "$script:MainHwnd") | Out-Null
-    Wait-Until { @((Latest-Document).annotations | Where-Object { $_.kind -eq 'Arrow' }).Count -eq 1 } 'Arrow was not saved.'
+    Wait-Until { @((Latest-Document).annotations | Where-Object { $_.kind -eq 'Line' -and $_.endCap -eq 'Triangle' }).Count -eq 1 } 'Arrow preset was not saved as a capped line.'
 }
 
 Test-Flow 'Opaque redaction and exportable transparent shadow' {
@@ -188,7 +224,7 @@ Test-Flow 'Opaque redaction and exportable transparent shadow' {
     } finally {
         $image.Dispose()
     }
-    Invoke-Ui -Arguments @('screenshot', '-w', "$script:MainHwnd", '-o', (Join-Path $media 'editor.png')) | Out-Null
+    Capture-Evidence 'editor.png'
 }
 
 Test-Flow 'Copy produces an image and PNG Save uses the native picker' {
@@ -201,7 +237,10 @@ Test-Flow 'Copy produces an image and PNG Save uses the native picker' {
         $picker = Native-SavePicker
         $path = Join-Path $DataRoot 'manual-export.png'
         Invoke-Ui -Arguments @('set-value', 'FileNameControlHost', $path, '-w', "$($picker.hwnd)") | Out-Null
-        Invoke-Ui -Arguments @('invoke', 'Save', '-w', "$($picker.hwnd)") | Out-Null
+        $saveButton = (Invoke-Ui -Arguments @('search', 'Save', '-w', "$($picker.hwnd)")).matches |
+            Where-Object { $_.type -eq 'Button' -and $_.name -eq 'Save' } | Select-Object -First 1
+        Assert-True ($null -ne $saveButton) 'The native Save picker has no Save button.'
+        Invoke-Ui -Arguments @('invoke', $saveButton.selector, '-w', "$($picker.hwnd)") | Out-Null
         Wait-Until { Test-Path -LiteralPath $path } 'The chosen PNG export was not written.'
         Invoke-Ui -Arguments @('wait-for', 'ShnappStatus', '-a', "$AppPid", '--value', 'PNG exported', '--contains', '-t', '5000') | Out-Null
         $image = [System.Drawing.Bitmap]::FromFile($path)
@@ -232,7 +271,7 @@ Test-Flow 'Region shortcut cancels without creating a shnapp' {
 
 Test-Flow 'Region shortcut preserves the dragged physical pixel dimensions' {
     $count = @(Documents).Count
-    [ShnappSmokeNative]::SetForegroundWindow([IntPtr]$fixture.hwnd) | Out-Null
+    Activate-Fixture
     Invoke-Ui -Arguments @('send-keys', 'ctrl+shift+2', '-w', "$($fixture.hwnd)", '--via', 'send-input') | Out-Null
     Wait-Until { @(Invoke-Ui -Arguments @('list-windows', '-a', "$AppPid") | Where-Object { $_.title -match 'Shnapp.*Free form' }).Count -gt 0 } 'Region picker did not appear.'
     $picker = Invoke-Ui -Arguments @('list-windows', '-a', "$AppPid") | Where-Object { $_.title -match 'Shnapp.*Free form' } | Select-Object -First 1
@@ -274,7 +313,7 @@ Test-Flow 'Close-to-tray and second launch reopen one existing instance' {
     Wait-Until { [ShnappSmokeNative]::IsWindowVisible([IntPtr]$script:MainHwnd) } 'The existing tray instance did not reopen.'
     Invoke-Ui -Arguments @('wait-for', 'ShnappLibrary', '-a', "$AppPid", '-t', '5000') | Out-Null
     Invoke-Ui -Arguments @('set-value', 'TextBox', 'Shnapp capture fixture', '-a', "$AppPid") | Out-Null
-    Invoke-Ui -Arguments @('screenshot', '-w', "$script:MainHwnd", '-o', (Join-Path $media 'library.png')) | Out-Null
+    Capture-Evidence 'library.png'
 }
 Test-Flow 'Library search and accessible cards reopen editable annotations' {
     $selector = 'Shnapp_' + ([Guid]$script:WindowDocument.id).ToString('N')
@@ -287,28 +326,36 @@ Test-Flow 'Library search and accessible cards reopen editable annotations' {
     Assert-True (@($document.annotations).Count -eq 4) 'Reopened annotations were not retained.'
 }
 
-Test-Flow 'Settings persist light/dark themes without permitting startup changes' {
+Test-Flow 'Settings navigation and light/dark themes persist without startup changes' {
     Open-Settings
     Invoke-Ui -Arguments @('wait-for', 'StartOnLogin', '-a', "$AppPid", '-p', 'IsEnabled', '--value', 'False', '-t', '3000') | Out-Null
-    Invoke-Ui -Arguments @('invoke', 'ShnappTheme', '-a', "$AppPid") | Out-Null
-    Invoke-Ui -Arguments @('send-keys', 'end', '--target', 'ShnappTheme', '-a', "$AppPid", '--via', 'send-input') | Out-Null
-    Invoke-Ui -Arguments @('send-keys', 'enter', '-a', "$AppPid", '--via', 'send-input') | Out-Null
-    Invoke-Ui -Arguments @('invoke', 'PrimaryButton', '-a', "$AppPid") | Out-Null
-    Invoke-Ui -Arguments @('wait-for', 'ShnappStatus', '-a', "$AppPid", '--value', 'Preferences saved', '-t', '5000') | Out-Null
+    Invoke-Ui -Arguments @('invoke', 'SettingsUpdates', '-a', "$AppPid") | Out-Null
+    Invoke-Ui -Arguments @('wait-for', 'CheckForUpdates', '-a', "$AppPid", '-t', '3000') | Out-Null
+    Capture-Evidence 'settings-updates.png'
+    Invoke-Ui -Arguments @('invoke', 'SettingsFeedback', '-a', "$AppPid") | Out-Null
+    Invoke-Ui -Arguments @('wait-for', 'ReportBug', '-a', "$AppPid", '-t', '3000') | Out-Null
+    Invoke-Ui -Arguments @('wait-for', 'RequestFeature', '-a', "$AppPid", '-t', '3000') | Out-Null
+    Capture-Evidence 'settings-feedback.png'
+    Invoke-Ui -Arguments @('invoke', 'SettingsGeneral', '-a', "$AppPid") | Out-Null
+    Select-Theme 'Dark'
+    Invoke-Ui -Arguments @('invoke', 'SavePreferences', '-a', "$AppPid") | Out-Null
     $settingsPath = Join-Path $DataRoot 'settings.json'
+    Wait-Until { (Test-Path -LiteralPath $settingsPath) -and
+        (([System.IO.File]::ReadAllText($settingsPath) | ConvertFrom-Json).settings.theme -eq 'Dark') } 'Dark theme was not saved.'
     $settings = [System.IO.File]::ReadAllText($settingsPath) | ConvertFrom-Json
     Assert-True ($settings.settings.theme -eq 'Dark') 'Dark theme was not persisted.'
-    Invoke-Ui -Arguments @('screenshot', '-w', "$script:MainHwnd", '-o', (Join-Path $media 'editor-dark.png')) | Out-Null
+    Invoke-Ui -Arguments @('invoke', 'BackToEditor', '-a', "$AppPid") | Out-Null
+    Invoke-Ui -Arguments @('wait-for', 'ShnappCanvas', '-a', "$AppPid", '-t', '5000') | Out-Null
+    Capture-Evidence 'editor-dark.png'
     Open-Settings
-    Invoke-Ui -Arguments @('invoke', 'ShnappTheme', '-a', "$AppPid") | Out-Null
-    Invoke-Ui -Arguments @('send-keys', 'home', '--target', 'ShnappTheme', '-a', "$AppPid", '--via', 'send-input') | Out-Null
-    Invoke-Ui -Arguments @('send-keys', 'down', '-a', "$AppPid", '--via', 'send-input') | Out-Null
-    Invoke-Ui -Arguments @('send-keys', 'enter', '-a', "$AppPid", '--via', 'send-input') | Out-Null
-    Invoke-Ui -Arguments @('invoke', 'PrimaryButton', '-a', "$AppPid") | Out-Null
-    Invoke-Ui -Arguments @('wait-for', 'ShnappStatus', '-a', "$AppPid", '--value', 'Preferences saved', '-t', '5000') | Out-Null
+    Select-Theme 'Light'
+    Invoke-Ui -Arguments @('invoke', 'SavePreferences', '-a', "$AppPid") | Out-Null
+    Wait-Until { ([System.IO.File]::ReadAllText($settingsPath) | ConvertFrom-Json).settings.theme -eq 'Light' } 'Light theme was not saved.'
     $settings = [System.IO.File]::ReadAllText($settingsPath) | ConvertFrom-Json
     Assert-True ($settings.settings.theme -eq 'Light' -and -not $settings.settings.startOnLogin) 'Light theme or disabled startup was not persisted.'
-    Invoke-Ui -Arguments @('screenshot', '-w', "$script:MainHwnd", '-o', (Join-Path $media 'editor-light.png')) | Out-Null
+    Invoke-Ui -Arguments @('invoke', 'BackToEditor', '-a', "$AppPid") | Out-Null
+    Invoke-Ui -Arguments @('wait-for', 'ShnappCanvas', '-a', "$AppPid", '-t', '5000') | Out-Null
+    Capture-Evidence 'editor-light.png'
 }
 
 Test-Flow 'Startup remains disabled in the isolated verification instance' {

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>shnapp</id>
+    <version>__VERSION__</version>
+    <title>Shnapp</title>
+    <authors>Erik Zettersten</authors>
+    <owners>Erik Zettersten</owners>
+    <projectUrl>https://shhnap.com</projectUrl>
+    <licenseUrl>https://github.com/Zettersten/shhnap/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <summary>Screenshot capture and annotation for Windows</summary>
+    <description>Shnapp is a Windows screenshot capture and annotation app.</description>
+    <releaseNotes>https://github.com/Zettersten/shhnap/releases/tag/v__VERSION__</releaseNotes>
+    <tags>screenshot capture annotation windows</tags>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

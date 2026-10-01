@@ -18,10 +18,26 @@ internal sealed class TrayHost : IDisposable
     internal event Action<CaptureKind>? CaptureRequested;
     internal event Action? LibraryRequested;
     internal event Action? SettingsRequested;
+    internal event Action? UpdateNotificationClicked;
     internal event Action? QuitRequested;
 
     internal IReadOnlyList<string> Conflicts => _conflicts;
     internal bool IsPresent { get; private set; }
+
+    internal void ShowUpdateNotification(string version)
+    {
+        if (!IsPresent || _disposed)
+        {
+            return;
+        }
+
+        _icon.InfoTitle = "Shnapp update available";
+        _icon.Info = $"Version {version} is available. Click to open About & Updates.";
+        _icon.InfoFlags = 0x1; // NIIF_INFO
+        _icon.Flags |= 0x10; // NIF_INFO
+        NativeMethods.ShellNotifyIcon(1, ref _icon); // NIM_MODIFY
+        _icon.Flags &= ~0x10u;
+    }
 
     internal TrayHost(nint hwnd, uint activationMessage)
     {
@@ -101,7 +117,11 @@ internal sealed class TrayHost : IDisposable
         else if (message == NativeMethods.TrayCallback)
         {
             uint action = (uint)((long)lParam & 0xFFFF);
-            if (action is 0x0205 or 0x007B)
+            if (action == 0x0405) // NIN_BALLOONUSERCLICK
+            {
+                UpdateNotificationClicked?.Invoke();
+            }
+            else if (action is 0x0205 or 0x007B)
             {
                 ShowMenu();
             }

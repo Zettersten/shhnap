@@ -1,0 +1,36 @@
+$ErrorActionPreference = 'Stop'
+
+$version = '__VERSION__'
+$checksumX64 = '__SHA256_X64__'
+$checksumArm64 = '__SHA256_ARM64__'
+if ($version -match '__' -or $checksumX64 -match '__' -or $checksumArm64 -match '__') {
+    throw 'Fill package version and checksums from a published Shnapp release before packing.'
+}
+
+$architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+switch ($architecture) {
+    'X64' {
+        $archive = 'Shnapp-win-x64.zip'
+        $checksum = $checksumX64
+    }
+    'Arm64' {
+        $archive = 'Shnapp-win-arm64.zip'
+        $checksum = $checksumArm64
+    }
+    default {
+        throw "Shnapp supports x64 and ARM64 Windows only; detected $architecture."
+    }
+}
+
+$toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$appDir = Join-Path $toolsDir 'app'
+$url = "https://github.com/Zettersten/shhnap/releases/download/v$version/$archive"
+Install-ChocolateyZipPackage -PackageName 'shnapp' -Url $url -UnzipLocation $appDir -Checksum $checksum -ChecksumType 'sha256'
+
+if (-not (Test-Path -LiteralPath (Join-Path $appDir 'Shnapp.exe') -PathType Leaf)) {
+    throw 'The archive did not contain Shnapp.exe at its root.'
+}
+New-Item -Path (Join-Path $appDir 'Shnapp.exe.gui') -ItemType File -Force | Out-Null
+Get-ChildItem -LiteralPath $appDir -Recurse -File -Filter '*.exe' |
+    Where-Object { $_.Name -ne 'Shnapp.exe' } |
+    ForEach-Object { New-Item -Path "$($_.FullName).ignore" -ItemType File -Force | Out-Null }

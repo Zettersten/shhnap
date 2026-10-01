@@ -1,0 +1,80 @@
+name: Bug report
+description: Report something that is broken in Shnapp.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Shnapp. Please remove private information from screenshots and logs before attaching them.
+        For a security vulnerability, use private vulnerability reporting instead of a public issue.
+  - type: input
+    id: version
+    attributes:
+      label: Shnapp version
+      description: Find this in Settings > About & Updates.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - GitHub ZIP
+        - Scoop
+        - WinGet
+        - Chocolatey
+        - Microsoft Store
+        - Built from source
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version and build
+      description: You can find this under Windows Settings > System > About.
+      placeholder: "Windows 11, build 26100"
+    validations:
+      required: true
+  - type: dropdown
+    id: architecture
+    attributes:
+      label: Processor architecture
+      options:
+        - x64
+        - ARM64
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do, and what happened?
+      placeholder: |
+        1. Open Shnapp...
+        2. Choose...
+        3. See...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots, logs, or system information
+      description: Optional. Check attachments and paths for private information first.
+    validations:
+      required: false

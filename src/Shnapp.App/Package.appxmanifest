@@ -2,18 +2,16 @@
 
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
-  xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap10 rescap">
+  IgnorableNamespaces="uap uap5 uap10 rescap">
 
   <Identity
     Name="B26188CE-092A-4B82-800F-5B908190A781"
     Publisher="CN=AppPublisher"
     Version="1.0.0.0" />
-
-  <mp:PhoneIdentity PhoneProductId="B26188CE-092A-4B82-800F-5B908190A781" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
     <DisplayName>Shnapp</DisplayName>
@@ -25,7 +23,6 @@
   </Properties>
 
   <Dependencies>
-    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26226.0" />
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26226.0" />
   </Dependencies>
 
@@ -46,6 +43,15 @@
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
+      <Extensions>
+        <uap5:Extension
+          Category="windows.startupTask"
+          Executable="Shnapp.exe"
+          EntryPoint="Windows.FullTrustApplication"
+          uap10:Parameters="--background">
+          <uap5:StartupTask TaskId="ShnappStartupTask" Enabled="false" DisplayName="Shnapp" />
+        </uap5:Extension>
+      </Extensions>
     </Application>
   </Applications>
 

@@ -8,6 +8,20 @@ namespace Shnapp.App;
 public sealed partial class MainWindow : Window
 {
     internal MainPage Page { get; }
+    internal SettingsPage? Settings { get; private set; }
+
+    internal void ShowSettings(SettingsPage page)
+    {
+        Settings = page;
+        RootFrame.Content = page;
+    }
+
+    internal void ShowMainPage()
+    {
+        RootFrame.Content = Page;
+        Settings = null;
+    }
+
     internal void ApplyTheme(ElementTheme theme)
     {
         ((FrameworkElement)Content).RequestedTheme = theme;
