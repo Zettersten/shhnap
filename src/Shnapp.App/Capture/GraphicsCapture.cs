@@ -13,13 +13,10 @@ internal sealed class GraphicsCapture(CanvasDevice device)
     private readonly CanvasDevice _device = device ?? throw new ArgumentNullException(nameof(device));
     private static readonly Guid CaptureItemId = new("79C3F95B-31F7-4EC2-A464-632EF5D30760");
 
-    internal Task<CanvasBitmap> WindowAsync(nint hwnd, CancellationToken cancellationToken) =>
-        CaptureAsync(CreateItem(hwnd, isMonitor: false), cancellationToken);
-
     internal async Task<CanvasBitmap> MonitorAsync(nint monitor, CancellationToken cancellationToken) =>
-        await CaptureAsync(CreateItem(monitor, isMonitor: true), cancellationToken);
+        await CaptureAsync(CreateMonitorItem(monitor), cancellationToken);
 
-    private static GraphicsCaptureItem CreateItem(nint handle, bool isMonitor)
+    private static GraphicsCaptureItem CreateMonitorItem(nint monitor)
     {
         if (!GraphicsCaptureSession.IsSupported())
         {
@@ -28,9 +25,7 @@ internal sealed class GraphicsCapture(CanvasDevice device)
 
         var interop = GraphicsCaptureItem.As<IGraphicsCaptureItemInterop>();
         Guid iid = CaptureItemId;
-        int result = isMonitor
-            ? interop.CreateForMonitor(handle, in iid, out nint item)
-            : interop.CreateForWindow(handle, in iid, out item);
+        int result = interop.CreateForMonitor(monitor, in iid, out nint item);
         Marshal.ThrowExceptionForHR(result);
         try
         {
@@ -102,7 +97,7 @@ internal sealed class GraphicsCapture(CanvasDevice device)
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             throw new InvalidOperationException(
-                "The window did not provide a capture. Restore it and try again; protected content cannot be shnapped.");
+                "The display did not provide a capture. Try again; protected content cannot be shnapped.");
         }
         finally
         {
@@ -179,6 +174,7 @@ internal sealed class GraphicsCapture(CanvasDevice device)
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IGraphicsCaptureItemInterop
     {
+        // Preserve this COM vtable slot: CreateForMonitor is the next method.
         [PreserveSig]
         int CreateForWindow(nint window, in Guid iid, out nint result);
 

@@ -287,13 +287,17 @@
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                                         <NumberBox x:Name="CropXChoice" Header="X" Minimum="0" SmallChange="1" SpinButtonPlacementMode="Compact"
-                                            ValueChanged="CropNumber_Changed" Loaded="NumberBox_Loaded" />
+                                            ValueChanged="CropNumber_Changed" Loaded="NumberBox_Loaded"
+                                            AutomationProperties.Name="Crop X position in pixels" />
                                         <NumberBox x:Name="CropYChoice" Grid.Column="1" Header="Y" Minimum="0" SmallChange="1" SpinButtonPlacementMode="Compact"
-                                            ValueChanged="CropNumber_Changed" Loaded="NumberBox_Loaded" />
+                                            ValueChanged="CropNumber_Changed" Loaded="NumberBox_Loaded"
+                                            AutomationProperties.Name="Crop Y position in pixels" />
                                         <NumberBox x:Name="CropWidthChoice" Grid.Row="1" Header="Width" Minimum="1" SmallChange="1" SpinButtonPlacementMode="Compact"
-                                            ValueChanged="CropNumber_Changed" Loaded="NumberBox_Loaded" />
+                                            ValueChanged="CropNumber_Changed" Loaded="NumberBox_Loaded"
+                                            AutomationProperties.Name="Crop width in pixels" />
                                         <NumberBox x:Name="CropHeightChoice" Grid.Row="1" Grid.Column="1" Header="Height" Minimum="1" SmallChange="1" SpinButtonPlacementMode="Compact"
-                                            ValueChanged="CropNumber_Changed" Loaded="NumberBox_Loaded" />
+                                            ValueChanged="CropNumber_Changed" Loaded="NumberBox_Loaded"
+                                            AutomationProperties.Name="Crop height in pixels" />
                                     </Grid>
                                     <CheckBox x:Name="CropLockProportions" Content="Lock proportions" Click="CropLock_Click" />
                                     <ComboBox x:Name="CropRatioChoice" Header="Aspect ratio" HorizontalAlignment="Stretch"
@@ -819,7 +823,8 @@
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <DropDownButton x:Name="ZoomPresetButton" Content="100%" Height="24" MinWidth="60"
                 FontSize="11" Padding="5,0" Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
-                ToolTipService.ToolTip="Canvas zoom" AutomationProperties.AutomationId="ZoomPresets">
+                ToolTipService.ToolTip="Canvas zoom" AutomationProperties.AutomationId="ZoomPresets"
+                AutomationProperties.HelpText="Canvas zoom. Choose a preset level.">
                 <DropDownButton.Flyout>
                     <MenuFlyout>
                         <MenuFlyoutItem Text="Fit canvas" Tag="fit" Click="ZoomPreset_Click" />

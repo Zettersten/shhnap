@@ -193,6 +193,11 @@ components:
     backgroundColor: "{colors.primary-hover}"
   button-primary-pressed:
     backgroundColor: "{colors.primary-pressed}"
+  new-shnapp-action:
+    gradientStart: "#1670CC"
+    gradientEnd: "#0753AC"
+    textColor: "{colors.on-primary}"
+    rounded: "{rounded.md}"
 
   button-secondary:
     backgroundColor: "{colors.surface}"
@@ -588,7 +593,7 @@ translucent surface readable in light and dark themes.
 
 ### Library layout
 
-The library uses a responsive thumbnail grid.
+The library offers a responsive thumbnail grid and a compact list. Captures stay visually dominant in the grid; metadata supports scanning without competing with the image.
 
 Desktop defaults:
 
@@ -597,7 +602,9 @@ Desktop defaults:
 - 8px internal card padding
 - thumbnail aspect ratio preserved
 - file name secondary to visual content
-- timestamp, dimensions, and PNG size displayed quietly
+- last-saved date, dimensions, and PNG size displayed quietly
+
+Grid selection checkboxes sit inside the thumbnail's bottom-right corner and appear on hover or keyboard focus. Once any item is selected, the library reveals bulk Delete beside search. In list view, checkboxes remain visible; each row's hover highlight reaches the content edges while its checkbox and size column retain inner padding. Leave space below the thumbnail before the row divider, and omit the divider after the last visible row.
 
 The library should support:
 
@@ -612,6 +619,8 @@ Advanced filtering should not be shown unless the product grows to justify it.
 ### Capture overlay layout
 
 Capture mode removes all normal application chrome.
+
+Freeze the visible desktop before presenting the picker. Window selection uses the pixels visible in that snapshot, including any overlapping windows; a window hidden behind another app cannot be reconstructed from the frozen frame. Keep the selection overlay out of the captured image.
 
 Only essential indicators appear:
 
@@ -1044,10 +1053,12 @@ Avoid toast spam during rapid capture sessions.
 Each card includes:
 
 - thumbnail
-- capture time
+- last-saved date
 - dimensions
 - optional short caption/title
 - file size
+
+Refresh the thumbnail and last-saved date after a document changes. Keep the capture's original creation time available as document metadata.
 
 Right-click opens item actions across the entire card or list row.
 
@@ -1157,6 +1168,8 @@ Recommended:
 Respect Windows Reduce Motion settings.
 
 Avoid springy or playful animation.
+
+The **New shnapp** action is the small brand exception: a blue gradient with sparse white sparkles that drift upward, fade, and return at varied positions. Keep the focus outline aligned to the painted button bounds. Stop decorative animation when the window is hidden, system animations are disabled, or high contrast is active.
 
 ### Cursor behavior
 
