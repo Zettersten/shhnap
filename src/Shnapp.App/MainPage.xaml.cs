@@ -70,6 +70,7 @@ public sealed partial class MainPage : Page
         {
             UpdateShapeButtonAppearance();
             DrawingCanvas.Invalidate();
+            RefreshNewShnappSparkles();
         };
     }
 
