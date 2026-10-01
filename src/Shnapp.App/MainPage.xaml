@@ -67,6 +67,7 @@
                 </StackPanel>
             </CommandBar.Content>
             <AppBarButton x:Name="NewShnappButton" Label="New shnapp" Icon="Camera" CornerRadius="8" FocusVisualMargin="3"
+                MinWidth="130"
                 Loaded="NewShnappButton_Loaded" Unloaded="NewShnappButton_Unloaded"
                 ToolTipService.ToolTip="Capture a window, display, or region"
                 AutomationProperties.AutomationId="NewShnapp">
@@ -152,8 +153,6 @@
             <AppBarButton x:Name="SaveButton" Label="Save" Icon="Save" Click="Save_Click"
                 IsEnabled="{x:Bind ViewModel.HasDocument, Mode=OneWay}" AutomationProperties.AutomationId="SaveShnapp"
                 ToolTipService.ToolTip="Save PNG to a chosen location · Ctrl+S" />
-            <AppBarButton Label="Done" Icon="Accept" Click="Done_Click" AutomationProperties.AutomationId="DoneShnapp"
-                ToolTipService.ToolTip="Save locally and return to the tray" />
             <CommandBar.SecondaryCommands>
                 <AppBarButton Label="Recent shnapps" Icon="Pictures" Click="ToggleGallery_Click"
                     Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"

@@ -45,7 +45,7 @@ Draw a crop and drag it into place, use exact X, Y, width, and height values, lo
 
 Right-click any placed element to clone it, delete it, or change which marks sit in front. The same actions work from the keyboard: `Ctrl+D`, `Delete`, `Ctrl+]` (front), and `Ctrl+[` (back).
 
-When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboard with its transparent areas intact, **Save** (`Ctrl+S`) lets you export a PNG, and **Done** returns Shnapp to the tray. The toolbar menu also offers Windows Share, Copy full path, and Delete shnapp.
+When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboard with its transparent areas intact, and **Save** (`Ctrl+S`) lets you export a PNG. Close the window when you're finished; Shnapp stays ready in the tray. The toolbar menu also offers Windows Share, Copy full path, and Delete shnapp.
 
 ## Find it again
 

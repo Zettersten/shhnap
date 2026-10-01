@@ -571,7 +571,7 @@ Recommended groups:
 8. Caption
 9. Undo / Redo
 
-Copy, Save, Share, and Done should remain separate from annotation tools.
+Copy and Save should remain separate from annotation tools. Keep Share in the main command menu; closing the window returns Shnapp to the tray.
 
 ### Context panels
 
@@ -1029,7 +1029,8 @@ Primary completion actions:
 
 - Copy
 - Save
-- Done
+
+The window's Close button returns Shnapp to the tray when its tray icon is available.
 
 After capture, copying to clipboard may happen automatically according to user preference.
 

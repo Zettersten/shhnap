@@ -1158,7 +1158,6 @@ public sealed partial class MainPage : Page
     private void Library_Click(object sender, RoutedEventArgs args) => _controller?.OpenLibrary();
     private void Copy_Click(object sender, RoutedEventArgs args) => _controller?.Copy();
     private void Save_Click(object sender, RoutedEventArgs args) => _controller?.Export();
-    private void Done_Click(object sender, RoutedEventArgs args) => _controller?.Hide();
     private void Settings_Click(object sender, RoutedEventArgs args) => _controller?.OpenSettings();
     private void Quit_Click(object sender, RoutedEventArgs args) => _controller?.Quit();
     private void Undo_Click(object sender, RoutedEventArgs args) { CancelInteraction(); _editor?.Undo(); }
