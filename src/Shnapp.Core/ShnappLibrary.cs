@@ -45,6 +45,12 @@ public sealed class ShnappLibrary(string rootPath)
     /// <returns>The document directory's preview.png path.</returns>
     public string GetPreviewPath(Guid id) => Path.Combine(GetDocumentDirectory(id), "preview.png");
 
+    /// <summary>Gets the smaller preview used by compact library cards and rows.</summary>
+    public string GetCompactPreviewPath(Guid id) => Path.Combine(GetDocumentDirectory(id), "preview-compact.png");
+
+    /// <summary>Gets the square preview used by the editor gallery dock.</summary>
+    public string GetGalleryPreviewPath(Guid id) => Path.Combine(GetDocumentDirectory(id), "preview-dock.png");
+
     /// <summary>Gets the location of the default flattened export PNG.</summary>
     /// <param name="id">The nonempty shnapp identifier.</param>
     /// <returns>The document directory's shnapp.png path.</returns>

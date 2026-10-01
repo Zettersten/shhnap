@@ -157,15 +157,23 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         }
     }
 
-    internal CanvasRenderTarget Thumbnail(CanvasBitmap flattened)
+    /// <summary>Downsamples a flattened shnapp to a small, center-cropped preview.</summary>
+    internal CanvasRenderTarget Thumbnail(CanvasBitmap flattened, int width, int height)
     {
-        double scale = Math.Min(1, Math.Min(384 / flattened.Size.Width, 256 / flattened.Size.Height));
-        float width = (float)Math.Max(1, Math.Round(flattened.Size.Width * scale));
-        float height = (float)Math.Max(1, Math.Round(flattened.Size.Height * scale));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+
+        double sourceWidth = flattened.Size.Width;
+        double sourceHeight = flattened.Size.Height;
+        double targetAspect = (double)width / height;
+        double croppedWidth = Math.Min(sourceWidth, sourceHeight * targetAspect);
+        double croppedHeight = Math.Min(sourceHeight, sourceWidth / targetAspect);
+        var source = new Rect((sourceWidth - croppedWidth) / 2,
+            (sourceHeight - croppedHeight) / 2, croppedWidth, croppedHeight);
         var preview = new CanvasRenderTarget(_device, width, height, 96);
         using CanvasDrawingSession drawing = preview.CreateDrawingSession();
         drawing.Clear(Colors.Transparent);
-        drawing.DrawImage(flattened, new Rect(0, 0, width, height), new Rect(0, 0, flattened.Size.Width, flattened.Size.Height));
+        drawing.DrawImage(flattened, new Rect(0, 0, width, height), source);
         return preview;
     }
 
@@ -341,7 +349,17 @@ internal sealed class ShnappRenderer(CanvasDevice device)
 
                 using (CanvasTextFormat format = TextFormat(annotation))
                 {
-                    drawing.DrawText(annotation.Text, start, stroke, format);
+                    if (annotation.TextBoxWidth > 0)
+                    {
+                        format.WordWrapping = CanvasWordWrapping.Wrap;
+                        using var layout = new CanvasTextLayout(drawing, annotation.Text, format,
+                            (float)annotation.TextBoxWidth, 12000);
+                        drawing.DrawTextLayout(layout, start.X, start.Y, stroke);
+                    }
+                    else
+                    {
+                        drawing.DrawText(annotation.Text, start, stroke, format);
+                    }
                 }
 
                 break;
@@ -551,8 +569,35 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         drawing.FillGeometry(polygon, color);
     }
 
+    internal Rect MeasureTextBounds(Annotation annotation)
+    {
+        using CanvasTextFormat format = TextFormat(annotation);
+        format.WordWrapping = annotation.TextBoxWidth > 0
+            ? CanvasWordWrapping.Wrap
+            : CanvasWordWrapping.NoWrap;
+        using var layout = new CanvasTextLayout(_device,
+            annotation.Text.Length == 0 ? " " : annotation.Text,
+            format, (float)(annotation.TextBoxWidth > 0 ? annotation.TextBoxWidth : 12000), 12000);
+        Rect aligned = layout.LayoutBoundsIncludingTrailingWhitespace;
+        Rect drawn = layout.DrawBounds;
+        double width = annotation.TextBoxWidth > 0
+            ? annotation.TextBoxWidth
+            : Math.Max(16, Math.Max(aligned.Right, drawn.Right));
+        int explicitLines = annotation.Text.Count(character => character == '\n') + 1;
+        double height = Math.Max(annotation.FontSize * 1.5,
+            Math.Max(Math.Max(aligned.Bottom, drawn.Bottom),
+                explicitLines * annotation.FontSize * 1.25));
+        return new Rect(annotation.Start.X, annotation.Start.Y, Math.Ceiling(width), Math.Ceiling(height));
+    }
+
     internal static Rect TextBounds(Annotation annotation)
     {
+        if (annotation.End.X > annotation.Start.X && annotation.End.Y > annotation.Start.Y)
+        {
+            return new Rect(annotation.Start.X, annotation.Start.Y,
+                annotation.End.X - annotation.Start.X, annotation.End.Y - annotation.Start.Y);
+        }
+
         int lineCount = 1;
         int longestLine = 0;
         int currentLine = 0;

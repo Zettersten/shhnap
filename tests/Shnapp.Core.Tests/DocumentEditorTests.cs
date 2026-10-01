@@ -623,7 +623,155 @@ public sealed class DocumentEditorTests
         Assert.IsTrue(editor.Redo());
         Assert.AreEqual(new ImageRect(-51, -26, 752, 537), editor.Current.Viewport);
         editor.RemoveAnnotation(image.Id);
+        Assert.AreEqual(new ImageRect(0, 0, 640, 480), editor.Current.CanvasBounds);
+        Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.Viewport);
+        Assert.IsTrue(editor.Undo());
         Assert.AreEqual(new ImageRect(-51, -26, 752, 537), editor.Current.CanvasBounds);
+    }
+
+    [TestMethod]
+    public void MovingAndRemovingImagesTrimOnlyUnusedTransparentMargins()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation left = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(-100, 100),
+            End = new ImagePoint(50, 200),
+        };
+        Annotation right = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(600, 100),
+            End = new ImagePoint(800, 200),
+        };
+        editor.AddAnnotation(left);
+        editor.AddAnnotation(right);
+        Assert.AreEqual(new ImageRect(-100, 0, 900, 480), editor.Current.CanvasBounds);
+
+        editor.UpdateAnnotation(left with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(250, 200),
+        });
+        Assert.AreEqual(new ImageRect(0, 0, 800, 480), editor.Current.CanvasBounds);
+
+        editor.RemoveAnnotation(right.Id);
+        Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.CanvasBounds);
+    }
+
+    [TestMethod]
+    public void RemovingImageAfterCropRestoresTheOriginalVisibleRegion()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        ImageRect originalCrop = new(100, 100, 200, 150);
+        editor.ApplyCrop(originalCrop);
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(-20, -20),
+            End = new ImagePoint(40, 40),
+        };
+        editor.AddAnnotation(image);
+        Assert.AreEqual(new ImageRect(-20, -20, 320, 270), editor.Current.Viewport);
+
+        editor.RemoveAnnotation(image.Id);
+
+        Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.CanvasBounds);
+        Assert.AreEqual(originalCrop, editor.Current.Viewport);
+        Assert.IsNull(editor.Current.BaseImageCrop);
+        Assert.IsFalse(editor.Current.HideOriginalImage);
+    }
+
+    [TestMethod]
+    public void RemovingLastLayerFromImageOnlyCropLeavesATransparentPixel()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(700, 40),
+            End = new ImagePoint(900, 240),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(700, 40, 200, 200));
+        Assert.IsTrue(editor.Current.HideOriginalImage);
+
+        editor.RemoveAnnotation(image.Id);
+
+        Assert.IsTrue(editor.Current.HideOriginalImage);
+        Assert.AreEqual(new ImageRect(0, 0, 1, 1), editor.Current.Viewport);
+        Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.CanvasBounds);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreEqual(new ImageRect(700, 40, 200, 200), editor.Current.Viewport);
+    }
+
+    [TestMethod]
+    public void InvisibleImageOutsideCropDoesNotHoldCanvasOpen()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(-300, 100),
+            End = new ImagePoint(-100, 300),
+        };
+        Annotation step = TestDocuments.Annotation(AnnotationKind.Step) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(100, 100),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(editor.Current.OriginalBounds);
+        editor.AddAnnotation(step);
+
+        editor.RemoveAnnotation(step.Id);
+
+        Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.CanvasBounds);
+        Assert.HasCount(1, editor.Current.Annotations);
+        _ = new DocumentEditor(editor.Current);
+    }
+
+    [TestMethod]
+    public void StepAtCaptureEdgeDoesNotGrowCanvasWhenAnotherLayerIsDeleted()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation step = TestDocuments.Annotation(AnnotationKind.Step) with
+        {
+            Start = new ImagePoint(0, 0),
+            End = new ImagePoint(0, 0),
+        };
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(700, 100),
+            End = new ImagePoint(900, 300),
+        };
+        editor.AddAnnotation(step);
+        editor.AddAnnotation(image);
+
+        editor.RemoveAnnotation(image.Id);
+
+        Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.CanvasBounds);
+    }
+
+    [TestMethod]
+    public void LongTextGrowsCanvasAndTrimsWhenShortenedOrRemoved()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation text = TestDocuments.Annotation(AnnotationKind.Text) with
+        {
+            Start = new ImagePoint(600, 100),
+            End = new ImagePoint(900, 190),
+            Text = "A long annotation",
+        };
+
+        editor.AddAnnotation(text);
+        Assert.AreEqual(new ImageRect(0, 0, 900, 480), editor.Current.CanvasBounds);
+
+        editor.UpdateAnnotation(text with { End = new ImagePoint(630, 190), Text = "Short" });
+        Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.CanvasBounds);
+
+        editor.RemoveAnnotation(text.Id);
+        Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.CanvasBounds);
+        Assert.IsTrue(editor.Undo());
+        Assert.HasCount(1, editor.Current.Annotations);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreEqual(new ImageRect(0, 0, 900, 480), editor.Current.CanvasBounds);
     }
 
     [TestMethod]

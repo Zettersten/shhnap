@@ -426,7 +426,19 @@ public sealed partial class MainPage
             Annotation updated = change(selected);
             if (updated != selected)
             {
-                _editor!.UpdateAnnotation(updated);
+                if (updated.Kind == AnnotationKind.Text)
+                {
+                    updated = MeasureTextAnnotation(updated);
+                }
+
+                try
+                {
+                    _editor!.UpdateAnnotation(updated);
+                }
+                catch (ArgumentException exception) when (updated.Kind == AnnotationKind.Text)
+                {
+                    ShowMessage("Text exceeds canvas limits", exception.Message);
+                }
             }
         }
     }

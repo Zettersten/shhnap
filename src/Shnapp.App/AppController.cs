@@ -284,7 +284,9 @@ internal sealed class AppController
             ShnappDocument? document = _page.Document;
             CanvasBitmap? original = _page.Original;
             if (document is null || original is null || (ReferenceEquals(document, _saved) &&
-                File.Exists(Library.GetExportPath(document.Id)) && File.Exists(Library.GetPreviewPath(document.Id))))
+                File.Exists(Library.GetExportPath(document.Id)) && File.Exists(Library.GetPreviewPath(document.Id)) &&
+                File.Exists(Library.GetCompactPreviewPath(document.Id)) &&
+                File.Exists(Library.GetGalleryPreviewPath(document.Id))))
             {
                 return;
             }
@@ -298,9 +300,13 @@ internal sealed class AppController
                 await ShnappRenderer.SavePngAtomicAsync(original, Library.GetOriginalPath(document.Id), CancellationToken.None);
             }
 
-            await ShnappRenderer.SavePngAtomicAsync(flattened, Library.GetExportPath(document.Id), CancellationToken.None);
-            using CanvasRenderTarget preview = Renderer.Thumbnail(flattened);
+            using CanvasRenderTarget gallery = Renderer.Thumbnail(flattened, 160, 160);
+            await ShnappRenderer.SavePngAtomicAsync(gallery, Library.GetGalleryPreviewPath(document.Id), CancellationToken.None);
+            using CanvasRenderTarget compact = Renderer.Thumbnail(flattened, 192, 128);
+            await ShnappRenderer.SavePngAtomicAsync(compact, Library.GetCompactPreviewPath(document.Id), CancellationToken.None);
+            using CanvasRenderTarget preview = Renderer.Thumbnail(flattened, 384, 256);
             await ShnappRenderer.SavePngAtomicAsync(preview, Library.GetPreviewPath(document.Id), CancellationToken.None);
+            await ShnappRenderer.SavePngAtomicAsync(flattened, Library.GetExportPath(document.Id), CancellationToken.None);
             await prepared.CommitAsync();
             _saved = document;
             if (ReferenceEquals(document, _page.Document))
@@ -629,6 +635,8 @@ internal sealed class AppController
             directory,
             Library.GetOriginalPath(id),
             Library.GetPreviewPath(id),
+            Library.GetCompactPreviewPath(id),
+            Library.GetGalleryPreviewPath(id),
             Library.GetExportPath(id),
         ];
         CheckPaths();

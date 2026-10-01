@@ -34,6 +34,9 @@ public sealed partial class MainPage : Page
     private TextBox? _textBox;
     private Guid? _textEditId;
     private ImagePoint _textOrigin;
+    private ImagePoint? _textDragStart;
+    private ImagePoint? _textDragEnd;
+    private Annotation? _textDraft;
     private double _scale = 1;
     private double _offsetX;
     private double _offsetY;
@@ -246,6 +249,18 @@ public sealed partial class MainPage : Page
             drawing.FillRectangle(new Rect(crop.Right, crop.Y, viewport.Right - crop.Right, crop.Height), mask);
             drawing.DrawRectangle(ShnappRenderer.ToRect(crop), Colors.White, (float)(2 / _scale));
         }
+
+        if (_textDragStart is ImagePoint textStart && _textDragEnd is ImagePoint textEnd &&
+            Math.Max(Math.Abs(textEnd.X - textStart.X), Math.Abs(textEnd.Y - textStart.Y)) * _scale >= 8)
+        {
+            double left = Math.Min(textStart.X, textEnd.X);
+            double top = Math.Min(textStart.Y, textEnd.Y);
+            double width = Math.Max(48, Math.Abs(textEnd.X - textStart.X));
+            double height = 28 / _scale;
+            Rect textFrame = new(left, top, width, height);
+            drawing.FillRectangle(textFrame, Color.FromArgb(36, 42, 138, 245));
+            drawing.DrawRectangle(textFrame, Colors.DodgerBlue, (float)(2 / _scale));
+        }
     }
 
     private void Canvas_SizeChanged(object sender, SizeChangedEventArgs args)
@@ -285,7 +300,7 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        ImagePoint? position = ImagePosition(canvasPosition);
+        ImagePoint? position = ImagePosition(canvasPosition, allowOutside: _tool == EditorTool.Text);
         if (position is not ImagePoint point)
         {
             return;
@@ -300,7 +315,9 @@ public sealed partial class MainPage : Page
         switch (_tool)
         {
             case EditorTool.Text:
-                StartText(point);
+                _textDragStart = point;
+                _textDragEnd = point;
+                DrawingCanvas.CapturePointer(args.Pointer);
                 break;
             case EditorTool.Step:
                 Annotation step = NewAnnotation(AnnotationKind.Step, point) with
@@ -362,13 +379,20 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        if (_textDragStart is not null && _editor is not null)
+        {
+            _textDragEnd = ImagePosition(canvasPosition, allowOutside: true);
+            DrawingCanvas.Invalidate();
+            return;
+        }
+
         if (_dragStart is not ImagePoint start || _editor is null)
         {
             UpdateCropHover(canvasPosition);
             return;
         }
 
-        ImagePoint point = (_moving?.Kind == AnnotationKind.Image
+        ImagePoint point = (_moving?.Kind is AnnotationKind.Image or AnnotationKind.Text
             ? ImagePosition(canvasPosition, allowOutside: true)
             : ImagePosition(canvasPosition, clamp: true))!.Value;
         if (_moving is not null)
@@ -399,7 +423,7 @@ public sealed partial class MainPage : Page
                     _axisLockHorizontal = null;
                 }
 
-                if (_moving.Kind != AnnotationKind.Image)
+                if (_moving.Kind is not (AnnotationKind.Image or AnnotationKind.Text))
                 {
                     dx = ClampMovement(dx, viewport.X - bounds.X, viewport.Right - bounds.Right);
                     dy = ClampMovement(dy, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom);
@@ -457,6 +481,25 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        if (_textDragStart is ImagePoint textStart)
+        {
+            ImagePoint end = ImagePosition(args.GetCurrentPoint(DrawingCanvas).Position,
+                allowOutside: true) ?? textStart;
+            _textDragStart = null;
+            _textDragEnd = null;
+            DrawingCanvas.ReleasePointerCapture(args.Pointer);
+            bool wrapped = Math.Max(Math.Abs(end.X - textStart.X),
+                Math.Abs(end.Y - textStart.Y)) * _scale >= 8;
+            ImagePoint origin = wrapped
+                ? new(Math.Min(textStart.X, end.X), Math.Min(textStart.Y, end.Y))
+                : textStart;
+            double width = wrapped ? Math.Clamp(Math.Abs(end.X - textStart.X), 48, 12000) : 0;
+            StartText(origin, width: width);
+            DrawingCanvas.Invalidate();
+            args.Handled = true;
+            return;
+        }
+
         if (_tool == EditorTool.Crop && _dragStart is ImagePoint cropStart &&
             !_movingCrop && _cropDragChanged &&
             ImagePosition(args.GetCurrentPoint(DrawingCanvas).Position, clamp: true) is ImagePoint cropEnd &&
@@ -475,16 +518,16 @@ public sealed partial class MainPage : Page
                 bool updated = false;
                 try
                 {
-                    if (annotation.Kind == AnnotationKind.Image)
+                    if (annotation.Kind is AnnotationKind.Image or AnnotationKind.Text)
                     {
                         _pendingContentAnchor = args.GetCurrentPoint(DrawingCanvas).Position;
                     }
                     _editor.UpdateAnnotation(annotation);
                     updated = true;
                 }
-                catch (ArgumentException exception) when (annotation.Kind == AnnotationKind.Image)
+                catch (ArgumentException exception) when (annotation.Kind is AnnotationKind.Image or AnnotationKind.Text)
                 {
-                    ShowMessage("Image cannot expand the canvas", exception.Message);
+                    ShowMessage("Annotation cannot expand the canvas", exception.Message);
                 }
                 finally
                 {
@@ -527,7 +570,7 @@ public sealed partial class MainPage : Page
 
     private void Canvas_PointerCaptureLost(object sender, PointerRoutedEventArgs args)
     {
-        if (_panning || _dragStart is not null)
+        if (_panning || _dragStart is not null || _textDragStart is not null)
         {
             if (_tool == EditorTool.Crop && _dragStart is not null) RestoreCropDrag();
             else CancelInteraction();
@@ -625,30 +668,59 @@ public sealed partial class MainPage : Page
             Math.Max(1, bounds.Height) + tolerance * 2);
     }
 
-    private void StartText(ImagePoint point, Annotation? existing = null)
+    private void StartText(ImagePoint point, Annotation? existing = null, double width = 0)
     {
         _textOrigin = point;
         _textEditId = existing?.Id;
+        _textDraft = existing ?? NewAnnotation(AnnotationKind.Text, point) with { TextBoxWidth = width };
         Vector2 position = Vector2.Transform(new((float)point.X, (float)point.Y), ImageTransform());
+        // Pan just enough to keep the live editor on screen when text begins at
+        // the right or bottom edge. The annotation itself stays at the clicked point.
+        double editorLeftLimit = Math.Max(0, DrawingCanvas.ActualWidth - 180);
+        double editorTopLimit = Math.Max(0, DrawingCanvas.ActualHeight - 80);
+        double shiftX = Math.Max(0, position.X - editorLeftLimit);
+        double shiftY = Math.Max(0, position.Y - editorTopLimit);
+        if (shiftX > 0 || shiftY > 0)
+        {
+            _offsetX -= shiftX;
+            _offsetY -= shiftY;
+            position -= new Vector2((float)shiftX, (float)shiftY);
+            DrawingCanvas.Invalidate();
+        }
         ToolStyle style = StyleFor(existing, EditorTool.Text);
+        double editScale = Math.Max(_scale, 12 / Math.Max(8, style.FontSize));
         _textBox = new TextBox
         {
             Text = existing?.Text ?? string.Empty,
-            PlaceholderText = "Type here",
-            MinWidth = 160,
-            MaxWidth = Math.Max(180, DrawingCanvas.ActualWidth - position.X - 24),
+            PlaceholderText = "Type here · Ctrl+Enter to finish",
+            AcceptsReturn = true,
+            TextWrapping = _textDraft.TextBoxWidth > 0 ? TextWrapping.Wrap : TextWrapping.NoWrap,
+            MinWidth = 64,
+            MinHeight = 40,
             FontFamily = new FontFamily(style.FontFamily),
-            FontSize = Math.Max(12, style.FontSize * _scale),
+            FontSize = style.FontSize * editScale,
             FontWeight = new FontWeight { Weight = (ushort)style.FontWeight },
             FontStyle = style.Italic ? FontStyle.Italic : FontStyle.Normal,
             Foreground = new SolidColorBrush(ShnappRenderer.FromArgb(style.Primary)),
+            Padding = new Thickness(8, 5, 8, 5),
         };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_textBox, "Annotation text");
         Canvas.SetLeft(_textBox, position.X);
         Canvas.SetTop(_textBox, position.Y);
+        var finishText = new KeyboardAccelerator
+        {
+            Key = VirtualKey.Enter,
+            Modifiers = VirtualKeyModifiers.Control,
+        };
+        finishText.Invoked += (_, args) =>
+        {
+            CommitText();
+            args.Handled = true;
+        };
+        _textBox.KeyboardAccelerators.Add(finishText);
         _textBox.KeyDown += (_, args) =>
         {
-            if (args.Key == VirtualKey.Enter)
+            if (args.Key == VirtualKey.Enter && IsKeyHeld(VirtualKey.Control))
             {
                 CommitText();
                 args.Handled = true;
@@ -659,13 +731,44 @@ public sealed partial class MainPage : Page
                 args.Handled = true;
             }
         };
+        _textBox.TextChanged += (_, _) => UpdateTextEditorSize();
         _textBox.LostFocus += (_, _) => CommitText();
         TextOverlay.Children.Add(_textBox);
+        UpdateTextEditorSize();
         _textBox.Focus(FocusState.Programmatic);
         if (existing is not null)
         {
             _textBox.SelectAll();
         }
+    }
+
+    private void UpdateTextEditorSize()
+    {
+        if (_textBox is null || _textDraft is null || _controller is null)
+        {
+            return;
+        }
+
+        Annotation preview = _textDraft with { Text = _textBox.Text };
+        Rect measured = _controller.Renderer.MeasureTextBounds(preview);
+        double editScale = _textBox.FontSize / preview.FontSize;
+        double left = Canvas.GetLeft(_textBox);
+        double top = Canvas.GetTop(_textBox);
+        double availableWidth = Math.Max(80, DrawingCanvas.ActualWidth - left - 12);
+        double availableHeight = Math.Max(60, DrawingCanvas.ActualHeight - top - 12);
+        double desiredWidth = (preview.TextBoxWidth > 0 ? preview.TextBoxWidth : measured.Width) * editScale + 24;
+        _textBox.Width = Math.Clamp(desiredWidth,
+            Math.Min(preview.TextBoxWidth > 0 ? 64 : 120, availableWidth), availableWidth);
+        _textBox.Height = Math.Clamp(measured.Height * editScale + 20, 40, availableHeight);
+    }
+
+    private Annotation MeasureTextAnnotation(Annotation annotation)
+    {
+        Rect bounds = _controller!.Renderer.MeasureTextBounds(annotation);
+        return annotation with
+        {
+            End = new ImagePoint(Math.Ceiling(bounds.Right), Math.Ceiling(bounds.Bottom)),
+        };
     }
 
     internal void CommitText()
@@ -675,8 +778,9 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        string text = _textBox.Text.Trim();
+        string text = _textBox.Text;
         Guid? editId = _textEditId;
+        Annotation? draft = _textDraft;
         CancelText();
         if (_editor is null)
         {
@@ -692,14 +796,29 @@ public sealed partial class MainPage : Page
             }
             else
             {
-                _editor.UpdateAnnotation(existing with { Text = text });
+                try
+                {
+                    _editor.UpdateAnnotation(MeasureTextAnnotation((draft ?? existing) with { Text = text }));
+                }
+                catch (ArgumentException exception)
+                {
+                    ShowMessage("Text exceeds canvas limits", exception.Message);
+                }
             }
         }
         else if (!string.IsNullOrWhiteSpace(text))
         {
-            Annotation annotation = NewAnnotation(AnnotationKind.Text, _textOrigin) with { Text = text };
-            _selectedId = annotation.Id;
-            _editor.AddAnnotation(annotation);
+            Annotation annotation = MeasureTextAnnotation((draft ?? NewAnnotation(AnnotationKind.Text, _textOrigin))
+                with { Text = text });
+            try
+            {
+                _editor.AddAnnotation(annotation);
+                _selectedId = annotation.Id;
+            }
+            catch (ArgumentException exception)
+            {
+                ShowMessage("Text exceeds canvas limits", exception.Message);
+            }
         }
     }
 
@@ -708,9 +827,12 @@ public sealed partial class MainPage : Page
         TextBox? textBox = _textBox;
         _textBox = null;
         _textEditId = null;
+        _textDraft = null;
         if (textBox is not null)
         {
             TextOverlay.Children.Remove(textBox);
+            ClampCanvasPan();
+            DrawingCanvas.Invalidate();
         }
     }
 
@@ -730,6 +852,8 @@ public sealed partial class MainPage : Page
         _movingCrop = false;
         _cropDragChanged = false;
         _dragStart = null;
+        _textDragStart = null;
+        _textDragEnd = null;
         HideCropTip();
         DrawingCanvas.ReleasePointerCaptures();
         DrawingCanvas.Invalidate();
@@ -780,7 +904,7 @@ public sealed partial class MainPage : Page
     private string ToolHint() => _tool switch
     {
         EditorTool.Select => "Select to move · Drag handles to resize · Ctrl+V pastes text or images · Arrow keys nudge 1 px (Shift: 10 px) · Delete removes",
-        EditorTool.Text => "Click to type · Enter finishes",
+        EditorTool.Text => "Click to type freely · Drag for wrapped text · Enter adds a line · Ctrl+Enter finishes",
         EditorTool.Step => "Click to place the next numbered step",
         EditorTool.Redaction => "Drag to obscure an area · Solid fully masks; blur and pixelate soften detail",
         EditorTool.Crop => "Drag or enter a crop · Pick a ratio · Enter confirms · Esc cancels",

@@ -16,6 +16,7 @@
         <KeyboardAccelerator Key="Y" Modifiers="Control" Invoked="RedoAccelerator_Invoked" />
         <KeyboardAccelerator Key="Z" Modifiers="Control,Shift" Invoked="RedoAccelerator_Invoked" />
         <KeyboardAccelerator Key="F" Modifiers="Control" Invoked="FocusLibrarySearch_Invoked" />
+        <KeyboardAccelerator Key="G" Modifiers="Control,Shift" Invoked="ToggleGalleryAccelerator_Invoked" />
     </Page.KeyboardAccelerators>
     <Grid KeyDown="Page_KeyDown">
         <Grid.RowDefinitions>
@@ -64,6 +65,10 @@
             <AppBarButton Label="Done" Icon="Accept" Click="Done_Click" AutomationProperties.AutomationId="DoneShnapp"
                 ToolTipService.ToolTip="Save locally and return to the tray" />
             <CommandBar.SecondaryCommands>
+                <AppBarButton Label="Recent shnapps" Icon="Pictures" Click="ToggleGallery_Click"
+                    IsEnabled="{x:Bind ViewModel.HasDocument, Mode=OneWay}"
+                    AutomationProperties.AutomationId="ShowGallery"
+                    ToolTipService.ToolTip="Show the gallery · Ctrl+Shift+G" />
                 <AppBarButton Label="Settings" Icon="Setting" Click="Settings_Click" AutomationProperties.AutomationId="OpenSettings" />
                 <AppBarButton Label="Quit Shnapp" Icon="Cancel" Click="Quit_Click" AutomationProperties.AutomationId="QuitShnapp" />
             </CommandBar.SecondaryCommands>
@@ -210,7 +215,8 @@
                 Background="{ThemeResource ShnappCanvasBrush}">
                 <SplitView.Content>
                     <local:EditorCursorHost x:Name="CanvasHost" Background="{ThemeResource ShnappCanvasBrush}"
-                        SizeChanged="GalleryCanvasHost_SizeChanged">
+                        SizeChanged="GalleryCanvasHost_SizeChanged"
+                        PointerMoved="GalleryCanvasHost_PointerMoved" PointerExited="GalleryCanvasHost_PointerExited">
                         <canvas:CanvasControl x:Name="DrawingCanvas" Draw="Canvas_Draw" SizeChanged="Canvas_SizeChanged"
                             PointerPressed="Canvas_PointerPressed" PointerMoved="Canvas_PointerMoved"
                             PointerReleased="Canvas_PointerReleased" PointerCanceled="Canvas_PointerCanceled"
@@ -232,16 +238,33 @@
                                 </StackPanel>
                             </Border>
                         </Canvas>
-                        <Border x:Name="GalleryDock" Visibility="Collapsed" Width="80"
+                        <Border x:Name="GalleryDock" Visibility="Collapsed" Width="80" Opacity="0"
                             HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0"
-                            Padding="11" CornerRadius="12"
+                            Padding="10,8" CornerRadius="12"
                             Background="{ThemeResource ShnappToolbarBrush}"
                             BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
                             PointerMoved="GalleryDock_PointerMoved" PointerExited="GalleryDock_PointerExited"
                             PointerWheelChanged="GalleryDock_PointerWheelChanged"
                             ActualThemeChanged="GalleryDock_ActualThemeChanged"
                             AutomationProperties.Name="Recent shnapps gallery. Scroll to browse; drag a preview onto the canvas to add a copy.">
-                            <StackPanel x:Name="GalleryDockItems" Spacing="6" />
+                            <Border.RenderTransform>
+                                <TranslateTransform X="-96" />
+                            </Border.RenderTransform>
+                            <StackPanel Spacing="4">
+                                <Button x:Name="GalleryPrevious" Width="58" Height="20" Padding="0"
+                                    HorizontalAlignment="Center" Background="Transparent" BorderThickness="0"
+                                    Click="GalleryPrevious_Click" PointerWheelChanged="GalleryDock_PointerWheelChanged"
+                                    AutomationProperties.Name="Previous gallery shnapps" AutomationProperties.AutomationId="GalleryPrevious">
+                                    <FontIcon Glyph="&#xE70E;" FontSize="12" />
+                                </Button>
+                                <Canvas x:Name="GalleryDockItems" Width="58" />
+                                <Button x:Name="GalleryNext" Width="58" Height="20" Padding="0"
+                                    HorizontalAlignment="Center" Background="Transparent" BorderThickness="0"
+                                    Click="GalleryNext_Click" PointerWheelChanged="GalleryDock_PointerWheelChanged"
+                                    AutomationProperties.Name="More gallery shnapps" AutomationProperties.AutomationId="GalleryNext">
+                                    <FontIcon Glyph="&#xE70D;" FontSize="12" />
+                                </Button>
+                            </StackPanel>
                         </Border>
                     </local:EditorCursorHost>
                 </SplitView.Content>

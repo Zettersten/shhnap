@@ -56,7 +56,7 @@ public sealed class DocumentEditor(ShnappDocument document)
             annotation = annotation with { LayerOrder = highest == int.MaxValue ? highest : highest + 1 };
         }
 
-        ShnappDocument next = ExpandCanvasForImage(Current, annotation);
+        ShnappDocument next = ExpandCanvasForContent(Current, annotation);
         Commit(next with { Annotations = RenumberSteps(next.Annotations.Add(annotation)) });
     }
 
@@ -82,9 +82,27 @@ public sealed class DocumentEditor(ShnappDocument document)
         {
             annotation = annotation with { LayerOrder = previous.LayerOrder };
         }
+        if (annotation == previous)
+        {
+            return;
+        }
         DocumentValidation.ValidateAnnotation(annotation, Current);
-        ShnappDocument next = ExpandCanvasForImage(Current, annotation, annotation.Id);
-        Commit(next with { Annotations = RenumberSteps(next.Annotations.SetItem(index, annotation)) });
+        ShnappDocument next = ExpandCanvasForContent(Current, annotation, annotation.Id);
+        next = next with { Annotations = RenumberSteps(next.Annotations.SetItem(index, annotation)) };
+        if (next.Crop == Current.Crop && next.BaseImageCrop == Current.BaseImageCrop &&
+            next.HideOriginalImage == Current.HideOriginalImage &&
+            next.ExpandedCanvasBounds == Current.ExpandedCanvasBounds &&
+            next.Annotations.SequenceEqual(Current.Annotations))
+        {
+            return;
+        }
+
+        bool boundsChanged = annotation.Kind != previous.Kind || annotation.Start != previous.Start ||
+            annotation.End != previous.End || annotation.StepDiameter != previous.StepDiameter ||
+            annotation.TextBoxWidth != previous.TextBoxWidth ||
+            annotation.VisibilityClip != previous.VisibilityClip ||
+            annotation.HiddenByCrop != previous.HiddenByCrop;
+        Commit(boundsChanged ? TrimCanvasToContent(next) : next);
     }
 
     /// <summary>Removes an annotation and renumbers remaining steps; an unknown identifier is a no-op.</summary>
@@ -96,7 +114,11 @@ public sealed class DocumentEditor(ShnappDocument document)
         int index = FindAnnotation(id);
         if (index >= 0)
         {
-            Commit(Current with { Annotations = RenumberSteps(Current.Annotations.RemoveAt(index)) });
+            ShnappDocument next = Current with
+            {
+                Annotations = RenumberSteps(Current.Annotations.RemoveAt(index)),
+            };
+            Commit(TrimCanvasToContent(next));
         }
     }
 
@@ -140,13 +162,13 @@ public sealed class DocumentEditor(ShnappDocument document)
         ShnappDocument next;
         try
         {
-            next = ExpandCanvasForImage(Current, clone);
+            next = ExpandCanvasForContent(Current, clone);
         }
         catch (ArgumentException) when (source.Kind == AnnotationKind.Image && (dx != 0 || dy != 0))
         {
             // The existing image fits even when the canvas has reached its export limit.
             clone = ShiftClone(source, clone.Id, 0, 0);
-            next = ExpandCanvasForImage(Current, clone);
+            next = ExpandCanvasForContent(Current, clone);
         }
         DocumentValidation.ValidateAnnotation(clone, next);
         Commit(next with { Annotations = RenumberSteps(next.Annotations.Insert(index + 1, clone)) });
@@ -206,6 +228,7 @@ public sealed class DocumentEditor(ShnappDocument document)
                 baseImageCrop = Intersection(previousMask, viewport);
                 hideOriginalImage |= baseImageCrop is null;
             }
+            hideOriginalImage |= Intersection(viewport, Current.OriginalBounds) is null;
 
             Commit(Current with
             {
@@ -331,10 +354,10 @@ public sealed class DocumentEditor(ShnappDocument document)
         return -Math.Min(12, backward);
     }
 
-    private static ShnappDocument ExpandCanvasForImage(ShnappDocument document, Annotation annotation,
+    private static ShnappDocument ExpandCanvasForContent(ShnappDocument document, Annotation annotation,
         Guid? updatedId = null)
     {
-        if (annotation.Kind != AnnotationKind.Image)
+        if (annotation.Kind is not (AnnotationKind.Image or AnnotationKind.Text))
         {
             return document;
         }
@@ -370,6 +393,128 @@ public sealed class DocumentEditor(ShnappDocument document)
         };
         DocumentValidation.ValidateCanvasSize(expanded);
         return expanded;
+    }
+
+    private static ShnappDocument TrimCanvasToContent(ShnappDocument document)
+    {
+        ImageRect original = document.OriginalBounds;
+        ImageRect? crop = document.Crop;
+        ImageRect? originalVisible = null;
+        bool hideOriginal = document.HideOriginalImage;
+        if (crop is ImageRect currentCrop && !hideOriginal)
+        {
+            originalVisible = Intersection(document.BaseImageCrop ?? currentCrop, original);
+        }
+
+        ImageRect? occupied = originalVisible;
+        ImageRect canvas = original;
+        ImmutableArray<Annotation>.Builder? clippedAnnotations = null;
+        for (int index = 0; index < document.Annotations.Length; index++)
+        {
+            Annotation annotation = document.Annotations[index];
+            if (annotation.HiddenByCrop)
+            {
+                continue;
+            }
+
+            ImageRect bounds = ContentBounds(annotation);
+            ImageRect? visible = bounds;
+            if (visible is ImageRect unclipped && annotation.VisibilityClip is ImageRect clip)
+            {
+                visible = Intersection(unclipped, clip);
+            }
+
+            if (visible is ImageRect clipped && crop is ImageRect activeCrop)
+            {
+                visible = Intersection(clipped, activeCrop);
+            }
+
+            if (visible is not ImageRect remainder)
+            {
+                if (crop is not null)
+                {
+                    clippedAnnotations ??= document.Annotations.ToBuilder();
+                    clippedAnnotations[index] = annotation with { VisibilityClip = null, HiddenByCrop = true };
+                }
+
+                continue;
+            }
+
+            if (crop is not null && remainder != bounds && annotation.VisibilityClip != remainder)
+            {
+                clippedAnnotations ??= document.Annotations.ToBuilder();
+                clippedAnnotations[index] = annotation with { VisibilityClip = remainder };
+            }
+
+            ImageRect canvasContent = remainder;
+            if (crop is null && annotation.Kind == AnnotationKind.Step && original.Contains(annotation.Start))
+            {
+                canvasContent = Intersection(remainder, original) ??
+                    new ImageRect(annotation.Start.X, annotation.Start.Y, 1, 1);
+            }
+
+            canvas = UnionPixelBounds(canvas, WholePixelBounds(canvasContent));
+            if (crop is not null)
+            {
+                ImageRect pixels = WholePixelBounds(remainder);
+                occupied = occupied is ImageRect existing
+                    ? UnionPixelBounds(existing, pixels)
+                    : pixels;
+            }
+        }
+
+        if (crop is not null)
+        {
+            // Keep a blank result transparent when the user intentionally cropped
+            // the screenshot out and then removed its last visible layer.
+            crop = occupied is ImageRect content
+                ? WholePixelBounds(content)
+                : new ImageRect(original.X, original.Y, 1, 1);
+        }
+
+        if (crop is ImageRect visibleCrop)
+        {
+            canvas = UnionPixelBounds(canvas, visibleCrop);
+        }
+
+        ImageRect? baseImageCrop = originalVisible is ImageRect originalArea &&
+            crop is ImageRect visibleArea && originalArea != visibleArea
+                ? originalArea : null;
+        if (!hideOriginal && crop == canvas && baseImageCrop is null)
+        {
+            crop = null;
+        }
+
+        ShnappDocument trimmed = document with
+        {
+            ExpandedCanvasBounds = canvas == original ? null : canvas,
+            Crop = crop,
+            BaseImageCrop = baseImageCrop,
+            HideOriginalImage = hideOriginal,
+            Annotations = clippedAnnotations?.ToImmutable() ?? document.Annotations,
+        };
+        DocumentValidation.ValidateCanvasSize(trimmed);
+        return trimmed;
+    }
+
+    private static ImageRect ContentBounds(Annotation annotation)
+    {
+        if (annotation.Kind == AnnotationKind.Step)
+        {
+            double radius = annotation.StepDiameter / 2;
+            return new ImageRect(annotation.Start.X - radius, annotation.Start.Y - radius,
+                annotation.StepDiameter, annotation.StepDiameter);
+        }
+
+        ImageRect bounds = annotation.Bounds;
+        return new ImageRect(bounds.X, bounds.Y, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height));
+    }
+
+    private static ImageRect WholePixelBounds(ImageRect area)
+    {
+        double x = Math.Floor(area.X);
+        double y = Math.Floor(area.Y);
+        return new ImageRect(x, y, Math.Ceiling(area.Right) - x, Math.Ceiling(area.Bottom) - y);
     }
 
     private static ImmutableArray<Annotation> ClipExistingAnnotations(

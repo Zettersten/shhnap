@@ -34,8 +34,12 @@ public sealed partial class MainPage
         _libraryEntries.Clear();
         foreach (ShnappDocument document in _library)
         {
+            string compact = _controller.Library.GetCompactPreviewPath(document.Id);
+            string preview = (_libraryListMode || _librarySizeIndex == 0) && File.Exists(compact)
+                ? compact
+                : _controller.Library.GetPreviewPath(document.Id);
             _libraryEntries[document.Id] = new LibraryEntry(document,
-                _controller.Library.GetPreviewPath(document.Id), cardWidth, thumbnailHeight);
+                preview, cardWidth, thumbnailHeight, preview == compact ? 192 : 384);
         }
 
         FilterLibrary();
@@ -153,13 +157,13 @@ public sealed partial class MainPage
     private void LibraryGridMode_Click(object sender, RoutedEventArgs args)
     {
         _libraryListMode = false;
-        UpdateLibraryView();
+        RebuildLibraryEntries();
     }
 
     private void LibraryListMode_Click(object sender, RoutedEventArgs args)
     {
         _libraryListMode = true;
-        UpdateLibraryView();
+        RebuildLibraryEntries();
     }
 
     private void FocusLibrarySearch_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)

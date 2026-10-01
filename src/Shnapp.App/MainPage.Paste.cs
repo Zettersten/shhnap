@@ -69,8 +69,8 @@ public sealed partial class MainPage
 
             if (annotation is null && contents.Contains(StandardDataFormats.Text))
             {
-                string text = (await contents.GetTextAsync()).Trim();
-                if (string.IsNullOrEmpty(text))
+                string text = await contents.GetTextAsync();
+                if (string.IsNullOrWhiteSpace(text))
                 {
                     return;
                 }
@@ -148,7 +148,7 @@ public sealed partial class MainPage
     private Annotation CreatePastedText(ImagePoint origin, string text)
     {
         ToolStyle style = _toolStyles[EditorTool.Text];
-        return new Annotation
+        return MeasureTextAnnotation(new Annotation
         {
             Kind = AnnotationKind.Text,
             Start = origin,
@@ -159,7 +159,7 @@ public sealed partial class MainPage
             FontSize = style.FontSize,
             FontWeight = style.FontWeight,
             Italic = style.Italic,
-        };
+        });
     }
 
     private static async Task<Annotation> ReadClipboardImageAsync(

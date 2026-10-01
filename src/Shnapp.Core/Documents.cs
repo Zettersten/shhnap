@@ -176,6 +176,10 @@ public sealed record Annotation
     /// <summary>Gets the user-entered text.</summary>
     public string Text { get; init; } = string.Empty;
 
+    /// <summary>Gets the text wrap width in source pixels; zero lets each line grow freely.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double TextBoxWidth { get; init; }
+
     /// <summary>Gets the pasted PNG encoded in base64 for an image annotation.</summary>
     /// <remarks>The payload lives in the editable document so it survives undo, save, and reopening.</remarks>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -263,7 +267,7 @@ public sealed record ShnappDocument
     public bool HideOriginalImage { get; init; }
 
     /// <summary>Gets expanded, whole-pixel canvas bounds, or null for the original image bounds.</summary>
-    /// <remarks>This stays expanded after an image is moved or removed, leaving a transparent canvas.</remarks>
+    /// <remarks>Unused transparent margins are trimmed when their content moves or is removed.</remarks>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImageRect? ExpandedCanvasBounds { get; init; }
 

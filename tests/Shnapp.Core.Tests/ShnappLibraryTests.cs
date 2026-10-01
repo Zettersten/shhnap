@@ -20,6 +20,8 @@ public sealed class ShnappLibraryTests
         Assert.AreEqual(expected, library.GetDocumentDirectory(id));
         Assert.AreEqual(Path.Combine(expected, "original.png"), library.GetOriginalPath(id));
         Assert.AreEqual(Path.Combine(expected, "preview.png"), library.GetPreviewPath(id));
+        Assert.AreEqual(Path.Combine(expected, "preview-compact.png"), library.GetCompactPreviewPath(id));
+        Assert.AreEqual(Path.Combine(expected, "preview-dock.png"), library.GetGalleryPreviewPath(id));
         Assert.AreEqual(Path.Combine(expected, "shnapp.png"), library.GetExportPath(id));
         Assert.IsFalse(Directory.Exists(temporary.RootPath));
     }
@@ -53,6 +55,8 @@ public sealed class ShnappLibraryTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => library.GetDocumentDirectory(Guid.Empty));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => library.GetOriginalPath(Guid.Empty));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => library.GetPreviewPath(Guid.Empty));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => library.GetCompactPreviewPath(Guid.Empty));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => library.GetGalleryPreviewPath(Guid.Empty));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => library.GetExportPath(Guid.Empty));
         await Assert.ThrowsExactlyAsync<ArgumentOutOfRangeException>(() => library.OpenAsync(Guid.Empty));
         await Assert.ThrowsExactlyAsync<ArgumentOutOfRangeException>(() => library.DeleteAsync(Guid.Empty));
@@ -375,6 +379,8 @@ public sealed class ShnappLibraryTests
         [
             temporary.Library.GetOriginalPath(original.Id),
             temporary.Library.GetPreviewPath(original.Id),
+            temporary.Library.GetCompactPreviewPath(original.Id),
+            temporary.Library.GetGalleryPreviewPath(original.Id),
             temporary.Library.GetExportPath(original.Id),
         ];
         foreach (string path in imagePaths)
@@ -464,6 +470,8 @@ public sealed class ShnappLibraryTests
         await temporary.Library.SaveSettingsAsync(new ShnappSettings { Theme = "Dark" });
         await File.WriteAllTextAsync(temporary.Library.GetOriginalPath(deleted.Id), "original sentinel");
         await File.WriteAllTextAsync(temporary.Library.GetPreviewPath(deleted.Id), "preview sentinel");
+        await File.WriteAllTextAsync(temporary.Library.GetCompactPreviewPath(deleted.Id), "compact sentinel");
+        await File.WriteAllTextAsync(temporary.Library.GetGalleryPreviewPath(deleted.Id), "gallery sentinel");
         await File.WriteAllTextAsync(temporary.Library.GetExportPath(deleted.Id), "export sentinel");
         string sibling = Path.Combine(temporary.RootPath, "keep.txt");
         await File.WriteAllTextAsync(sibling, "do not delete");

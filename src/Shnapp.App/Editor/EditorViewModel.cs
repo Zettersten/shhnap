@@ -72,7 +72,8 @@ public sealed class LibraryEntry
     /// <summary>Creates a library presentation entry without loading the original image.</summary>
     /// <param name="document">The validated local metadata.</param>
     /// <param name="previewPath">The absolute PNG preview path.</param>
-    public LibraryEntry(ShnappDocument document, string previewPath, double cardWidth = 224, double thumbnailHeight = 144)
+    public LibraryEntry(ShnappDocument document, string previewPath, double cardWidth = 224,
+        double thumbnailHeight = 144, int previewPixelWidth = 384)
     {
         Id = document.Id;
         Title = document.Title;
@@ -85,7 +86,7 @@ public sealed class LibraryEntry
         Detail = $"{document.CreatedAt.ToLocalTime():MMM d · HH:mm}   {document.Viewport.Width:0} × {document.Viewport.Height:0}";
         CardWidth = cardWidth;
         ThumbnailHeight = thumbnailHeight;
-        Preview = new BitmapImage { DecodePixelWidth = 384 };
+        Preview = new BitmapImage { DecodePixelWidth = previewPixelWidth };
         if (File.Exists(previewPath))
         {
             Preview.UriSource = new Uri(previewPath, UriKind.Absolute);

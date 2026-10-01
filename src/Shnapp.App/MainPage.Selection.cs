@@ -263,13 +263,24 @@ public sealed partial class MainPage
             Rect bounds = SelectionBounds(original);
             double scaleX = (point.X - bounds.X) / Math.Max(1, bounds.Width);
             double scaleY = (point.Y - bounds.Y) / Math.Max(1, bounds.Height);
-            double scale = Math.Abs(scaleX - 1) >= Math.Abs(scaleY - 1) ? scaleX : scaleY;
-            double widthPerFontPixel = Math.Max(1, original.Text.Length * 0.6);
-            double maxFontSize = Math.Min(144, Math.Min(
-                (viewport.Right - original.Start.X) / widthPerFontPixel,
-                (viewport.Bottom - original.Start.Y) / 1.5));
-            double fontSize = Math.Clamp(original.FontSize * scale, 8, Math.Max(8, maxFontSize));
-            return original with { FontSize = fontSize };
+            if (maintainProportions)
+            {
+                double scale = Math.Abs(scaleX - 1) >= Math.Abs(scaleY - 1) ? scaleX : scaleY;
+                double fontSize = Math.Clamp(original.FontSize * scale, 8, 144);
+                double width = original.TextBoxWidth > 0
+                    ? Math.Clamp(original.TextBoxWidth * scale, 48, 12000)
+                    : 0;
+                return MeasureTextAnnotation(original with { FontSize = fontSize, TextBoxWidth = width });
+            }
+
+            double wrappedWidth = Math.Clamp(
+                (original.TextBoxWidth > 0 ? original.TextBoxWidth : bounds.Width) * scaleX, 48, 12000);
+            double resizedFontSize = Math.Clamp(original.FontSize * scaleY, 8, 144);
+            return MeasureTextAnnotation(original with
+            {
+                TextBoxWidth = wrappedWidth,
+                FontSize = resizedFontSize,
+            });
         }
 
         if (original.Kind == AnnotationKind.Image)

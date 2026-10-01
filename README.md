@@ -33,9 +33,9 @@ The grabber shows a crosshair and live X, Y, width, and height in pixels as you 
 
 The editor gives your capture room to breathe. Place a mark and it stays selected: changes in the side panel update that mark right away. Select an earlier mark to adjust it, or drag its handles to resize it. When nothing is selected, your choices set up the next mark.
 
-Paste with `Ctrl+V` to turn copied words into an editable text mark or a copied picture into a movable image. If the picture reaches past the capture, Shnapp grows the canvas around it and keeps the added space transparent in the finished PNG.
+Paste with `Ctrl+V` to turn copied words into an editable text mark or a copied picture into a movable image. If either reaches past the capture, Shnapp grows the transparent canvas around it. Remove or move that mark and the unused space falls away.
 
-- **Text:** choose a font, weight, italic style, size, and color. Double-click placed text to rewrite it.
+- **Text:** click to write freely across as many lines as you need, or drag out a width to wrap your words. Press Enter for another line and `Ctrl+Enter` to finish. Choose a font, weight, italic style, size, and color; double-click placed text to rewrite it.
 - **Steps:** place dots labeled with numbers, letters, or Roman numerals. Restart the count at any dot, and adjust its size, colors, font, and weight. The next dot keeps your last size.
 - **Lines and shapes:** use one line tool for solid, dashed, or dotted strokes. Choose a cap for either end: triangle, open arrow, circle, diamond, bar, or none. Draw rectangles, squares, ellipses, and circles with adjustable outlines and fills, including fill-only shapes.
 - **Privacy:** choose Cover, Blur, or Pixelate for a rectangular area. Use opaque Cover for sensitive details; Blur and Pixelate only obscure the view.
@@ -50,7 +50,7 @@ When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboa
 
 Shnapp keeps your captures in a local library, ready to search by title, date, or capture type and reopen for more editing. Browse as a list or choose small, medium, large, or extra-large thumbnail grids. When the library is empty, a getting-started view helps you take the first shnapp. Opt in to starting at sign-in if you want Shnapp waiting in the tray whenever Windows starts.
 
-While editing, a small image-only gallery sits beside the canvas. Move the pointer along it to magnify nearby previews, scroll over it to browse more shnapps, or drag a preview onto your canvas to add a copy as a movable image layer.
+While editing, move to the canvas's left edge to reveal a small image-only gallery over your work, or open it with `Ctrl+Shift+G` or **Recent shnapps** in the menu. Hover to magnify nearby previews, use the arrows or scroll to browse, click a preview to open it, or drag one onto your canvas to add a copy as a movable image layer. Small cropped previews keep browsing quick.
 
 ![The Shnapp library showing three locally saved captures with preview thumbnails, dates, and dimensions](src/Shnapp.Site/public/screenshots/library.png)
 

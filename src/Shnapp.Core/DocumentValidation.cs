@@ -51,10 +51,11 @@ internal static class DocumentValidation
         foreach (Annotation annotation in document.Annotations)
         {
             ValidateAnnotation(annotation, document);
-            if (annotation.Kind == AnnotationKind.Image)
+            if (annotation.Kind is AnnotationKind.Image or AnnotationKind.Text &&
+                annotation.VisibilityClip is null && !annotation.HiddenByCrop)
             {
                 Require(Contains(canvas, annotation.Bounds),
-                    "A pasted image must fit inside the expanded canvas.", nameof(document));
+                    "Image and text layers must fit inside the expanded canvas.", nameof(document));
             }
             Require(identifiers.Add(annotation.Id), "Annotation identifiers must be unique.", nameof(document));
             if (annotation.Kind == AnnotationKind.Step)
@@ -85,8 +86,11 @@ internal static class DocumentValidation
             "Only a step can restart numbering.", nameof(annotation));
         Require(annotation.LayerOrder >= 0,
             "An annotation layer order cannot be negative.", nameof(annotation));
-        ValidatePoint(annotation.Start, document, nameof(annotation), annotation.Kind == AnnotationKind.Image);
-        ValidatePoint(annotation.End, document, nameof(annotation), annotation.Kind == AnnotationKind.Image);
+        // A trim can leave cropped-out annotations outside the visible canvas.
+        bool mayExpandCanvas = annotation.Kind is AnnotationKind.Image or AnnotationKind.Text ||
+            annotation.HiddenByCrop || annotation.VisibilityClip is not null;
+        ValidatePoint(annotation.Start, document, nameof(annotation), mayExpandCanvas);
+        ValidatePoint(annotation.End, document, nameof(annotation), mayExpandCanvas);
         if (annotation.Kind == AnnotationKind.Image)
         {
             ImageRect bounds = annotation.Bounds;
@@ -102,6 +106,8 @@ internal static class DocumentValidation
         if (annotation.VisibilityClip is ImageRect visibilityClip)
         {
             ValidateRectangle(visibilityClip, nameof(annotation));
+            Require(Contains(document.CanvasBounds, visibilityClip),
+                "A visibility clip must fit inside the canvas.", nameof(annotation));
             Require(!annotation.HiddenByCrop,
                 "A completely hidden annotation cannot also have a visibility clip.", nameof(annotation));
         }
@@ -117,6 +123,9 @@ internal static class DocumentValidation
         Require(annotation.FontWeight is >= 100 and <= 900,
             "Font weight must be between 100 and 900.", nameof(annotation));
         Require(annotation.Text is not null, "Annotation text cannot be null.", nameof(annotation));
+        Require(double.IsFinite(annotation.TextBoxWidth) &&
+            (annotation.TextBoxWidth == 0 || annotation.TextBoxWidth is >= 48 and <= 12_000),
+            "A text box width must be zero or between 48 and 12,000 pixels.", nameof(annotation));
         Require(!string.IsNullOrWhiteSpace(annotation.FontFamily),
             "A font family is required.", nameof(annotation));
     }
