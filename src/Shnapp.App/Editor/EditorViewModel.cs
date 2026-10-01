@@ -52,14 +52,57 @@ public sealed partial class LibraryEntry : ObservableObject
     [ObservableProperty]
     public partial bool CanDrag { get; set; } = true;
 
+    /// <summary>Stacks list metadata when aligned columns would hide the title.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ListRowHeight))]
+    [NotifyPropertyChangedFor(nameof(ListThumbnailWidth))]
+    [NotifyPropertyChangedFor(nameof(ListDateWidth))]
+    [NotifyPropertyChangedFor(nameof(ListDimensionsWidth))]
+    [NotifyPropertyChangedFor(nameof(ListSizeWidth))]
+    [NotifyPropertyChangedFor(nameof(WideListVisibility))]
+    [NotifyPropertyChangedFor(nameof(CompactListVisibility))]
+    public partial bool CompactList { get; set; }
+
+    public double ListRowHeight => CompactList ? 94 : 74;
+    public GridLength ListThumbnailWidth => new(CompactList ? 84 : 104);
+    public GridLength ListDateWidth => new(CompactList ? 0 : 168);
+    public GridLength ListDimensionsWidth => new(CompactList ? 0 : 114);
+    public GridLength ListSizeWidth => new(CompactList ? 0 : 78);
+    public Visibility WideListVisibility => CompactList ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility CompactListVisibility => CompactList ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>Gets the stable document identifier.</summary>
     public Guid Id { get; }
 
     /// <summary>Gets the title shown beneath the thumbnail.</summary>
     public string Title { get; }
 
-    /// <summary>Gets the capture time and visible pixel dimensions.</summary>
-    public string Detail { get; }
+    /// <summary>Gets the local capture date.</summary>
+    public string DateText { get; }
+
+    /// <summary>Gets the concise capture date shown on thumbnail cards.</summary>
+    public string GridDateText { get; }
+
+    /// <summary>Gets the visible canvas dimensions in pixels.</summary>
+    public string DimensionsText { get; }
+
+    /// <summary>Gets the size of the saved PNG, or a placeholder when it is missing.</summary>
+    public string FileSizeText { get; }
+
+    /// <summary>Gets the exact saved PNG size for sorting.</summary>
+    public long? FileSizeBytes { get; }
+
+    /// <summary>Gets the visible pixel count used to sort dimensions.</summary>
+    public double PixelArea { get; }
+
+    /// <summary>Gets the source date used to sort entries.</summary>
+    public DateTimeOffset CreatedAt { get; }
+
+    /// <summary>Gets all metadata for the card tooltip and accessibility tree.</summary>
+    public string MetadataDescription { get; }
+
+    /// <summary>Gets date and size together for the compact list layout.</summary>
+    public string CompactMetadataSummary { get; }
 
     /// <summary>Gets the decoded-size-limited local preview.</summary>
     public BitmapImage Preview { get; }
@@ -77,7 +120,7 @@ public sealed partial class LibraryEntry : ObservableObject
     /// <param name="document">The validated local metadata.</param>
     /// <param name="previewPath">The absolute PNG preview path.</param>
     public LibraryEntry(ShnappDocument document, string previewPath, double cardWidth = 224,
-        double thumbnailHeight = 144, int previewPixelWidth = 384)
+        double thumbnailHeight = 144, int previewPixelWidth = 384, long? fileSizeBytes = null)
     {
         Id = document.Id;
         Title = document.Title;
@@ -87,7 +130,17 @@ public sealed partial class LibraryEntry : ObservableObject
             CaptureKind.FullScreen => "Full screen",
             _ => "Region",
         };
-        Detail = $"{document.CreatedAt.ToLocalTime():MMM d · HH:mm}   {document.Viewport.Width:0} × {document.Viewport.Height:0}";
+        CreatedAt = document.CreatedAt;
+        DateTimeOffset localCapture = document.CreatedAt.ToLocalTime();
+        DateText = localCapture.ToString("MMM d, yyyy · h:mm tt");
+        GridDateText = localCapture.ToString("MMM d, yyyy");
+        DimensionsText = $"{document.Viewport.Width:0} × {document.Viewport.Height:0} px";
+        PixelArea = document.Viewport.Width * document.Viewport.Height;
+        FileSizeBytes = fileSizeBytes;
+        FileSizeText = fileSizeBytes is { } bytes ? ShnappMetadata.FormatFileSize(bytes) : "—";
+        CompactMetadataSummary = $"{DateText}  ·  {FileSizeText}";
+        MetadataDescription = $"{Title}, {DateText}, {DimensionsText}, " +
+            (fileSizeBytes is null ? "file size unavailable" : FileSizeText);
         CardWidth = cardWidth;
         ThumbnailHeight = thumbnailHeight;
         Preview = new BitmapImage { DecodePixelWidth = previewPixelWidth };

@@ -14,7 +14,7 @@
 
 Shnapp waits quietly in your tray until you need it. Capture part of your screen, add a little context, then copy the finished image or save a PNG. Every capture is a **shnapp**; making one is **shnapping**.
 
-![The Shnapp editor with a captured sample window, numbered steps, and a selected dotted line with its settings](src/Shnapp.Site/public/screenshots/editor.png)
+![The Shnapp editor with a captured sample window, numbered steps, and line options](src/Shnapp.Site/public/screenshots/editor.png)
 
 *A real Shnapp editor session. Your capture stays in view while the tools stay close.*
 
@@ -44,15 +44,15 @@ Draw a crop and drag it into place, use exact X, Y, width, and height values, lo
 
 Right-click any placed element to clone it, delete it, or change which marks sit in front. The same actions work from the keyboard: `Ctrl+D`, `Delete`, `Ctrl+]` (front), and `Ctrl+[` (back).
 
-When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboard, **Save PNG** (`Ctrl+S`) lets you choose where to export it, and **Done** returns Shnapp to the tray.
+When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboard with its transparent areas intact, **Share** opens the Windows share sheet, **Save PNG** (`Ctrl+S`) lets you choose where to export it, and **Done** returns Shnapp to the tray.
 
 ## Find it again
 
-Shnapp keeps your captures in a local library, ready to search by title, date, or capture type and reopen for more editing. Browse as a list or choose small, medium, large, or extra-large thumbnail grids. Right-click a shnapp to clone, rename, delete, or copy its saved PNG path. Use **Select** at the bottom right of the grid to delete several at once. The Back and Forward buttons return you to places you visited; `Alt+Left` and `Alt+Right` work too, as do mouse Back and Forward buttons. Click the title above an open shnapp to rename it. When the library is empty, a getting-started view helps you take the first shnapp. Opt in to starting at sign-in if you want Shnapp waiting in the tray whenever Windows starts.
+Shnapp keeps your captures in a local library, ready to search by title, date, or capture type and reopen for more editing. Browse as a list or choose small, medium, large, or extra-large thumbnail grids. Each shnapp shows its date, dimensions, and PNG size; sort by any of those or by name. Right-click a shnapp to clone, rename, share, delete, or copy its saved PNG path. Use **Select** at the bottom right of the grid to delete several at once. The Back and Forward buttons return you to places you visited; `Alt+Left` and `Alt+Right` work too, as do mouse Back and Forward buttons. Click the title above an open shnapp to rename it. When the library is empty, a getting-started view helps you take the first shnapp. Opt in to starting at sign-in if you want Shnapp waiting in the tray whenever Windows starts.
 
 While editing, move to the canvas's left edge to reveal a small image-only gallery over your work, or open it with `Ctrl+Shift+G` or **Recent shnapps** in the menu. Hover to magnify nearby previews, use the arrows or scroll to browse, click a preview to open it, or drag one onto your canvas to add a copy as a movable image layer. Small cropped previews keep browsing quick.
 
-![The Shnapp library showing three locally saved captures with preview thumbnails, dates, and dimensions](src/Shnapp.Site/public/screenshots/library.png)
+![The Shnapp library showing three locally saved captures with preview thumbnails, dates, dimensions, and file sizes](src/Shnapp.Site/public/screenshots/library.png)
 
 *Your shnapps stay on this PC, with previews that make the right capture easy to find.*
 

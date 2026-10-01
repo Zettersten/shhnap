@@ -91,6 +91,7 @@ public sealed partial class MainPage : Page
         ViewModel.HasDocument = false;
         ViewModel.Title = string.Empty;
         ViewModel.Dimensions = string.Empty;
+        UpdateDocumentMetadata();
         RebuildLibraryEntries();
         FocusLibrarySearchIfRequested();
     }
@@ -114,6 +115,7 @@ public sealed partial class MainPage : Page
         _flattened = rendered;
         ImageRect viewport = _editor.Current.Viewport;
         ViewModel.Dimensions = $"{viewport.Width:0} × {viewport.Height:0} px";
+        UpdateDocumentMetadata();
         ViewModel.CanUndo = _editor.CanUndo;
         ViewModel.CanRedo = _editor.CanRedo;
         ViewModel.Status = ToolHint();

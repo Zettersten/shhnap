@@ -48,13 +48,40 @@ public sealed partial class MainPage
         {
             ImagePoint placement = PasteCenter(editor.Current);
             DataPackageView contents = Clipboard.GetContent();
-            if (contents.Contains(StandardDataFormats.Bitmap))
+            if (contents.Contains("PNG"))
+            {
+                // Prefer the original PNG over Windows' synthesized bitmap, which
+                // flattens transparent pixels in classic desktop clipboard formats.
+                object png = await contents.GetDataAsync("PNG");
+                if (png is IRandomAccessStreamReference reference)
+                {
+                    using IRandomAccessStreamWithContentType input = await reference.OpenReadAsync();
+                    annotation = await ReadClipboardImageAsync(input, placement, original);
+                }
+                else if (png is IRandomAccessStream pngStream)
+                {
+                    using (pngStream)
+                    {
+                        pngStream.Seek(0);
+                        annotation = await ReadClipboardImageAsync(pngStream, placement, original);
+                    }
+                }
+                else if (png is IBuffer buffer)
+                {
+                    using var input = new InMemoryRandomAccessStream();
+                    await input.WriteAsync(buffer);
+                    input.Seek(0);
+                    annotation = await ReadClipboardImageAsync(input, placement, original);
+                }
+            }
+
+            if (annotation is null && contents.Contains(StandardDataFormats.Bitmap))
             {
                 using IRandomAccessStreamWithContentType input =
                     await (await contents.GetBitmapAsync()).OpenReadAsync();
                 annotation = await ReadClipboardImageAsync(input, placement, original);
             }
-            else if (contents.Contains(StandardDataFormats.StorageItems))
+            else if (annotation is null && contents.Contains(StandardDataFormats.StorageItems))
             {
                 IReadOnlyList<IStorageItem> items = await contents.GetStorageItemsAsync();
                 StorageFile? imageFile = items.OfType<StorageFile>().FirstOrDefault(file =>
@@ -169,7 +196,7 @@ public sealed partial class MainPage
     }
 
     private static async Task<Annotation> ReadClipboardImageAsync(
-        IRandomAccessStreamWithContentType input, ImagePoint placement, CanvasBitmap original)
+        IRandomAccessStream input, ImagePoint placement, CanvasBitmap original)
     {
         BitmapDecoder decoder = await BitmapDecoder.CreateAsync(input);
         int width = checked((int)decoder.PixelWidth);

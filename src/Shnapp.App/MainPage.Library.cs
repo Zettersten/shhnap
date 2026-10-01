@@ -24,8 +24,19 @@ public sealed partial class MainPage
     private bool _libraryListMode;
     private bool _librarySelectionMode;
     private bool _restoringLibrarySelection;
+    private bool _libraryCompactList;
     private readonly HashSet<Guid> _selectedLibraryIds = [];
     private bool _focusSearchWhenLibraryOpens;
+    private LibrarySortField _librarySortField = LibrarySortField.Date;
+    private bool _librarySortDescending = true;
+
+    private enum LibrarySortField
+    {
+        Date,
+        Name,
+        FileSize,
+        Dimensions,
+    }
 
     private void RebuildLibraryEntries()
     {
@@ -42,14 +53,48 @@ public sealed partial class MainPage
             string preview = (_libraryListMode || _librarySizeIndex == 0) && File.Exists(compact)
                 ? compact
                 : _controller.Library.GetPreviewPath(document.Id);
+            long? fileSizeBytes = GetSavedPngSize(document.Id);
             _libraryEntries[document.Id] = new LibraryEntry(document,
-                preview, cardWidth, thumbnailHeight, preview == compact ? 192 : 384)
+                preview, cardWidth, thumbnailHeight, preview == compact ? 192 : 384, fileSizeBytes)
             {
                 CanDrag = !_librarySelectionMode,
+                CompactList = _libraryCompactList,
             };
         }
 
         FilterLibrary();
+    }
+
+    private void LibraryRoot_SizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        bool compact = args.NewSize.Width < 680;
+        if (_libraryCompactList == compact)
+        {
+            return;
+        }
+
+        _libraryCompactList = compact;
+        foreach (LibraryEntry entry in _libraryEntries.Values)
+        {
+            entry.CompactList = compact;
+        }
+    }
+
+    private long? GetSavedPngSize(Guid id)
+    {
+        try
+        {
+            var file = new FileInfo(_controller!.Library.GetExportPath(id));
+            return file.Exists ? file.Length : null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     private void FilterLibrary()
@@ -64,12 +109,13 @@ public sealed partial class MainPage
         try
         {
             ViewModel.Library.Clear();
-            foreach (ShnappDocument document in _library)
+            IEnumerable<LibraryEntry> filtered = _library
+                .Where(document => MatchesLibraryQuery(document, query))
+                .Select(document => _libraryEntries.GetValueOrDefault(document.Id))
+                .OfType<LibraryEntry>();
+            foreach (LibraryEntry entry in SortLibraryEntries(filtered))
             {
-                if (MatchesLibraryQuery(document, query) && _libraryEntries.TryGetValue(document.Id, out LibraryEntry? entry))
-                {
-                    ViewModel.Library.Add(entry);
-                }
+                ViewModel.Library.Add(entry);
             }
 
             if (_librarySelectionMode)
@@ -103,6 +149,71 @@ public sealed partial class MainPage
         LibraryEmptyClear.Visibility = noMatches ? Visibility.Visible : Visibility.Collapsed;
         LibraryEmptyShortcuts.Visibility = noMatches ? Visibility.Collapsed : Visibility.Visible;
         UpdateLibraryView();
+    }
+
+    private IEnumerable<LibraryEntry> SortLibraryEntries(IEnumerable<LibraryEntry> entries)
+    {
+        IOrderedEnumerable<LibraryEntry> sorted = _librarySortField switch
+        {
+            LibrarySortField.Name when _librarySortDescending =>
+                entries.OrderByDescending(entry => entry.Title, StringComparer.CurrentCultureIgnoreCase),
+            LibrarySortField.Name =>
+                entries.OrderBy(entry => entry.Title, StringComparer.CurrentCultureIgnoreCase),
+            LibrarySortField.FileSize when _librarySortDescending =>
+                entries.OrderBy(entry => entry.FileSizeBytes is null)
+                    .ThenByDescending(entry => entry.FileSizeBytes.GetValueOrDefault()),
+            LibrarySortField.FileSize =>
+                entries.OrderBy(entry => entry.FileSizeBytes is null)
+                    .ThenBy(entry => entry.FileSizeBytes.GetValueOrDefault()),
+            LibrarySortField.Dimensions when _librarySortDescending =>
+                entries.OrderByDescending(entry => entry.PixelArea),
+            LibrarySortField.Dimensions =>
+                entries.OrderBy(entry => entry.PixelArea),
+            _ when _librarySortDescending =>
+                entries.OrderByDescending(entry => entry.CreatedAt),
+            _ =>
+                entries.OrderBy(entry => entry.CreatedAt),
+        };
+
+        return sorted.ThenBy(entry => entry.Title, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(entry => entry.Id);
+    }
+
+    private void LibrarySortField_Click(object sender, RoutedEventArgs args)
+    {
+        if (sender is not RadioMenuFlyoutItem { Tag: string field } ||
+            !Enum.TryParse(field, out LibrarySortField parsed))
+        {
+            return;
+        }
+
+        _librarySortField = parsed;
+        _librarySortDescending = parsed != LibrarySortField.Name;
+        LibrarySortDescending.IsChecked = _librarySortDescending;
+        UpdateLibrarySortLabel();
+        FilterLibrary();
+    }
+
+    private void LibrarySortDescending_Click(object sender, RoutedEventArgs args)
+    {
+        _librarySortDescending = LibrarySortDescending.IsChecked;
+        UpdateLibrarySortLabel();
+        FilterLibrary();
+    }
+
+    private void UpdateLibrarySortLabel()
+    {
+        LibrarySortLabel.Text = (_librarySortField, _librarySortDescending) switch
+        {
+            (LibrarySortField.Date, true) => "Newest first",
+            (LibrarySortField.Date, false) => "Oldest first",
+            (LibrarySortField.Name, true) => "Name Z–A",
+            (LibrarySortField.Name, false) => "Name A–Z",
+            (LibrarySortField.FileSize, true) => "Largest files",
+            (LibrarySortField.FileSize, false) => "Smallest files",
+            (LibrarySortField.Dimensions, true) => "Largest images",
+            _ => "Smallest images",
+        };
     }
 
     private static string ShnappWord(int count) => count == 1 ? "shnapp" : "shnapps";
@@ -218,17 +329,18 @@ public sealed partial class MainPage
         }
 
         var menu = new MenuFlyout();
-        AddAction("Clone", () => _controller.CloneDocument(entry.Id));
-        AddAction("Rename", () => _controller.RequestRenameDocument(entry.Id));
-        AddAction("Copy full path", () => _controller.CopyDocumentPath(entry.Id));
+        AddAction("Clone", Symbol.Copy, () => _controller.CloneDocument(entry.Id));
+        AddAction("Rename", Symbol.Edit, () => _controller.RequestRenameDocument(entry.Id));
+        AddAction("Copy full path", Symbol.Copy, () => _controller.CopyDocumentPath(entry.Id));
+        AddAction("Share", Symbol.Share, () => _controller.ShareDocument(entry.Id));
         menu.Items.Add(new MenuFlyoutSeparator());
-        AddAction("Delete", () => _controller.RequestDeleteDocuments([entry.Id]));
+        AddAction("Delete", Symbol.Delete, () => _controller.RequestDeleteDocuments([entry.Id]));
         menu.ShowAt(card, new FlyoutShowOptions { Position = args.GetPosition(card) });
         args.Handled = true;
 
-        void AddAction(string label, Action action)
+        void AddAction(string label, Symbol icon, Action action)
         {
-            var item = new MenuFlyoutItem { Text = label };
+            var item = new MenuFlyoutItem { Text = label, Icon = new SymbolIcon(icon) };
             item.Click += (_, _) => action();
             menu.Items.Add(item);
         }

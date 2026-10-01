@@ -7,8 +7,8 @@ using Shnapp.App.Capture;
 using Shnapp.App.Editor;
 using Shnapp.App.Windows;
 using Shnapp.Core;
-using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics.DirectX;
+using Windows.Graphics.Imaging;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
@@ -319,6 +319,7 @@ internal sealed partial class AppController
             _saved = document;
             if (ReferenceEquals(document, _page.Document))
             {
+                _page.UpdateDocumentMetadata();
                 _page.ViewModel.Status = "Saved locally · Ctrl+C to copy · Ctrl+S to export";
             }
         }
@@ -342,10 +343,19 @@ internal sealed partial class AppController
         using var stream = new InMemoryRandomAccessStream();
         await flattened.SaveAsync(stream, CanvasBitmapFileFormat.Png);
         stream.Seek(0);
-        var package = new DataPackage { RequestedOperation = DataPackageOperation.Copy };
-        package.SetBitmap(RandomAccessStreamReference.CreateFromStream(stream));
-        Clipboard.SetContent(package);
-        Clipboard.Flush();
+        BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
+        int width = checked((int)decoder.PixelWidth);
+        int height = checked((int)decoder.PixelHeight);
+        PixelDataProvider pixels = await decoder.GetPixelDataAsync(BitmapPixelFormat.Bgra8,
+            BitmapAlphaMode.Straight, new BitmapTransform(), ExifOrientationMode.IgnoreExifOrientation,
+            ColorManagementMode.DoNotColorManage);
+        stream.Seek(0);
+        int pngLength = checked((int)stream.Size);
+        using var reader = new DataReader(stream);
+        await reader.LoadAsync((uint)pngLength);
+        byte[] png = new byte[pngLength];
+        reader.ReadBytes(png);
+        TransparentClipboard.SetImage(App.WindowHandle, png, pixels.DetachPixelData(), width, height);
         _page.ViewModel.Status = "Copied · ready to paste";
     }
 

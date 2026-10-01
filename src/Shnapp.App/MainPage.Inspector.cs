@@ -124,6 +124,16 @@ public sealed partial class MainPage
         bool editingText = _textBox is not null && _textDraft is not null;
 
         _updatingOptions = true;
+        InspectorToolIcon.Glyph = selected?.Kind == AnnotationKind.Image ? "\uE8B9" : tool switch
+        {
+            EditorTool.Text => "\uE8D2",
+            EditorTool.Step => "\uE8FD",
+            EditorTool.Line or EditorTool.Arrow => "\uE738",
+            EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle => "\uE739",
+            EditorTool.Redaction => "\uE72E",
+            EditorTool.Crop => "\uE7A8",
+            _ => "\uE8B0",
+        };
         InspectorTitle.Text = editingText ? "Editing text" : redaction
             ? selected is null ? RedactionModeLabel(style.RedactionMode) : $"Selected {RedactionModeLabel(style.RedactionMode).ToLowerInvariant()}"
             : selected is null ? tool.ToString() : line ? "Selected line" : $"Selected {selected.Kind.ToString().ToLowerInvariant()}";

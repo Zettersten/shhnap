@@ -42,21 +42,21 @@ public sealed partial class MainPage
             return;
         }
         var menu = new MenuFlyout();
-        MenuFlyoutItem clone = ElementMenuItem("Clone", "Ctrl+D", "CloneElement");
+        MenuFlyoutItem clone = ElementMenuItem("Clone", "Ctrl+D", "CloneElement", "\uE8C8");
         clone.Click += async (_, _) => await CloneSelectedAnnotationAsync();
         menu.Items.Add(clone);
 
-        MenuFlyoutItem delete = ElementMenuItem("Delete", "Del", "DeleteElement");
+        MenuFlyoutItem delete = ElementMenuItem("Delete", "Del", "DeleteElement", "\uE74D");
         delete.Click += (_, _) => DeleteSelectedAnnotation();
         menu.Items.Add(delete);
         menu.Items.Add(new MenuFlyoutSeparator());
 
-        MenuFlyoutItem front = ElementMenuItem("Move to front", "Ctrl+]", "MoveElementToFront");
+        MenuFlyoutItem front = ElementMenuItem("Move to front", "Ctrl+]", "MoveElementToFront", "\uE74A");
         front.IsEnabled = index < layers.Length - 1;
         front.Click += (_, _) => MoveSelectedAnnotationToFront();
         menu.Items.Add(front);
 
-        MenuFlyoutItem back = ElementMenuItem("Move to back", "Ctrl+[", "MoveElementToBack");
+        MenuFlyoutItem back = ElementMenuItem("Move to back", "Ctrl+[", "MoveElementToBack", "\uE74B");
         back.IsEnabled = index > 0;
         back.Click += (_, _) => MoveSelectedAnnotationToBack();
         menu.Items.Add(back);
@@ -65,12 +65,13 @@ public sealed partial class MainPage
         args.Handled = true;
     }
 
-    private static MenuFlyoutItem ElementMenuItem(string title, string shortcut, string automationId)
+    private static MenuFlyoutItem ElementMenuItem(string title, string shortcut, string automationId, string glyph)
     {
         var item = new MenuFlyoutItem
         {
             Text = title,
             KeyboardAcceleratorTextOverride = shortcut,
+            Icon = new FontIcon { Glyph = glyph, FontSize = 16 },
         };
         AutomationProperties.SetAutomationId(item, automationId);
         return item;
