@@ -1,8 +1,8 @@
 /** Update these flags only after the linked public assets exist. The site renders them at build time. */
 export const distribution = {
-  publicRepository: false,
+  publicRepository: true,
   /** Requires both ZIPs and matching .sha256 files in the latest stable GitHub Release. */
-  downloadsLive: false,
+  downloadsLive: true,
   /** Requires both files under public/demos/. */
   workflowVideoLive: true,
   repositoryUrl: 'https://github.com/Zettersten/shhnap',

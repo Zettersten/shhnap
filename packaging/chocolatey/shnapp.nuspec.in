@@ -9,8 +9,8 @@
     <projectUrl>https://shhnap.com</projectUrl>
     <licenseUrl>https://github.com/Zettersten/shhnap/blob/main/LICENSE</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <summary>Screenshot capture and annotation for Windows</summary>
-    <description>Shnapp is a Windows screenshot capture and annotation app.</description>
+    <summary>Screenshot capture and annotation for Windows 11</summary>
+    <description>Shnapp is a Windows 11 screenshot capture and annotation app for x64 and ARM64 PCs. Capture a region, window, or display, add annotations, and share a finished PNG.</description>
     <releaseNotes>https://github.com/Zettersten/shhnap/releases/tag/v__VERSION__</releaseNotes>
     <tags>screenshot capture annotation windows</tags>
   </metadata>
