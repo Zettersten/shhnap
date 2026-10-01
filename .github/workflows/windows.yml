@@ -416,7 +416,7 @@ jobs:
       needs.chocolatey-verify.result == 'success' &&
       github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
-      inputs.operation == 'publish-chocolatey'
+      (inputs.operation == 'publish-github-release' || inputs.operation == 'publish-chocolatey')
     needs: chocolatey-verify
     runs-on: windows-2025
     steps:
