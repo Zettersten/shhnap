@@ -422,11 +422,30 @@ jobs:
           choco install shnapp --version $version --source $packageDir --yes --no-progress --limit-output
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $appDir = Join-Path $env:ChocolateyInstall 'lib/shnapp/tools/app'
-          foreach ($required in @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')) {
-            if (-not (Test-Path -LiteralPath (Join-Path $appDir $required) -PathType Leaf)) {
-              throw "Installed Shnapp is missing $required."
+          $pointer = Join-Path $appDir 'current-version.txt'
+          if (Test-Path -LiteralPath $pointer -PathType Leaf) {
+            $selected = (Get-Content -LiteralPath $pointer -TotalCount 1).Trim()
+            if ($selected -cne $env:RELEASE_TAG) { throw "Installed Shnapp selected $selected instead of $env:RELEASE_TAG." }
+            foreach ($required in @('Shnapp.exe', 'current-version.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', '.shnapp-install-source')) {
+              if (-not (Test-Path -LiteralPath (Join-Path $appDir $required) -PathType Leaf)) {
+                throw "Installed Shnapp is missing $required."
+              }
+            }
+            $payload = Join-Path $appDir "versions/$env:RELEASE_TAG"
+            foreach ($required in @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')) {
+              if (-not (Test-Path -LiteralPath (Join-Path $payload $required) -PathType Leaf)) {
+                throw "Installed Shnapp payload is missing $required."
+              }
             }
           }
+          elseif ($env:RELEASE_TAG -in @('v1.0.0', 'v1.0.2')) {
+            foreach ($required in @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')) {
+              if (-not (Test-Path -LiteralPath (Join-Path $appDir $required) -PathType Leaf)) {
+                throw "Installed Shnapp is missing $required."
+              }
+            }
+          }
+          else { throw 'Installed Shnapp is missing the launcher version pointer.' }
           choco uninstall shnapp --yes --no-progress --limit-output
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (Test-Path -LiteralPath (Join-Path $env:ChocolateyInstall 'lib/shnapp')) {
