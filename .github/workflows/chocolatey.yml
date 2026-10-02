@@ -12,17 +12,14 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Public stable tag; leave blank to use the latest release
-        required: false
+        description: Public stable release tag to submit
+        required: true
         type: string
       verify_only:
         description: Build and test the package without submitting it
         required: false
         type: boolean
         default: false
-  schedule:
-    - cron: '17 */6 * * *'
-
 permissions:
   contents: read
 
@@ -61,10 +58,6 @@ jobs:
           }
 
           $tag = $env:REQUESTED_TAG
-          if ([string]::IsNullOrWhiteSpace($tag)) {
-            $tag = (gh release view --json tagName --jq .tagName).Trim()
-            if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the latest public release.' }
-          }
           if ($tag -notmatch '^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
             throw 'Provide a stable vX.Y.Z release tag.'
           }
@@ -125,27 +118,6 @@ jobs:
             exit 0
           }
 
-          # Chocolatey's supported CLI query lists versions available to users.
-          $search = @(choco search shnapp --exact --source https://community.chocolatey.org/api/v2/ --limit-output)
-          if ($LASTEXITCODE -ne 0) { throw 'Could not query the Chocolatey Community catalog.' }
-          $approved = @($search | Where-Object { $_ -match '^shnapp\|' })
-          if ($approved.Count -gt 1) { throw 'Chocolatey returned more than one exact shnapp package.' }
-          if ($approved.Count -eq 1) {
-            if ($approved[0] -notmatch '^shnapp\|(?<version>[0-9]+\.[0-9]+\.[0-9]+)$') {
-              throw "Unexpected Chocolatey package version: $($approved[0])"
-            }
-            $approvedVersion = $Matches.version
-            if ([version] $approvedVersion -ge [version] $version) {
-              Complete-Preflight 'already-available' $false $false
-              exit 0
-            }
-          }
-          elseif ($version -ne '1.0.0' -and (Test-PackagePage '1.0.0')) {
-            # Chocolatey rejects newer versions until its first submission is approved.
-            Complete-Preflight 'waiting-for-first-package-approval' $false $false
-            exit 0
-          }
-
           Complete-Preflight 'ready-to-submit' $true $true
 
   verify-and-submit:
@@ -198,29 +170,22 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $appDir = Join-Path $env:ChocolateyInstall 'lib/shnapp/tools/app'
           $pointer = Join-Path $appDir 'current-version.txt'
-          if (Test-Path -LiteralPath $pointer -PathType Leaf) {
-            $selected = (Get-Content -LiteralPath $pointer -TotalCount 1).Trim()
-            if ($selected -cne $env:RELEASE_TAG) { throw "Installed Shnapp selected $selected instead of $env:RELEASE_TAG." }
-            foreach ($required in @('Shnapp.exe', 'current-version.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', '.shnapp-install-source')) {
-              if (-not (Test-Path -LiteralPath (Join-Path $appDir $required) -PathType Leaf)) {
-                throw "Installed Shnapp is missing $required."
-              }
-            }
-            $payload = Join-Path $appDir "versions/$env:RELEASE_TAG"
-            foreach ($required in @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')) {
-              if (-not (Test-Path -LiteralPath (Join-Path $payload $required) -PathType Leaf)) {
-                throw "Installed Shnapp payload is missing $required."
-              }
+          if (-not (Test-Path -LiteralPath $pointer -PathType Leaf)) {
+            throw 'Installed Shnapp is missing the launcher version pointer.'
+          }
+          $selected = (Get-Content -LiteralPath $pointer -TotalCount 1).Trim()
+          if ($selected -cne $env:RELEASE_TAG) { throw "Installed Shnapp selected $selected instead of $env:RELEASE_TAG." }
+          foreach ($required in @('Shnapp.exe', 'current-version.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', '.shnapp-install-source')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $appDir $required) -PathType Leaf)) {
+              throw "Installed Shnapp is missing $required."
             }
           }
-          elseif ($env:RELEASE_TAG -in @('v1.0.0', 'v1.0.2')) {
-            foreach ($required in @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')) {
-              if (-not (Test-Path -LiteralPath (Join-Path $appDir $required) -PathType Leaf)) {
-                throw "Installed Shnapp is missing $required."
-              }
+          $payload = Join-Path $appDir "versions/$env:RELEASE_TAG"
+          foreach ($required in @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $payload $required) -PathType Leaf)) {
+              throw "Installed Shnapp payload is missing $required."
             }
           }
-          else { throw 'Installed Shnapp is missing the launcher version pointer.' }
           choco uninstall shnapp --yes --no-progress --limit-output
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (Test-Path -LiteralPath (Join-Path $env:ChocolateyInstall 'lib/shnapp')) {
