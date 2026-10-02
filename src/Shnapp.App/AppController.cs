@@ -82,6 +82,47 @@ internal sealed partial class AppController
 
     internal async Task InitializeAsync()
     {
+        if (HasPackageIdentity && !_options.Isolated)
+        {
+            try
+            {
+                if (!ShnappLibraryMigration.IsComplete(Library.RootPath))
+                {
+                    string portableRoot = LaunchOptions.UnredirectedPortableDataRoot;
+                    if (LaunchOptions.IsPortableInstanceRunning(portableRoot))
+                    {
+                        _page.ShowMessage("Close portable Shnapp to import",
+                            "The portable copy is running. Quit it and restart this Store copy to import your library. " +
+                            "Your portable data is unchanged.", InfoBarSeverity.Warning);
+                    }
+                    else
+                    {
+                        ShnappLibraryMigration.Result migration = await ShnappLibraryMigration.ImportOnceAsync(
+                            portableRoot, Library.RootPath, _lifetime.Token);
+                        if (!migration.Complete)
+                        {
+                            _page.ShowMessage("Portable library import incomplete",
+                                "Some portable shnapps or settings could not be copied. Your original library is unchanged. " +
+                                "Close the portable copy and restart Shnapp to retry.", InfoBarSeverity.Warning);
+                        }
+                        else if (migration.ImportedDocuments > 0)
+                        {
+                            _page.ShowMessage("Portable library imported",
+                                $"Copied {migration.ImportedDocuments} shnapp(s) into this Store library. " +
+                                "Your portable library is unchanged.", InfoBarSeverity.Success);
+                        }
+                    }
+                }
+            }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or
+                UnauthorizedAccessException or ArgumentException)
+            {
+                _page.ShowMessage("Portable library import unavailable",
+                    "Your portable library is unchanged. Close the portable copy and restart Shnapp to retry. " +
+                    exception.Message, InfoBarSeverity.Warning);
+            }
+        }
+
         try
         {
             _settings = await Library.LoadSettingsAsync(_lifetime.Token);

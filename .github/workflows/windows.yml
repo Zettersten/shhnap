@@ -259,7 +259,8 @@ jobs:
         shell: pwsh
         run: |
           $version = $env:RELEASE_TAG.Substring(1)
-          $packageDir = Join-Path $env:GITHUB_WORKSPACE 'store-packages'
+          # MSBuild concatenates the package name to AppxPackageDir; it must end in a separator.
+          $packageDir = (Join-Path $env:GITHUB_WORKSPACE 'store-packages') + [System.IO.Path]::DirectorySeparatorChar
           msbuild src/Shnapp.App/Shnapp.App.csproj /restore /p:RestoreLockedMode=true /p:Configuration=Release "/p:Platform=$env:TARGET_PLATFORM" "/p:RuntimeIdentifier=$env:TARGET_RID" /p:SelfContained=true /p:ShnappDistribution=Store /p:GenerateAppxPackageOnBuild=true /p:AppxPackageSigningEnabled=false /p:AppxBundle=Never /p:UapAppxPackageBuildMode=StoreUpload "/p:AppxPackageDir=$packageDir" "/p:Version=$version" "/p:AssemblyVersion=$version.0" "/p:FileVersion=$version.0" "/p:InformationalVersion=$version"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $packages = @(Get-ChildItem -Path $packageDir -Recurse -File -Filter '*.msix')
@@ -268,6 +269,25 @@ jobs:
           $uploads = @(Get-ChildItem -Path $packageDir -Recurse -File -Filter '*.msixupload')
           if ($uploads.Count -ne 1) { throw "Expected one MSIX upload file for $env:TARGET_RID; found $($uploads.Count)." }
           Copy-Item -LiteralPath $uploads[0].FullName -Destination (Join-Path $env:GITHUB_WORKSPACE "Shnapp-$env:TARGET_RID.msixupload")
+      - name: Check out Store validation tools
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.ref }}
+          path: store-validation-tools
+          sparse-checkout: packaging/store/Assert-StorePackage.ps1
+          sparse-checkout-cone-mode: false
+      - name: Validate Store package identity and upload contents
+        shell: pwsh
+        run: |
+          ./store-validation-tools/packaging/store/Assert-StorePackage.ps1 `
+            -PackagePath "Shnapp-$env:TARGET_RID.msix" `
+            -UploadPath "Shnapp-$env:TARGET_RID.msixupload" `
+            -ReleaseTag $env:RELEASE_TAG `
+            -IdentityName $env:STORE_IDENTITY_NAME `
+            -IdentityPublisher $env:STORE_IDENTITY_PUBLISHER `
+            -PublisherDisplayName $env:STORE_PUBLISHER_DISPLAY_NAME `
+            -ProcessorArchitecture $env:TARGET_PLATFORM
       - name: Upload Store candidate for manual Partner Center submission
         uses: actions/upload-artifact@v7
         with:

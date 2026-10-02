@@ -9,7 +9,7 @@ Shnapp lives in the Windows tray until you need a screenshot. Capture a region, 
 - Copy the finished image, save a PNG, or use the Windows share sheet. Search, sort, and reopen captures in the local library.
 - Keep the app ready in the tray and optionally enable launch at sign-in.
 
-Shnapp stores its editable library and preferences in `%LOCALAPPDATA%\Shnapp` for your Windows user. Capture and editing need no account or internet connection. For sensitive details, use opaque Cover and share the exported PNG; the editable original remains in your local library. See the [privacy page](https://shhnap.com/privacy/).
+The portable ZIP stores its editable library and preferences in `%LOCALAPPDATA%\Shnapp` for your Windows user. The Microsoft Store build uses its package-specific local cache and copies an existing default portable library on first launch. It leaves the portable library in place. Back up your editable library before uninstalling the Store build, because Windows removes that package's local data on uninstall. Capture and editing need no account or internet connection. For sensitive details, use opaque Cover and share the exported PNG; the editable original remains in your local library. See the [privacy page](https://shhnap.com/privacy/).
 
 The portable build checks GitHub for a newer stable release at most once per day, and you can check manually in Settings. It notifies you and offers a link to the release page; it does not download or install updates.
 

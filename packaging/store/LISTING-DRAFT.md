@@ -1,13 +1,24 @@
 # Microsoft Store listing draft (en-US, MSIX)
 
-This is copy for Partner Center once **Shnapp** is reserved. The Store technical package identity and certification result are still pending. [Microsoft's MSIX listing guide](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/add-and-edit-store-listing-info) requires a description and at least one screenshot; the first submission should leave **What's new in this version** blank.
+**Shnapp** is reserved as an MSIX app in Partner Center under the public Store publisher **Nenvy**. The first submission and certification are pending. The developer account currently shows non-compliant status after rejected verification; resolve that status before submitting. [Microsoft's MSIX listing guide](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/add-and-edit-store-listing-info) requires a description and at least one screenshot; the first submission should leave **What's new in this version** blank.
+
+## Reserved product identity
+
+| Partner Center field | Exact value |
+| --- | --- |
+| Package/Identity/Name | `24664Nenvy.Shnapp` |
+| Package/Identity/Publisher | `CN=B431E658-A1AD-472F-8DC9-270D1AFEB32C` |
+| Package/Properties/PublisherDisplayName | `Nenvy` |
+| Store ID | `9P7LX12F1V5L` |
+
+The [three manifest values](https://learn.microsoft.com/en-us/windows/apps/publish/view-app-identity-details) must match the `STORE_IDENTITY_NAME`, `STORE_IDENTITY_PUBLISHER`, and `STORE_PUBLISHER_DISPLAY_NAME` repository variables used by the `build-store-msix` Actions operation. The Store ID identifies this reserved product; it is not a manifest field. This Store publisher choice does not change Shnapp's author or MIT copyright attribution.
 
 ## Product fields
 
 | Field | Proposed entry |
 | --- | --- |
-| Product name | Shnapp (reserve this name first) |
-| Publisher display name | Erik Zettersten (must match Partner Center product identity) |
+| Product name | Shnapp (reserved) |
+| Publisher display name | Nenvy (must match Partner Center product identity) |
 | Price | Free; no subscriptions or in-app purchases |
 | Platform | Windows 11 PC, x64 and ARM64; Windows.Desktop only |
 | Language | English (United States) |
@@ -17,6 +28,7 @@ This is copy for Partner Center once **Shnapp** is reserved. The Store technical
 | Privacy policy | https://shhnap.com/privacy/ (verify published before submission) |
 | Copyright | © 2026 Erik Zettersten |
 | License | MIT for Shnapp's own code and first-party artwork; bundled components keep their own license notices in the package |
+| Additional license terms | https://github.com/Zettersten/shhnap/blob/main/LICENSE (the canonical MIT terms, so Store buyers see the same grant) |
 | What's new in this version | Leave blank for the first Store submission; use this field for later updates |
 
 **Short description**
@@ -45,9 +57,10 @@ Your editable captures stay in a searchable local library on your Windows device
 - The MSIX manifest declares `runFullTrust` for the WinUI desktop app and a disabled-by-default `windows.startupTask` extension. Launch at sign-in is user controlled in Settings.
 - The app captures pixels from windows and displays only when the user starts a capture. Export and sharing are user initiated. The optional Store update check contacts Microsoft Store; the portable edition checks GitHub Releases.
 - The app has no Shnapp account, hosted capture library, analytics, or in-app purchases. Confirm the privacy answers against the final build. Microsoft says a privacy policy is required when the app accesses, collects, or transmits personal information or has capabilities that could do so: [MSIX support info](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/support-info).
-- Store version `1.0.0.0` is derived from `v1.0.0`; every subsequent submission must increase the package version. Submit distinct x64 and ARM64 MSIX packages and confirm Partner Center accepts them: [MSIX package upload](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/upload-app-packages).
+- The `v1.0.0` tag produced Store version `1.0.0.0`; Partner Center validated both architecture packages in the draft. That tag predates Store library migration. Replace both draft packages with `1.0.1.0` built from `v1.0.1` before first certification. Every later submission must increase the package version. [MSIX package upload](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/upload-app-packages).
 - The ARM64 package is cross-built and structurally checked; it has not been run on ARM64 hardware. Test it when a device is available.
-- Before Store certification, test portable-to-Store library import/migration and packaged startup on a clean Windows 11 install. Packaged AppData writes may be redirected to a per-package location.
+- The Store build uses its package-specific LocalCache folder; Windows excludes it from device backup. On first packaged launch, Shnapp copies a default portable library into that folder without deleting the portable source. Validate the import and packaged startup on a clean Windows 11 install. Export or back up editable captures before Store uninstall or reset, which may remove that package data.
+- Partner Center's draft has the en-US description, six features, four screenshots with captions, canonical MIT license URL, and developer attribution. Pricing, properties, IARC age ratings, packages, Store listing, and Submission options all show Complete. The `runFullTrust` warning is expected for a WinUI 3 desktop app; the required rationale is saved in Submission options for certification review. The reviewer testing instructions are saved under Additional Testing Info. Developer account verification and EU DSA compliance remain the external blockers to certification.
 
 ## Screenshot inventory and shot list
 
@@ -61,4 +74,4 @@ Your editable captures stay in a searchable local library on your Windows device
 | Clean editor | [04-editor-clean.png](screenshots/04-editor-clean.png), 1920 × 1032. Shows an unannotated capture in the editor. | Start with a capture, then choose the details to emphasize. |
 | Feedback | [05-feedback.png](screenshots/05-feedback.png), 1920 × 1032. Shows the Feedback Settings screen. Optional fifth image. | Report a problem or request a feature from Settings. |
 
-These are genuine app captures with fictional fixture content. All five were visually reviewed at 1920 × 1032 and are below 50 MB. The transparent picker overlay did not render in the screenshot capture, so it is omitted. `src/Shnapp.App/Assets/Square150x150Logo.scale-200.png` is an existing 300 × 300 transparent Shnapp icon and is a candidate for the recommended Store tile icon; inspect its appearance on both light and dark backgrounds before upload. Check the package icon and tile art with the Windows App Certification Kit.
+These are genuine app captures with fictional fixture content. All five were visually reviewed at 1920 × 1032 and are below 50 MB. The transparent picker overlay did not render in the screenshot capture, so it is omitted. `src/Shnapp.App/Assets/Square150x150Logo.scale-200.png` is an existing 300 × 300 transparent Shnapp icon and is a candidate for the recommended Store tile icon; inspect its appearance on both light and dark backgrounds before upload and in Partner Center's package preview.
