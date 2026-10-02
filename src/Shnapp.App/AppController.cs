@@ -154,7 +154,8 @@ internal sealed partial class AppController
                 // Scoop, WinGet, and Chocolatey may install each version in a new folder.
                 StartupPreference.ReconcilePortable(_settings.StartOnLogin);
             }
-            catch (Exception exception) when (exception is UnauthorizedAccessException or System.Security.SecurityException)
+            catch (Exception exception) when (exception is UnauthorizedAccessException or
+                System.Security.SecurityException or InvalidOperationException)
             {
                 _page.ShowMessage("Sign-in setting unavailable", exception.Message, InfoBarSeverity.Warning);
             }
