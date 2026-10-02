@@ -32,7 +32,7 @@ const contactHref = `mailto:${distribution.contactEmail}`;
       <div class="privacy-article">
         <section id="local-files" aria-labelledby="local-title">
           <h2 id="local-title">Local files</h2>
-          <p>Shnapp keeps your capture library, editable originals, rendered previews, preferences, and update-check state on your PC. The default folder is <code>%LOCALAPPDATA%\Shnapp</code>. An advanced <code>--data-root</code> launch option can move that folder elsewhere.</p>
+          <p>Shnapp keeps your capture library, editable originals, rendered previews, preferences, and update-check state on your PC. The portable edition uses <code>%LOCALAPPDATA%\Shnapp</code> by default; an advanced <code>--data-root</code> launch option can move it elsewhere. The Microsoft Store edition uses its own Windows LocalCache folder, which Windows excludes from device backup. On first launch, it copies an existing portable library into that folder and leaves the portable files in place.</p>
           <p>When you copy a PNG, Shnapp places it on your Windows clipboard. When you choose Save, the exported PNG goes to the location you select. Shnapp does not automatically upload captures to us or GitHub.</p>
         </section>
 
@@ -51,7 +51,7 @@ const contactHref = `mailto:${distribution.contactEmail}`;
 
         <section id="choices" aria-labelledby="choices-title">
           <h2 id="choices-title">Your choices</h2>
-          <p>You choose what to capture, copy, export, and share. To remove local Shnapp data, quit the app and delete <code>%LOCALAPPDATA%\Shnapp</code>, or the folder you set with <code>--data-root</code>. This removes the local library and preferences; PNGs saved elsewhere must be deleted separately.</p>
+          <p>You choose what to capture, copy, export, and share. For the portable edition, quit Shnapp and delete <code>%LOCALAPPDATA%\Shnapp</code>, or the folder you set with <code>--data-root</code>, to remove its local library and preferences. The Microsoft Store edition keeps a separate copy in its Windows app-data folder; removing or resetting that edition may delete its copy. Back up editable captures before removing it. PNGs saved elsewhere must be deleted separately.</p>
           <p>For a capture containing sensitive details, use opaque Cover on the exported image. Blur and Pixelate may leave text or shapes recognizable. The editable original remains in your local library until you delete it.</p>
         </section>
 

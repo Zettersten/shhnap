@@ -28,6 +28,7 @@ The [three manifest values](https://learn.microsoft.com/en-us/windows/apps/publi
 | Privacy policy | https://shhnap.com/privacy/ (verify published before submission) |
 | Copyright | © 2026 Erik Zettersten |
 | License | MIT for Shnapp's own code and first-party artwork; bundled components keep their own license notices in the package |
+| Additional license terms | https://github.com/Zettersten/shhnap/blob/main/LICENSE (the canonical MIT terms, so Store buyers see the same grant) |
 | What's new in this version | Leave blank for the first Store submission; use this field for later updates |
 
 **Short description**
@@ -56,9 +57,10 @@ Your editable captures stay in a searchable local library on your Windows device
 - The MSIX manifest declares `runFullTrust` for the WinUI desktop app and a disabled-by-default `windows.startupTask` extension. Launch at sign-in is user controlled in Settings.
 - The app captures pixels from windows and displays only when the user starts a capture. Export and sharing are user initiated. The optional Store update check contacts Microsoft Store; the portable edition checks GitHub Releases.
 - The app has no Shnapp account, hosted capture library, analytics, or in-app purchases. Confirm the privacy answers against the final build. Microsoft says a privacy policy is required when the app accesses, collects, or transmits personal information or has capabilities that could do so: [MSIX support info](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/support-info).
-- Store version `1.0.0.0` is derived from `v1.0.0`; every subsequent submission must increase the package version. Submit distinct x64 and ARM64 MSIX packages and confirm Partner Center accepts them: [MSIX package upload](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/upload-app-packages).
+- The `v1.0.0` tag produced Store version `1.0.0.0`; Partner Center validated both architecture packages in the draft. That tag predates Store library migration. Replace both draft packages with `1.0.1.0` built from `v1.0.1` before first certification. Every later submission must increase the package version. [MSIX package upload](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/upload-app-packages).
 - The ARM64 package is cross-built and structurally checked; it has not been run on ARM64 hardware. Test it when a device is available.
-- Before Store certification, test portable-to-Store library import/migration and packaged startup on a clean Windows 11 install. Packaged AppData writes may be redirected to a per-package location.
+- The Store build uses its package-specific LocalCache folder; Windows excludes it from device backup. On first packaged launch, Shnapp copies a default portable library into that folder without deleting the portable source. Validate the import and packaged startup on a clean Windows 11 install. Export or back up editable captures before Store uninstall or reset, which may remove that package data.
+- Partner Center's draft has the en-US description, six features, four screenshots with captions, canonical MIT license URL, and developer attribution. Pricing, properties, IARC age ratings, packages, Store listing, and Submission options all show Complete. The `runFullTrust` warning is expected for a WinUI 3 desktop app; the required rationale is saved in Submission options for certification review. The reviewer testing instructions are saved under Additional Testing Info. Developer account verification and EU DSA compliance remain the external blockers to certification.
 
 ## Screenshot inventory and shot list
 
