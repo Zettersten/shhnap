@@ -20,6 +20,8 @@ public sealed partial class MainPage
     private readonly List<ContainerVisual> _newShnappSparkles = [];
     private long _newShnappOverflowCallback;
     private bool _newShnappMotionAttached;
+    private Window? _newShnappEventWindow;
+    private AppWindow? _newShnappEventAppWindow;
     private int _newShnappSparkleGeneration;
 
     private void NewShnappButton_Loaded(object sender, RoutedEventArgs e)
@@ -31,8 +33,10 @@ public sealed partial class MainPage
 
         if (!_newShnappMotionAttached)
         {
-            App.Window.AppWindow.Changed += NewShnappAppWindow_Changed;
-            App.Window.Activated += NewShnappWindow_Activated;
+            _newShnappEventWindow = App.Window;
+            _newShnappEventAppWindow = App.Window.AppWindow;
+            _newShnappEventAppWindow.Changed += NewShnappAppWindow_Changed;
+            _newShnappEventWindow.Activated += NewShnappWindow_Activated;
             _newShnappOverflowCallback = NewShnappButton.RegisterPropertyChangedCallback(
                 AppBarButton.IsInOverflowProperty, (_, _) => RefreshNewShnappSparkles());
             _newShnappMotionAttached = true;
@@ -45,11 +49,19 @@ public sealed partial class MainPage
     {
         if (_newShnappMotionAttached)
         {
-            App.Window.AppWindow.Changed -= NewShnappAppWindow_Changed;
-            App.Window.Activated -= NewShnappWindow_Activated;
+            _newShnappMotionAttached = false;
+            if (_newShnappEventAppWindow is { } appWindow)
+            {
+                appWindow.Changed -= NewShnappAppWindow_Changed;
+            }
+            if (_newShnappEventWindow is { } window)
+            {
+                window.Activated -= NewShnappWindow_Activated;
+            }
+            _newShnappEventAppWindow = null;
+            _newShnappEventWindow = null;
             NewShnappButton.UnregisterPropertyChangedCallback(
                 AppBarButton.IsInOverflowProperty, _newShnappOverflowCallback);
-            _newShnappMotionAttached = false;
         }
 
         StopNewShnappSparkles();
