@@ -35,7 +35,8 @@ Install-ChocolateyZipPackage -PackageName 'shnapp' -Url $url -UnzipLocation $app
 if (-not (Test-Path -LiteralPath (Join-Path $appDir 'Shnapp.exe') -PathType Leaf)) {
     throw 'The archive did not contain Shnapp.exe at its root.'
 }
+Set-Content -LiteralPath (Join-Path $appDir '.shnapp-install-source') -Value 'chocolatey:shnapp' -Encoding Ascii -NoNewline
 New-Item -Path (Join-Path $appDir 'Shnapp.exe.gui') -ItemType File -Force | Out-Null
 Get-ChildItem -LiteralPath $appDir -Recurse -File -Filter '*.exe' |
-    Where-Object { $_.Name -ne 'Shnapp.exe' } |
+    Where-Object { $_.FullName -ne (Join-Path $appDir 'Shnapp.exe') } |
     ForEach-Object { New-Item -Path "$($_.FullName).ignore" -ItemType File -Force | Out-Null }

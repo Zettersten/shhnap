@@ -12,12 +12,12 @@ Installers:
     InstallerSha256: __SHA256_X64__
     NestedInstallerFiles:
       - RelativeFilePath: Shnapp.exe
-        PortableCommandAlias: shnapp
+        PortableCommandAlias: Shnapp
   - Architecture: arm64
     InstallerUrl: https://github.com/Zettersten/shhnap/releases/download/v__VERSION__/Shnapp-win-arm64.zip
     InstallerSha256: __SHA256_ARM64__
     NestedInstallerFiles:
       - RelativeFilePath: Shnapp.exe
-        PortableCommandAlias: shnapp
+        PortableCommandAlias: Shnapp
 ManifestType: installer
 ManifestVersion: 1.10.0

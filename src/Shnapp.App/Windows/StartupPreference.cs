@@ -48,8 +48,7 @@ internal static class StartupPreference
         using RegistryKey key = Registry.CurrentUser.CreateSubKey(RunKey, writable: true);
         if (enabled)
         {
-            string executable = Environment.ProcessPath
-                ?? throw new InvalidOperationException("Shnapp's executable location is unavailable.");
+            string executable = StartupExecutable();
             string command = $"\"{executable}\" --background";
             if (!string.Equals(key.GetValue("Shnapp") as string, command, StringComparison.Ordinal))
             {
@@ -60,5 +59,27 @@ internal static class StartupPreference
         {
             key.DeleteValue("Shnapp", throwOnMissingValue: false);
         }
+    }
+
+    private static string StartupExecutable()
+    {
+        string? root = PortableUpdateStager.FindInstallRoot(AppContext.BaseDirectory);
+        if (root is not null)
+        {
+            if (InstallationChannelDetector.Detect(packaged: false) == InstallationChannel.Scoop)
+            {
+                string? app = Path.GetDirectoryName(root);
+                if (app is not null)
+                {
+                    string current = Path.Combine(app, "current", "Shnapp.exe");
+                    if (File.Exists(current)) { return current; }
+                }
+            }
+
+            return Path.Combine(root, "Shnapp.exe");
+        }
+
+        return Environment.ProcessPath
+            ?? throw new InvalidOperationException("Shnapp's executable location is unavailable.");
     }
 }

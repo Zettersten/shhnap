@@ -61,15 +61,23 @@
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <InfoBar x:Name="UpdateMessage" IsOpen="True" IsClosable="False"
                             Severity="Informational" Title="Updates" />
-                        <StackPanel Orientation="Horizontal" Spacing="12">
+                        <StackPanel Spacing="8" HorizontalAlignment="Left">
                             <Button x:Name="CheckUpdatesButton" Content="Check for updates" Click="CheckUpdates_Click"
                                 AutomationProperties.AutomationId="CheckForUpdates" />
                             <Button x:Name="OpenLatestButton" Content="View release" Click="OpenLatest_Click"
                                 Visibility="Collapsed" AutomationProperties.AutomationId="ViewLatestRelease" />
+                            <Button x:Name="InstallStoreUpdateButton" Content="Update now" Click="InstallStoreUpdate_Click"
+                                Visibility="Collapsed" AutomationProperties.AutomationId="InstallStoreUpdate" />
+                            <Button x:Name="RestartStoreButton" Content="Restart Shnapp" Click="RestartStore_Click"
+                                Visibility="Collapsed" AutomationProperties.AutomationId="RestartAfterStoreUpdate" />
+                            <Button x:Name="RestartPortableButton" Content="Restart to update" Click="RestartPortable_Click"
+                                Visibility="Collapsed" AutomationProperties.AutomationId="RestartAfterPortableUpdate" />
+                            <Button x:Name="ManagerUpdateButton" Content="Update with package manager" Click="ManagerUpdate_Click"
+                                Visibility="Collapsed" AutomationProperties.AutomationId="UpdateWithPackageManager" />
                             <Button x:Name="OpenStoreButton" Content="Open Microsoft Store updates" Click="OpenStore_Click"
                                 Visibility="Collapsed" AutomationProperties.AutomationId="OpenStoreUpdates" />
                         </StackPanel>
-                        <TextBlock Text="Shnapp only checks for newer versions. Downloads and installation stay in your control."
+                        <TextBlock x:Name="UpdateHelpText" Text="Shnapp checks for newer versions."
                             TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <Button Content="Visit shhnap.com" Click="OpenWebsite_Click" HorizontalAlignment="Left"
                             AutomationProperties.AutomationId="OpenWebsite" />

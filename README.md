@@ -76,7 +76,7 @@ scoop bucket add shnapp https://github.com/Zettersten/scoop-bucket
 scoop install shnapp/shnapp
 ```
 
-The portable app checks for newer stable GitHub releases at most once a day and shows an update notice that opens **Settings → About & Updates**. You can check manually there too. Download and extract the new ZIP to update a portable copy; your library and preferences remain under `%LOCALAPPDATA%\Shnapp`. See the [download page](https://shhnap.com/download/) for current package manager availability and update commands.
+Direct ZIP copies check immutable stable GitHub releases at most once a day, verify the matching download, and prepare the new version for the next restart. **Settings → About & Updates** shows the status and can restart Shnapp when the update is ready. Copies from before the launcher-enabled release need one manual ZIP replacement to gain this behavior. Scoop, WinGet, and Chocolatey copies update through their own package managers; Store copies update through Microsoft Store. Your portable library and preferences remain under `%LOCALAPPDATA%\Shnapp`. See the [download page](https://shhnap.com/download/) for current channel availability.
 
 ### Build from source
 

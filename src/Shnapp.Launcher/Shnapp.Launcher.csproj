@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>Shnapp</AssemblyName>
+    <RootNamespace>Shnapp.Launcher</RootNamespace>
+    <Product>Shnapp</Product>
+    <Authors>Erik Zettersten</Authors>
+    <Company>Erik Zettersten</Company>
+    <Copyright>Copyright © Erik Zettersten</Copyright>
+    <ApplicationIcon>../Shnapp.App/Assets/AppIcon.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <SelfContained>true</SelfContained>
+    <!-- x64 hosted runners include the native linker. ARM64 uses one self-contained file
+         because the hosted x64 toolchain does not have the ARM64 native linker. -->
+    <PublishAot Condition="'$(RuntimeIdentifier)' != 'win-arm64'">true</PublishAot>
+    <PublishSingleFile Condition="'$(RuntimeIdentifier)' == 'win-arm64'">true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract Condition="'$(RuntimeIdentifier)' == 'win-arm64'">true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile Condition="'$(RuntimeIdentifier)' == 'win-arm64'">true</EnableCompressionInSingleFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <StripSymbols>true</StripSymbols>
+  </PropertyGroup>
+</Project>

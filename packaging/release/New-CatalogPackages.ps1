@@ -37,9 +37,49 @@ foreach ($rid in @('win-x64', 'win-arm64')) {
     $zip = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
     try {
         $entries = @($zip.Entries | ForEach-Object { $_.FullName })
-        foreach ($required in @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')) {
+        if (@($entries | Group-Object | Where-Object Count -gt 1).Count -gt 0) {
+            throw "$archiveName contains duplicate ZIP entries."
+        }
+        foreach ($entry in $entries) {
+            if ($entry.StartsWith('/') -or $entry.Contains([char]92) -or $entry.Contains(':') -or
+                @($entry.Split('/') | Where-Object { $_ -in @('.', '..') }).Count -gt 0) {
+                throw "$archiveName contains an unsafe ZIP entry: $entry"
+            }
+        }
+
+        $versionRoot = "versions/$ReleaseTag/"
+        if ('current-version.txt' -in $entries) {
+            $pointer = $zip.GetEntry('current-version.txt')
+            $pointerStream = [System.IO.StreamReader]::new($pointer.Open(), [System.Text.Encoding]::ASCII)
+            try { $pointerText = $pointerStream.ReadToEnd() }
+            finally { $pointerStream.Dispose() }
+            if ($pointerText -cne "$ReleaseTag`n`n") {
+                throw "$archiveName has an invalid current-version.txt."
+            }
+            $requiredFiles = @(
+                'Shnapp.exe', 'current-version.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt',
+                "${versionRoot}Shnapp.exe", "${versionRoot}Shnapp.pri",
+                "${versionRoot}LICENSE", "${versionRoot}THIRD_PARTY_NOTICES.txt"
+            )
+            foreach ($entry in $entries) {
+                if ($entry -notin @('Shnapp.exe', 'current-version.txt', 'LICENSE',
+                    'THIRD_PARTY_NOTICES.txt', 'versions/', $versionRoot) -and
+                    -not $entry.StartsWith($versionRoot, [System.StringComparison]::Ordinal)) {
+                    throw "$archiveName contains a file outside its versioned payload: $entry"
+                }
+            }
+        }
+        elseif ($ReleaseTag -in @('v1.0.0', 'v1.0.2')) {
+            # Published releases before the launcher was introduced remain valid
+            # inputs for Chocolatey re-submission.
+            $requiredFiles = @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')
+        }
+        else {
+            throw "$archiveName does not contain the portable launcher layout."
+        }
+        foreach ($required in $requiredFiles) {
             if ($required -cnotin $entries) {
-                throw "$archiveName does not contain $required at the ZIP root."
+                throw "$archiveName does not contain $required."
             }
         }
     }
