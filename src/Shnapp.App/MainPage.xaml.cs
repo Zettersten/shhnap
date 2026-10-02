@@ -44,6 +44,7 @@ public sealed partial class MainPage : Page
     private bool _updatingOptions;
     private bool? _narrowInspector;
     private readonly AccessibilitySettings _accessibility = new();
+    private Microsoft.UI.System.ThemeSettings? _themeSettings;
     private readonly Dictionary<EditorTool, ToolStyle> _toolStyles =
         Enum.GetValues<EditorTool>().ToDictionary(tool => tool, ToolStyle.Defaults);
     private IReadOnlyList<ShnappSummary> _library = [];
@@ -71,8 +72,33 @@ public sealed partial class MainPage : Page
             UpdateShapeButtonAppearance();
             DrawingCanvas.Invalidate();
             RefreshNewShnappSparkles();
+            LayoutLibraryEmptyScene();
         };
+        Loaded += MainPage_Loaded;
+        Unloaded += MainPage_Unloaded;
     }
+
+    private void MainPage_Loaded(object sender, RoutedEventArgs args)
+    {
+        if (_themeSettings is null)
+        {
+            _themeSettings = Microsoft.UI.System.ThemeSettings.CreateForWindowId(App.Window.AppWindow.Id);
+            _themeSettings.Changed += ThemeSettings_Changed;
+        }
+        LayoutLibraryEmptyScene();
+    }
+
+    private void MainPage_Unloaded(object sender, RoutedEventArgs args)
+    {
+        if (_themeSettings is not null)
+        {
+            _themeSettings.Changed -= ThemeSettings_Changed;
+            _themeSettings = null;
+        }
+    }
+
+    private void ThemeSettings_Changed(Microsoft.UI.System.ThemeSettings sender, object args) =>
+        DispatcherQueue.TryEnqueue(LayoutLibraryEmptyScene);
 
     internal void Configure(AppController controller) => _controller = controller;
 

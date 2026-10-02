@@ -49,6 +49,7 @@
     <Content Include="..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\ShnappLogo.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\LibraryEmptyBackground.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\NewShnappButton*.svg" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\provenance.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

@@ -146,15 +146,12 @@ public sealed partial class MainPage
             ? $"{_library.Count} {ShnappWord(_library.Count)}"
             : $"{count} of {_library.Count} {ShnappWord(_library.Count)}";
         LibraryEmpty.Visibility = count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        LibraryEmptyLogo.Visibility = noMatches ? Visibility.Collapsed : Visibility.Visible;
-        LibraryNoResultsIcon.Visibility = noMatches ? Visibility.Visible : Visibility.Collapsed;
-        LibraryEmptyTitle.Text = noMatches ? "No matching shnapps" : "Your first shnapp starts here";
-        LibraryEmptyDescription.Text = noMatches
+        LibraryEmptyArtwork.Visibility = noMatches ? Visibility.Collapsed : Visibility.Visible;
+        LibraryNoResults.Visibility = noMatches ? Visibility.Visible : Visibility.Collapsed;
+        LibraryNoResultsDescription.Text = noMatches
             ? $"No results for “{query}”. Try a title, date, or capture type."
-            : "Capture a window or region. Your shnapps will be saved here, ready to revisit.";
-        LibraryEmptyCapture.Visibility = noMatches ? Visibility.Collapsed : Visibility.Visible;
-        LibraryEmptyClear.Visibility = noMatches ? Visibility.Visible : Visibility.Collapsed;
-        LibraryEmptyShortcuts.Visibility = noMatches ? Visibility.Collapsed : Visibility.Visible;
+            : string.Empty;
+        LayoutLibraryEmpty();
         UpdateLibraryGridGeometry(LibraryRoot.ActualWidth);
         UpdateLibraryView();
     }
