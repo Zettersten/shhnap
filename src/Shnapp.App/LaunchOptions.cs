@@ -41,8 +41,8 @@ internal sealed record LaunchOptions(string DataRoot, bool Background, bool Isol
         {
             if (Package.Current.Id is not null)
             {
-                // LocalState persists across MSIX updates and avoids AppData virtualization.
-                return ApplicationData.Current.LocalFolder.Path;
+                // LocalCache persists across MSIX updates without cloud device backup.
+                return ApplicationData.Current.LocalCacheFolder.Path;
             }
         }
         catch (Exception exception) when (exception is InvalidOperationException or
