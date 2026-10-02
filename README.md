@@ -67,7 +67,7 @@ Shnapp saves its library and preferences under `%LOCALAPPDATA%\Shnapp` for your 
 
 ## Get started
 
-Download [Shnapp for Windows 11](https://shhnap.com/download/) as an x64 or ARM64 ZIP. Extract the entire archive to a folder and run `Shnapp.exe` from that folder. The [latest GitHub release](https://github.com/Zettersten/shhnap/releases/latest) includes SHA-256 checksum files and release notes. You can also [build it from source](#build-from-source). Captions, output resizing, polygon shapes, true free-form capture, and optional AI assistance are planned.
+Download [Shnapp for Windows 11](https://shhnap.com/download/) as an x64 or ARM64 ZIP. Extract the entire archive to a folder and run the root `Shnapp.exe`; keep the `versions` folder and `current-version.txt` beside it for updates. The [latest GitHub release](https://github.com/Zettersten/shhnap/releases/latest) includes SHA-256 checksum files and release notes. The updated release pipeline packages the app as a single executable inside the versioned folder, alongside a few resources and license notices. Its bundled native components can extract to your Temp folder on first launch. You can also [build it from source](#build-from-source). Captions, output resizing, polygon shapes, true free-form capture, and optional AI assistance are planned.
 
 If you use Scoop, install from the [Shnapp bucket](https://github.com/Zettersten/scoop-bucket):
 

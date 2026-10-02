@@ -14,7 +14,7 @@ on:
         type: choice
         options:
           - publish-github-release
-          - build-store-msix
+          - refresh-release-metadata
           - verify-chocolatey
           - publish-chocolatey
       release_tag:
@@ -92,7 +92,7 @@ jobs:
       - name: Restore target architecture from lock files
         shell: pwsh
         run: |
-          dotnet restore src/Shnapp.App/Shnapp.App.csproj --locked-mode "-p:Platform=$env:TARGET_PLATFORM"
+          dotnet restore src/Shnapp.App/Shnapp.App.csproj --locked-mode "-p:Platform=$env:TARGET_PLATFORM" -p:ShnappDistribution=PortableSingleFile
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $launcherLock = Join-Path $env:GITHUB_WORKSPACE "src/Shnapp.Launcher/packages.$env:TARGET_RID.lock.json"
           dotnet restore src/Shnapp.Launcher/Shnapp.Launcher.csproj -r $env:TARGET_RID --locked-mode "-p:NuGetLockFilePath=$launcherLock"
@@ -105,19 +105,31 @@ jobs:
           $layoutDir = Join-Path $env:RUNNER_TEMP 'shnapp-layout'
           $assetsDir = Join-Path $env:GITHUB_WORKSPACE 'release-assets'
           $version = $env:RELEASE_TAG.Substring(1)
-          dotnet publish src/Shnapp.App/Shnapp.App.csproj -c Release -r $env:TARGET_RID --no-restore --self-contained true --output $publishDir "-p:Platform=$env:TARGET_PLATFORM" "-p:Version=$version" "-p:AssemblyVersion=$version.0" "-p:FileVersion=$version.0" "-p:InformationalVersion=$version"
+          dotnet publish src/Shnapp.App/Shnapp.App.csproj -c Release -r $env:TARGET_RID --no-restore --self-contained true --output $publishDir "-p:Platform=$env:TARGET_PLATFORM" -p:ShnappDistribution=PortableSingleFile "-p:Version=$version" "-p:AssemblyVersion=$version.0" "-p:FileVersion=$version.0" "-p:InformationalVersion=$version"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $buildDir = (dotnet msbuild src/Shnapp.App/Shnapp.App.csproj -getProperty:TargetDir -p:Configuration=Release "-p:Platform=$env:TARGET_PLATFORM" "-p:RuntimeIdentifier=$env:TARGET_RID" -p:ShnappDistribution=PortableSingleFile).Trim()
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $buildDir -PathType Container)) {
+            throw 'Could not locate the app build output for bundled notices.'
+          }
+          foreach ($required in @('Shnapp.pri', 'Shnapp.deps.json', 'LICENSE')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $buildDir $required) -PathType Leaf)) {
+              throw "App build output is missing $required."
+            }
+          }
+          Copy-Item -LiteralPath (Join-Path $buildDir 'Shnapp.pri') -Destination $publishDir
+          Copy-Item -LiteralPath (Join-Path $buildDir 'LICENSE') -Destination $publishDir
           $launcherLock = Join-Path $env:GITHUB_WORKSPACE "src/Shnapp.Launcher/packages.$env:TARGET_RID.lock.json"
           dotnet publish src/Shnapp.Launcher/Shnapp.Launcher.csproj -c Release -r $env:TARGET_RID --no-restore --output $launcherDir "-p:NuGetLockFilePath=$launcherLock" "-p:Version=$version" "-p:AssemblyVersion=$version.0" "-p:FileVersion=$version.0" "-p:InformationalVersion=$version"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./packaging/release/Add-ThirdPartyNotices.ps1 `
-            -DepsPath (Join-Path $publishDir 'Shnapp.deps.json') `
+            -DepsPath (Join-Path $buildDir 'Shnapp.deps.json') `
             -OutputDirectory $publishDir
           ./packaging/release/New-PortableLayout.ps1 `
             -ReleaseTag $env:RELEASE_TAG `
             -PayloadDirectory $publishDir `
             -LauncherDirectory $launcherDir `
-            -OutputDirectory $layoutDir
+            -OutputDirectory $layoutDir `
+            -SingleFile
           New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
           $archiveName = "Shnapp-$env:TARGET_RID.zip"
           $archive = Join-Path $assetsDir $archiveName
@@ -152,7 +164,35 @@ jobs:
         shell: bash
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: bash packaging/release/verify-release-assets.sh release-assets "$RELEASE_TAG"
+        run: bash packaging/release/verify-release-assets.sh release-assets "$RELEASE_TAG" single-file
+      - name: Generate version-specific release notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          previous_tag="$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name 2>/dev/null || true)"
+          previous_release=()
+          if [[ -n "$previous_tag" ]]; then
+            previous_release=(-f "previous_tag_name=$previous_tag")
+          fi
+          gh api "repos/$GH_REPO/releases/generate-notes" -X POST \
+            -f tag_name="$RELEASE_TAG" -f target_commitish="$(git rev-parse HEAD)" \
+            "${previous_release[@]}" \
+            --jq .body > "$RUNNER_TEMP/generated-changes.md"
+          if ! grep -Eq '^[*-] ' "$RUNNER_TEMP/generated-changes.md"; then
+            echo 'No merged changes were found for this release. Add changes through reviewed pull requests before tagging.' >&2
+            exit 1
+          fi
+          sed "s/__RELEASE_TAG__/$RELEASE_TAG/g" packaging/release/release-notes.md > "$RUNNER_TEMP/installation-notes.md"
+          {
+            awk '/^## / { exit } { print }' "$RUNNER_TEMP/installation-notes.md"
+            sed "s/^## What's Changed$/## New in $RELEASE_TAG/" "$RUNNER_TEMP/generated-changes.md"
+            printf '\n'
+            awk '/^## / { started = 1 } started { print }' "$RUNNER_TEMP/installation-notes.md"
+          } > "$RUNNER_TEMP/release-notes.md"
       - name: Create draft and verify uploaded assets
         shell: bash
         env:
@@ -162,19 +202,21 @@ jobs:
         run: |
           set -euo pipefail
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "Release $RELEASE_TAG already exists. This workflow never overwrites assets." >&2
-            exit 1
+            if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" != 'true' ]]; then
+              echo "Release $RELEASE_TAG is already public. This workflow never overwrites published assets." >&2
+              exit 1
+            fi
+          else
+            gh release create "$RELEASE_TAG" release-assets/* --draft --verify-tag \
+              --title "Shnapp $RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
-          sed "s/__RELEASE_TAG__/$RELEASE_TAG/g" packaging/release/release-notes.md > "$RUNNER_TEMP/release-notes.md"
-          gh release create "$RELEASE_TAG" release-assets/* --draft --verify-tag \
-            --title "Shnapp $RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
           if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" != 'true' ]]; then
             echo 'The staged release is unexpectedly public.' >&2
             exit 1
           fi
           mkdir -p uploaded-assets
           gh release download "$RELEASE_TAG" --dir uploaded-assets
-          bash packaging/release/verify-release-assets.sh uploaded-assets "$RELEASE_TAG"
+          bash packaging/release/verify-release-assets.sh uploaded-assets "$RELEASE_TAG" single-file
           for asset in release-assets/*; do
             cmp "$asset" "uploaded-assets/$(basename "$asset")"
           done
@@ -194,136 +236,30 @@ jobs:
           path: catalog-candidates/
           if-no-files-found: error
 
-  store-package:
-    name: Store MSIX (${{ matrix.rid }})
-    if: >-
-      always() && !cancelled() &&
-      (((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') &&
-         needs.verify.result == 'success') &&
-        vars.STORE_IDENTITY_NAME != '' &&
-        vars.STORE_IDENTITY_PUBLISHER != '' &&
-        vars.STORE_PUBLISHER_DISPLAY_NAME != '') ||
-       (github.event_name == 'workflow_dispatch' && inputs.operation == 'build-store-msix'))
-    needs: verify
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - rid: win-x64
-            platform: x64
-          - rid: win-arm64
-            platform: ARM64
-    env:
-      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
-      TARGET_RID: ${{ matrix.rid }}
-      TARGET_PLATFORM: ${{ matrix.platform }}
-      STORE_IDENTITY_NAME: ${{ vars.STORE_IDENTITY_NAME }}
-      STORE_IDENTITY_PUBLISHER: ${{ vars.STORE_IDENTITY_PUBLISHER }}
-      STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.STORE_PUBLISHER_DISPLAY_NAME }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-      - uses: microsoft/setup-msbuild@v2
-      - name: Require a reviewed stable tag and Partner Center identity
-        shell: pwsh
-        run: |
-          if ($env:RELEASE_TAG -notmatch '^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
-            throw 'Provide an existing stable release tag.'
-          }
-          git merge-base --is-ancestor HEAD origin/main
-          if ($LASTEXITCODE -ne 0) { throw 'Store tag commit must be reachable from main.' }
-          foreach ($value in @($env:STORE_IDENTITY_NAME, $env:STORE_IDENTITY_PUBLISHER, $env:STORE_PUBLISHER_DISPLAY_NAME)) {
-            if ([string]::IsNullOrWhiteSpace($value)) {
-              throw 'Set the three Partner Center identity repository variables before building an MSIX.'
-            }
-          }
-      - name: Set Partner Center identity and package version
-        shell: pwsh
-        run: |
-          ./packaging/store/Set-StoreManifest.ps1 `
-            -ManifestPath src/Shnapp.App/Package.appxmanifest `
-            -ReleaseTag $env:RELEASE_TAG `
-            -IdentityName $env:STORE_IDENTITY_NAME `
-            -IdentityPublisher $env:STORE_IDENTITY_PUBLISHER `
-            -PublisherDisplayName $env:STORE_PUBLISHER_DISPLAY_NAME
-      - name: Prepare exact runtime and NuGet notices for the MSIX
-        shell: pwsh
-        run: |
-          $version = $env:RELEASE_TAG.Substring(1)
-          $probeDir = Join-Path $env:RUNNER_TEMP 'shnapp-store-notice-probe'
-          dotnet restore src/Shnapp.App/Shnapp.App.csproj --locked-mode "-p:Platform=$env:TARGET_PLATFORM"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet publish src/Shnapp.App/Shnapp.App.csproj -c Release -r $env:TARGET_RID --no-restore --self-contained true --output $probeDir "-p:Platform=$env:TARGET_PLATFORM" "-p:Version=$version" "-p:AssemblyVersion=$version.0" "-p:FileVersion=$version.0" "-p:InformationalVersion=$version"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ./packaging/release/Add-ThirdPartyNotices.ps1 `
-            -DepsPath (Join-Path $probeDir 'Shnapp.deps.json') `
-            -OutputDirectory "src/Shnapp.App/obj/$env:TARGET_PLATFORM/DistributionNotices"
-      - name: Build unsigned Store submission MSIX
-        shell: pwsh
-        run: |
-          $version = $env:RELEASE_TAG.Substring(1)
-          # MSBuild concatenates the package name to AppxPackageDir; it must end in a separator.
-          $packageDir = (Join-Path $env:GITHUB_WORKSPACE 'store-packages') + [System.IO.Path]::DirectorySeparatorChar
-          msbuild src/Shnapp.App/Shnapp.App.csproj /restore /p:RestoreLockedMode=true /p:Configuration=Release "/p:Platform=$env:TARGET_PLATFORM" "/p:RuntimeIdentifier=$env:TARGET_RID" /p:SelfContained=true /p:ShnappDistribution=Store /p:GenerateAppxPackageOnBuild=true /p:AppxPackageSigningEnabled=false /p:AppxBundle=Never /p:UapAppxPackageBuildMode=StoreUpload "/p:AppxPackageDir=$packageDir" "/p:Version=$version" "/p:AssemblyVersion=$version.0" "/p:FileVersion=$version.0" "/p:InformationalVersion=$version"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $packages = @(Get-ChildItem -Path $packageDir -Recurse -File -Filter '*.msix')
-          if ($packages.Count -ne 1) { throw "Expected one MSIX for $env:TARGET_RID; found $($packages.Count)." }
-          Copy-Item -LiteralPath $packages[0].FullName -Destination (Join-Path $env:GITHUB_WORKSPACE "Shnapp-$env:TARGET_RID.msix")
-          $uploads = @(Get-ChildItem -Path $packageDir -Recurse -File -Filter '*.msixupload')
-          if ($uploads.Count -ne 1) { throw "Expected one MSIX upload file for $env:TARGET_RID; found $($uploads.Count)." }
-          Copy-Item -LiteralPath $uploads[0].FullName -Destination (Join-Path $env:GITHUB_WORKSPACE "Shnapp-$env:TARGET_RID.msixupload")
-      - name: Check out Store validation tools
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          ref: ${{ github.ref }}
-          path: store-validation-tools
-          sparse-checkout: packaging/store/Assert-StorePackage.ps1
-          sparse-checkout-cone-mode: false
-      - name: Validate Store package identity and upload contents
-        shell: pwsh
-        run: |
-          ./store-validation-tools/packaging/store/Assert-StorePackage.ps1 `
-            -PackagePath "Shnapp-$env:TARGET_RID.msix" `
-            -UploadPath "Shnapp-$env:TARGET_RID.msixupload" `
-            -ReleaseTag $env:RELEASE_TAG `
-            -IdentityName $env:STORE_IDENTITY_NAME `
-            -IdentityPublisher $env:STORE_IDENTITY_PUBLISHER `
-            -PublisherDisplayName $env:STORE_PUBLISHER_DISPLAY_NAME `
-            -ProcessorArchitecture $env:TARGET_PLATFORM
-      - name: Upload Store candidate for manual Partner Center submission
-        uses: actions/upload-artifact@v7
-        with:
-          name: Store-${{ matrix.rid }}
-          path: |
-            Shnapp-${{ matrix.rid }}.msix
-            Shnapp-${{ matrix.rid }}.msixupload
-          if-no-files-found: error
-
   publish-release:
-    name: Publish reviewed draft GitHub Release
-    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'publish-github-release'
+    name: Publish release and current-version feed
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      (inputs.operation == 'publish-github-release' || inputs.operation == 'refresh-release-metadata')
     runs-on: ubuntu-latest
+    concurrency:
+      group: shnapp-release-publication
+      cancel-in-progress: false
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       RELEASE_TAG: ${{ inputs.release_tag }}
+      RELEASE_OPERATION: ${{ inputs.operation }}
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
           ref: main
-      - name: Verify draft release and publish
+      - name: Verify release assets and publish reviewed draft
         shell: bash
         run: |
           set -euo pipefail
@@ -336,14 +272,136 @@ jobs:
             echo 'Release tag commit must be reachable from main.' >&2
             exit 1
           fi
-          if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" != 'true' ]]; then
+          is_draft="$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)"
+          if [[ "$RELEASE_OPERATION" == 'publish-github-release' && "$is_draft" != 'true' ]]; then
             echo 'The release must exist as a draft before publication.' >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_OPERATION" == 'refresh-release-metadata' && "$is_draft" != 'false' ]]; then
+            echo 'Metadata refresh requires an already public release.' >&2
             exit 1
           fi
           mkdir -p downloaded-assets
           gh release download "$RELEASE_TAG" --dir downloaded-assets
-          bash packaging/release/verify-release-assets.sh downloaded-assets "$RELEASE_TAG"
-          gh release edit "$RELEASE_TAG" --draft=false
+          if [[ "$RELEASE_OPERATION" == 'refresh-release-metadata' && "$RELEASE_TAG" == 'v1.0.5' ]]; then
+            # Seed the feed from the last published versioned-layout release.
+            bash packaging/release/verify-release-assets.sh downloaded-assets "$RELEASE_TAG"
+          else
+            bash packaging/release/verify-release-assets.sh downloaded-assets "$RELEASE_TAG" single-file
+          fi
+          gh release view "$RELEASE_TAG" --json body --jq .body > "$RUNNER_TEMP/release-body.md"
+          if (( $(wc -c < "$RUNNER_TEMP/release-body.md") > 30000 )); then
+            echo 'Release notes exceed the website feed limit of 30,000 UTF-8 bytes.' >&2
+            exit 1
+          fi
+          if ! awk -v tag="$RELEASE_TAG" '
+            $0 == "## New in " tag { in_changes = 1; next }
+            in_changes && /^## / { exit }
+            in_changes && /^[*-] / { found = 1 }
+            END { exit !found }
+          ' "$RUNNER_TEMP/release-body.md"; then
+            echo "Release notes need a '## New in $RELEASE_TAG' section with at least one change." >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_OPERATION" == 'publish-github-release' ]]; then
+            github_api_status() {
+              curl --silent --show-error --location \
+                --header "Authorization: Bearer $GH_TOKEN" \
+                --header 'Accept: application/vnd.github+json' \
+                --header 'X-GitHub-Api-Version: 2022-11-28' \
+                --output "$2" --write-out '%{http_code}' \
+                "https://api.github.com/repos/$GH_REPO/$1"
+            }
+            require_newer_than() {
+              local existing_tag="$1" source="$2"
+              if [[ ! "$existing_tag" =~ ^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+                echo "$source has an unexpected tag: $existing_tag" >&2
+                exit 1
+              fi
+              if [[ "$RELEASE_TAG" == "$existing_tag" ||
+                    "$(printf '%s\n' "$existing_tag" "$RELEASE_TAG" | LC_ALL=C sort -V | tail -n 1)" != "$RELEASE_TAG" ]]; then
+                echo "Release $RELEASE_TAG must be newer than $source $existing_tag." >&2
+                exit 1
+              fi
+            }
+            latest_status="$(github_api_status 'releases/latest' "$RUNNER_TEMP/latest-release.json")"
+            case "$latest_status" in
+              200)
+                latest_tag="$(jq -er '.tag_name' "$RUNNER_TEMP/latest-release.json")"
+                require_newer_than "$latest_tag" 'latest public release'
+                ;;
+              404) ;;
+              *) echo "Could not read the latest public release (HTTP $latest_status)." >&2; exit 1 ;;
+            esac
+            feed_status="$(github_api_status 'contents/latest.json?ref=release-metadata' "$RUNNER_TEMP/current-release-feed-response.json")"
+            case "$feed_status" in
+              200)
+                if ! jq -e '.type == "file" and .encoding == "base64" and (.content | type == "string")' \
+                  "$RUNNER_TEMP/current-release-feed-response.json" >/dev/null; then
+                  echo 'Current release metadata is not a readable file.' >&2
+                  exit 1
+                fi
+                jq -er '.content' "$RUNNER_TEMP/current-release-feed-response.json" |
+                  base64 --decode > "$RUNNER_TEMP/current-release-feed.json"
+                if ! jq -e '.schemaVersion == 1 and (.version | type == "string") and (.tag | type == "string")' \
+                  "$RUNNER_TEMP/current-release-feed.json" >/dev/null; then
+                  echo 'Current release metadata has an invalid schema.' >&2
+                  exit 1
+                fi
+                feed_tag="$(jq -er '.tag' "$RUNNER_TEMP/current-release-feed.json")"
+                feed_version="$(jq -er '.version' "$RUNNER_TEMP/current-release-feed.json")"
+                if [[ "$feed_tag" != "v$feed_version" ]]; then
+                  echo 'Current release metadata tag and version disagree.' >&2
+                  exit 1
+                fi
+                require_newer_than "$feed_tag" 'current website release'
+                ;;
+              404) ;;
+              *) echo "Could not read current release metadata (HTTP $feed_status)." >&2; exit 1 ;;
+            esac
+            gh release edit "$RELEASE_TAG" --draft=false
+          fi
+      - name: Publish verified release metadata for the website
+        shell: pwsh
+        run: |
+          gh release view $env:RELEASE_TAG --json tagName,url,isDraft,isPrerelease,publishedAt,body,assets > release-details.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./packaging/release/Write-ReleaseMetadata.ps1 `
+            -ReleaseTag $env:RELEASE_TAG `
+            -Repository $env:GH_REPO `
+            -ReleaseJsonPath release-details.json `
+            -AssetsDirectory downloaded-assets `
+            -OutputPath release-metadata/latest.json
+          ./packaging/release/Publish-ReleaseMetadata.ps1 `
+            -FilePath release-metadata/latest.json `
+            -Repository $env:GH_REPO
+
+  scoop-release:
+    name: Verify Scoop update
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.operation == 'publish-github-release' &&
+      needs.publish-release.result == 'success'
+    needs: publish-release
+    uses: ./.github/workflows/scoop.yml
+    with:
+      release_tag: ${{ inputs.release_tag }}
+    secrets:
+      SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+
+  winget-release:
+    name: Verify WinGet candidate
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.operation == 'publish-github-release' &&
+      needs.publish-release.result == 'success'
+    needs: publish-release
+    uses: ./.github/workflows/winget.yml
+    with:
+      release_tag: ${{ inputs.release_tag }}
+      submit: false
+    secrets:
+      WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
 
   chocolatey-verify:
     name: Pack and test Chocolatey
@@ -460,12 +518,13 @@ jobs:
 
   chocolatey-publish:
     name: Submit Chocolatey package
+    # First-package moderation currently blocks new versions; submit only when requested.
     if: >-
       always() && !cancelled() &&
       needs.chocolatey-verify.result == 'success' &&
       github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
-      (inputs.operation == 'publish-github-release' || inputs.operation == 'publish-chocolatey')
+      inputs.operation == 'publish-chocolatey'
     needs: chocolatey-verify
     runs-on: windows-2025
     steps:

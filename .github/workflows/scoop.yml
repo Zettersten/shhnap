@@ -1,0 +1,121 @@
+name: Scoop catalog
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        required: true
+        type: string
+    secrets:
+      SCOOP_BUCKET_TOKEN:
+        required: false
+    outputs:
+      catalog_status:
+        description: available or pending; a successful workflow does not imply catalog publication
+        value: ${{ jobs.scoop.outputs.catalog_status }}
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Public stable Shnapp release tag
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scoop-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  scoop:
+    name: Check or update Scoop bucket
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      catalog_status: ${{ steps.catalog.outputs.catalog_status }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: refs/tags/${{ inputs.release_tag }}
+      - name: Verify release and bucket manifest
+        id: catalog
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo 'Provide a stable vX.Y.Z release tag.' >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo 'The release tag must be reachable from main.' >&2
+            exit 1
+          fi
+
+          release=$(gh release view "$RELEASE_TAG" --repo Zettersten/shhnap --json isDraft,isPrerelease,assets)
+          if [[ "$(jq -r '.isDraft or .isPrerelease' <<< "$release")" != 'false' ]]; then
+            echo 'The Scoop bucket can only use a public stable release.' >&2
+            exit 1
+          fi
+          x64_hash=$(jq -r '.assets[] | select(.name == "Shnapp-win-x64.zip") | .digest | sub("^sha256:"; "")' <<< "$release")
+          arm64_hash=$(jq -r '.assets[] | select(.name == "Shnapp-win-arm64.zip") | .digest | sub("^sha256:"; "")' <<< "$release")
+          if [[ ! "$x64_hash" =~ ^[0-9a-f]{64}$ || ! "$arm64_hash" =~ ^[0-9a-f]{64}$ ]]; then
+            echo 'The public release is missing verified ZIP digests.' >&2
+            exit 1
+          fi
+
+          version=${RELEASE_TAG#v}
+          x64_url="https://github.com/Zettersten/shhnap/releases/download/$RELEASE_TAG/Shnapp-win-x64.zip"
+          arm64_url="https://github.com/Zettersten/shhnap/releases/download/$RELEASE_TAG/Shnapp-win-arm64.zip"
+          read_manifest() {
+            gh api repos/Zettersten/scoop-bucket/contents/bucket/shnapp.json --jq .content | tr -d '\r\n' | base64 --decode
+          }
+          is_current() {
+            jq -e --arg version "$version" --arg x64 "$x64_hash" --arg arm64 "$arm64_hash" \
+              --arg x64url "$x64_url" --arg arm64url "$arm64_url" \
+              '.version == $version and .architecture."64bit".hash == $x64 and
+               .architecture.arm64.hash == $arm64 and
+               .architecture."64bit".url == $x64url and
+               .architecture.arm64.url == $arm64url' >/dev/null
+          }
+
+          manifest=$(read_manifest)
+          if is_current <<< "$manifest"; then
+            echo 'catalog_status=available' >> "$GITHUB_OUTPUT"
+            echo "### Scoop: $RELEASE_TAG is available" >> "$GITHUB_STEP_SUMMARY"
+            echo 'The owner bucket has the exact release URLs and SHA-256 digests.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [[ -z "$SCOOP_BUCKET_TOKEN" ]]; then
+            echo 'catalog_status=pending' >> "$GITHUB_OUTPUT"
+            echo "### Scoop: $RELEASE_TAG is pending" >> "$GITHUB_STEP_SUMMARY"
+            echo 'The bucket Excavator checks releases every four hours. For immediate dispatch, set the `SCOOP_BUCKET_TOKEN` secret with Actions write access to Zettersten/scoop-bucket, then rerun this workflow.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if ! GH_TOKEN="$SCOOP_BUCKET_TOKEN" gh workflow run excavator.yml --repo Zettersten/scoop-bucket --ref master; then
+            echo 'catalog_status=pending' >> "$GITHUB_OUTPUT"
+            echo "### Scoop: $RELEASE_TAG is pending" >> "$GITHUB_STEP_SUMMARY"
+            echo 'Excavator dispatch failed. Check that `SCOOP_BUCKET_TOKEN` has Actions write access to Zettersten/scoop-bucket; the scheduled run is still available.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          for attempt in {1..12}; do
+            sleep 15
+            if manifest=$(read_manifest) && is_current <<< "$manifest"; then
+              echo 'catalog_status=available' >> "$GITHUB_OUTPUT"
+              echo "### Scoop: $RELEASE_TAG is available" >> "$GITHUB_STEP_SUMMARY"
+              echo 'Excavator committed the matching release URLs and SHA-256 digests.' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          done
+
+          echo 'catalog_status=pending' >> "$GITHUB_OUTPUT"
+          echo "### Scoop: $RELEASE_TAG is pending" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Excavator was dispatched, but the public bucket has not updated yet. Check its [workflow run](https://github.com/Zettersten/scoop-bucket/actions/workflows/excavator.yml) and rerun this check.' >> "$GITHUB_STEP_SUMMARY"

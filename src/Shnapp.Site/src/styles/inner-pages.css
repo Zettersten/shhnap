@@ -81,6 +81,16 @@
 .download-page .dl-architecture-help { margin: 1.65rem 0 0; color: var(--inner-muted); font-size: .93rem; }
 .download-page .dl-architecture-help strong,
 .download-page .dl-architecture-help span { color: var(--inner-ink); }
+.download-page .dl-release-details { margin-top: 2.4rem; padding-top: 1.5rem; border-top: 1px solid var(--inner-line); }
+.download-page .dl-release-details > p { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .5rem; margin: 0; color: var(--inner-muted); font-size: .93rem; }
+.download-page .dl-release-details > p a { color: #095fbf; font-weight: 700; }
+.download-page .dl-release-details > p time { margin-left: auto; color: #65718a; font-size: .84rem; }
+.download-page .dl-release-changes { max-width: 75ch; margin-top: 1.8rem; }
+.download-page .dl-release-changes[hidden] { display: none; }
+.download-page .dl-release-changes h3 { margin: 0 0 .7rem; font-size: 1.35rem; font-weight: 710; letter-spacing: -.015em; }
+.download-page .dl-release-changes ul { margin: 0 0 .9rem; padding-left: 1.25rem; color: #3f506a; font-size: .94rem; line-height: 1.65; }
+.download-page .dl-release-changes li + li { margin-top: .35rem; }
+.download-page .dl-release-changes > a { color: #095fbf; font-size: .9rem; font-weight: 680; }
 
 .download-page .dl-setup-section { padding-block: clamp(5.3rem, 8vw, 8rem); background: radial-gradient(ellipse at 4% 92%, rgba(77, 111, 209, .18), transparent 38%), #172443; color: #f8faff; }
 .download-page .dl-setup-layout { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1fr); gap: clamp(3rem, 9vw, 9rem); }
@@ -210,6 +220,7 @@
   .download-page .dl-hero-preview figcaption { text-align: left; }
   .download-page .dl-build-grid { grid-template-columns: 1fr; }
   .download-page .dl-build-card { min-height: 300px; }
+  .download-page .dl-release-details > p time { width: 100%; margin-left: 0; }
   .download-page .dl-section-intro h2,
   .download-page .dl-setup-heading h2,
   .download-page .dl-info-heading h2 { font-size: clamp(2.7rem, 9vw, 3.7rem); }

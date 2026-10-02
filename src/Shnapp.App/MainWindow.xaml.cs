@@ -7,6 +7,7 @@ namespace Shnapp.App;
 /// <summary>The single native window; ordinary close returns it to the tray.</summary>
 public sealed partial class MainWindow : Window
 {
+    private nint _windowIcon;
     internal MainPage Page { get; }
     internal SettingsPage? Settings { get; private set; }
 
@@ -45,7 +46,16 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
 
-        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
+        _windowIcon = Windows.NativeMethods.LoadAppIcon(32);
+        AppWindow.SetIcon(Microsoft.UI.Win32Interop.GetIconIdFromIcon(_windowIcon));
+        Closed += (_, _) =>
+        {
+            if (_windowIcon != 0)
+            {
+                Windows.NativeMethods.DestroyIcon(_windowIcon);
+                _windowIcon = 0;
+            }
+        };
         Page = new MainPage();
         RootFrame.Content = Page;
         RectInt32 work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
