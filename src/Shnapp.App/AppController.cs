@@ -138,6 +138,15 @@ internal sealed partial class AppController
             _page.ShowMessage("Local library unavailable", exception.Message + " Your capture can still be copied or exported.");
         }
 
+        if (PackageManagerUpdateRunner.TakeResult(_options.DataRoot) is { } managerUpdate)
+        {
+            _page.ShowMessage(managerUpdate.ExitCode == 0 ? "Package update finished" : "Package update could not finish",
+                managerUpdate.ExitCode == 0
+                    ? $"{managerUpdate.Channel} finished checking and installing Shnapp. This copy is version {InstalledVersionText}."
+                    : $"{managerUpdate.Channel} could not complete the update. Open About & Updates to try again.",
+                managerUpdate.ExitCode == 0 ? InfoBarSeverity.Success : InfoBarSeverity.Warning);
+        }
+
         if (!_options.Isolated && !HasPackageIdentity)
         {
             try
@@ -671,6 +680,7 @@ internal sealed partial class AppController
         _activeCapture?.Cancel();
         _saveTimer.Stop();
         _updateTimer.Stop();
+        _storeUpdateTimer?.Stop();
         await _captureGate.WaitAsync();
         try
         {

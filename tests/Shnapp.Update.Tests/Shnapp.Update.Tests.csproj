@@ -11,5 +11,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\src\Shnapp.App\Windows\ReleaseUpdateChecker.cs" Link="ReleaseUpdateChecker.cs" />
+    <Compile Include="..\..\src\Shnapp.App\Windows\InstallationChannel.cs" Link="InstallationChannel.cs" />
+    <Compile Include="..\..\src\Shnapp.App\Windows\PortableUpdateStager.cs" Link="PortableUpdateStager.cs" />
+    <Compile Include="..\..\src\Shnapp.App\Windows\PackageManagerUpdateRunner.cs" Link="PackageManagerUpdateRunner.cs" />
   </ItemGroup>
 </Project>

@@ -94,27 +94,35 @@ jobs:
         run: |
           dotnet restore src/Shnapp.App/Shnapp.App.csproj --locked-mode "-p:Platform=$env:TARGET_PLATFORM"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $launcherLock = Join-Path $env:GITHUB_WORKSPACE "src/Shnapp.Launcher/packages.$env:TARGET_RID.lock.json"
+          dotnet restore src/Shnapp.Launcher/Shnapp.Launcher.csproj -r $env:TARGET_RID --locked-mode "-p:NuGetLockFilePath=$launcherLock"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publish portable app and checksum
         shell: pwsh
         run: |
           $publishDir = Join-Path $env:RUNNER_TEMP 'shnapp-publish'
+          $launcherDir = Join-Path $env:RUNNER_TEMP 'shnapp-launcher'
+          $layoutDir = Join-Path $env:RUNNER_TEMP 'shnapp-layout'
           $assetsDir = Join-Path $env:GITHUB_WORKSPACE 'release-assets'
           $version = $env:RELEASE_TAG.Substring(1)
           dotnet publish src/Shnapp.App/Shnapp.App.csproj -c Release -r $env:TARGET_RID --no-restore --self-contained true --output $publishDir "-p:Platform=$env:TARGET_PLATFORM" "-p:Version=$version" "-p:AssemblyVersion=$version.0" "-p:FileVersion=$version.0" "-p:InformationalVersion=$version"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $launcherLock = Join-Path $env:GITHUB_WORKSPACE "src/Shnapp.Launcher/packages.$env:TARGET_RID.lock.json"
+          dotnet publish src/Shnapp.Launcher/Shnapp.Launcher.csproj -c Release -r $env:TARGET_RID --no-restore --output $launcherDir "-p:NuGetLockFilePath=$launcherLock" "-p:Version=$version" "-p:AssemblyVersion=$version.0" "-p:FileVersion=$version.0" "-p:InformationalVersion=$version"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./packaging/release/Add-ThirdPartyNotices.ps1 `
             -DepsPath (Join-Path $publishDir 'Shnapp.deps.json') `
             -OutputDirectory $publishDir
-          foreach ($requiredFile in @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')) {
-            if (-not (Test-Path -LiteralPath (Join-Path $publishDir $requiredFile) -PathType Leaf)) {
-              throw "The published app does not contain $requiredFile."
-            }
-          }
+          ./packaging/release/New-PortableLayout.ps1 `
+            -ReleaseTag $env:RELEASE_TAG `
+            -PayloadDirectory $publishDir `
+            -LauncherDirectory $launcherDir `
+            -OutputDirectory $layoutDir
           New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
           $archiveName = "Shnapp-$env:TARGET_RID.zip"
           $archive = Join-Path $assetsDir $archiveName
           [System.IO.Compression.ZipFile]::CreateFromDirectory(
-            $publishDir, $archive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+            $layoutDir, $archive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
           $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           [System.IO.File]::WriteAllText("$archive.sha256", "$hash  $archiveName`n", [System.Text.Encoding]::ASCII)
       - name: Upload release assets
@@ -142,7 +150,9 @@ jobs:
           path: release-assets
       - name: Verify build assets
         shell: bash
-        run: bash packaging/release/verify-release-assets.sh release-assets
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash packaging/release/verify-release-assets.sh release-assets "$RELEASE_TAG"
       - name: Create draft and verify uploaded assets
         shell: bash
         env:
@@ -164,7 +174,7 @@ jobs:
           fi
           mkdir -p uploaded-assets
           gh release download "$RELEASE_TAG" --dir uploaded-assets
-          bash packaging/release/verify-release-assets.sh uploaded-assets
+          bash packaging/release/verify-release-assets.sh uploaded-assets "$RELEASE_TAG"
           for asset in release-assets/*; do
             cmp "$asset" "uploaded-assets/$(basename "$asset")"
           done
@@ -332,7 +342,7 @@ jobs:
           fi
           mkdir -p downloaded-assets
           gh release download "$RELEASE_TAG" --dir downloaded-assets
-          bash packaging/release/verify-release-assets.sh downloaded-assets
+          bash packaging/release/verify-release-assets.sh downloaded-assets "$RELEASE_TAG"
           gh release edit "$RELEASE_TAG" --draft=false
 
   chocolatey-verify:

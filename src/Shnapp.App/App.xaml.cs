@@ -62,6 +62,7 @@ public partial class App : Application
         if (!firstInstance)
         {
             NativeMethods.PostMessage(0xFFFF, activationMessage, 0, 0);
+            SignalLauncherHealthy(options.LauncherHealthToken);
             _instance.Dispose();
             _instance = null;
             Exit();
@@ -80,6 +81,23 @@ public partial class App : Application
         if (options.Background)
         {
             Window.AppWindow.Hide();
+        }
+        SignalLauncherHealthy(options.LauncherHealthToken);
+    }
+
+    private static void SignalLauncherHealthy(string? token)
+    {
+        if (token is null) { return; }
+        try
+        {
+            using EventWaitHandle healthy = EventWaitHandle.OpenExisting(
+                "Local\\Shnapp.LauncherHealth." + token);
+            healthy.Set();
+        }
+        catch (Exception exception) when (exception is WaitHandleCannotBeOpenedException or
+            UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            // The launcher may already have exited; app startup is still successful.
         }
     }
 }

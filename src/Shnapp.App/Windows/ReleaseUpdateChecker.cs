@@ -1,7 +1,9 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Shnapp.App.Windows;
 
@@ -9,6 +11,8 @@ namespace Shnapp.App.Windows;
 internal sealed class ReleaseUpdateChecker
 {
     private static readonly Uri DefaultApiUri = new("https://api.github.com/repos/Zettersten/shhnap/releases/latest");
+    private static readonly Regex StableTag = new(@"^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$", RegexOptions.Compiled);
+    private static readonly Regex Sha256Digest = new(@"^sha256:([a-fA-F0-9]{64})$", RegexOptions.Compiled);
     private static readonly HttpClient Client = CreateClient();
     private readonly string _statePath;
     private readonly HttpClient _client;
@@ -119,6 +123,9 @@ internal sealed class ReleaseUpdateChecker
                             ETag = null,
                             LatestTag = null,
                             LatestPage = null,
+                            AssetUrl = null,
+                            AssetSha256 = null,
+                            AssetSize = null,
                         };
                         await SaveAsync(state, cancellationToken);
                         return new("No public stable GitHub release is available yet.");
@@ -145,6 +152,8 @@ internal sealed class ReleaseUpdateChecker
                         throw new InvalidDataException("GitHub returned release details Shnapp could not verify.");
                     }
 
+                    ReleaseAsset? asset = GetReleaseAsset(root, tag!, canonicalApiUrl);
+
                     state = state with
                     {
                         LastAttemptUtc = now,
@@ -153,6 +162,9 @@ internal sealed class ReleaseUpdateChecker
                         LatestTag = tag,
                         LatestPage = page,
                         ApiUrl = canonicalApiUrl,
+                        AssetUrl = asset?.Url.AbsoluteUri,
+                        AssetSha256 = asset is null ? null : "sha256:" + asset.Sha256,
+                        AssetSize = asset?.Size,
                     };
                     await SaveAsync(state, cancellationToken);
                     return FromCache(state, installedVersion, null);
@@ -182,7 +194,9 @@ internal sealed class ReleaseUpdateChecker
             string message = overrideMessage ?? (newer
                 ? $"Shnapp {state.LatestTag} is available on GitHub. Package manager releases may follow later."
                 : "Shnapp is up to date with the latest stable GitHub release.");
-            return new(message, newer, state.LatestTag, new Uri(state.LatestPage!), isError);
+            ReleaseAsset? asset = ValidAsset(state.AssetUrl, state.AssetSha256, state.AssetSize,
+                state.LatestTag!, state.ApiUrl);
+            return new(message, newer, state.LatestTag, new Uri(state.LatestPage!), isError, asset);
         }
 
         return new(overrideMessage ?? "No public stable GitHub release has been found yet.", IsError: isError);
@@ -197,6 +211,116 @@ internal sealed class ReleaseUpdateChecker
 
     private static Version Normalize(Version version) =>
         new(version.Major, version.Minor, Math.Max(version.Build, 0), Math.Max(version.Revision, 0));
+
+    private static ReleaseAsset? GetReleaseAsset(JsonElement release, string tag, string apiUrl)
+    {
+        if (!StableTag.IsMatch(tag) ||
+            !release.TryGetProperty("immutable", out JsonElement immutable) || immutable.ValueKind != JsonValueKind.True ||
+            (release.TryGetProperty("draft", out JsonElement draft) && draft.ValueKind == JsonValueKind.True) ||
+            (release.TryGetProperty("prerelease", out JsonElement prerelease) && prerelease.ValueKind == JsonValueKind.True) ||
+            !release.TryGetProperty("assets", out JsonElement assets) || assets.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        string? expectedName = RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64 => "Shnapp-win-x64.zip",
+            Architecture.Arm64 => "Shnapp-win-arm64.zip",
+            _ => null,
+        };
+        if (expectedName is null) { return null; }
+
+        ReleaseAsset? found = null;
+        bool matched = false;
+        foreach (JsonElement item in assets.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object ||
+                !item.TryGetProperty("name", out JsonElement name) ||
+                name.ValueKind != JsonValueKind.String || name.GetString() != expectedName)
+            {
+                continue;
+            }
+
+            if (matched) { return null; }
+            matched = true;
+            string? url = item.TryGetProperty("browser_download_url", out JsonElement urlValue) &&
+                urlValue.ValueKind == JsonValueKind.String ? urlValue.GetString() : null;
+            string? digest = item.TryGetProperty("digest", out JsonElement digestValue) &&
+                digestValue.ValueKind == JsonValueKind.String ? digestValue.GetString() : null;
+            long? size = item.TryGetProperty("size", out JsonElement sizeValue) &&
+                sizeValue.ValueKind == JsonValueKind.Number && sizeValue.TryGetInt64(out long parsedSize)
+                ? parsedSize : null;
+            found = ValidAsset(url, digest, size, tag, apiUrl);
+        }
+
+        return found;
+    }
+
+    internal async Task<bool> CanRetryDownloadAsync(string tag, bool manual, CancellationToken cancellationToken)
+    {
+        if (manual) { return true; }
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ReleaseState state = _state ??= await LoadAsync(cancellationToken);
+            return state.LastFailedDownloadTag != tag ||
+                state.LastFailedDownloadUtc is not { } failed ||
+                _utcNow() - failed >= TimeSpan.FromDays(1);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    internal async Task RecordDownloadResultAsync(string tag, bool succeeded, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ReleaseState state = _state ??= await LoadAsync(cancellationToken);
+            await SaveAsync(state with
+            {
+                LastFailedDownloadTag = succeeded ? null : tag,
+                LastFailedDownloadUtc = succeeded ? null : _utcNow(),
+            }, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private static ReleaseAsset? ValidAsset(string? url, string? digest, long? size,
+        string tag, string? apiUrl)
+    {
+        if (!StableTag.IsMatch(tag) || size is null or <= 0 or > 400_000_000 ||
+            digest is null || !Sha256Digest.Match(digest).Success ||
+            !Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) ||
+            uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort ||
+            !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) ||
+            !string.IsNullOrEmpty(uri.Fragment) ||
+            !uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        Uri api = ValidApiUri(apiUrl) ?? DefaultApiUri;
+        string[] segments = api.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        string assetName = RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64 => "Shnapp-win-x64.zip",
+            Architecture.Arm64 => "Shnapp-win-arm64.zip",
+            _ => string.Empty,
+        };
+        if (uri.AbsolutePath != $"/{segments[1]}/{segments[2]}/releases/download/{tag}/{assetName}")
+        {
+            return null;
+        }
+
+        return new ReleaseAsset(uri, digest[7..].ToLowerInvariant(), size.Value, tag);
+    }
 
     private static bool IsReleasePage(string? value, string? apiUrl)
     {
@@ -301,8 +425,15 @@ internal sealed class ReleaseUpdateChecker
         public string? LatestTag { get; init; }
         public string? LatestPage { get; init; }
         public string? LastNotifiedTag { get; init; }
+        public string? AssetUrl { get; init; }
+        public string? AssetSha256 { get; init; }
+        public long? AssetSize { get; init; }
+        public string? LastFailedDownloadTag { get; init; }
+        public DateTimeOffset? LastFailedDownloadUtc { get; init; }
     }
 }
 
 internal sealed record ReleaseCheckResult(string Message, bool UpdateAvailable = false,
-    string? LatestTag = null, Uri? ReleasePage = null, bool IsError = false);
+    string? LatestTag = null, Uri? ReleasePage = null, bool IsError = false, ReleaseAsset? Asset = null);
+
+internal sealed record ReleaseAsset(Uri Url, string Sha256, long Size, string Tag);

@@ -6,7 +6,8 @@ using Windows.Storage;
 
 namespace Shnapp.App;
 
-internal sealed record LaunchOptions(string DataRoot, bool Background, bool Isolated)
+internal sealed record LaunchOptions(string DataRoot, bool Background, bool Isolated,
+    string? LauncherHealthToken = null)
 {
     private static readonly Guid LocalAppDataId = new("F1B32785-6FBA-4FCF-9D55-7B8E7F157091");
     private const uint NoPackageRedirection = 0x00010000;
@@ -60,6 +61,7 @@ internal sealed record LaunchOptions(string DataRoot, bool Background, bool Isol
         string root = DefaultDataRoot();
         bool background = false;
         bool isolated = false;
+        string? launcherHealthToken = null;
         string[] arguments = Environment.GetCommandLineArgs();
         for (int index = 1; index < arguments.Length; index++)
         {
@@ -72,9 +74,17 @@ internal sealed record LaunchOptions(string DataRoot, bool Background, bool Isol
                 root = Path.GetFullPath(arguments[++index]);
                 isolated = true;
             }
+            else if (arguments[index] == "--launcher-health" && index + 1 < arguments.Length)
+            {
+                string token = arguments[++index];
+                if (Guid.TryParseExact(token, "N", out Guid parsed))
+                {
+                    launcherHealthToken = parsed.ToString("N");
+                }
+            }
         }
 
-        return new(Path.TrimEndingDirectorySeparator(root), background, isolated);
+        return new(Path.TrimEndingDirectorySeparator(root), background, isolated, launcherHealthToken);
     }
 
     private static string DefaultDataRoot()

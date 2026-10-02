@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Shnapp.Core;
+using Shnapp.App.Windows;
 
 namespace Shnapp.App;
 
@@ -12,6 +13,7 @@ public sealed partial class SettingsPage : Page
 {
     private AppController? _controller;
     private Uri? _latestRelease;
+    private InstallationChannel _managerChannel;
 
     public SettingsPage() => InitializeComponent();
 
@@ -30,13 +32,38 @@ public sealed partial class SettingsPage : Page
             : "Editable originals stay here. Share the exported PNG when a capture contains private details.";
         VersionLabel.Text = "Version " + version;
         RuntimeLabel.Text = $"Windows {Environment.OSVersion.Version} · {RuntimeInformation.ProcessArchitecture} · .NET {Environment.Version}";
-        UpdateChannelLabel.Text = packaged
-            ? "Packaged build. Microsoft Store can provide updates when this copy was installed from its Store listing. Sideloaded packages depend on their original package source."
-            : "Portable build. Shnapp checks published stable releases on GitHub; package manager listings can update later.";
+        InstallationChannel channel = InstallationChannelDetector.Detect(packaged);
+        UpdateChannelLabel.Text = channel switch
+        {
+            InstallationChannel.Store => "Microsoft Store package. Store-installed copies can update here; sideloaded packages depend on their original source.",
+            InstallationChannel.DirectZip => "Direct ZIP copy. Shnapp checks GitHub and prepares verified releases for the next restart.",
+            InstallationChannel.Scoop => "Scoop owns this installation. Shnapp hands upgrades back to Scoop.",
+            InstallationChannel.WinGet => "WinGet owns this installation. Shnapp hands upgrades back to WinGet.",
+            InstallationChannel.Chocolatey => PackageManagerUpdateRunner.CanStartChocolatey()
+                ? "Chocolatey owns this installation. Its upgrade may ask for administrator permission."
+                : "Chocolatey owns this installation. Upgrade this custom copy from an Administrator Chocolatey terminal.",
+            _ => "Shnapp cannot verify this installation's source. Update it from the original source.",
+        };
         OpenStoreButton.Visibility = packaged ? Visibility.Visible : Visibility.Collapsed;
+        InstallStoreUpdateButton.Visibility = Visibility.Collapsed;
+        RestartStoreButton.Visibility = Visibility.Collapsed;
+        RestartPortableButton.Visibility = Visibility.Collapsed;
+        ManagerUpdateButton.Visibility = Visibility.Collapsed;
         UpdateMessage.Message = packaged
-            ? "Microsoft Store normally handles updates for Store-installed copies."
+            ? "Microsoft Store normally updates Store-installed copies. Shnapp checks periodically and can install an available update when you choose Update now."
             : "Shnapp checks for a stable GitHub release in the background at most once a day.";
+        UpdateHelpText.Text = channel switch
+        {
+            InstallationChannel.Store => "Microsoft Store controls automatic updates. Shnapp can install an available Store update when you choose Update now. Windows may close the app during installation.",
+            InstallationChannel.DirectZip when PortableUpdateStager.FindInstallRoot(AppContext.BaseDirectory) is null =>
+                "This older ZIP copy needs one manual download to enable automatic updates. Your library stays in your user folder.",
+            InstallationChannel.DirectZip => "Shnapp downloads a verified release in the background and uses it on the next restart. Your library stays in your user folder.",
+            InstallationChannel.Chocolatey when !PackageManagerUpdateRunner.CanStartChocolatey() =>
+                "This Chocolatey installation uses a custom location. Run choco upgrade shnapp -y from an Administrator terminal.",
+            InstallationChannel.Scoop or InstallationChannel.WinGet or InstallationChannel.Chocolatey =>
+                "Shnapp closes before asking your package manager to check and install an available upgrade. Catalog approval may lag the GitHub release.",
+            _ => "Open the original source of this copy to update it.",
+        };
         SettingsNavigation.SelectedItem = SettingsNavigation.MenuItems[showUpdates ? 1 : 0];
         SelectSection(showUpdates ? "updates" : "general");
     }
@@ -46,9 +73,20 @@ public sealed partial class SettingsPage : Page
         UpdateMessage.IsOpen = true;
         UpdateMessage.Message = result.Message;
         UpdateMessage.Severity = result.IsError ? InfoBarSeverity.Warning :
-            result.UpdateAvailable ? InfoBarSeverity.Success : InfoBarSeverity.Informational;
+            result.UpdateAvailable || result.PortableRestartRequired || result.StoreRestartRequired
+                ? InfoBarSeverity.Success : InfoBarSeverity.Informational;
         _latestRelease = result.ReleasePage;
         OpenLatestButton.Visibility = _latestRelease is null ? Visibility.Collapsed : Visibility.Visible;
+        InstallStoreUpdateButton.Visibility = result.StoreInstallAvailable ? Visibility.Visible : Visibility.Collapsed;
+        RestartStoreButton.Visibility = result.StoreRestartRequired ? Visibility.Visible : Visibility.Collapsed;
+        RestartPortableButton.Visibility = result.PortableRestartRequired ? Visibility.Visible : Visibility.Collapsed;
+        _managerChannel = result.ManagerChannel;
+        ManagerUpdateButton.Visibility = _managerChannel is InstallationChannel.Scoop or InstallationChannel.WinGet or InstallationChannel.Chocolatey
+            ? Visibility.Visible : Visibility.Collapsed;
+        if (ManagerUpdateButton.Visibility == Visibility.Visible)
+        {
+            ManagerUpdateButton.Content = "Update with " + _managerChannel;
+        }
     }
 
     private void BackToEditor_Click(object sender, RoutedEventArgs args) =>
@@ -135,6 +173,87 @@ public sealed partial class SettingsPage : Page
         if (_latestRelease is not null)
         {
             OpenExternal(_latestRelease);
+        }
+    }
+
+    private async void InstallStoreUpdate_Click(object sender, RoutedEventArgs args)
+    {
+        if (_controller is null)
+        {
+            return;
+        }
+
+        InstallStoreUpdateButton.IsEnabled = false;
+        CheckUpdatesButton.IsEnabled = false;
+        UpdateMessage.IsOpen = true;
+        UpdateMessage.Severity = InfoBarSeverity.Informational;
+        UpdateMessage.Message = "Saving your work and asking Microsoft Store to install the update…";
+        try
+        {
+            SetUpdateResult(await _controller.InstallStoreUpdateAsync());
+        }
+        catch (OperationCanceledException)
+        {
+            SetUpdateResult(new UpdateCheckResult("The update request was canceled."));
+        }
+        catch (Exception)
+        {
+            SetUpdateResult(new UpdateCheckResult("Could not install the Store update. Try Microsoft Store updates instead.",
+                IsError: true, StoreInstallAvailable: true));
+        }
+        finally
+        {
+            InstallStoreUpdateButton.IsEnabled = true;
+            CheckUpdatesButton.IsEnabled = true;
+        }
+    }
+
+    private async void RestartStore_Click(object sender, RoutedEventArgs args)
+    {
+        if (_controller is null)
+        {
+            return;
+        }
+
+        RestartStoreButton.IsEnabled = false;
+        try
+        {
+            SetUpdateResult(await _controller.RestartAfterStoreUpdateAsync());
+        }
+        finally
+        {
+            RestartStoreButton.IsEnabled = true;
+        }
+    }
+
+    private async void RestartPortable_Click(object sender, RoutedEventArgs args)
+    {
+        if (_controller is null) { return; }
+        RestartPortableButton.IsEnabled = false;
+        try
+        {
+            SetUpdateResult(await _controller.RestartAfterPortableUpdateAsync());
+        }
+        finally
+        {
+            RestartPortableButton.IsEnabled = true;
+        }
+    }
+
+    private async void ManagerUpdate_Click(object sender, RoutedEventArgs args)
+    {
+        if (_controller is null) { return; }
+        ManagerUpdateButton.IsEnabled = false;
+        UpdateMessage.IsOpen = true;
+        UpdateMessage.Severity = InfoBarSeverity.Informational;
+        UpdateMessage.Message = "Saving your work before asking " + _managerChannel + " to update Shnapp…";
+        try
+        {
+            SetUpdateResult(await _controller.UpdateWithPackageManagerAsync(_managerChannel));
+        }
+        finally
+        {
+            ManagerUpdateButton.IsEnabled = true;
         }
     }
 
