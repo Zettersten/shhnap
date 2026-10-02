@@ -86,19 +86,32 @@ internal sealed partial class AppController
         {
             try
             {
-                ShnappLibraryMigration.Result migration = await ShnappLibraryMigration.ImportOnceAsync(
-                    LaunchOptions.UnredirectedPortableDataRoot, Library.RootPath, _lifetime.Token);
-                if (!migration.Complete)
+                if (!ShnappLibraryMigration.IsComplete(Library.RootPath))
                 {
-                    _page.ShowMessage("Portable library import incomplete",
-                        "Some portable shnapps or settings could not be copied. Your original library is unchanged. " +
-                        "Close the portable copy and restart Shnapp to retry.", InfoBarSeverity.Warning);
-                }
-                else if (migration.ImportedDocuments > 0)
-                {
-                    _page.ShowMessage("Portable library imported",
-                        $"Copied {migration.ImportedDocuments} shnapp(s) into this Store library. " +
-                        "Your portable library is unchanged.", InfoBarSeverity.Success);
+                    string portableRoot = LaunchOptions.UnredirectedPortableDataRoot;
+                    if (LaunchOptions.IsPortableInstanceRunning(portableRoot))
+                    {
+                        _page.ShowMessage("Close portable Shnapp to import",
+                            "The portable copy is running. Quit it and restart this Store copy to import your library. " +
+                            "Your portable data is unchanged.", InfoBarSeverity.Warning);
+                    }
+                    else
+                    {
+                        ShnappLibraryMigration.Result migration = await ShnappLibraryMigration.ImportOnceAsync(
+                            portableRoot, Library.RootPath, _lifetime.Token);
+                        if (!migration.Complete)
+                        {
+                            _page.ShowMessage("Portable library import incomplete",
+                                "Some portable shnapps or settings could not be copied. Your original library is unchanged. " +
+                                "Close the portable copy and restart Shnapp to retry.", InfoBarSeverity.Warning);
+                        }
+                        else if (migration.ImportedDocuments > 0)
+                        {
+                            _page.ShowMessage("Portable library imported",
+                                $"Copied {migration.ImportedDocuments} shnapp(s) into this Store library. " +
+                                "Your portable library is unchanged.", InfoBarSeverity.Success);
+                        }
+                    }
                 }
             }
             catch (Exception exception) when (exception is IOException or InvalidDataException or

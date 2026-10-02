@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace Shnapp.Core;
 
 /// <summary>Copies a portable library into a packaged library once, without changing the source.</summary>
@@ -9,16 +11,33 @@ public static class ShnappLibraryMigration
         "original.png", "shnapp.png", "preview.png", "preview-fit.png",
         "preview-compact.png", "preview-dock.png",
     ];
+    private static readonly string[] SnapshotFiles = [.. DocumentFiles, "document.json"];
+
+    private sealed record FileFingerprint(long Length, DateTime LastWriteTimeUtc, string Sha256);
 
     public sealed record Result(int ImportedDocuments, int FailedDocuments, bool SettingsImported,
         bool SettingsFailed, bool Complete);
+
+    /// <summary>Whether the first portable-to-package import has already completed.</summary>
+    public static bool IsComplete(string packagedRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(packagedRoot);
+        string markerPath = Path.Combine(Path.GetFullPath(packagedRoot), CompletionFileName);
+        EnsureNotReparsePoint(markerPath);
+        return File.Exists(markerPath);
+    }
 
     /// <summary>
     /// Imports validated documents and settings from the portable root. Existing destination
     /// files are never replaced. A failed or interrupted import is retried on the next launch.
     /// </summary>
-    public static async Task<Result> ImportOnceAsync(string portableRoot, string packagedRoot,
-        CancellationToken cancellationToken = default)
+    public static Task<Result> ImportOnceAsync(string portableRoot, string packagedRoot,
+        CancellationToken cancellationToken = default) =>
+        ImportOnceAsync(portableRoot, packagedRoot, beforeSourceCheck: null, cancellationToken);
+
+    // The callback lets tests make a source edit at the exact point where a concurrent save matters.
+    internal static async Task<Result> ImportOnceAsync(string portableRoot, string packagedRoot,
+        Func<Guid, Task>? beforeSourceCheck, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(portableRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(packagedRoot);
@@ -38,10 +57,8 @@ public static class ShnappLibraryMigration
         EnsureNotReparsePoint(portableRoot);
         EnsureNotReparsePoint(packagedRoot);
         string markerPath = Path.Combine(packagedRoot, CompletionFileName);
-        EnsureNotReparsePoint(markerPath);
-        if (File.Exists(markerPath))
+        if (IsComplete(packagedRoot))
         {
-            EnsureNotReparsePoint(markerPath);
             return new Result(0, 0, false, false, Complete: true);
         }
 
@@ -76,35 +93,43 @@ public static class ShnappLibraryMigration
         string sourceDocuments = Path.Combine(portableRoot, "shnapps");
         string destinationDocuments = Path.Combine(packagedRoot, "shnapps");
         EnsureNotReparsePoint(destinationDocuments);
+        string[] sourceDirectoryNames = GetSourceDirectoryNames(sourceDocuments);
         if (Directory.Exists(sourceDocuments))
         {
             EnsureNotReparsePoint(sourceDocuments);
-            foreach (string sourceDirectory in Directory.EnumerateDirectories(sourceDocuments))
+            foreach (string directoryName in sourceDirectoryNames)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!Guid.TryParseExact(Path.GetFileName(sourceDirectory), "N", out Guid id) ||
+                if (!Guid.TryParseExact(directoryName, "N", out Guid id) ||
                     id == Guid.Empty)
                 {
                     continue;
                 }
 
+                string sourceDirectory = Path.Combine(sourceDocuments, directoryName);
                 string destinationDirectory = destination.GetDocumentDirectory(id);
                 string destinationDocument = Path.Combine(destinationDirectory, "document.json");
-                if (File.Exists(destinationDocument))
-                {
-                    EnsureNotReparsePoint(destinationDirectory);
-                    EnsureNotReparsePoint(destinationDocument);
-                    continue;
-                }
-
                 try
                 {
+                    if (File.Exists(destinationDocument))
+                    {
+                        EnsureNotReparsePoint(destinationDirectory);
+                        EnsureNotReparsePoint(destinationDocument);
+                        if (await destination.OpenAsync(id, cancellationToken).ConfigureAwait(false) is null)
+                        {
+                            throw new InvalidDataException("An existing Store shnapp could not be validated.");
+                        }
+                        continue;
+                    }
+
                     EnsureNotReparsePoint(sourceDirectory);
                     if (await source.OpenAsync(id, cancellationToken).ConfigureAwait(false) is null)
                     {
                         failed++;
                         continue;
                     }
+                    FileFingerprint?[] sourceBefore = await CaptureFingerprintsAsync(sourceDirectory,
+                        checkPendingSave: true, cancellationToken).ConfigureAwait(false);
 
                     EnsureNotReparsePoint(destinationDirectory);
                     if (Directory.Exists(destinationDirectory))
@@ -140,6 +165,19 @@ public static class ShnappLibraryMigration
                             throw new InvalidDataException("A copied portable shnapp could not be validated.");
                         }
 
+                        if (beforeSourceCheck is not null)
+                        {
+                            await beforeSourceCheck(id).ConfigureAwait(false);
+                        }
+                        FileFingerprint?[] staged = await CaptureFingerprintsAsync(stageDirectory,
+                            checkPendingSave: false, cancellationToken).ConfigureAwait(false);
+                        FileFingerprint?[] sourceAfter = await CaptureFingerprintsAsync(sourceDirectory,
+                            checkPendingSave: true, cancellationToken).ConfigureAwait(false);
+                        if (!sourceBefore.SequenceEqual(staged) || !sourceBefore.SequenceEqual(sourceAfter))
+                        {
+                            throw new IOException("The portable shnapp changed during import; retry after closing it.");
+                        }
+
                         EnsureNotReparsePoint(destinationDocuments);
                         Directory.CreateDirectory(destinationDocuments);
                         EnsureNotReparsePoint(destinationDocuments);
@@ -157,6 +195,13 @@ public static class ShnappLibraryMigration
                     failed++;
                 }
             }
+        }
+
+        if (!sourceDirectoryNames.SequenceEqual(GetSourceDirectoryNames(sourceDocuments),
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))
+        {
+            // A capture created or removed during import must be considered on the next launch.
+            failed++;
         }
 
         if (failed == 0 && !settingsFailed)
@@ -209,6 +254,54 @@ public static class ShnappLibraryMigration
         {
             File.Delete(temporary);
         }
+    }
+
+    private static async Task<FileFingerprint?[]> CaptureFingerprintsAsync(string directory,
+        bool checkPendingSave, CancellationToken cancellationToken)
+    {
+        if (checkPendingSave) { EnsureNoPendingSave(directory); }
+        var fingerprints = new FileFingerprint?[SnapshotFiles.Length];
+        for (int index = 0; index < SnapshotFiles.Length; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string path = Path.Combine(directory, SnapshotFiles[index]);
+            EnsureNotReparsePoint(path);
+            if (!File.Exists(path)) { continue; }
+
+            DateTime modified = File.GetLastWriteTimeUtc(path);
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.Read | FileShare.Delete, 65536,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            long length = stream.Length;
+            string hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken)
+                .ConfigureAwait(false));
+            if (modified != File.GetLastWriteTimeUtc(path) || length != new FileInfo(path).Length)
+            {
+                throw new IOException("A portable shnapp changed during import.");
+            }
+            fingerprints[index] = new FileFingerprint(length, modified, hash);
+        }
+        if (checkPendingSave) { EnsureNoPendingSave(directory); }
+        return fingerprints;
+    }
+
+    private static void EnsureNoPendingSave(string directory)
+    {
+        if (Directory.EnumerateFiles(directory, ".document.json.*.tmp").Any())
+        {
+            throw new IOException("A portable shnapp is still being saved.");
+        }
+    }
+
+    private static string[] GetSourceDirectoryNames(string documentsRoot)
+    {
+        if (!Directory.Exists(documentsRoot)) { return []; }
+        EnsureNotReparsePoint(documentsRoot);
+        return Directory.EnumerateDirectories(documentsRoot)
+            .Select(static path => Path.GetFileName(path)!)
+            .OrderBy(static name => name, OperatingSystem.IsWindows()
+                ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static async Task WriteMarkerAsync(string path, CancellationToken cancellationToken)

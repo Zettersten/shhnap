@@ -42,6 +42,19 @@ internal sealed record LaunchOptions(string DataRoot, bool Background, bool Isol
     internal string InstanceKey => Convert.ToHexString(SHA256.HashData(
         Encoding.UTF8.GetBytes(Environment.UserName + "|" + DataRoot.ToUpperInvariant())))[..24];
 
+    internal static bool IsPortableInstanceRunning(string portableRoot)
+    {
+        string normalized = Path.TrimEndingDirectorySeparator(Path.GetFullPath(portableRoot));
+        string mutexName = "Local\\Shnapp-" + new LaunchOptions(normalized, false, false).InstanceKey;
+        if (!Mutex.TryOpenExisting(mutexName, out Mutex? existing))
+        {
+            return false;
+        }
+
+        existing.Dispose();
+        return true;
+    }
+
     internal static LaunchOptions Parse()
     {
         string root = DefaultDataRoot();
