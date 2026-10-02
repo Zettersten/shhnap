@@ -3,7 +3,12 @@ set -euo pipefail
 
 assets_dir="${1:?Pass the directory containing release assets.}"
 expected_tag="${2:-}"
+layout="${3:-legacy}"
 test -d "$assets_dir"
+if [[ "$layout" != 'legacy' && "$layout" != 'single-file' ]]; then
+  echo 'Unknown portable layout mode.' >&2
+  exit 1
+fi
 
 expected=$'Shnapp-win-arm64.zip\nShnapp-win-arm64.zip.sha256\nShnapp-win-x64.zip\nShnapp-win-x64.zip.sha256'
 actual="$(find "$assets_dir" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)"
@@ -54,6 +59,12 @@ fi
     grep -Fx "versions/$version/Shnapp.pri" <<<"$listing" >/dev/null
     grep -Fx "versions/$version/LICENSE" <<<"$listing" >/dev/null
     grep -Fx "versions/$version/THIRD_PARTY_NOTICES.txt" <<<"$listing" >/dev/null
+    if [[ "$layout" == 'single-file' ]]; then
+      grep -Eq "^versions/$version/THIRD_PARTY_NOTICES/.+" <<<"$listing" || {
+        echo "$archive is missing third-party license files." >&2
+        exit 1
+      }
+    fi
     while IFS= read -r entry; do
       if [[ "$entry" == /* || "$entry" == *\\* || "$entry" == *:* ||
             "$entry" == *../* || "$entry" == */.. || "$entry" == *./* ]]; then
@@ -64,6 +75,13 @@ fi
         Shnapp.exe|current-version.txt|LICENSE|THIRD_PARTY_NOTICES.txt|versions/|"versions/$version/"|"versions/$version/"*) ;;
         *) echo "Unexpected ZIP entry in $archive: $entry" >&2; exit 1 ;;
       esac
+      if [[ "$layout" == 'single-file' && "$entry" == "versions/$version/"* ]]; then
+        relative="${entry#versions/$version/}"
+        case "$relative" in
+          ''|Shnapp.exe|Shnapp.pri|LICENSE|THIRD_PARTY_NOTICES.txt|THIRD_PARTY_NOTICES/*) ;;
+          *) echo "Unexpected file in single-file payload: $entry" >&2; exit 1 ;;
+        esac
+      fi
     done <<<"$listing"
   done
 )

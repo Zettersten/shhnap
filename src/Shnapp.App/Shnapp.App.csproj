@@ -24,8 +24,12 @@
     <WindowsPackageType Condition="'$(ShnappDistribution)' == 'Store'">MSIX</WindowsPackageType>
     <WindowsPackageType Condition="'$(WindowsPackageType)' == ''">None</WindowsPackageType>
     <EnableMsixTooling Condition="'$(ShnappDistribution)' == 'Store'">true</EnableMsixTooling>
+    <EnableMsixTooling Condition="'$(ShnappDistribution)' == 'PortableSingleFile'">true</EnableMsixTooling>
     <EnableMsixTooling Condition="'$(EnableMsixTooling)' == ''">false</EnableMsixTooling>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained Condition="'$(ShnappDistribution)' == 'PortableSingleFile'">true</SelfContained>
+    <PublishSingleFile Condition="'$(ShnappDistribution)' == 'PortableSingleFile'">true</PublishSingleFile>
+    <IncludeAllContentForSelfExtract Condition="'$(ShnappDistribution)' == 'PortableSingleFile'">true</IncludeAllContentForSelfExtract>
     <EnableWinAppRunSupport>false</EnableWinAppRunSupport>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -140,6 +144,7 @@
   -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.9169" />
+    <PackageReference Include="Microsoft.NET.ILLink.Tasks" Version="10.0.12" PrivateAssets="all" />
     <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.9" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />

@@ -1,0 +1,174 @@
+name: WinGet catalog
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        required: true
+        type: string
+      submit:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      WINGET_CREATE_GITHUB_TOKEN:
+        required: false
+    outputs:
+      catalog_status:
+        description: available, pending-review, first-listing-pending, or ready-to-submit
+        value: ${{ jobs.winget.outputs.catalog_status }}
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Public stable Shnapp release tag
+        required: true
+        type: string
+      submit:
+        description: Submit a new manifest PR after the first Shnapp listing is accepted
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: winget-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  winget:
+    name: Verify candidate and check WinGet catalog
+    runs-on: windows-2025
+    timeout-minutes: 30
+    outputs:
+      catalog_status: ${{ steps.submit.outputs.catalog_status || steps.catalog.outputs.catalog_status }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: refs/tags/${{ inputs.release_tag }}
+      - name: Require a public stable release from main
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+            throw 'Provide a stable vX.Y.Z release tag.'
+          }
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'The release tag must be reachable from main.' }
+          $release = gh release view $env:RELEASE_TAG --repo Zettersten/shhnap --json isDraft,isPrerelease | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $release.isDraft -or $release.isPrerelease) {
+            throw 'WinGet candidates require a public stable GitHub release.'
+          }
+      - name: Download and verify immutable release assets
+        shell: pwsh
+        run: |
+          gh release download $env:RELEASE_TAG --repo Zettersten/shhnap --dir release-assets
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./packaging/release/New-CatalogPackages.ps1 `
+            -ReleaseTag $env:RELEASE_TAG `
+            -AssetsDirectory release-assets `
+            -OutputDirectory catalog-candidates
+      - name: Validate manifest when WinGet CLI is available
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_TAG.Substring(1)
+          $manifestDir = "catalog-candidates/winget/manifests/z/Zettersten/Shnapp/$version"
+          if (Get-Command winget -ErrorAction SilentlyContinue) {
+            winget validate $manifestDir
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          else {
+            'WinGet CLI is unavailable on this runner; Microsoft validates submitted PRs.' |
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          }
+      - name: Save verified candidate for review
+        uses: actions/upload-artifact@v7
+        with:
+          name: WinGet-${{ inputs.release_tag }}
+          path: catalog-candidates/winget/
+          if-no-files-found: error
+      - name: Check catalog and open submissions
+        id: catalog
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_TAG.Substring(1)
+          $catalogRoot = 'repos/microsoft/winget-pkgs/contents/manifests/z/Zettersten/Shnapp'
+          $catalogVersion = gh api "$catalogRoot/$version/Zettersten.Shnapp.yaml" --jq .name 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            'catalog_status=available' | Add-Content -Path $env:GITHUB_OUTPUT
+            "### WinGet: $env:RELEASE_TAG is in winget-pkgs" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+            exit 0
+          }
+          if (($catalogVersion | Out-String) -notmatch 'HTTP 404') {
+            throw "Unable to read WinGet catalog: $catalogVersion"
+          }
+
+          $catalogPackage = gh api $catalogRoot --jq '.[0].name' 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            if (($catalogPackage | Out-String) -notmatch 'HTTP 404') {
+              throw "Unable to read WinGet package listing: $catalogPackage"
+            }
+            'catalog_status=first-listing-pending' | Add-Content -Path $env:GITHUB_OUTPUT
+            '### WinGet: first listing is pending' | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+            '[The initial Shnapp manifest PR](https://github.com/microsoft/winget-pkgs/pull/445332) must be accepted before this workflow can submit updates. The verified candidate is attached to this run.' | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+            exit 0
+          }
+
+          $open = @(gh pr list --repo microsoft/winget-pkgs --state open --search 'Zettersten.Shnapp in:title' --json number,title,url | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to check open WinGet submissions.' }
+          if ($open.Count -gt 0) {
+            'catalog_status=pending-review' | Add-Content -Path $env:GITHUB_OUTPUT
+            '### WinGet: a Shnapp submission is already open' | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+            'Review or update the existing PR before submitting another version.' | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+            $open | ForEach-Object { "- [$($_.title)]($($_.url))" | Add-Content -Path $env:GITHUB_STEP_SUMMARY }
+            exit 0
+          }
+
+          'catalog_status=ready-to-submit' | Add-Content -Path $env:GITHUB_OUTPUT
+          "### WinGet: $env:RELEASE_TAG candidate verified" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          'Microsoft has not accepted this version yet. Rerun with `submit: true` to open a manifest PR.' | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+      - name: Require submission prerequisites
+        if: inputs.submit && steps.catalog.outputs.catalog_status != 'available'
+        shell: pwsh
+        env:
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
+          CATALOG_STATUS: ${{ steps.catalog.outputs.catalog_status }}
+        run: |
+          if ($env:CATALOG_STATUS -ne 'ready-to-submit') {
+            throw "Cannot submit: WinGet status is $env:CATALOG_STATUS. See this run's summary."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:WINGET_CREATE_GITHUB_TOKEN)) {
+            throw 'Set WINGET_CREATE_GITHUB_TOKEN as an Actions secret. WingetCreate currently requires a classic GitHub token with public_repo scope.'
+          }
+      - uses: actions/setup-dotnet@v6
+        if: inputs.submit && steps.catalog.outputs.catalog_status == 'ready-to-submit'
+        with:
+          dotnet-version: 6.0.x
+      - name: Submit exact verified manifest with Microsoft WingetCreate
+        id: submit
+        if: inputs.submit && steps.catalog.outputs.catalog_status == 'ready-to-submit'
+        shell: pwsh
+        env:
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tool = Join-Path $env:RUNNER_TEMP 'wingetcreate.exe'
+          Invoke-WebRequest `
+            'https://github.com/microsoft/winget-create/releases/download/v1.12.13.0/wingetcreate.exe' `
+            -OutFile $tool
+          $expected = '24042bd37915805615e6cf969ac57c6439124c3fe85823327f5f3fb24bd9ffea'
+          $actual = (Get-FileHash -LiteralPath $tool -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw 'WingetCreate tool digest mismatch.' }
+          $version = $env:RELEASE_TAG.Substring(1)
+          $manifestDir = "catalog-candidates/winget/manifests/z/Zettersten/Shnapp/$version"
+          & $tool submit --no-open --prtitle "[Update] Zettersten.Shnapp version $version" $manifestDir
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          'catalog_status=pending-review' | Add-Content -Path $env:GITHUB_OUTPUT
+          "### WinGet: submitted $env:RELEASE_TAG for review" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          'Microsoft must validate and accept the PR before the version is available through WinGet.' | Add-Content -Path $env:GITHUB_STEP_SUMMARY

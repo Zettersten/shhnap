@@ -1,0 +1,116 @@
+name: Microsoft Store package candidates
+
+# Manual candidate build only. Store submission remains disabled until the first
+# listing is live and the Partner Center account is compliant.
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Public stable Shnapp release tag to package
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: store-candidates-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    name: Build and validate Store ${{ matrix.rid }} candidate
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            platform: x64
+          - rid: win-arm64
+            platform: ARM64
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      TARGET_RID: ${{ matrix.rid }}
+      TARGET_PLATFORM: ${{ matrix.platform }}
+      STORE_IDENTITY_NAME: ${{ vars.STORE_IDENTITY_NAME }}
+      STORE_IDENTITY_PUBLISHER: ${{ vars.STORE_IDENTITY_PUBLISHER }}
+      STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.STORE_PUBLISHER_DISPLAY_NAME }}
+    steps:
+      - name: Check out tagged application source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: refs/tags/${{ inputs.release_tag }}
+      - name: Check out current Store build and validation tools
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: main
+          path: store-tools
+          sparse-checkout: |
+            packaging/store/Build-StoreCandidate.ps1
+            packaging/store/Assert-StorePackage.ps1
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - uses: microsoft/setup-msbuild@v2
+      - name: Require a public stable tag and exact Store identity
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+            throw 'Provide a stable vX.Y.Z release tag.'
+          }
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Store tag commit must be reachable from main.' }
+          $release = gh release view $env:RELEASE_TAG --repo Zettersten/shhnap --json isDraft,isPrerelease | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $release.isDraft -or $release.isPrerelease) {
+            throw 'Store candidates require a public stable GitHub release.'
+          }
+          foreach ($value in @($env:STORE_IDENTITY_NAME, $env:STORE_IDENTITY_PUBLISHER, $env:STORE_PUBLISHER_DISPLAY_NAME)) {
+            if ([string]::IsNullOrWhiteSpace($value)) {
+              throw 'Set STORE_IDENTITY_NAME, STORE_IDENTITY_PUBLISHER, and STORE_PUBLISHER_DISPLAY_NAME as Actions variables.'
+            }
+          }
+      - name: Build unsigned Store package and upload file
+        shell: pwsh
+        run: |
+          ./store-tools/packaging/store/Build-StoreCandidate.ps1 `
+            -RepositoryRoot $env:GITHUB_WORKSPACE `
+            -ReleaseTag $env:RELEASE_TAG `
+            -RuntimeIdentifier $env:TARGET_RID `
+            -Platform $env:TARGET_PLATFORM `
+            -IdentityName $env:STORE_IDENTITY_NAME `
+            -IdentityPublisher $env:STORE_IDENTITY_PUBLISHER `
+            -PublisherDisplayName $env:STORE_PUBLISHER_DISPLAY_NAME `
+            -OutputDirectory (Join-Path $env:GITHUB_WORKSPACE 'store-candidates')
+      - name: Validate package identity, version, architecture, and upload contents
+        shell: pwsh
+        run: |
+          ./store-tools/packaging/store/Assert-StorePackage.ps1 `
+            -PackagePath "store-candidates/Shnapp-$env:TARGET_RID.msix" `
+            -UploadPath "store-candidates/Shnapp-$env:TARGET_RID.msixupload" `
+            -ReleaseTag $env:RELEASE_TAG `
+            -IdentityName $env:STORE_IDENTITY_NAME `
+            -IdentityPublisher $env:STORE_IDENTITY_PUBLISHER `
+            -PublisherDisplayName $env:STORE_PUBLISHER_DISPLAY_NAME `
+            -ProcessorArchitecture $env:TARGET_PLATFORM
+          "### Store $env:TARGET_RID candidate validated" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          'The unsigned MSIX and upload file are attached to this run. This workflow does not submit to Microsoft Store.' | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+      - name: Save Store candidate for Partner Center
+        uses: actions/upload-artifact@v7
+        with:
+          name: Store-${{ inputs.release_tag }}-${{ matrix.rid }}
+          path: |
+            store-candidates/Shnapp-${{ matrix.rid }}.msix
+            store-candidates/Shnapp-${{ matrix.rid }}.msixupload
+          if-no-files-found: error
