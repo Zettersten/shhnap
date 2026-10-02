@@ -795,30 +795,77 @@
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
-                <ScrollViewer x:Name="LibraryEmpty" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
-                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-                <Border MaxWidth="500" Margin="8" Padding="24" Background="Transparent">
-                    <StackPanel HorizontalAlignment="Center" Spacing="12">
-                        <Image x:Name="LibraryEmptyLogo" Source="ms-appx:///Assets/ShnappLogo.png" Width="180" Height="54"
-                            Stretch="Uniform" HorizontalAlignment="Center" AutomationProperties.Name="Shnapp logo" />
-                        <FontIcon x:Name="LibraryNoResultsIcon" Glyph="&#xE721;" FontSize="48" Visibility="Collapsed"
-                            HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <TextBlock x:Name="LibraryEmptyTitle" Text="Your first shnapp starts here" FontFamily="Segoe UI Variable Display"
-                            FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" />
-                        <TextBlock x:Name="LibraryEmptyDescription" Text="Capture a window or region. Your shnapps will be saved here, ready to revisit."
-                            FontSize="14" TextWrapping="Wrap" TextAlignment="Center"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <Button x:Name="LibraryEmptyCapture" Content="Capture a window" Tag="Window" Click="Capture_Click"
-                            Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" />
-                        <Button x:Name="LibraryEmptyClear" Content="Clear search" Click="LibraryClearSearch_Click"
-                            HorizontalAlignment="Center" Visibility="Collapsed" />
-                        <StackPanel x:Name="LibraryEmptyShortcuts" Spacing="4" HorizontalAlignment="Center">
-                            <TextBlock Text="Ctrl+Shift+4    Window" FontFamily="Cascadia Mono" FontSize="12" />
-                            <TextBlock Text="Ctrl+Shift+3    Full screen" FontFamily="Cascadia Mono" FontSize="12" />
-                            <TextBlock Text="Ctrl+Shift+2    Region" FontFamily="Cascadia Mono" FontSize="12" />
+                <ScrollViewer x:Name="LibraryEmpty" Margin="-20,0,-20,-16"
+                    HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                    SizeChanged="LibraryEmpty_SizeChanged">
+                    <Grid x:Name="LibraryEmptyContent" SizeChanged="LibraryEmptyContent_SizeChanged">
+                        <Grid x:Name="LibraryEmptyArtwork">
+                            <Canvas x:Name="LibraryEmptyScene" Width="0" Height="0"
+                                HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False"
+                                AutomationProperties.AccessibilityView="Raw">
+                                <Image Source="ms-appx:///Assets/LibraryEmptyBackground.png"
+                                    Width="1448" Height="1086" Stretch="Fill" />
+                                <Canvas x:Name="LibraryEmptyCallouts" Width="1448" Height="1086">
+                                    <TextBlock Canvas.Left="160" Canvas.Top="394" Text="Capture window" FontSize="16" Foreground="#F8FAFF" />
+                                    <TextBlock Canvas.Left="160" Canvas.Top="449" Text="Capture full screen" FontSize="16" Foreground="#F8FAFF" />
+                                    <TextBlock Canvas.Left="160" Canvas.Top="504" Text="Capture region" FontSize="16" Foreground="#F8FAFF" />
+                                    <TextBlock Canvas.Left="190" Canvas.Top="648" Text="2" FontSize="19" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                    <TextBlock Canvas.Left="221" Canvas.Top="656" Text="Edit &amp; annotate" FontSize="17" Foreground="#8DE6FF" />
+                                    <TextBlock Canvas.Left="910" Canvas.Top="476" Text="1" FontSize="19" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                    <TextBlock Canvas.Left="946" Canvas.Top="495" Text="Capture ideas&#x0a;faster" FontSize="18" Foreground="#F2DFFF" />
+                                    <TextBlock Canvas.Left="1211" Canvas.Top="586" Text="3" FontSize="19" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                    <TextBlock Canvas.Left="1241" Canvas.Top="597" Text="Organize instantly" FontSize="17" Foreground="#D9BCFF" />
+                                </Canvas>
+                            </Canvas>
+                            <StackPanel x:Name="LibraryEmptyIntro" HorizontalAlignment="Center" VerticalAlignment="Top"
+                                MaxWidth="820" Margin="24,48,24,0" Spacing="8">
+                                <Image x:Name="LibraryEmptyLogo" Source="ms-appx:///Assets/ShnappLogo.png"
+                                    Width="300" Height="88" Stretch="Uniform" HorizontalAlignment="Center"
+                                    AutomationProperties.Name="Shnapp" />
+                                <TextBlock x:Name="LibraryEmptyTitle" Text="Capture. Annotate. Organize."
+                                    FontFamily="Segoe UI Variable Display" FontSize="38" FontWeight="Bold"
+                                    TextWrapping="WrapWholeWords" TextAlignment="Center" Foreground="#F8FAFF" />
+                                <TextBlock x:Name="LibraryEmptyDescription"
+                                    Text="The fast, beautiful way to capture your screen and turn ideas into reality."
+                                    FontSize="19" TextWrapping="WrapWholeWords" TextAlignment="Center"
+                                    Foreground="#C8D6F2" />
+                                <SplitButton x:Name="LibraryEmptyCapture" Height="54" MinWidth="286" Margin="0,16,0,0"
+                                    HorizontalAlignment="Center" Click="LibraryEmptyCapture_Click"
+                                    Background="{ThemeResource ShnappBlueBrush}"
+                                    Foreground="{ThemeResource ShnappOnBlueBrush}" CornerRadius="10"
+                                    AutomationProperties.Name="Capture a window" AutomationProperties.AutomationId="LibraryEmptyCapture">
+                                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <FontIcon Glyph="&#xE722;" FontSize="20" />
+                                        <TextBlock Text="Capture a window" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <SplitButton.Flyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Text="Capture window" Tag="Window" Click="Capture_Click">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE78B;" FontSize="16" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Capture full screen" Tag="FullScreen" Click="Capture_Click">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE740;" FontSize="16" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Capture region" Tag="Region" Click="Capture_Click">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7A8;" FontSize="16" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyout>
+                                    </SplitButton.Flyout>
+                                </SplitButton>
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel x:Name="LibraryNoResults" Visibility="Collapsed" MaxWidth="500" Margin="24"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+                            <FontIcon Glyph="&#xE721;" FontSize="48" HorizontalAlignment="Center"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="No matching shnapps" FontFamily="Segoe UI Variable Display"
+                                FontSize="24" FontWeight="SemiBold" TextAlignment="Center" />
+                            <TextBlock x:Name="LibraryNoResultsDescription" FontSize="14" TextWrapping="Wrap"
+                                TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Button x:Name="LibraryEmptyClear" Content="Clear search" Click="LibraryClearSearch_Click"
+                                HorizontalAlignment="Center" Style="{StaticResource AccentButtonStyle}" />
                         </StackPanel>
-                    </StackPanel>
-                </Border>
+                    </Grid>
                 </ScrollViewer>
             </Grid>
         </Grid>

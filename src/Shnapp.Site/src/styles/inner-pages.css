@@ -1,0 +1,230 @@
+.download-page,
+.privacy-page {
+  --inner-ink: #142033;
+  --inner-muted: #536176;
+  --inner-soft: #f4f6fb;
+  --inner-line: #dfe5ef;
+  --inner-blue: #0a84ff;
+  --inner-violet: #7357ed;
+  color: var(--inner-ink);
+  color-scheme: light;
+}
+
+.download-page h1,
+.privacy-page h1,
+.download-page h2,
+.privacy-page h2,
+.download-page h3,
+.privacy-page h3 { font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif; }
+
+.download-page a:focus-visible,
+.privacy-page a:focus-visible,
+.download-page summary:focus-visible { outline: 3px solid #0753ac; outline-offset: 4px; }
+.download-page .dl-hero a:focus-visible,
+.download-page .dl-setup-section a:focus-visible,
+.privacy-page .pr-hero a:focus-visible { outline-color: #74bbff; }
+
+.download-page code,
+.privacy-page code { font-family: 'Cascadia Mono', Consolas, monospace; overflow-wrap: anywhere; }
+
+/* Download */
+.download-page .dl-hero {
+  position: relative;
+  overflow: hidden;
+  padding-block: clamp(4.5rem, 6vw, 6.5rem) clamp(4.5rem, 6vw, 6.5rem);
+  background: radial-gradient(ellipse at 78% 26%, rgba(105, 82, 224, .48), transparent 43%), radial-gradient(ellipse at 35% 110%, rgba(10, 132, 255, .3), transparent 48%), #111a36;
+  color: #f7f9ff;
+}
+.download-page .dl-hero-inner { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); align-items: center; gap: clamp(2.5rem, 6vw, 7rem); }
+.download-page .dl-hero-copy { position: relative; z-index: 1; }
+.download-page .dl-release-status { display: inline-flex; align-items: center; gap: .65rem; min-height: 34px; padding: .4rem .8rem; border: 1px solid rgba(205, 219, 255, .32); border-radius: 999px; background: rgba(255, 255, 255, .09); color: #e5edff; font-size: .8rem; font-weight: 680; letter-spacing: .015em; }
+.download-page .dl-status-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: #75e2c5; box-shadow: 0 0 0 4px rgba(117, 226, 197, .12); }
+.download-page .dl-hero h1 { max-width: 11ch; margin: 1.7rem 0 1.4rem; color: #fff; font-size: clamp(3.6rem, 6.2vw, 6rem); font-weight: 770; line-height: 1.035; letter-spacing: -.04em; text-wrap: balance; }
+.download-page .dl-hero h1 em { color: #a6b9ff; font-style: normal; }
+.download-page .dl-hero-copy > p { max-width: 43ch; margin: 0; color: #d6e1f7; font-size: clamp(1.06rem, 1.5vw, 1.22rem); line-height: 1.62; }
+.download-page .dl-hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .95rem 1.5rem; margin-top: 2rem; }
+.download-page .dl-primary-link { display: inline-flex; min-height: 52px; align-items: center; justify-content: center; gap: .85rem; padding: .8rem 1.25rem; border-radius: 12px; background: #fff; color: #152447; font-weight: 740; text-decoration: none; transition: transform .2s cubic-bezier(.2,.8,.2,1), background-color .2s; }
+.download-page .dl-primary-link:hover { transform: translateY(-2px); background: #eaf1ff; color: #152447; }
+.download-page .dl-primary-link svg { width: 19px; height: 19px; }
+.download-page .dl-secondary-link { color: #e8efff; font-size: .94rem; font-weight: 660; text-decoration-color: rgba(232, 239, 255, .5); }
+.download-page .dl-secondary-link:hover { color: #fff; }
+.download-page .dl-secondary-link span { margin-left: .25rem; }
+.download-page .dl-hero-preview { position: relative; width: 100%; margin: 0; }
+.download-page .dl-preview-frame { overflow: hidden; padding: 9px; border: 1px solid rgba(222, 235, 255, .22); border-radius: 19px; background: rgba(18, 27, 56, .72); box-shadow: 0 30px 70px rgba(4, 10, 26, .42); transform: rotate(-2deg); }
+.download-page .dl-preview-frame img { display: block; width: 100%; border-radius: 11px; }
+.download-page .dl-hero-preview figcaption { margin-top: 1.6rem; color: #c9d7f1; font-size: .84rem; text-align: right; }
+
+.download-page .dl-build-section,
+.download-page .dl-catalog-section,
+.download-page .dl-info-section { padding-block: clamp(5.3rem, 8vw, 8rem); }
+.download-page .dl-build-section { background: #f4f6fb; scroll-margin-top: 2rem; }
+.download-page .dl-section-intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .72fr); align-items: end; gap: clamp(2rem, 7vw, 7rem); margin-bottom: clamp(2rem, 4vw, 3.4rem); }
+.download-page .dl-section-intro h2 { max-width: 14ch; margin: 0; font-size: clamp(2.8rem, 4.7vw, 4.65rem); font-weight: 760; line-height: 1.08; letter-spacing: -.035em; }
+.download-page .dl-section-intro p { max-width: 49ch; margin: 0 0 .3rem; color: var(--inner-muted); font-size: 1.05rem; line-height: 1.65; }
+.download-page .dl-section-intro code { padding: .1rem .25rem; border-radius: 4px; background: #e6eaf4; color: #1e2a42; font-size: .86em; }
+.download-page .dl-availability-message { margin-bottom: 2rem; padding: 1.15rem 1.4rem; border-radius: 12px; background: #e5efff; color: #193968; }
+.download-page .dl-availability-message strong { display: block; margin-bottom: .2rem; }
+.download-page .dl-availability-message p { margin: 0; color: #305478; }
+.download-page .dl-build-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1rem, 2vw, 1.5rem); }
+.download-page .dl-build-card { display: flex; flex-direction: column; min-width: 0; min-height: 350px; padding: clamp(1.5rem, 2.7vw, 2.5rem); border-radius: 18px; background: #fff; box-shadow: 0 18px 45px rgba(30, 49, 89, .08); }
+.download-page .dl-build-symbol { display: grid; place-items: center; width: 56px; height: 56px; margin-bottom: 1.8rem; border-radius: 14px; background: #eaf3ff; color: #0878eb; }
+.download-page .dl-build-symbol svg { width: 30px; height: 30px; }
+.download-page .dl-build-content h3 { margin: 0 0 .2rem; font-size: clamp(1.55rem, 2.2vw, 2rem); font-weight: 720; letter-spacing: -.025em; }
+.download-page .dl-build-content p { margin: 0; color: var(--inner-muted); font-size: .98rem; }
+.download-page .dl-build-filename { display: block; margin-top: 1.15rem; color: #65718a; font: .8rem 'Cascadia Mono', Consolas, monospace; overflow-wrap: anywhere; }
+.download-page .dl-build-bottom { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.4rem; margin-top: auto; padding-top: 2.4rem; }
+.download-page .dl-build-action { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 1.5rem; padding: .7rem 1.15rem; border-radius: 10px; background: #0878ec; color: #fff; font-size: .9rem; font-weight: 710; text-decoration: none; transition: background-color .2s, transform .2s cubic-bezier(.2,.8,.2,1); }
+.download-page .dl-build-action:hover { transform: translateY(-2px); background: #0568d0; color: #fff; }
+.download-page .dl-build-action svg { width: 18px; height: 18px; }
+.download-page .dl-build-hash { color: #095cb4; font-size: .82rem; font-weight: 640; }
+.download-page .dl-build-pending { display: inline-flex; min-height: 48px; align-items: center; padding: .7rem 1rem; border-radius: 10px; background: #edf0f6; color: #4f5c72; font-size: .87rem; font-weight: 650; }
+.download-page .dl-architecture-help { margin: 1.65rem 0 0; color: var(--inner-muted); font-size: .93rem; }
+.download-page .dl-architecture-help strong,
+.download-page .dl-architecture-help span { color: var(--inner-ink); }
+
+.download-page .dl-setup-section { padding-block: clamp(5.3rem, 8vw, 8rem); background: radial-gradient(ellipse at 4% 92%, rgba(77, 111, 209, .18), transparent 38%), #172443; color: #f8faff; }
+.download-page .dl-setup-layout { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1fr); gap: clamp(3rem, 9vw, 9rem); }
+.download-page .dl-setup-heading h2 { max-width: 11ch; margin: 0 0 1.2rem; color: #fff; font-size: clamp(2.8rem, 4.9vw, 4.7rem); font-weight: 750; line-height: 1.08; letter-spacing: -.035em; }
+.download-page .dl-setup-heading p { max-width: 38ch; margin: 0; color: #bdcbe4; font-size: 1.05rem; }
+.download-page .dl-setup-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; counter-reset: none; }
+.download-page .dl-setup-list li { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 1.25rem; padding: 1.45rem 0 1.7rem; border-top: 1px solid rgba(215, 229, 255, .22); }
+.download-page .dl-setup-list li:last-child { border-bottom: 1px solid rgba(215, 229, 255, .22); }
+.download-page .dl-setup-index { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 50%; background: rgba(151, 176, 255, .15); color: #bbceff; font-size: .84rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.download-page .dl-setup-list h3 { margin: .1rem 0 .35rem; color: #fff; font-size: 1.5rem; font-weight: 680; }
+.download-page .dl-setup-list p { max-width: 43ch; margin: 0; color: #bdcbe4; font-size: .94rem; line-height: 1.65; }
+.download-page .dl-setup-list code { color: #fff; font-size: .87em; }
+
+.download-page .dl-catalog-section { background: #fff; }
+.download-page .dl-catalog-intro h2 { max-width: 13ch; }
+.download-page .dl-catalog-list { border-top: 1px solid var(--inner-line); }
+.download-page .dl-catalog-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(1.5rem, 6vw, 6rem); padding-block: 2rem; border-bottom: 1px solid var(--inner-line); }
+.download-page .dl-catalog-name h3 { margin: 0 0 .4rem; font-size: clamp(1.5rem, 2.2vw, 2rem); font-weight: 710; }
+.download-page .dl-catalog-name p { margin: 0; color: var(--inner-muted); font-size: .95rem; }
+.download-page .dl-catalog-details { min-width: 0; }
+.download-page .dl-catalog-status { display: inline-flex; align-items: center; gap: .55rem; padding: .4rem .7rem; border-radius: 999px; background: #edf1f8; color: #4b5970; font-size: .77rem; font-weight: 680; }
+.download-page .dl-catalog-status > span { width: 6px; height: 6px; border-radius: 50%; background: #8996a9; }
+.download-page .dl-catalog-status[data-state="awaiting-listing"] { background: #e7f1ff; color: #155ca8; }
+.download-page .dl-catalog-status[data-state="awaiting-listing"] > span { background: #267bdb; }
+.download-page .dl-catalog-status[data-state="live"] { background: #e5f5ec; color: #176740; }
+.download-page .dl-catalog-status[data-state="live"] > span { background: #24a364; }
+.download-page .dl-catalog-pending { margin: .9rem 0 0; color: #68758c; font-size: .88rem; }
+.download-page .dl-catalog-available { margin-top: 1rem; }
+.download-page .dl-catalog-available > a { color: #0868d3; font-size: .9rem; font-weight: 700; }
+.download-page .dl-catalog-available dl { display: grid; gap: .7rem; margin: 1.1rem 0 0; }
+.download-page .dl-catalog-available dl > div { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); gap: .5rem; }
+.download-page .dl-catalog-available dt { color: #6f7d92; font-size: .79rem; }
+.download-page .dl-catalog-available dd { min-width: 0; margin: 0; color: #24334a; font-size: .85rem; overflow-wrap: anywhere; }
+.download-page .dl-catalog-available code { font-size: .84em; line-height: 1.7; white-space: pre-wrap; }
+
+.download-page .dl-info-section { background: #f4f6fb; }
+.download-page .dl-info-layout { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.1fr); gap: clamp(3rem, 8vw, 8rem); }
+.download-page .dl-info-heading h2 { max-width: 12ch; margin: 0 0 1.3rem; font-size: clamp(2.8rem, 4.7vw, 4.6rem); font-weight: 750; line-height: 1.09; letter-spacing: -.035em; }
+.download-page .dl-info-heading p { max-width: 35ch; margin: 0 0 1.2rem; color: var(--inner-muted); font-size: 1rem; }
+.download-page .dl-info-heading > a { color: #095fbf; font-size: .94rem; font-weight: 700; }
+.download-page .dl-faq { border-top: 1px solid #cdd6e7; }
+.download-page .dl-faq details { padding: 1.5rem 0; border-bottom: 1px solid #cdd6e7; }
+.download-page .dl-faq summary { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; color: var(--inner-ink); cursor: pointer; font-size: 1.08rem; font-weight: 680; list-style: none; }
+.download-page .dl-faq summary::-webkit-details-marker { display: none; }
+.download-page .dl-faq summary::after { content: ''; width: 9px; height: 9px; flex: none; border-right: 2px solid #306db6; border-bottom: 2px solid #306db6; transform: rotate(45deg); transition: transform .18s; }
+.download-page .dl-faq details[open] summary::after { transform: rotate(225deg); }
+.download-page .dl-faq details p { max-width: 67ch; margin: 1rem 1.5rem 0 0; color: var(--inner-muted); font-size: .95rem; line-height: 1.7; }
+.download-page .dl-faq a { color: #095fbf; }
+.download-page .dl-faq code { padding: .1rem .24rem; border-radius: 4px; background: #e7ebf4; color: #20334d; font-size: .87em; }
+
+.download-page .dl-feedback-section { padding-block: clamp(4rem, 7vw, 6.5rem); background: #e8ecfb; }
+.download-page .dl-feedback-layout { display: flex; align-items: end; justify-content: space-between; gap: 2rem 4rem; }
+.download-page .dl-feedback-layout h2 { margin: 0 0 .65rem; font-size: clamp(2.6rem, 4vw, 4rem); font-weight: 750; line-height: 1.1; letter-spacing: -.03em; }
+.download-page .dl-feedback-layout p { max-width: 54ch; margin: 0; color: var(--inner-muted); }
+.download-page .dl-feedback-actions { display: flex; flex-wrap: wrap; gap: .7rem; flex: none; }
+.download-page .dl-feedback-actions a { display: inline-flex; min-height: 46px; align-items: center; gap: .65rem; padding: .65rem .9rem; border-radius: 9px; background: #fff; color: #1b3761; font-size: .88rem; font-weight: 690; text-decoration: none; }
+.download-page .dl-feedback-actions a:hover { background: #f7faff; color: #0868d3; }
+
+/* Privacy */
+.privacy-page .pr-hero { position: relative; overflow: hidden; padding-block: clamp(5.5rem, 9vw, 9rem) clamp(2.5rem, 4vw, 4rem); background: radial-gradient(ellipse at 80% 15%, rgba(102, 77, 211, .38), transparent 43%), radial-gradient(ellipse at 15% 95%, rgba(10, 132, 255, .22), transparent 46%), #111a36; color: #f8faff; }
+.privacy-page .pr-hero-inner { position: relative; }
+.privacy-page .pr-hero-main { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .65fr); align-items: end; gap: clamp(2rem, 7vw, 7rem); }
+.privacy-page .pr-hero h1 { max-width: 13ch; margin: 0; color: #fff; font-size: clamp(3.8rem, 7vw, 6rem); font-weight: 770; line-height: 1.04; letter-spacing: -.04em; }
+.privacy-page .pr-hero h1 em { color: #a6b9ff; font-style: normal; }
+.privacy-page .pr-hero-main p { max-width: 46ch; margin: 0 0 1.6rem; color: #d5e0f5; font-size: clamp(1.08rem, 1.5vw, 1.2rem); line-height: 1.65; }
+.privacy-page .pr-hero-main a { display: inline-flex; align-items: center; gap: .7rem; color: #fff; font-size: .93rem; font-weight: 710; text-decoration-color: rgba(255, 255, 255, .65); }
+.privacy-page .pr-hero-main a:hover { color: #bdd4ff; }
+.privacy-page .pr-hero-main a svg { width: 19px; height: 19px; }
+.privacy-page .pr-hero-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem; margin-top: clamp(4.5rem, 8vw, 8rem); padding-top: 1.5rem; border-top: 1px solid rgba(228, 237, 255, .25); }
+.privacy-page .pr-hero-facts > div { display: grid; gap: .3rem; }
+.privacy-page .pr-hero-facts strong { color: #fff; font-size: .95rem; font-weight: 690; }
+.privacy-page .pr-hero-facts span { color: #c3d3ee; font-size: .9rem; }
+.privacy-page .pr-update-date { margin: 3rem 0 0; color: #a9bbda; font-size: .78rem; }
+
+.privacy-page .pr-content { padding-block: clamp(5rem, 8vw, 8rem); background: #fff; }
+.privacy-page .pr-document { display: grid; grid-template-columns: minmax(185px, .29fr) minmax(0, 1fr); align-items: start; gap: clamp(3rem, 8vw, 8rem); }
+.privacy-page .pr-toc { position: sticky; top: 8rem; display: grid; gap: .95rem; padding-top: .55rem; }
+.privacy-page .pr-toc span { margin-bottom: .45rem; color: #68768d; font-size: .78rem; font-weight: 740; letter-spacing: .025em; }
+.privacy-page .pr-toc a { width: fit-content; color: #3f506a; font-size: .92rem; font-weight: 570; text-decoration: none; }
+.privacy-page .pr-toc a:hover { color: #0868d3; text-decoration: underline; }
+.privacy-page .pr-article { max-width: 75ch; }
+.privacy-page .pr-article section { padding: 0 0 clamp(3rem, 5vw, 4.5rem); margin: 0 0 clamp(3rem, 5vw, 4.5rem); border-bottom: 1px solid var(--inner-line); scroll-margin-top: 2rem; }
+.privacy-page .pr-article section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+.privacy-page .pr-article h2 { margin: 0 0 1.4rem; color: var(--inner-ink); font-size: clamp(2.25rem, 3.8vw, 3.3rem); font-weight: 750; line-height: 1.12; letter-spacing: -.032em; }
+.privacy-page .pr-article p { margin: 0 0 1.2rem; color: #465671; font-size: 1.04rem; line-height: 1.78; }
+.privacy-page .pr-article p:last-child { margin-bottom: 0; }
+.privacy-page .pr-article a { color: #075fbf; }
+.privacy-page .pr-article code { padding: .12rem .28rem; border-radius: 4px; background: #edf1f8; color: #1e2e49; font-size: .84em; }
+.privacy-page .pr-contact-link { display: inline-flex; min-height: 46px; align-items: center; gap: .75rem; margin-top: .5rem; padding: .7rem 1rem; border-radius: 9px; background: #e9f2ff; color: #075fbf; font-size: .91rem; font-weight: 720; text-decoration: none; }
+.privacy-page .pr-contact-link:hover { background: #dceaff; }
+.privacy-page .pr-contact-link svg { width: 19px; height: 19px; }
+
+@media (max-width: 980px) {
+  .download-page .dl-hero-inner { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2rem; }
+  .download-page .dl-hero-preview { width: 100%; margin-right: 0; }
+  .download-page .dl-setup-layout { gap: 3rem; }
+  .download-page .dl-feedback-layout { align-items: start; flex-direction: column; }
+  .privacy-page .pr-hero-main { grid-template-columns: 1fr 1fr; gap: 2rem; }
+}
+
+@media (max-width: 760px) {
+  .download-page .dl-hero-inner,
+  .download-page .dl-section-intro,
+  .download-page .dl-setup-layout,
+  .download-page .dl-info-layout,
+  .privacy-page .pr-hero-main,
+  .privacy-page .pr-document { grid-template-columns: 1fr; }
+  .download-page .dl-hero { padding-bottom: 4rem; }
+  .download-page .dl-hero-preview { width: 100%; margin: 1.5rem 0 0; }
+  .download-page .dl-preview-frame { transform: rotate(-1deg); }
+  .download-page .dl-build-grid { gap: 1rem; }
+  .download-page .dl-build-card { padding: 1.5rem; }
+  .download-page .dl-build-bottom { padding-top: 1.8rem; }
+  .download-page .dl-setup-heading h2 { max-width: 16ch; }
+  .download-page .dl-catalog-row { gap: 2rem; }
+  .download-page .dl-info-layout { gap: 2rem; }
+  .privacy-page .pr-hero-main p { max-width: 58ch; margin-bottom: 1.25rem; }
+  .privacy-page .pr-hero-facts { margin-top: 4rem; }
+  .privacy-page .pr-document { gap: 3rem; }
+  .privacy-page .pr-toc { position: static; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem 1rem; padding: 0 0 1.5rem; border-bottom: 1px solid var(--inner-line); }
+  .privacy-page .pr-toc span { grid-column: 1 / -1; }
+}
+
+@media (max-width: 560px) {
+  .download-page .dl-hero h1,
+  .privacy-page .pr-hero h1 { font-size: clamp(3.2rem, 11vw, 4.35rem); }
+  .download-page .dl-hero-preview figcaption { text-align: left; }
+  .download-page .dl-build-grid { grid-template-columns: 1fr; }
+  .download-page .dl-build-card { min-height: 300px; }
+  .download-page .dl-section-intro h2,
+  .download-page .dl-setup-heading h2,
+  .download-page .dl-info-heading h2 { font-size: clamp(2.7rem, 9vw, 3.7rem); }
+  .download-page .dl-catalog-row { grid-template-columns: 1fr; gap: .9rem; }
+  .download-page .dl-catalog-available dl > div { grid-template-columns: 1fr; gap: .2rem; }
+  .download-page .dl-feedback-actions { width: 100%; }
+  .download-page .dl-feedback-actions a { flex: 1 1 100%; justify-content: space-between; }
+  .privacy-page .pr-hero-facts { grid-template-columns: 1fr; gap: 1rem; }
+  .privacy-page .pr-hero-facts > div { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+  .privacy-page .pr-toc { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .privacy-page .pr-article p { font-size: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .download-page .dl-primary-link,
+  .download-page .dl-build-action,
+  .download-page .dl-faq summary::after { transition: none; }
+}

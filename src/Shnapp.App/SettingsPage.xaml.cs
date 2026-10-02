@@ -105,6 +105,10 @@ public sealed partial class SettingsPage : Page
         GeneralPanel.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
         UpdatesPanel.Visibility = section == "updates" ? Visibility.Visible : Visibility.Collapsed;
         FeedbackPanel.Visibility = section == "feedback" ? Visibility.Visible : Visibility.Collapsed;
+        PreferenceMessage.IsOpen = false;
+        ExternalLinkMessage.IsOpen = false;
+        SettingsNavigation.IsPaneOpen = false;
+        SettingsScrollViewer.ChangeView(null, 0, null);
     }
 
     private async void SavePreferences_Click(object sender, RoutedEventArgs args)
@@ -289,10 +293,11 @@ public sealed partial class SettingsPage : Page
         }
         catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
         {
-            PreferenceMessage.Title = "Could not open the link";
-            PreferenceMessage.Message = address.AbsoluteUri;
-            PreferenceMessage.Severity = InfoBarSeverity.Warning;
-            PreferenceMessage.IsOpen = true;
+            ExternalLinkMessage.Title = "Could not open the link";
+            ExternalLinkMessage.Message = address.AbsoluteUri;
+            ExternalLinkMessage.Severity = InfoBarSeverity.Warning;
+            ExternalLinkMessage.IsOpen = true;
+            SettingsScrollViewer.ChangeView(null, 0, null);
         }
     }
 }
