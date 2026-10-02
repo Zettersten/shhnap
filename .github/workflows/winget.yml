@@ -6,10 +6,6 @@ on:
       release_tag:
         required: true
         type: string
-      submit:
-        required: false
-        type: boolean
-        default: false
     secrets:
       WINGET_CREATE_GITHUB_TOKEN:
         required: false
@@ -23,14 +19,6 @@ on:
         description: Public stable Shnapp release tag
         required: true
         type: string
-      submit:
-        description: Submit a new manifest PR after the first Shnapp listing is accepted
-        required: true
-        type: boolean
-        default: false
-  schedule:
-    - cron: '17 9 * * *'
-
 permissions:
   contents: read
 
@@ -48,46 +36,33 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
     steps:
-      - name: Resolve release tag
-        id: release
-        shell: pwsh
-        env:
-          REQUESTED_TAG: ${{ inputs.release_tag }}
-        run: |
-          $tag = $env:REQUESTED_TAG
-          if ([string]::IsNullOrWhiteSpace($tag)) {
-            if ($env:GITHUB_EVENT_NAME -ne 'schedule') { throw 'Provide a release tag.' }
-            $response = gh api "repos/$env:GH_REPO/releases/latest"
-            if ($LASTEXITCODE -ne 0) { throw 'Unable to find the latest public GitHub release.' }
-            $tag = ($response | ConvertFrom-Json).tag_name
-          }
-          if ($tag -notmatch '^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
-            throw 'WinGet requires a stable vX.Y.Z release tag.'
-          }
-          "release_tag=$tag" | Add-Content -Path $env:GITHUB_OUTPUT
-          "RELEASE_TAG=$tag" | Add-Content -Path $env:GITHUB_ENV
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: refs/tags/${{ steps.release.outputs.release_tag }}
+          ref: main
       - name: Require a public stable release from main
         shell: pwsh
         run: |
           if ($env:RELEASE_TAG -notmatch '^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
             throw 'Provide a stable vX.Y.Z release tag.'
           }
-          git merge-base --is-ancestor HEAD origin/main
+          $tagCommit = git rev-parse --verify --quiet "refs/tags/$env:RELEASE_TAG^{commit}"
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tagCommit)) {
+            throw 'The release tag does not exist in this repository.'
+          }
+          git merge-base --is-ancestor $tagCommit HEAD
           if ($LASTEXITCODE -ne 0) { throw 'The release tag must be reachable from main.' }
-          $release = gh release view $env:RELEASE_TAG --repo Zettersten/shhnap --json isDraft,isPrerelease | ConvertFrom-Json
+          $release = gh release view $env:RELEASE_TAG --repo $env:GH_REPO --json isDraft,isPrerelease | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0 -or $release.isDraft -or $release.isPrerelease) {
             throw 'WinGet candidates require a public stable GitHub release.'
           }
       - name: Download immutable release assets
         shell: pwsh
         run: |
-          gh release download $env:RELEASE_TAG --repo Zettersten/shhnap --dir release-assets
+          gh release download $env:RELEASE_TAG --repo $env:GH_REPO --dir release-assets
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Generate catalog candidates from verified assets
         shell: pwsh
@@ -112,7 +87,7 @@ jobs:
       - name: Save verified candidate for review
         uses: actions/upload-artifact@v7
         with:
-          name: WinGet-${{ steps.release.outputs.release_tag }}
+          name: WinGet-${{ inputs.release_tag }}
           path: catalog-candidates/winget/
           if-no-files-found: error
       - name: Check catalog and open submissions
@@ -131,17 +106,6 @@ jobs:
             throw "Unable to read WinGet catalog: $catalogVersion"
           }
 
-          $catalogPackage = gh api $catalogRoot --jq '.[0].name' 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            if (($catalogPackage | Out-String) -notmatch 'HTTP 404') {
-              throw "Unable to read WinGet package listing: $catalogPackage"
-            }
-            'catalog_status=first-listing-pending' | Add-Content -Path $env:GITHUB_OUTPUT
-            '### WinGet: first listing is pending' | Add-Content -Path $env:GITHUB_STEP_SUMMARY
-            '[The initial Shnapp manifest PR](https://github.com/microsoft/winget-pkgs/pull/445332) must be accepted before this workflow can submit updates. The verified candidate is attached to this run.' | Add-Content -Path $env:GITHUB_STEP_SUMMARY
-            exit 0
-          }
-
           $open = @(gh pr list --repo microsoft/winget-pkgs --state open --search 'Zettersten.Shnapp in:title' --json number,title,url | ConvertFrom-Json)
           if ($LASTEXITCODE -ne 0) { throw 'Unable to check open WinGet submissions.' }
           if ($open.Count -gt 0) {
@@ -152,11 +116,22 @@ jobs:
             exit 0
           }
 
+          $catalogPackage = gh api $catalogRoot --jq '.[0].name' 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            if (($catalogPackage | Out-String) -notmatch 'HTTP 404') {
+              throw "Unable to read WinGet package listing: $catalogPackage"
+            }
+            'catalog_status=first-listing-pending' | Add-Content -Path $env:GITHUB_OUTPUT
+            '### WinGet: first listing is pending' | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+            'The verified candidate is attached to this run. Once the first listing is accepted, dispatch this workflow for the release tag.' | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+            exit 0
+          }
+
           'catalog_status=ready-to-submit' | Add-Content -Path $env:GITHUB_OUTPUT
           "### WinGet: $env:RELEASE_TAG candidate verified" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
-          'Microsoft has not accepted this version yet. Automatic submission runs when enabled and the GitHub token is configured.' | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          'Microsoft has not accepted this version yet. Submitting the verified candidate.' | Add-Content -Path $env:GITHUB_STEP_SUMMARY
       - name: Require submission prerequisites
-        if: (inputs.submit || github.event_name == 'schedule') && steps.catalog.outputs.catalog_status == 'ready-to-submit'
+        if: steps.catalog.outputs.catalog_status == 'ready-to-submit'
         shell: pwsh
         env:
           WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
@@ -165,12 +140,12 @@ jobs:
             throw 'Set WINGET_CREATE_GITHUB_TOKEN as an Actions secret. WingetCreate currently requires a classic GitHub token with public_repo scope.'
           }
       - uses: actions/setup-dotnet@v6
-        if: (inputs.submit || github.event_name == 'schedule') && steps.catalog.outputs.catalog_status == 'ready-to-submit'
+        if: steps.catalog.outputs.catalog_status == 'ready-to-submit'
         with:
           dotnet-version: 6.0.x
       - name: Submit exact verified manifest with Microsoft WingetCreate
         id: submit
-        if: (inputs.submit || github.event_name == 'schedule') && steps.catalog.outputs.catalog_status == 'ready-to-submit'
+        if: steps.catalog.outputs.catalog_status == 'ready-to-submit'
         shell: pwsh
         env:
           WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}

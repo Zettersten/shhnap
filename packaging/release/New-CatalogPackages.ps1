@@ -48,66 +48,50 @@ foreach ($rid in @('win-x64', 'win-arm64')) {
         }
 
         $versionRoot = "versions/$ReleaseTag/"
-        if ('current-version.txt' -in $entries) {
-            $pointer = $zip.GetEntry('current-version.txt')
-            $pointerStream = [System.IO.StreamReader]::new($pointer.Open(), [System.Text.Encoding]::ASCII)
-            try { $pointerText = $pointerStream.ReadToEnd() }
-            finally { $pointerStream.Dispose() }
-            if ($pointerText -cne "$ReleaseTag`n`n") {
-                throw "$archiveName has an invalid current-version.txt."
-            }
-            $requiredFiles = @(
-                'Shnapp.exe', 'current-version.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt',
-                "${versionRoot}Shnapp.exe", "${versionRoot}Shnapp.pri",
-                "${versionRoot}LICENSE", "${versionRoot}THIRD_PARTY_NOTICES.txt"
-            )
-            foreach ($entry in $entries) {
-                if ($entry -notin @('Shnapp.exe', 'current-version.txt', 'LICENSE',
-                    'THIRD_PARTY_NOTICES.txt', 'versions/', $versionRoot) -and
-                    -not $entry.StartsWith($versionRoot, [System.StringComparison]::Ordinal)) {
-                    throw "$archiveName contains a file outside its versioned payload: $entry"
-                }
-            }
-        }
-        elseif ($ReleaseTag -in @('v1.0.0', 'v1.0.2')) {
-            # Published releases before the launcher was introduced remain valid
-            # inputs for Chocolatey re-submission.
-            $requiredFiles = @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')
-        }
-        else {
+        $pointer = $zip.GetEntry('current-version.txt')
+        if ($null -eq $pointer) {
             throw "$archiveName does not contain the portable launcher layout."
         }
+        $pointerStream = [System.IO.StreamReader]::new($pointer.Open(), [System.Text.Encoding]::ASCII)
+        try { $pointerText = $pointerStream.ReadToEnd() }
+        finally { $pointerStream.Dispose() }
+        if ($pointerText -cne "$ReleaseTag`n`n") {
+            throw "$archiveName has an invalid current-version.txt."
+        }
+        $requiredFiles = @(
+            'Shnapp.exe', 'current-version.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt',
+            "${versionRoot}Shnapp.exe", "${versionRoot}Shnapp.pri",
+            "${versionRoot}LICENSE", "${versionRoot}THIRD_PARTY_NOTICES.txt"
+        )
         foreach ($required in $requiredFiles) {
             if ($required -cnotin $entries) {
                 throw "$archiveName does not contain $required."
             }
         }
-        if ([version] $version -ge [version] '1.0.6') {
-            $noticeRoot = "${versionRoot}THIRD_PARTY_NOTICES/"
-            $noticeFiles = @($entries | Where-Object {
-                $_.StartsWith($noticeRoot, [System.StringComparison]::Ordinal) -and
-                -not $_.EndsWith('/')
-            })
-            if ($noticeFiles.Count -eq 0) {
-                throw "$archiveName is missing third-party license files."
-            }
-            $allowedRoot = @(
-                'Shnapp.exe', 'current-version.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt',
-                'versions/', $versionRoot
-            )
-            $allowedPayload = @('Shnapp.exe', 'Shnapp.pri', 'LICENSE',
-                'THIRD_PARTY_NOTICES.txt', 'THIRD_PARTY_NOTICES/')
-            foreach ($entry in $entries) {
-                if ($entry -cin $allowedRoot) { continue }
-                if ($entry.StartsWith($versionRoot, [System.StringComparison]::Ordinal)) {
-                    $relative = $entry.Substring($versionRoot.Length)
-                    if ($relative -cin $allowedPayload -or
-                        $relative.StartsWith('THIRD_PARTY_NOTICES/', [System.StringComparison]::Ordinal)) {
-                        continue
-                    }
+        $noticeRoot = "${versionRoot}THIRD_PARTY_NOTICES/"
+        $noticeFiles = @($entries | Where-Object {
+            $_.StartsWith($noticeRoot, [System.StringComparison]::Ordinal) -and
+            -not $_.EndsWith('/')
+        })
+        if ($noticeFiles.Count -eq 0) {
+            throw "$archiveName is missing third-party license files."
+        }
+        $allowedRoot = @(
+            'Shnapp.exe', 'current-version.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt',
+            'versions/', $versionRoot
+        )
+        $allowedPayload = @('Shnapp.exe', 'Shnapp.pri', 'LICENSE',
+            'THIRD_PARTY_NOTICES.txt', 'THIRD_PARTY_NOTICES/')
+        foreach ($entry in $entries) {
+            if ($entry -cin $allowedRoot) { continue }
+            if ($entry.StartsWith($versionRoot, [System.StringComparison]::Ordinal)) {
+                $relative = $entry.Substring($versionRoot.Length)
+                if ($relative -cin $allowedPayload -or
+                    $relative.StartsWith('THIRD_PARTY_NOTICES/', [System.StringComparison]::Ordinal)) {
+                    continue
                 }
-                throw "$archiveName contains an unexpected file in its single-file layout: $entry"
             }
+            throw "$archiveName contains an unexpected file in its single-file layout: $entry"
         }
     }
     finally {

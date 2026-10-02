@@ -162,7 +162,7 @@ jobs:
         shell: bash
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: bash packaging/release/verify-release-assets.sh release-assets "$RELEASE_TAG" single-file
+        run: bash packaging/release/verify-release-assets.sh release-assets "$RELEASE_TAG"
       - name: Generate version-specific release notes
         shell: bash
         env:
@@ -214,7 +214,7 @@ jobs:
           fi
           mkdir -p uploaded-assets
           gh release download "$RELEASE_TAG" --dir uploaded-assets
-          bash packaging/release/verify-release-assets.sh uploaded-assets "$RELEASE_TAG" single-file
+          bash packaging/release/verify-release-assets.sh uploaded-assets "$RELEASE_TAG"
           for asset in release-assets/*; do
             cmp "$asset" "uploaded-assets/$(basename "$asset")"
           done
@@ -281,12 +281,7 @@ jobs:
           fi
           mkdir -p downloaded-assets
           gh release download "$RELEASE_TAG" --dir downloaded-assets
-          if [[ "$RELEASE_OPERATION" == 'refresh-release-metadata' && "$RELEASE_TAG" == 'v1.0.5' ]]; then
-            # Seed the feed from the last published versioned-layout release.
-            bash packaging/release/verify-release-assets.sh downloaded-assets "$RELEASE_TAG"
-          else
-            bash packaging/release/verify-release-assets.sh downloaded-assets "$RELEASE_TAG" single-file
-          fi
+          bash packaging/release/verify-release-assets.sh downloaded-assets "$RELEASE_TAG"
           gh release view "$RELEASE_TAG" --json body --jq .body > "$RUNNER_TEMP/release-body.md"
           if (( $(wc -c < "$RUNNER_TEMP/release-body.md") > 30000 )); then
             echo 'Release notes exceed the website feed limit of 30,000 UTF-8 bytes.' >&2
@@ -397,7 +392,6 @@ jobs:
     uses: ./.github/workflows/winget.yml
     with:
       release_tag: ${{ inputs.release_tag }}
-      submit: true
     secrets:
       WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
 
