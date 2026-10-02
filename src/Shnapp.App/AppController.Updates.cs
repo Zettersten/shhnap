@@ -145,6 +145,13 @@ internal sealed partial class AppController
                 ReleasePage: release.ReleasePage, LatestTag: release.LatestTag,
                 PortableRestartRequired: true);
         }
+        if (Directory.Exists(Path.Combine(root, "versions", release.LatestTag)))
+        {
+            return new UpdateCheckResult(
+                $"Shnapp {release.LatestTag} was prepared but could not be selected. This copy is still running the previous version. Download a fresh ZIP or wait for the next release.",
+                UpdateAvailable: true, ReleasePage: release.ReleasePage, LatestTag: release.LatestTag,
+                IsError: true);
+        }
 
         if (release.Asset is null)
         {

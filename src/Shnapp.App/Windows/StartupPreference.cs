@@ -63,23 +63,7 @@ internal static class StartupPreference
 
     private static string StartupExecutable()
     {
-        string? root = PortableUpdateStager.FindInstallRoot(AppContext.BaseDirectory);
-        if (root is not null)
-        {
-            if (InstallationChannelDetector.Detect(packaged: false) == InstallationChannel.Scoop)
-            {
-                string? app = Path.GetDirectoryName(root);
-                if (app is not null)
-                {
-                    string current = Path.Combine(app, "current", "Shnapp.exe");
-                    if (File.Exists(current)) { return current; }
-                }
-            }
-
-            return Path.Combine(root, "Shnapp.exe");
-        }
-
-        return Environment.ProcessPath
-            ?? throw new InvalidOperationException("Shnapp's executable location is unavailable.");
+        return StartupPathResolver.Resolve(AppContext.BaseDirectory, Environment.ProcessPath,
+            InstallationChannelDetector.Detect(packaged: false));
     }
 }
