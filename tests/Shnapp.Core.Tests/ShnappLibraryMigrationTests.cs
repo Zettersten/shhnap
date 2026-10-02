@@ -62,7 +62,7 @@ public sealed class ShnappLibraryMigrationTests
     }
 
     [TestMethod]
-    public async Task InterruptedImportResumesAndKeepsExistingStoreFiles()
+    public async Task InterruptedStagingIsDiscardedBeforeAtomicDocumentImport()
     {
         using var temporary = new TemporaryLibrary();
         ShnappLibrary portable = temporary.Library;
@@ -72,11 +72,11 @@ public sealed class ShnappLibraryMigrationTests
         byte[] png = Convert.FromBase64String(TestDocuments.OnePixelPngBase64);
         await File.WriteAllBytesAsync(portable.GetOriginalPath(document.Id), png);
         await File.WriteAllBytesAsync(portable.GetPreviewPath(document.Id), png);
-        Directory.CreateDirectory(store.GetDocumentDirectory(document.Id));
-        byte[] storeOriginal = [1, 2, 3];
-        await File.WriteAllBytesAsync(store.GetOriginalPath(document.Id), storeOriginal);
-        string staleCopy = store.GetPreviewPath(document.Id) + ".portable-import.tmp";
-        await File.WriteAllBytesAsync(staleCopy, [9]);
+        string stageRoot = Path.Combine(store.RootPath,
+            ".portable-import-" + document.Id.ToString("N"));
+        string stageDirectory = Path.Combine(stageRoot, "shnapps", document.Id.ToString("N"));
+        Directory.CreateDirectory(stageDirectory);
+        await File.WriteAllBytesAsync(Path.Combine(stageDirectory, "original.png"), [9]);
 
         ShnappLibraryMigration.Result result = await ShnappLibraryMigration.ImportOnceAsync(
             portable.RootPath, store.RootPath);
@@ -84,9 +84,9 @@ public sealed class ShnappLibraryMigrationTests
         Assert.IsTrue(result.Complete);
         Assert.AreEqual(1, result.ImportedDocuments);
         Assert.AreEqual(document, await store.OpenAsync(document.Id));
-        CollectionAssert.AreEqual(storeOriginal, await File.ReadAllBytesAsync(store.GetOriginalPath(document.Id)));
+        CollectionAssert.AreEqual(png, await File.ReadAllBytesAsync(store.GetOriginalPath(document.Id)));
         CollectionAssert.AreEqual(png, await File.ReadAllBytesAsync(store.GetPreviewPath(document.Id)));
-        Assert.IsFalse(File.Exists(staleCopy));
+        Assert.IsFalse(Directory.Exists(stageRoot));
     }
 
     [TestMethod]
@@ -112,5 +112,27 @@ public sealed class ShnappLibraryMigrationTests
         Assert.IsTrue(second.Complete);
         Assert.AreEqual(1, second.ImportedDocuments);
         Assert.AreEqual(document, await store.OpenAsync(document.Id));
+    }
+
+    [TestMethod]
+    public async Task IncompleteStoreDirectoryIsPreservedForManualRecovery()
+    {
+        using var temporary = new TemporaryLibrary();
+        ShnappLibrary portable = temporary.Library;
+        var store = new ShnappLibrary(temporary.GetOwnedPath("store"));
+        ShnappDocument document = TestDocuments.Create();
+        await portable.SaveAsync(document);
+        Directory.CreateDirectory(store.GetDocumentDirectory(document.Id));
+        byte[] existing = [1, 2, 3];
+        await File.WriteAllBytesAsync(store.GetOriginalPath(document.Id), existing);
+
+        ShnappLibraryMigration.Result result = await ShnappLibraryMigration.ImportOnceAsync(
+            portable.RootPath, store.RootPath);
+
+        Assert.IsFalse(result.Complete);
+        Assert.AreEqual(1, result.FailedDocuments);
+        CollectionAssert.AreEqual(existing, await File.ReadAllBytesAsync(store.GetOriginalPath(document.Id)));
+        Assert.IsFalse(File.Exists(Path.Combine(store.GetDocumentDirectory(document.Id), "document.json")));
+        Assert.AreEqual(document, await portable.OpenAsync(document.Id));
     }
 }

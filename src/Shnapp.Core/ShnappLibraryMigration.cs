@@ -107,25 +107,48 @@ public static class ShnappLibraryMigration
                     }
 
                     EnsureNotReparsePoint(destinationDirectory);
-                    Directory.CreateDirectory(destinationDirectory);
-                    EnsureNotReparsePoint(destinationDocuments);
-                    EnsureNotReparsePoint(destinationDirectory);
-                    foreach (string fileName in DocumentFiles)
+                    if (Directory.Exists(destinationDirectory))
                     {
-                        string sourceFile = Path.Combine(sourceDirectory, fileName);
-                        if (File.Exists(sourceFile))
-                        {
-                            await CopyFileIfMissingAsync(sourceFile,
-                                Path.Combine(destinationDirectory, fileName), cancellationToken)
-                                .ConfigureAwait(false);
-                        }
+                        // An unrelated or incomplete destination must not be overwritten.
+                        failed++;
+                        continue;
                     }
 
-                    // Commit metadata last so an interrupted copy never appears as a document.
-                    if (await CopyFileIfMissingAsync(Path.Combine(sourceDirectory, "document.json"),
-                        destinationDocument, cancellationToken).ConfigureAwait(false))
+                    string stageRoot = Path.Combine(packagedRoot, ".portable-import-" + id.ToString("N"));
+                    DeleteOwnedStage(stageRoot);
+                    try
                     {
+                        var stagedLibrary = new ShnappLibrary(stageRoot);
+                        string stageDirectory = stagedLibrary.GetDocumentDirectory(id);
+                        Directory.CreateDirectory(stageDirectory);
+                        foreach (string fileName in DocumentFiles)
+                        {
+                            string sourceFile = Path.Combine(sourceDirectory, fileName);
+                            if (File.Exists(sourceFile))
+                            {
+                                await CopyFileIfMissingAsync(sourceFile,
+                                    Path.Combine(stageDirectory, fileName), cancellationToken)
+                                    .ConfigureAwait(false);
+                            }
+                        }
+
+                        await CopyFileIfMissingAsync(Path.Combine(sourceDirectory, "document.json"),
+                            Path.Combine(stageDirectory, "document.json"), cancellationToken)
+                            .ConfigureAwait(false);
+                        if (await stagedLibrary.OpenAsync(id, cancellationToken).ConfigureAwait(false) is null)
+                        {
+                            throw new InvalidDataException("A copied portable shnapp could not be validated.");
+                        }
+
+                        EnsureNotReparsePoint(destinationDocuments);
+                        Directory.CreateDirectory(destinationDocuments);
+                        EnsureNotReparsePoint(destinationDocuments);
+                        Directory.Move(stageDirectory, destinationDirectory);
                         imported++;
+                    }
+                    finally
+                    {
+                        DeleteOwnedStage(stageRoot);
                     }
                 }
                 catch (Exception exception) when (exception is IOException or InvalidDataException or
@@ -224,5 +247,29 @@ public static class ShnappLibraryMigration
         }
         catch (FileNotFoundException) { }
         catch (DirectoryNotFoundException) { }
+    }
+
+    private static void DeleteOwnedStage(string stageRoot)
+    {
+        if (!Directory.Exists(stageRoot))
+        {
+            return;
+        }
+
+        EnsureSafeTree(stageRoot);
+        Directory.Delete(stageRoot, recursive: true);
+    }
+
+    private static void EnsureSafeTree(string directory)
+    {
+        EnsureNotReparsePoint(directory);
+        foreach (string entry in Directory.EnumerateFileSystemEntries(directory))
+        {
+            EnsureNotReparsePoint(entry);
+            if (Directory.Exists(entry))
+            {
+                EnsureSafeTree(entry);
+            }
+        }
     }
 }
