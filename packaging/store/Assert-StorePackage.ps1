@@ -25,6 +25,13 @@ function Assert-ExactValue {
     }
 }
 
+# Keep the CI variables independent from the identity assigned in Partner Center.
+# A typo in a repository variable must fail before it can produce a misleadingly
+# valid package and upload pair.
+Assert-ExactValue 'Reserved Store identity name' $IdentityName '24664Nenvy.Shnapp'
+Assert-ExactValue 'Reserved Store identity publisher' $IdentityPublisher 'CN=B431E658-A1AD-472F-8DC9-270D1AFEB32C'
+Assert-ExactValue 'Reserved Store publisher display name' $PublisherDisplayName 'Nenvy'
+
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 function Get-Sha256 {
     param([System.IO.Stream] $Stream)
@@ -65,14 +72,19 @@ function Assert-StoreMsix {
         Assert-ExactValue "$Label architecture" ($identity.GetAttribute('ProcessorArchitecture').ToLowerInvariant()) ($ProcessorArchitecture.ToLowerInvariant())
         Assert-ExactValue "$Label publisher display name" $displayName.InnerText $PublisherDisplayName
 
-        $executableStream = $executableEntry.Open()
-        try { return Get-Sha256 $executableStream }
-        finally { $executableStream.Dispose() }
+        $fileHashes = [System.Collections.Generic.SortedDictionary[string,string]]::new([System.StringComparer]::Ordinal)
+        foreach ($entry in $package.Entries) {
+            if ($entry.FullName.EndsWith('/')) { continue }
+            $entryStream = $entry.Open()
+            try { $fileHashes.Add($entry.FullName, (Get-Sha256 $entryStream)) }
+            finally { $entryStream.Dispose() }
+        }
+        return ,$fileHashes
     }
     finally { $package.Dispose() }
 }
 
-$packageExecutableHash = Assert-StoreMsix $packageFile 'Standalone MSIX'
+$packageFileHashes = Assert-StoreMsix $packageFile 'Standalone MSIX'
 
 try { $upload = [System.IO.Compression.ZipFile]::OpenRead($uploadFile) }
 catch { throw "The upload file is not a readable archive: $($_.Exception.Message)" }
@@ -98,11 +110,17 @@ try {
             finally { $destination.Dispose() }
         }
         finally { $embeddedStream.Dispose() }
-        $embeddedExecutableHash = Assert-StoreMsix $embeddedFile 'Upload MSIX'
-        Assert-ExactValue 'Shnapp.exe inside upload MSIX' $embeddedExecutableHash $packageExecutableHash
+        $embeddedFileHashes = Assert-StoreMsix $embeddedFile 'Upload MSIX'
+        Assert-ExactValue 'MSIX file count inside upload' "$($embeddedFileHashes.Count)" "$($packageFileHashes.Count)"
+        foreach ($entryName in $packageFileHashes.Keys) {
+            if (-not $embeddedFileHashes.ContainsKey($entryName)) {
+                throw "Upload MSIX is missing $entryName."
+            }
+            Assert-ExactValue "Upload MSIX file $entryName" $embeddedFileHashes[$entryName] $packageFileHashes[$entryName]
+        }
     }
     finally { [System.IO.File]::Delete($embeddedFile) }
 }
 finally { $upload.Dispose() }
 
-Write-Host "Validated Store $ProcessorArchitecture package $expectedVersion, both MSIX identities and executables, and public symbols."
+Write-Host "Validated Store $ProcessorArchitecture package $expectedVersion, both MSIX identities and all payload files, and public symbols."
