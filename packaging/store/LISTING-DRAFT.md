@@ -1,13 +1,24 @@
 # Microsoft Store listing draft (en-US, MSIX)
 
-This is copy for Partner Center once **Shnapp** is reserved. The Store technical package identity and certification result are still pending. [Microsoft's MSIX listing guide](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/add-and-edit-store-listing-info) requires a description and at least one screenshot; the first submission should leave **What's new in this version** blank.
+**Shnapp** is reserved as an MSIX app in Partner Center under the public Store publisher **Nenvy**. The first submission and certification are pending. The developer account currently shows non-compliant status after rejected verification; resolve that status before submitting. [Microsoft's MSIX listing guide](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/add-and-edit-store-listing-info) requires a description and at least one screenshot; the first submission should leave **What's new in this version** blank.
+
+## Reserved product identity
+
+| Partner Center field | Exact value |
+| --- | --- |
+| Package/Identity/Name | `24664Nenvy.Shnapp` |
+| Package/Identity/Publisher | `CN=B431E658-A1AD-472F-8DC9-270D1AFEB32C` |
+| Package/Properties/PublisherDisplayName | `Nenvy` |
+| Store ID | `9P7LX12F1V5L` |
+
+The [three manifest values](https://learn.microsoft.com/en-us/windows/apps/publish/view-app-identity-details) must match the `STORE_IDENTITY_NAME`, `STORE_IDENTITY_PUBLISHER`, and `STORE_PUBLISHER_DISPLAY_NAME` repository variables used by the `build-store-msix` Actions operation. The Store ID identifies this reserved product; it is not a manifest field. This Store publisher choice does not change Shnapp's author or MIT copyright attribution.
 
 ## Product fields
 
 | Field | Proposed entry |
 | --- | --- |
-| Product name | Shnapp (reserve this name first) |
-| Publisher display name | Erik Zettersten (must match Partner Center product identity) |
+| Product name | Shnapp (reserved) |
+| Publisher display name | Nenvy (must match Partner Center product identity) |
 | Price | Free; no subscriptions or in-app purchases |
 | Platform | Windows 11 PC, x64 and ARM64; Windows.Desktop only |
 | Language | English (United States) |
