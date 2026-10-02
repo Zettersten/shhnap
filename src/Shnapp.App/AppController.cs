@@ -87,7 +87,7 @@ internal sealed partial class AppController
             try
             {
                 ShnappLibraryMigration.Result migration = await ShnappLibraryMigration.ImportOnceAsync(
-                    LaunchOptions.PortableDataRoot, Library.RootPath, _lifetime.Token);
+                    LaunchOptions.UnredirectedPortableDataRoot, Library.RootPath, _lifetime.Token);
                 if (!migration.Complete)
                 {
                     _page.ShowMessage("Portable library import incomplete",
