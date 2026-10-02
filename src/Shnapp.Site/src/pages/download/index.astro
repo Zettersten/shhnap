@@ -116,7 +116,7 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
         <li>
           <span class="setup-index">02 / EXTRACT</span>
           <h3>Keep the files together.</h3>
-          <p>Extract the entire archive to a folder you choose. Run <code>Shnapp.exe</code> from that folder.</p>
+          <p>Extract the entire archive to a folder you choose. Keep the <code>versions</code> folder and <code>current-version.txt</code> beside the root <code>Shnapp.exe</code>, then run that launcher.</p>
         </li>
         <li>
           <span class="setup-index">03 / CAPTURE</span>
@@ -145,7 +145,7 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
         </details>
         <details>
           <summary>How do updates work?</summary>
-          <p>The portable app checks GitHub Releases for a newer version at startup, at most once a day, and lets you know when one is available. It does not replace the app files for you. You can also check from Settings. A Microsoft Store version, if published, uses Store updates.</p>
+          <p>Direct ZIP copies check for a stable GitHub release at most once a day. Shnapp verifies and prepares a newer version in the background, then uses it on your next restart. You can check or restart from Settings → About &amp; Updates. Copies installed before v1.0.4 need one manual ZIP replacement to gain this feature; the local library stays in your Windows user folder. Scoop, WinGet, and Chocolatey copies use their package managers, with an update action in Shnapp. A Store copy uses Microsoft Store updates when its listing becomes available.</p>
         </details>
         <details>
           <summary>What if my capture contains sensitive information?</summary>
