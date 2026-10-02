@@ -3,7 +3,7 @@ import SiteLayout from '../layouts/SiteLayout.astro';
 import { distribution, downloadsAvailable, issueUrls } from '../config/distribution';
 
 const feedbackHref = distribution.publicRepository
-  ? issueUrls.feature
+  ? issueUrls.chooser
   : 'mailto:' + distribution.contactEmail;
 
 const captureModes = [

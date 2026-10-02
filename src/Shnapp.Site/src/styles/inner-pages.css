@@ -157,7 +157,7 @@
 
 .privacy-page .pr-content { padding-block: clamp(5rem, 8vw, 8rem); background: #fff; }
 .privacy-page .pr-document { display: grid; grid-template-columns: minmax(185px, .29fr) minmax(0, 1fr); align-items: start; gap: clamp(3rem, 8vw, 8rem); }
-.privacy-page .pr-toc { position: sticky; top: 2.5rem; display: grid; gap: .95rem; padding-top: .55rem; }
+.privacy-page .pr-toc { position: sticky; top: 8rem; display: grid; gap: .95rem; padding-top: .55rem; }
 .privacy-page .pr-toc span { margin-bottom: .45rem; color: #68768d; font-size: .78rem; font-weight: 740; letter-spacing: .025em; }
 .privacy-page .pr-toc a { width: fit-content; color: #3f506a; font-size: .92rem; font-weight: 570; text-decoration: none; }
 .privacy-page .pr-toc a:hover { color: #0868d3; text-decoration: underline; }
