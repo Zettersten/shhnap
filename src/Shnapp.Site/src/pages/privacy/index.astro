@@ -32,7 +32,7 @@ const contactHref = `mailto:${distribution.contactEmail}`;
       <div class="privacy-article">
         <section id="local-files" aria-labelledby="local-title">
           <h2 id="local-title">Local files</h2>
-          <p>Shnapp keeps your capture library, editable originals, rendered previews, preferences, and update-check state on your PC. The portable edition uses <code>%LOCALAPPDATA%\Shnapp</code> by default; an advanced <code>--data-root</code> launch option can move it elsewhere. The Microsoft Store edition uses its own Windows LocalCache folder, which Windows excludes from device backup. On first launch, it copies an existing portable library into that folder and leaves the portable files in place.</p>
+          <p>Shnapp keeps your capture library, editable originals, rendered previews, preferences, and update-check state on your PC. The portable edition uses <code>%LOCALAPPDATA%\Shnapp</code> by default; an advanced <code>--data-root</code> launch option can move it elsewhere. The Microsoft Store edition uses its own Windows LocalCache folder, which Windows excludes from device backup. Quit the portable edition before the Store edition's first launch. It then copies an existing portable library into that folder and leaves the portable files in place.</p>
           <p>When you copy a PNG, Shnapp places it on your Windows clipboard. When you choose Save, the exported PNG goes to the location you select. Shnapp does not automatically upload captures to us or GitHub.</p>
         </section>
 
