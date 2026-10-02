@@ -82,6 +82,33 @@ foreach ($rid in @('win-x64', 'win-arm64')) {
                 throw "$archiveName does not contain $required."
             }
         }
+        if ([version] $version -ge [version] '1.0.6') {
+            $noticeRoot = "${versionRoot}THIRD_PARTY_NOTICES/"
+            $noticeFiles = @($entries | Where-Object {
+                $_.StartsWith($noticeRoot, [System.StringComparison]::Ordinal) -and
+                -not $_.EndsWith('/')
+            })
+            if ($noticeFiles.Count -eq 0) {
+                throw "$archiveName is missing third-party license files."
+            }
+            $allowedRoot = @(
+                'Shnapp.exe', 'current-version.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt',
+                'versions/', $versionRoot
+            )
+            $allowedPayload = @('Shnapp.exe', 'Shnapp.pri', 'LICENSE',
+                'THIRD_PARTY_NOTICES.txt', 'THIRD_PARTY_NOTICES/')
+            foreach ($entry in $entries) {
+                if ($entry -cin $allowedRoot) { continue }
+                if ($entry.StartsWith($versionRoot, [System.StringComparison]::Ordinal)) {
+                    $relative = $entry.Substring($versionRoot.Length)
+                    if ($relative -cin $allowedPayload -or
+                        $relative.StartsWith('THIRD_PARTY_NOTICES/', [System.StringComparison]::Ordinal)) {
+                        continue
+                    }
+                }
+                throw "$archiveName contains an unexpected file in its single-file layout: $entry"
+            }
+        }
     }
     finally {
         $zip.Dispose()
