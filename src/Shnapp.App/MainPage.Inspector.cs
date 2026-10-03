@@ -125,12 +125,16 @@ public sealed partial class MainPage
         bool editingText = _textBox is not null && _textDraft is not null;
 
         _updatingOptions = true;
+        InspectorToolIcon.Visibility = line || shape ? Visibility.Collapsed : Visibility.Visible;
+        InspectorLineIcon.Visibility = line ? Visibility.Visible : Visibility.Collapsed;
+        InspectorRectangleIcon.Visibility = tool == EditorTool.Rectangle ? Visibility.Visible : Visibility.Collapsed;
+        InspectorSquareIcon.Visibility = tool == EditorTool.Square ? Visibility.Visible : Visibility.Collapsed;
+        InspectorEllipseIcon.Visibility = tool == EditorTool.Ellipse ? Visibility.Visible : Visibility.Collapsed;
+        InspectorCircleIcon.Visibility = tool == EditorTool.Circle ? Visibility.Visible : Visibility.Collapsed;
         InspectorToolIcon.Glyph = selected?.Kind == AnnotationKind.Image ? "\uE8B9" : tool switch
         {
             EditorTool.Text => "\uE8D2",
             EditorTool.Step => "\uE8FD",
-            EditorTool.Line or EditorTool.Arrow => "\uE738",
-            EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle => "\uE739",
             EditorTool.Redaction => "\uE72E",
             EditorTool.Crop => "\uE7A8",
             _ => "\uE8B0",
