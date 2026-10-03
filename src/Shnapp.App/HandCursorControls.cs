@@ -1,4 +1,5 @@
 using Microsoft.UI.Input;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
@@ -12,6 +13,8 @@ internal static class ActionHandCursor
 
 public sealed class HandCursorAppBarButton : AppBarButton
 {
+    public bool CenterFlyoutChevron { get; set; }
+
     public HandCursorAppBarButton()
     {
         ProtectedCursor = ActionHandCursor.Value;
@@ -20,6 +23,17 @@ public sealed class HandCursorAppBarButton : AppBarButton
         PointerEntered += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
         AddHandler(PointerMovedEvent, new PointerEventHandler((_, _) =>
             ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null), true);
+    }
+
+    protected override void OnApplyTemplate()
+    {
+        base.OnApplyTemplate();
+        if (CenterFlyoutChevron && GetTemplateChild("SubItemChevron") is FontIcon chevron)
+        {
+            // The stock chevron is positioned for a labeled command. This toolbar hides labels.
+            chevron.Glyph = "\uE70D";
+            chevron.Margin = new Thickness(-23, 19, 12, 0);
+        }
     }
 }
 
