@@ -19,6 +19,7 @@
             "Shnapp"
         ]
     ],
+    "post_install": "Set-Content -LiteralPath (Join-Path $dir '.shnapp-install-source') -Value 'scoop:shnapp' -Encoding Ascii -NoNewline",
     "checkver": {
         "github": "https://github.com/Zettersten/shhnap"
     },

@@ -9,7 +9,7 @@ public sealed partial class MainPage
 {
     private void UpdateCanvasElementCursor(Point canvasPosition)
     {
-        if (_editor is null || _panning || _tool == EditorTool.Crop || _textBox is not null)
+        if (_editor is null || _panning || _textBox is not null)
         {
             CanvasHost.SetSelectionCursor(null);
             return;
@@ -39,8 +39,8 @@ public sealed partial class MainPage
             }
         }
 
-        if (_tool == EditorTool.Select && ImagePosition(canvasPosition, allowOutside: true) is ImagePoint point &&
-            _editor.Current.Annotations.Any(annotation => HitAnnotation(annotation, point)))
+        if (ImagePosition(canvasPosition, allowOutside: _tool == EditorTool.Text) is ImagePoint point &&
+            HitTopAnnotation(point) is not null)
         {
             CanvasHost.SetSelectionCursor(InputSystemCursorShape.SizeAll);
             return;

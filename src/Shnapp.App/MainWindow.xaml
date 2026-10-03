@@ -12,23 +12,22 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid>
+    <Grid Background="{ThemeResource ShnappCanvasBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TitleBar x:Name="AppTitleBar" Title="Shnapp">
+        <TitleBar x:Name="AppTitleBar" Title="Shnapp" Background="{ThemeResource ShnappChromeBrush}">
             <TitleBar.IconSource>
                 <ImageIconSource ImageSource="Assets/AppIcon.ico" />
             </TitleBar.IconSource>
         </TitleBar>
 
-        <!--
-            The Frame hosts pages for your application content. Add your UI to
-            MainPage.xaml rather than here so you can use Page features such as
-            navigation events and the Loaded lifecycle.
-        -->
-        <Frame x:Name="RootFrame" Grid.Row="1" />
+        <Grid Grid.Row="1">
+            <Frame x:Name="RootFrame" />
+            <ContentControl x:Name="SettingsOverlay" Visibility="Collapsed"
+                HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+        </Grid>
     </Grid>
 </Window>

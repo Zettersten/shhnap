@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Shnapp.App/Shnapp.App.csproj" />
     <Project Path="src/Shnapp.Core/Shnapp.Core.csproj" />
+    <Project Path="src/Shnapp.Launcher/Shnapp.Launcher.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Shnapp.Core.Tests/Shnapp.Core.Tests.csproj" />

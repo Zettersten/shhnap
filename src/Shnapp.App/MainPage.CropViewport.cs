@@ -325,7 +325,7 @@ public sealed partial class MainPage
 
     private void UpdateCropHover(Point canvasPosition, ImagePoint? knownPoint = null)
     {
-        if (_tool != EditorTool.Crop || _editor is null || _panning || CropTip is null)
+        if (_tool != EditorTool.Crop || _editor is null || _panning || CropTip is null || _moving is not null)
         {
             HideCropTip();
             return;
@@ -336,6 +336,12 @@ public sealed partial class MainPage
         {
             HideCropTip();
             UpdateCropCursor(false);
+            return;
+        }
+
+        if (HitTopAnnotation(point) is not null)
+        {
+            HideCropTip();
             return;
         }
 

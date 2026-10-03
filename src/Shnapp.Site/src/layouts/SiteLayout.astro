@@ -1,5 +1,6 @@
 ---
 import styles from '../styles/global.css?inline';
+import innerStyles from '../styles/inner-pages.css?inline';
 import { distribution, issueUrls } from '../config/distribution';
 
 interface Props {
@@ -19,7 +20,7 @@ const contactHref = `mailto:${distribution.contactEmail}`;
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f7f9fc" />
+    <meta name="theme-color" content={page === 'home' ? '#081632' : '#f5f7fc'} />
     <meta name="description" content={description} />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Shnapp" />
@@ -32,24 +33,34 @@ const contactHref = `mailto:${distribution.contactEmail}`;
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="canonical" href={canonical} />
     <style is:global set:html={styles} />
+    <style is:global set:html={innerStyles} />
     <title>{title}</title>
   </head>
-  <body>
+  <body class={`page-${page}`}>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
       <div class="shell header-inner">
         <a class="brand" href="/" aria-label="Shnapp home">
-          <img src="/assets/logo.png" alt="Shnapp" width="137" height="43" />
+          <img src="/assets/logo.png" alt="Shnapp" width="125" height="38" />
         </a>
         <nav class="main-nav" aria-label="Main navigation">
-          <a href="/#workflow" class="nav-secondary">How it works</a>
-          <a href="/#details" class="nav-secondary">Tools</a>
-          <a href="/download/" aria-current={page === 'download' ? 'page' : undefined}>Download</a>
+          <a href="/#workflow">How it works</a>
+          <a href="/#features">Features</a>
+          <a href="/privacy/" aria-current={page === 'privacy' ? 'page' : undefined}>Privacy</a>
         </nav>
-        <a class="header-action" href="/download/">
-          Get Shnapp
-          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        <a class="header-action" href="/download/" aria-label="Download Shnapp">
+          <span class="header-action-full">Download Shnapp</span><span class="header-action-short">Download</span>
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v10m-4-4 4 4 4-4M4 16h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </a>
+        <details class="mobile-menu">
+          <summary aria-label="Navigation menu"><span></span><span></span><span></span></summary>
+          <nav aria-label="Mobile navigation">
+            <a href="/#workflow" aria-label="How it works">How it works</a>
+            <a href="/#features" aria-label="Features">Features</a>
+            <a href="/privacy/" aria-label="Privacy">Privacy</a>
+            <a href="/download/" aria-label="Download">Download</a>
+          </nav>
+        </details>
       </div>
     </header>
 
@@ -58,24 +69,27 @@ const contactHref = `mailto:${distribution.contactEmail}`;
     <footer class="site-footer">
       <div class="shell footer-main">
         <div class="footer-identity">
-          <a href="/" aria-label="Shnapp home"><img src="/assets/logo.png" alt="Shnapp" width="125" height="39" loading="lazy" /></a>
-          <p>Capture first. Think less.</p>
+          <a href="/" aria-label="Shnapp home"><img src="/assets/logo.png" alt="Shnapp" width="146" height="44" loading="lazy" /></a>
+          <p>Capture first. Think less.<br />Made for the moments you need to explain.</p>
         </div>
-        <nav aria-label="Footer navigation" class="footer-links">
-          <a href="/download/">Download</a>
-          <a href="/#workflow">How it works</a>
-          <a href="/privacy/">Privacy</a>
-          {distribution.publicRepository && <a href={`${github}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer">MIT license</a>}
-          {distribution.publicRepository && <a href={github} target="_blank" rel="noopener noreferrer">Source on GitHub</a>}
-          <a href={distribution.publicRepository ? issueUrls.bug : contactHref} target={distribution.publicRepository ? '_blank' : undefined} rel={distribution.publicRepository ? 'noopener noreferrer' : undefined}>Report a bug</a>
-          <a href={distribution.publicRepository ? issueUrls.feature : contactHref} target={distribution.publicRepository ? '_blank' : undefined} rel={distribution.publicRepository ? 'noopener noreferrer' : undefined}>Request a feature</a>
-        </nav>
+        <div class="footer-columns">
+          <nav aria-label="Explore Shnapp" class="footer-links"><strong>Explore</strong><a href="/#workflow">How it works</a><a href="/#features">Features</a><a href="/download/">Download</a><a href="/privacy/">Privacy</a></nav>
+          <nav aria-label="Community and support" class="footer-links"><strong>More</strong>{distribution.publicRepository && <a href={github} target="_blank" rel="noopener noreferrer">Source on GitHub</a>}{distribution.publicRepository && <a href={`${github}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer">MIT license</a>}<a href={distribution.publicRepository ? issueUrls.bug : contactHref} target={distribution.publicRepository ? '_blank' : undefined} rel={distribution.publicRepository ? 'noopener noreferrer' : undefined}>Report a bug</a><a href={distribution.publicRepository ? issueUrls.feature : contactHref} target={distribution.publicRepository ? '_blank' : undefined} rel={distribution.publicRepository ? 'noopener noreferrer' : undefined}>Request a feature</a></nav>
+        </div>
       </div>
       <div class="shell footer-bottom">
         <span>© {new Date().getFullYear()} Erik Zettersten</span>
-        <a href="https://zettersten.com/" target="_blank" rel="noopener noreferrer">zettersten.com</a>
         <span>Made for Windows 11</span>
+        <a href="https://zettersten.com/" target="_blank" rel="noopener noreferrer">zettersten.com</a>
       </div>
     </footer>
   </body>
 </html>
+
+<script>
+  const mobileMenu = document.querySelector<HTMLDetailsElement>('.mobile-menu');
+  mobileMenu?.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => { mobileMenu.open = false; }));
+  document.addEventListener('click', (event) => {
+    if (mobileMenu?.open && !mobileMenu.contains(event.target as Node)) mobileMenu.open = false;
+  });
+</script>

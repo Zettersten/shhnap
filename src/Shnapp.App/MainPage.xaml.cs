@@ -70,7 +70,9 @@ public sealed partial class MainPage : Page
         {
             UpdateShapeButtonAppearance();
             DrawingCanvas.Invalidate();
-            RefreshNewShnappSparkles();
+            LayoutLibraryEmptyScene();
+            NewShnappSparkleHost.Refresh();
+            LibraryEmptySparkleHost.Refresh();
         };
     }
 
@@ -89,6 +91,7 @@ public sealed partial class MainPage : Page
         MessageBar.IsOpen = false;
         SetTool(EditorTool.Select);
         RefreshDocument();
+        AnimateSurfaceEntry(EditorHost);
         DrawingCanvas.Focus(FocusState.Programmatic);
     }
 
@@ -102,6 +105,7 @@ public sealed partial class MainPage : Page
         ViewModel.Dimensions = string.Empty;
         UpdateDocumentMetadata();
         RebuildLibraryEntries();
+        AnimateSurfaceEntry(LibraryRoot);
         FocusLibrarySearchIfRequested();
     }
 
@@ -347,46 +351,48 @@ public sealed partial class MainPage : Page
             _crop = null;
         }
         _selectedId = null;
-        switch (_tool)
+        // Picking an existing mark takes priority over placing a new mark, even
+        // while a drawing tool is active. The chosen tool stays active so the
+        // next press on empty canvas can still create a new annotation.
+        _moving = HitTopAnnotation(point);
+        if (_moving is Annotation hit)
         {
-            case EditorTool.Text:
-                _textDragStart = point;
-                _textDragEnd = point;
-                DrawingCanvas.CapturePointer(args.Pointer);
-                break;
-            case EditorTool.Step:
-                Annotation step = NewAnnotation(AnnotationKind.Step, point) with
-                {
-                    StepNumber = _editor.Current.Annotations.Count(a => a.Kind == AnnotationKind.Step) + 1,
-                };
-                _selectedId = step.Id;
-                _editor.AddAnnotation(step);
-                break;
-            case EditorTool.Select:
-                _moving = _editor.Current.OrderedAnnotations.Reverse().FirstOrDefault(a => HitAnnotation(a, point));
-                _selectedId = _moving?.Id;
-                _dragStart = _moving is null ? null : point;
-                if (_moving is not null)
-                {
-                    BeginSmartGuideDrag(_moving);
-                    OpenInspectorForSelection();
+            _selectedId = hit.Id;
+            _dragStart = point;
+            BeginSmartGuideDrag(hit);
+            OpenInspectorForSelection();
+            DrawingCanvas.CapturePointer(args.Pointer);
+        }
+        else
+        {
+            switch (_tool)
+            {
+                case EditorTool.Text:
+                    _textDragStart = point;
+                    _textDragEnd = point;
                     DrawingCanvas.CapturePointer(args.Pointer);
-                }
-
-                break;
-            case EditorTool.Crop:
-                _dragStart = point;
-                _cropAtDragStart = _crop;
-                _cropCanMoveAtDragStart = _cropCanMove;
-                _movingCrop = ShouldMoveCrop(point);
-                _cropDragChanged = false;
-                DrawingCanvas.CapturePointer(args.Pointer);
-                UpdateCropHover(canvasPosition, point);
-                break;
-            default:
-                _dragStart = point;
-                if (_tool != EditorTool.Crop)
-                {
+                    break;
+                case EditorTool.Step:
+                    Annotation step = NewAnnotation(AnnotationKind.Step, point) with
+                    {
+                        StepNumber = _editor.Current.Annotations.Count(a => a.Kind == AnnotationKind.Step) + 1,
+                    };
+                    _selectedId = step.Id;
+                    _editor.AddAnnotation(step);
+                    break;
+                case EditorTool.Select:
+                    break;
+                case EditorTool.Crop:
+                    _dragStart = point;
+                    _cropAtDragStart = _crop;
+                    _cropCanMoveAtDragStart = _cropCanMove;
+                    _movingCrop = ShouldMoveCrop(point);
+                    _cropDragChanged = false;
+                    DrawingCanvas.CapturePointer(args.Pointer);
+                    UpdateCropHover(canvasPosition, point);
+                    break;
+                default:
+                    _dragStart = point;
                     AnnotationKind kind = _tool switch
                     {
                         EditorTool.Square => AnnotationKind.Rectangle,
@@ -395,10 +401,9 @@ public sealed partial class MainPage : Page
                         _ => Enum.Parse<AnnotationKind>(_tool.ToString()),
                     };
                     _draft = NewAnnotation(kind, point);
-                }
-
-                DrawingCanvas.CapturePointer(args.Pointer);
-                break;
+                    DrawingCanvas.CapturePointer(args.Pointer);
+                    break;
+            }
         }
 
         UpdateInspector();
@@ -640,7 +645,7 @@ public sealed partial class MainPage : Page
 
     private void Canvas_PointerCanceled(object sender, PointerRoutedEventArgs args)
     {
-        if (_tool == EditorTool.Crop && _dragStart is not null) RestoreCropDrag();
+        if (_tool == EditorTool.Crop && _moving is null && _dragStart is not null) RestoreCropDrag();
         else CancelInteraction();
     }
 
@@ -648,14 +653,14 @@ public sealed partial class MainPage : Page
     {
         if (_panning || _dragStart is not null || _textDragStart is not null)
         {
-            if (_tool == EditorTool.Crop && _dragStart is not null) RestoreCropDrag();
+            if (_tool == EditorTool.Crop && _moving is null && _dragStart is not null) RestoreCropDrag();
             else CancelInteraction();
         }
     }
 
     private void Canvas_DoubleTapped(object sender, DoubleTappedRoutedEventArgs args)
     {
-        if (_editor is null || _tool != EditorTool.Select || ImagePosition(args.GetPosition(DrawingCanvas)) is not ImagePoint point)
+        if (_editor is null || ImagePosition(args.GetPosition(DrawingCanvas)) is not ImagePoint point)
         {
             return;
         }
@@ -1205,8 +1210,39 @@ public sealed partial class MainPage : Page
         if (!EditorInputHasFocus()) { Redo_Click(this, new RoutedEventArgs()); args.Handled = true; }
     }
 
+    private void EscapeAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_editor is null)
+        {
+            _controller?.Hide();
+        }
+        else
+        {
+            CancelInteraction();
+            _controller?.OpenLibrary();
+        }
+
+        args.Handled = true;
+    }
+
     private void Page_KeyDown(object sender, KeyRoutedEventArgs args)
     {
+        if (args.Key == VirtualKey.Escape)
+        {
+            if (_editor is null)
+            {
+                _controller?.Hide();
+            }
+            else
+            {
+                CancelInteraction();
+                _controller?.OpenLibrary();
+            }
+
+            args.Handled = true;
+            return;
+        }
+
         if (args.Key == VirtualKey.Space && _editor is not null && !EditorInputHasFocus())
         {
             CanvasHost.SetPanCursor(true, _panning);
@@ -1218,13 +1254,7 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        if (args.Key == VirtualKey.Escape)
-        {
-            CancelInteraction();
-            SetTool(EditorTool.Select);
-            args.Handled = true;
-        }
-        else if (args.Key == VirtualKey.Enter && _crop is ImageRect crop && crop.Width >= 1 && crop.Height >= 1)
+        if (args.Key == VirtualKey.Enter && _crop is ImageRect crop && crop.Width >= 1 && crop.Height >= 1)
         {
             ApplyCurrentCrop();
             args.Handled = true;
@@ -1291,7 +1321,6 @@ public sealed partial class MainPage : Page
 
     internal void ShowAvailableUpdate(string message)
     {
-        UpdateAvailableButton.Visibility = Visibility.Visible;
         MessageBar.Title = "Shnapp update available";
         MessageBar.Message = message;
         MessageBar.Severity = InfoBarSeverity.Informational;
@@ -1299,6 +1328,21 @@ public sealed partial class MainPage : Page
         action.Click += (_, _) => _controller?.OpenSettingsUpdates();
         MessageBar.ActionButton = action;
         MessageBar.IsOpen = true;
+    }
+
+    internal void SetUpdateAvailability(bool available, bool restartRequired = false, bool checkFailed = false)
+    {
+        UpdateAvailableButton.IsEnabled = available;
+        UpdateAvailableButton.Label = restartRequired ? "Update ready to restart"
+            : available ? "Update available"
+            : checkFailed ? "Updates unavailable" : "Update Shnapp";
+        UpdateAttentionDot.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+
+        if (!available && MessageBar.IsOpen && MessageBar.Title == "Shnapp update available")
+        {
+            MessageBar.IsOpen = false;
+            MessageBar.ActionButton = null;
+        }
     }
 
     internal void ReleaseDocument()

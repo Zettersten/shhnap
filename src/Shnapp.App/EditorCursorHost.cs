@@ -82,8 +82,8 @@ public sealed class EditorCursorHost : Grid
     private void UpdateCursor()
     {
         InputCursor? cursor = _panActive ? _panDragging ? _panClosed : _panOpen
-            : _cropActive ? _canMoveCrop ? _move : _crosshair
-            : _selectionShape is InputSystemCursorShape shape ? GetSizingCursor(shape) : null;
+            : _selectionShape is InputSystemCursorShape shape ? GetSizingCursor(shape)
+            : _cropActive ? _canMoveCrop ? _move : _crosshair : null;
         if (!ReferenceEquals(ProtectedCursor, cursor))
         {
             ProtectedCursor = cursor;

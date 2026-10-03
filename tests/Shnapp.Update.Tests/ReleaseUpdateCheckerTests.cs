@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using Shnapp.App.Windows;
 
 namespace Shnapp.Update.Tests;
@@ -151,6 +152,97 @@ public sealed class ReleaseUpdateCheckerTests
 
         Assert.IsTrue(result.UpdateAvailable);
         Assert.AreEqual(2, calls);
+    }
+
+    [TestMethod]
+    public async Task FailedDownloadBacksOffAcrossRestartsButManualCheckCanRetry()
+    {
+        using var directory = new TemporaryDirectory();
+        DateTimeOffset now = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
+        var checker = new ReleaseUpdateChecker(directory.Path, utcNow: () => now);
+
+        Assert.IsTrue(await checker.CanRetryDownloadAsync("v1.0.4", false, CancellationToken.None));
+        await checker.RecordDownloadResultAsync("v1.0.4", succeeded: false, CancellationToken.None);
+        var reloaded = new ReleaseUpdateChecker(directory.Path, utcNow: () => now);
+
+        Assert.IsFalse(await reloaded.CanRetryDownloadAsync("v1.0.4", false, CancellationToken.None));
+        Assert.IsTrue(await reloaded.CanRetryDownloadAsync("v1.0.4", true, CancellationToken.None));
+        Assert.IsTrue(await reloaded.CanRetryDownloadAsync("v1.0.5", false, CancellationToken.None));
+        now = now.AddDays(1);
+        Assert.IsTrue(await reloaded.CanRetryDownloadAsync("v1.0.4", false, CancellationToken.None));
+        await reloaded.RecordDownloadResultAsync("v1.0.4", succeeded: true, CancellationToken.None);
+        Assert.IsTrue(await reloaded.CanRetryDownloadAsync("v1.0.4", false, CancellationToken.None));
+    }
+
+    [TestMethod]
+    public async Task ExposesVerifiedArchitectureAssetFromCache()
+    {
+        using var directory = new TemporaryDirectory();
+        string name = RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+            ? "Shnapp-win-arm64.zip" : "Shnapp-win-x64.zip";
+        string digest = new('a', 64);
+        using var client = new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent($$"""
+                {"tag_name":"v1.2.4","html_url":"https://github.com/Zettersten/shhnap/releases/tag/v1.2.4",
+                 "draft":false,"prerelease":false,"immutable":true,"assets":[
+                   {"name":"{{name}}","browser_download_url":"https://github.com/Zettersten/shhnap/releases/download/v1.2.4/{{name}}",
+                    "digest":"sha256:{{digest}}","size":12345}]}
+                """),
+        }));
+        var checker = new ReleaseUpdateChecker(directory.Path, client);
+        ReleaseCheckResult first = await checker.CheckAsync(new Version(1, 2, 3), true, CancellationToken.None);
+        ReleaseCheckResult cached = await new ReleaseUpdateChecker(directory.Path, client).CheckAsync(
+            new Version(1, 2, 3), false, CancellationToken.None);
+
+        Assert.AreEqual(digest, first.Asset?.Sha256);
+        Assert.AreEqual(12345L, cached.Asset?.Size);
+        Assert.AreEqual("v1.2.4", cached.Asset?.Tag);
+    }
+
+    [TestMethod]
+    public async Task DoesNotOfferInstallForUnverifiedReleaseAsset()
+    {
+        using var directory = new TemporaryDirectory();
+        string name = RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+            ? "Shnapp-win-arm64.zip" : "Shnapp-win-x64.zip";
+        using var client = new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent($$"""
+                {"tag_name":"v1.2.4","html_url":"https://github.com/Zettersten/shhnap/releases/tag/v1.2.4",
+                 "immutable":true,"assets":[{"name":"{{name}}",
+                 "browser_download_url":"https://example.com/v1.2.4/{{name}}",
+                 "digest":"sha256:{{new string('b', 64)}}","size":12345}]}
+                """),
+        }));
+        ReleaseCheckResult result = await new ReleaseUpdateChecker(directory.Path, client).CheckAsync(
+            new Version(1, 2, 3), true, CancellationToken.None);
+
+        Assert.IsTrue(result.UpdateAvailable);
+        Assert.IsNull(result.Asset);
+    }
+
+    [TestMethod]
+    public async Task DoesNotAutoInstallFromMutableRelease()
+    {
+        using var directory = new TemporaryDirectory();
+        string name = RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+            ? "Shnapp-win-arm64.zip" : "Shnapp-win-x64.zip";
+        using var client = new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent($$"""
+                {"tag_name":"v1.2.4","html_url":"https://github.com/Zettersten/shhnap/releases/tag/v1.2.4",
+                 "immutable":false,"assets":[{"name":"{{name}}",
+                 "browser_download_url":"https://github.com/Zettersten/shhnap/releases/download/v1.2.4/{{name}}",
+                 "digest":"sha256:{{new string('a', 64)}}","size":12345}]}
+                """),
+        }));
+
+        ReleaseCheckResult result = await new ReleaseUpdateChecker(directory.Path, client).CheckAsync(
+            new Version(1, 2, 3), true, CancellationToken.None);
+
+        Assert.IsTrue(result.UpdateAvailable);
+        Assert.IsNull(result.Asset);
     }
 
     private static HttpResponseMessage Release(string tag) => new(HttpStatusCode.OK)

@@ -664,14 +664,14 @@ Avoid nested settings pages unless a future feature truly requires them.
 
 The marketing site uses:
 
-- max content width: 1200px
-- generous 64–96px vertical section spacing
-- clear left-aligned copy
-- product screenshots as primary visuals
-- light backgrounds with restrained gradients
+- max content width: 1320px so real product captures remain legible
+- generous, fluid vertical spacing between product stories
+- a midnight-blue opening scene with Shnapp's own illustration, followed by real app screenshots and a short demo video
+- large display type and alternating white, pale blue/violet, and dark-blue sections
+- a compact floating navigation pill and clear download actions
 - simple pricing-free product storytelling unless monetization is introduced
 
-Hero sections should explain the product in one sentence and show it immediately.
+Hero sections should explain the product in one sentence and show it immediately. Label illustrative scenes, and identify real app captures with sample content.
 
 ## Elevation & Depth
 
@@ -1202,17 +1202,13 @@ The website should reuse the product system while allowing slightly more express
 
 Recommended components:
 
-- hero
-- keyboard shortcut strip
-- feature cards
-- editor screenshot
-- capture mode demo
-- annotation tool demo
-- AI assistance section
-- download CTA
-- FAQ
-- GitHub link
-- privacy statement
+- product-led hero
+- real editor and library screenshots
+- short workflow video
+- keyboard shortcut rows
+- feature stories and privacy callout
+- download CTA and installation options
+- FAQ, GitHub links, and privacy details
 
 The site should look like the product, not like a generic startup landing page.
 
