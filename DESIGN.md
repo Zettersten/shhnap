@@ -194,9 +194,11 @@ components:
   button-primary-pressed:
     backgroundColor: "{colors.primary-pressed}"
   new-shnapp-action:
-    gradientStart: "#B8F48A"
-    gradientMid: "#54CBEF"
-    gradientEnd: "#26187B"
+    gradientStart: "#7510AD"
+    gradientMid: "#430075"
+    gradientEnd: "#59078F"
+    rimColor: "#C138E3"
+    glowColor: "rgba(111,16,177,0.22)"
     textColor: "{colors.on-primary}"
     rounded: "{rounded.md}"
 
@@ -1171,7 +1173,7 @@ Respect Windows Reduce Motion settings.
 
 Avoid springy or playful animation.
 
-The **New shnapp** action is the small brand exception: a blue gradient with sparse white sparkles that drift upward, fade, and return at varied positions. Keep the focus outline aligned to the painted button bounds. Stop decorative animation when the window is hidden, system animations are disabled, or high contrast is active.
+The **New shnapp** and empty-library **Capture a region** actions are small brand exceptions: use a dark violet body, a slim magenta rim, and a restrained purple glow. Keep the body darker than the edge so the buttons feel tactile without a bright rainbow wash. Sparse white sparkles drift upward, fade, and return at varied positions. Keep the focus outline aligned to the painted button bounds. Stop decorative animation when the window is hidden, system animations are disabled, or high contrast is active.
 
 ### Cursor behavior
 
