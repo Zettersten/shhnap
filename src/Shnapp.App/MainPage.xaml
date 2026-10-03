@@ -14,89 +14,89 @@
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
                     <LinearGradientBrush x:Key="NewShnappSplitFill" StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#B8F48A" Offset="0" />
-                        <GradientStop Color="#54CBEF" Offset="0.13" />
-                        <GradientStop Color="#3486E0" Offset="0.36" />
-                        <GradientStop Color="#315AC1" Offset="0.58" />
-                        <GradientStop Color="#26187B" Offset="1" />
+                        <GradientStop Color="#C138E3" Offset="0" />
+                        <GradientStop Color="#7510AD" Offset="0.13" />
+                        <GradientStop Color="#4B0585" Offset="0.36" />
+                        <GradientStop Color="#430075" Offset="0.58" />
+                        <GradientStop Color="#59078F" Offset="1" />
                     </LinearGradientBrush>
                     <SolidColorBrush x:Key="NewShnappSplitText" Color="White" />
-                    <SolidColorBrush x:Key="CaptureButtonShadowBrush" Color="#32001332" />
+                    <SolidColorBrush x:Key="CaptureButtonShadowBrush" Color="#3324004B" />
                     <SolidColorBrush x:Key="LibraryButtonOutlineBrush" Color="#6686ADD9" />
                     <SolidColorBrush x:Key="UpdateAttentionBrush" Color="#D6294D" />
                     <LinearGradientBrush x:Key="SplitButtonBackground" StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#B8F48A" Offset="0" />
-                        <GradientStop Color="#54CBEF" Offset="0.13" />
-                        <GradientStop Color="#3486E0" Offset="0.36" />
-                        <GradientStop Color="#315AC1" Offset="0.58" />
-                        <GradientStop Color="#26187B" Offset="1" />
+                        <GradientStop Color="#C138E3" Offset="0" />
+                        <GradientStop Color="#7510AD" Offset="0.13" />
+                        <GradientStop Color="#4B0585" Offset="0.36" />
+                        <GradientStop Color="#430075" Offset="0.58" />
+                        <GradientStop Color="#59078F" Offset="1" />
                     </LinearGradientBrush>
                     <LinearGradientBrush x:Key="SplitButtonBackgroundPointerOver" StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#CEFFA3" Offset="0" />
-                        <GradientStop Color="#75E6FA" Offset="0.13" />
-                        <GradientStop Color="#4C9CEF" Offset="0.36" />
-                        <GradientStop Color="#3F70D5" Offset="0.58" />
-                        <GradientStop Color="#34228C" Offset="1" />
+                        <GradientStop Color="#D25AEC" Offset="0" />
+                        <GradientStop Color="#8B24C1" Offset="0.13" />
+                        <GradientStop Color="#5C1499" Offset="0.36" />
+                        <GradientStop Color="#531085" Offset="0.58" />
+                        <GradientStop Color="#7020A8" Offset="1" />
                     </LinearGradientBrush>
                     <LinearGradientBrush x:Key="SplitButtonBackgroundPressed" StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#87D87D" Offset="0" />
-                        <GradientStop Color="#379FCC" Offset="0.13" />
-                        <GradientStop Color="#2E70C7" Offset="0.36" />
-                        <GradientStop Color="#2D4EA6" Offset="0.58" />
-                        <GradientStop Color="#21135F" Offset="1" />
+                        <GradientStop Color="#9329B4" Offset="0" />
+                        <GradientStop Color="#61118F" Offset="0.13" />
+                        <GradientStop Color="#3A006E" Offset="0.36" />
+                        <GradientStop Color="#31005F" Offset="0.58" />
+                        <GradientStop Color="#4A087B" Offset="1" />
                     </LinearGradientBrush>
                     <SolidColorBrush x:Key="SplitButtonForeground" Color="White" />
                     <SolidColorBrush x:Key="SplitButtonForegroundPointerOver" Color="White" />
                     <SolidColorBrush x:Key="SplitButtonForegroundPressed" Color="White" />
                     <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="White" />
-                    <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="#E5F2FF" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="#88BDE9F9" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="#AAD8FBFF" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="#7A1A1D72" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#77111C58" />
+                    <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="#F8E9FF" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="#B0AD3CCF" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="#C8C85EE8" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="#90491A92" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#A0210B54" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Default">
                     <LinearGradientBrush x:Key="NewShnappSplitFill" StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#B8F48A" Offset="0" />
-                        <GradientStop Color="#54CBEF" Offset="0.13" />
-                        <GradientStop Color="#3486E0" Offset="0.36" />
-                        <GradientStop Color="#315AC1" Offset="0.58" />
-                        <GradientStop Color="#26187B" Offset="1" />
+                        <GradientStop Color="#C138E3" Offset="0" />
+                        <GradientStop Color="#7510AD" Offset="0.13" />
+                        <GradientStop Color="#4B0585" Offset="0.36" />
+                        <GradientStop Color="#430075" Offset="0.58" />
+                        <GradientStop Color="#59078F" Offset="1" />
                     </LinearGradientBrush>
                     <SolidColorBrush x:Key="NewShnappSplitText" Color="White" />
-                    <SolidColorBrush x:Key="CaptureButtonShadowBrush" Color="#50000315" />
+                    <SolidColorBrush x:Key="CaptureButtonShadowBrush" Color="#50200040" />
                     <SolidColorBrush x:Key="LibraryButtonOutlineBrush" Color="#6681A6DC" />
                     <SolidColorBrush x:Key="UpdateAttentionBrush" Color="#FF4968" />
                     <LinearGradientBrush x:Key="SplitButtonBackground" StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#B8F48A" Offset="0" />
-                        <GradientStop Color="#54CBEF" Offset="0.13" />
-                        <GradientStop Color="#3486E0" Offset="0.36" />
-                        <GradientStop Color="#315AC1" Offset="0.58" />
-                        <GradientStop Color="#26187B" Offset="1" />
+                        <GradientStop Color="#C138E3" Offset="0" />
+                        <GradientStop Color="#7510AD" Offset="0.13" />
+                        <GradientStop Color="#4B0585" Offset="0.36" />
+                        <GradientStop Color="#430075" Offset="0.58" />
+                        <GradientStop Color="#59078F" Offset="1" />
                     </LinearGradientBrush>
                     <LinearGradientBrush x:Key="SplitButtonBackgroundPointerOver" StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#CEFFA3" Offset="0" />
-                        <GradientStop Color="#75E6FA" Offset="0.13" />
-                        <GradientStop Color="#4C9CEF" Offset="0.36" />
-                        <GradientStop Color="#3F70D5" Offset="0.58" />
-                        <GradientStop Color="#34228C" Offset="1" />
+                        <GradientStop Color="#D25AEC" Offset="0" />
+                        <GradientStop Color="#8B24C1" Offset="0.13" />
+                        <GradientStop Color="#5C1499" Offset="0.36" />
+                        <GradientStop Color="#531085" Offset="0.58" />
+                        <GradientStop Color="#7020A8" Offset="1" />
                     </LinearGradientBrush>
                     <LinearGradientBrush x:Key="SplitButtonBackgroundPressed" StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#87D87D" Offset="0" />
-                        <GradientStop Color="#379FCC" Offset="0.13" />
-                        <GradientStop Color="#2E70C7" Offset="0.36" />
-                        <GradientStop Color="#2D4EA6" Offset="0.58" />
-                        <GradientStop Color="#21135F" Offset="1" />
+                        <GradientStop Color="#9329B4" Offset="0" />
+                        <GradientStop Color="#61118F" Offset="0.13" />
+                        <GradientStop Color="#3A006E" Offset="0.36" />
+                        <GradientStop Color="#31005F" Offset="0.58" />
+                        <GradientStop Color="#4A087B" Offset="1" />
                     </LinearGradientBrush>
                     <SolidColorBrush x:Key="SplitButtonForeground" Color="White" />
                     <SolidColorBrush x:Key="SplitButtonForegroundPointerOver" Color="White" />
                     <SolidColorBrush x:Key="SplitButtonForegroundPressed" Color="White" />
                     <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="White" />
-                    <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="#E5F2FF" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="#88BDE9F9" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="#AAD8FBFF" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="#7A1A1D72" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#77111C58" />
+                    <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="#F8E9FF" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="#B0AD3CCF" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="#C8C85EE8" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="#90491A92" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#A0210B54" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="HighContrast">
                     <SolidColorBrush x:Key="NewShnappSplitFill" Color="{ThemeResource SystemColorHighlightColor}" />
@@ -202,65 +202,65 @@
                             <ResourceDictionary.ThemeDictionaries>
                                 <ResourceDictionary x:Key="Light">
                                     <LinearGradientBrush x:Key="SplitButtonBackground" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#B8F48A" Offset="0" />
-                                        <GradientStop Color="#54CBEF" Offset="0.13" />
-                                        <GradientStop Color="#3486E0" Offset="0.36" />
-                                        <GradientStop Color="#315AC1" Offset="0.58" />
-                                        <GradientStop Color="#26187B" Offset="1" />
+                                        <GradientStop Color="#C138E3" Offset="0" />
+                                        <GradientStop Color="#7510AD" Offset="0.13" />
+                                        <GradientStop Color="#4B0585" Offset="0.36" />
+                                        <GradientStop Color="#430075" Offset="0.58" />
+                                        <GradientStop Color="#59078F" Offset="1" />
                                     </LinearGradientBrush>
                                     <LinearGradientBrush x:Key="SplitButtonBackgroundPointerOver" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#CEFFA3" Offset="0" />
-                                        <GradientStop Color="#75E6FA" Offset="0.13" />
-                                        <GradientStop Color="#4C9CEF" Offset="0.36" />
-                                        <GradientStop Color="#3F70D5" Offset="0.58" />
-                                        <GradientStop Color="#34228C" Offset="1" />
+                                        <GradientStop Color="#D25AEC" Offset="0" />
+                                        <GradientStop Color="#8B24C1" Offset="0.13" />
+                                        <GradientStop Color="#5C1499" Offset="0.36" />
+                                        <GradientStop Color="#531085" Offset="0.58" />
+                                        <GradientStop Color="#7020A8" Offset="1" />
                                     </LinearGradientBrush>
                                     <LinearGradientBrush x:Key="SplitButtonBackgroundPressed" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#87D87D" Offset="0" />
-                                        <GradientStop Color="#379FCC" Offset="0.13" />
-                                        <GradientStop Color="#2E70C7" Offset="0.36" />
-                                        <GradientStop Color="#2D4EA6" Offset="0.58" />
-                                        <GradientStop Color="#21135F" Offset="1" />
+                                        <GradientStop Color="#9329B4" Offset="0" />
+                                        <GradientStop Color="#61118F" Offset="0.13" />
+                                        <GradientStop Color="#3A006E" Offset="0.36" />
+                                        <GradientStop Color="#31005F" Offset="0.58" />
+                                        <GradientStop Color="#4A087B" Offset="1" />
                                     </LinearGradientBrush>
                                     <SolidColorBrush x:Key="SplitButtonForegroundPointerOver" Color="White" />
                                     <SolidColorBrush x:Key="SplitButtonForegroundPressed" Color="White" />
                                     <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="White" />
                                     <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="White" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#77111C58" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="#88BDE9F9" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="#AAD8FBFF" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="#7A1A1D72" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#A0210B54" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="#B0AD3CCF" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="#C8C85EE8" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="#90491A92" />
                                 </ResourceDictionary>
                                 <ResourceDictionary x:Key="Default">
                                     <LinearGradientBrush x:Key="SplitButtonBackground" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#B8F48A" Offset="0" />
-                                        <GradientStop Color="#54CBEF" Offset="0.13" />
-                                        <GradientStop Color="#3486E0" Offset="0.36" />
-                                        <GradientStop Color="#315AC1" Offset="0.58" />
-                                        <GradientStop Color="#26187B" Offset="1" />
+                                        <GradientStop Color="#C138E3" Offset="0" />
+                                        <GradientStop Color="#7510AD" Offset="0.13" />
+                                        <GradientStop Color="#4B0585" Offset="0.36" />
+                                        <GradientStop Color="#430075" Offset="0.58" />
+                                        <GradientStop Color="#59078F" Offset="1" />
                                     </LinearGradientBrush>
                                     <LinearGradientBrush x:Key="SplitButtonBackgroundPointerOver" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#CEFFA3" Offset="0" />
-                                        <GradientStop Color="#75E6FA" Offset="0.13" />
-                                        <GradientStop Color="#4C9CEF" Offset="0.36" />
-                                        <GradientStop Color="#3F70D5" Offset="0.58" />
-                                        <GradientStop Color="#34228C" Offset="1" />
+                                        <GradientStop Color="#D25AEC" Offset="0" />
+                                        <GradientStop Color="#8B24C1" Offset="0.13" />
+                                        <GradientStop Color="#5C1499" Offset="0.36" />
+                                        <GradientStop Color="#531085" Offset="0.58" />
+                                        <GradientStop Color="#7020A8" Offset="1" />
                                     </LinearGradientBrush>
                                     <LinearGradientBrush x:Key="SplitButtonBackgroundPressed" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#87D87D" Offset="0" />
-                                        <GradientStop Color="#379FCC" Offset="0.13" />
-                                        <GradientStop Color="#2E70C7" Offset="0.36" />
-                                        <GradientStop Color="#2D4EA6" Offset="0.58" />
-                                        <GradientStop Color="#21135F" Offset="1" />
+                                        <GradientStop Color="#9329B4" Offset="0" />
+                                        <GradientStop Color="#61118F" Offset="0.13" />
+                                        <GradientStop Color="#3A006E" Offset="0.36" />
+                                        <GradientStop Color="#31005F" Offset="0.58" />
+                                        <GradientStop Color="#4A087B" Offset="1" />
                                     </LinearGradientBrush>
                                     <SolidColorBrush x:Key="SplitButtonForegroundPointerOver" Color="White" />
                                     <SolidColorBrush x:Key="SplitButtonForegroundPressed" Color="White" />
                                     <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="White" />
                                     <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="White" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#77111C58" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="#88BDE9F9" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="#AAD8FBFF" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="#7A1A1D72" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#A0210B54" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="#B0AD3CCF" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="#C8C85EE8" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="#90491A92" />
                                 </ResourceDictionary>
                                 <ResourceDictionary x:Key="HighContrast">
                                     <SolidColorBrush x:Key="SplitButtonBackground" Color="{ThemeResource SystemColorHighlightColor}" />
