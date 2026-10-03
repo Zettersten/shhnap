@@ -63,6 +63,22 @@ public sealed partial class MainPage
         _ => EditorTool.Select,
     };
 
+    private static EditorTool DisplayShapeTool(Annotation? selected, EditorTool tool)
+    {
+        if (selected is not { Kind: AnnotationKind.Rectangle or AnnotationKind.Ellipse })
+        {
+            return tool;
+        }
+
+        ImageRect bounds = selected.Bounds;
+        if (bounds.Width <= 0 || Math.Abs(bounds.Width - bounds.Height) > 0.5)
+        {
+            return tool;
+        }
+
+        return selected.Kind == AnnotationKind.Rectangle ? EditorTool.Square : EditorTool.Circle;
+    }
+
     private EditorTool InspectorTool() => InspectorAnnotation() is { } selected ? ToolFor(selected) : _tool;
 
     private ToolStyle StyleFor(Annotation? selected, EditorTool tool)
@@ -113,6 +129,7 @@ public sealed partial class MainPage
 
         Annotation? selected = InspectorAnnotation();
         EditorTool tool = selected is null ? _tool : ToolFor(selected);
+        EditorTool displayedShape = DisplayShapeTool(selected, tool);
         ToolStyle style = StyleFor(selected, tool);
         bool text = tool == EditorTool.Text;
         bool step = tool == EditorTool.Step;
@@ -127,10 +144,10 @@ public sealed partial class MainPage
         _updatingOptions = true;
         InspectorToolIcon.Visibility = line || shape ? Visibility.Collapsed : Visibility.Visible;
         InspectorLineIcon.Visibility = line ? Visibility.Visible : Visibility.Collapsed;
-        InspectorRectangleIcon.Visibility = tool == EditorTool.Rectangle ? Visibility.Visible : Visibility.Collapsed;
-        InspectorSquareIcon.Visibility = tool == EditorTool.Square ? Visibility.Visible : Visibility.Collapsed;
-        InspectorEllipseIcon.Visibility = tool == EditorTool.Ellipse ? Visibility.Visible : Visibility.Collapsed;
-        InspectorCircleIcon.Visibility = tool == EditorTool.Circle ? Visibility.Visible : Visibility.Collapsed;
+        InspectorRectangleIcon.Visibility = displayedShape == EditorTool.Rectangle ? Visibility.Visible : Visibility.Collapsed;
+        InspectorSquareIcon.Visibility = displayedShape == EditorTool.Square ? Visibility.Visible : Visibility.Collapsed;
+        InspectorEllipseIcon.Visibility = displayedShape == EditorTool.Ellipse ? Visibility.Visible : Visibility.Collapsed;
+        InspectorCircleIcon.Visibility = displayedShape == EditorTool.Circle ? Visibility.Visible : Visibility.Collapsed;
         InspectorToolIcon.Glyph = selected?.Kind == AnnotationKind.Image ? "\uE8B9" : tool switch
         {
             EditorTool.Text => "\uE8D2",
@@ -141,7 +158,9 @@ public sealed partial class MainPage
         };
         InspectorTitle.Text = editingText ? "Editing text" : redaction
             ? selected is null ? RedactionModeLabel(style.RedactionMode) : $"Selected {RedactionModeLabel(style.RedactionMode).ToLowerInvariant()}"
-            : selected is null ? tool.ToString() : line ? "Selected line" : $"Selected {selected.Kind.ToString().ToLowerInvariant()}";
+            : selected is null ? tool.ToString() : line ? "Selected line" : shape
+                ? $"Selected {displayedShape.ToString().ToLowerInvariant()}"
+                : $"Selected {selected.Kind.ToString().ToLowerInvariant()}";
         InspectorHelp.Text = editingText
             ? fixedTextBox
                 ? "Text stays within the drawn box. Set alignment and overflow here. Press Ctrl+Enter to finish."
