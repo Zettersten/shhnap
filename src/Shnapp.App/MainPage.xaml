@@ -22,6 +22,9 @@
                     </LinearGradientBrush>
                     <SolidColorBrush x:Key="NewShnappSplitText" Color="White" />
                     <SolidColorBrush x:Key="CaptureButtonShadowBrush" Color="#3324004B" />
+                    <SolidColorBrush x:Key="CaptureButtonRimBrush" Color="#B0AD3CCF" />
+                    <SolidColorBrush x:Key="CaptureButtonRimBrushPointerOver" Color="#C8C85EE8" />
+                    <SolidColorBrush x:Key="CaptureButtonRimBrushPressed" Color="#90491A92" />
                     <SolidColorBrush x:Key="LibraryButtonOutlineBrush" Color="#6686ADD9" />
                     <SolidColorBrush x:Key="UpdateAttentionBrush" Color="#D6294D" />
                     <LinearGradientBrush x:Key="SplitButtonBackground" StartPoint="0,0" EndPoint="0,1">
@@ -50,9 +53,9 @@
                     <SolidColorBrush x:Key="SplitButtonForegroundPressed" Color="White" />
                     <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="White" />
                     <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="#F8E9FF" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="#B0AD3CCF" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="#C8C85EE8" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="#90491A92" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="Transparent" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="Transparent" />
                     <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#A0210B54" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Default">
@@ -65,6 +68,9 @@
                     </LinearGradientBrush>
                     <SolidColorBrush x:Key="NewShnappSplitText" Color="White" />
                     <SolidColorBrush x:Key="CaptureButtonShadowBrush" Color="#50200040" />
+                    <SolidColorBrush x:Key="CaptureButtonRimBrush" Color="#B0AD3CCF" />
+                    <SolidColorBrush x:Key="CaptureButtonRimBrushPointerOver" Color="#C8C85EE8" />
+                    <SolidColorBrush x:Key="CaptureButtonRimBrushPressed" Color="#90491A92" />
                     <SolidColorBrush x:Key="LibraryButtonOutlineBrush" Color="#6681A6DC" />
                     <SolidColorBrush x:Key="UpdateAttentionBrush" Color="#FF4968" />
                     <LinearGradientBrush x:Key="SplitButtonBackground" StartPoint="0,0" EndPoint="0,1">
@@ -93,15 +99,18 @@
                     <SolidColorBrush x:Key="SplitButtonForegroundPressed" Color="White" />
                     <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="White" />
                     <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="#F8E9FF" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="#B0AD3CCF" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="#C8C85EE8" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="#90491A92" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="Transparent" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="Transparent" />
                     <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#A0210B54" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="HighContrast">
                     <SolidColorBrush x:Key="NewShnappSplitFill" Color="{ThemeResource SystemColorHighlightColor}" />
                     <SolidColorBrush x:Key="NewShnappSplitText" Color="{ThemeResource SystemColorHighlightTextColor}" />
                     <SolidColorBrush x:Key="CaptureButtonShadowBrush" Color="Transparent" />
+                    <SolidColorBrush x:Key="CaptureButtonRimBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                    <SolidColorBrush x:Key="CaptureButtonRimBrushPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                    <SolidColorBrush x:Key="CaptureButtonRimBrushPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
                     <SolidColorBrush x:Key="LibraryButtonOutlineBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="UpdateAttentionBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                     <SolidColorBrush x:Key="SplitButtonBackground" Color="{ThemeResource SystemColorHighlightColor}" />
@@ -112,9 +121,9 @@
                     <SolidColorBrush x:Key="SplitButtonForegroundPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
                     <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="{ThemeResource SystemColorHighlightTextColor}" />
                     <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
-                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="Transparent" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="Transparent" />
+                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="Transparent" />
                     <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="{ThemeResource SystemColorHighlightTextColor}" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
@@ -182,7 +191,7 @@
             </CommandBar.Content>
             <AppBarElementContainer Padding="0" Margin="0,0,8,0" Background="Transparent" BorderThickness="0">
                 <Grid Width="168" Height="48" VerticalAlignment="Center" Translation="0,0,2">
-                <local:HandCursorRegion Width="168" Height="34" VerticalAlignment="Center" Background="Transparent">
+                <local:HandCursorRegion x:Name="NewShnappCaptureShell" Width="168" Height="34" VerticalAlignment="Center" Background="Transparent">
                 <Border Width="168" Height="34" CornerRadius="8" VerticalAlignment="Center"
                     Background="{ThemeResource CaptureButtonShadowBrush}" IsHitTestVisible="False">
                     <Border.RenderTransform><TranslateTransform Y="2" /></Border.RenderTransform>
@@ -227,9 +236,9 @@
                                     <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="White" />
                                     <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="White" />
                                     <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#A0210B54" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="#B0AD3CCF" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="#C8C85EE8" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="#90491A92" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="Transparent" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="Transparent" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="Transparent" />
                                 </ResourceDictionary>
                                 <ResourceDictionary x:Key="Default">
                                     <LinearGradientBrush x:Key="SplitButtonBackground" StartPoint="0,0" EndPoint="0,1">
@@ -258,9 +267,9 @@
                                     <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="White" />
                                     <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="White" />
                                     <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#A0210B54" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="#B0AD3CCF" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="#C8C85EE8" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="#90491A92" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="Transparent" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="Transparent" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="Transparent" />
                                 </ResourceDictionary>
                                 <ResourceDictionary x:Key="HighContrast">
                                     <SolidColorBrush x:Key="SplitButtonBackground" Color="{ThemeResource SystemColorHighlightColor}" />
@@ -271,9 +280,9 @@
                                     <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="{ThemeResource SystemColorHighlightTextColor}" />
                                     <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
                                     <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="{ThemeResource SystemColorHighlightTextColor}" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="Transparent" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="Transparent" />
+                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="Transparent" />
                                 </ResourceDictionary>
                             </ResourceDictionary.ThemeDictionaries>
                         </ResourceDictionary>
@@ -322,6 +331,15 @@
                         <Border x:Name="NewShnappArrowHoverOverlay" CornerRadius="0,8,8,0" IsHitTestVisible="False" />
                     </local:HandCursorRegion>
                 </local:HandCursorRegion>
+                <Border x:Name="NewShnappRimNormal" Width="168" Height="34" CornerRadius="8" VerticalAlignment="Center"
+                    BorderThickness="1" BorderBrush="{ThemeResource CaptureButtonRimBrush}"
+                    IsHitTestVisible="False" />
+                <Border x:Name="NewShnappRimHover" Width="168" Height="34" CornerRadius="8" VerticalAlignment="Center"
+                    BorderThickness="1" BorderBrush="{ThemeResource CaptureButtonRimBrushPointerOver}"
+                    Visibility="Collapsed" IsHitTestVisible="False" />
+                <Border x:Name="NewShnappRimPressed" Width="168" Height="34" CornerRadius="8" VerticalAlignment="Center"
+                    BorderThickness="1" BorderBrush="{ThemeResource CaptureButtonRimBrushPressed}"
+                    Visibility="Collapsed" IsHitTestVisible="False" />
                 </Grid>
             </AppBarElementContainer>
             <AppBarElementContainer Height="48" VerticalAlignment="Center" Padding="0" Margin="0,0,8,0" Background="Transparent" BorderThickness="0">
@@ -1088,6 +1106,14 @@
                                     </local:HandCursorSplitButton>
                                     <local:CaptureSparkleHost x:Name="LibraryEmptySparkleHost" Width="252" Height="54"
                                         HorizontalAlignment="Left" Background="Transparent" IsHitTestVisible="False" />
+                                    <Border x:Name="LibraryEmptyRimNormal" CornerRadius="8" BorderThickness="1"
+                                        BorderBrush="{ThemeResource CaptureButtonRimBrush}" IsHitTestVisible="False" />
+                                    <Border x:Name="LibraryEmptyRimHover" CornerRadius="8" BorderThickness="1"
+                                        BorderBrush="{ThemeResource CaptureButtonRimBrushPointerOver}"
+                                        Visibility="Collapsed" IsHitTestVisible="False" />
+                                    <Border x:Name="LibraryEmptyRimPressed" CornerRadius="8" BorderThickness="1"
+                                        BorderBrush="{ThemeResource CaptureButtonRimBrushPressed}"
+                                        Visibility="Collapsed" IsHitTestVisible="False" />
                                 </Grid>
                             </StackPanel>
                         </Grid>
