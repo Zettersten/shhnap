@@ -11,13 +11,13 @@
     <Company>Erik Zettersten</Company>
     <Copyright>Copyright © Erik Zettersten</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>0.1.0</Version>
+    <Version>1.0.7</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64;ARM64</Platforms>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'AnyCPU'">x64</Platform>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</RuntimeIdentifier>
-    <PublishProfile Condition="Exists('Properties\PublishProfiles\win-$(Platform).pubxml')">win-$(Platform).pubxml</PublishProfile>
+    <PublishProfile Condition="'$(ShnappDistribution)' != 'PortableSingleFile' and Exists('Properties\PublishProfiles\win-$(Platform).pubxml')">win-$(Platform).pubxml</PublishProfile>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
     <!-- CI opts into Store packaging with -p:ShnappDistribution=Store. -->
@@ -54,7 +54,6 @@
     <Content Include="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\ShnappLogo.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\LibraryEmptyBackground.png" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\NewShnappButton*.svg" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\provenance.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

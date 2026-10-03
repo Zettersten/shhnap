@@ -27,6 +27,7 @@ public sealed partial class EditorViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EditorVisibility))]
     [NotifyPropertyChangedFor(nameof(LibraryVisibility))]
+    [NotifyPropertyChangedFor(nameof(IsLibrarySelected))]
     public partial bool HasDocument { get; set; }
 
     /// <summary>Gets or sets whether undo is available.</summary>
@@ -42,6 +43,9 @@ public sealed partial class EditorViewModel : ObservableObject
 
     /// <summary>Gets the visibility of the library surface.</summary>
     public Visibility LibraryVisibility => HasDocument ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>Highlights Library while the library surface is visible.</summary>
+    public bool? IsLibrarySelected => !HasDocument;
 
     /// <summary>Gets the virtualized collection of visible library entries.</summary>
     public ObservableCollection<LibraryEntry> Library { get; } = [];

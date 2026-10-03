@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Windowing;
 using Windows.Graphics;
 
@@ -10,17 +11,61 @@ public sealed partial class MainWindow : Window
     private nint _windowIcon;
     internal MainPage Page { get; }
     internal SettingsPage? Settings { get; private set; }
+    private UIElement? _focusBeforeSettings;
+    private int _settingsTransitionVersion;
 
     internal void ShowSettings(SettingsPage page)
     {
+        ++_settingsTransitionVersion;
+        if (SettingsOverlay.Visibility != Visibility.Visible)
+        {
+            _focusBeforeSettings = Page.XamlRoot is { } root
+                ? FocusManager.GetFocusedElement(root) as UIElement : null;
+        }
+        (Page.Content as InteractiveCursorHost)?.ReleaseCursor();
         Settings = page;
-        RootFrame.Content = page;
+        RootFrame.IsEnabled = false;
+        SettingsOverlay.Content = page;
+        SettingsOverlay.IsHitTestVisible = true;
+        SettingsOverlay.Visibility = Visibility.Visible;
     }
 
-    internal void ShowMainPage()
+    internal async void ShowMainPage(bool restoreFocus = false)
     {
-        RootFrame.Content = Page;
+        if (restoreFocus && Settings is null)
+        {
+            return;
+        }
+
+        int transitionVersion = ++_settingsTransitionVersion;
+        SettingsPage? closingSettings = Settings;
+        bool wasSettingsOpen = closingSettings is not null;
         Settings = null;
+        if (restoreFocus && closingSettings is not null)
+        {
+            SettingsOverlay.IsHitTestVisible = false;
+            await closingSettings.PlayCloseTransitionAsync();
+            if (transitionVersion != _settingsTransitionVersion)
+            {
+                return;
+            }
+        }
+
+        SettingsOverlay.Visibility = Visibility.Collapsed;
+        SettingsOverlay.Content = null;
+        RootFrame.IsEnabled = true;
+        SettingsOverlay.IsHitTestVisible = true;
+        UIElement? previousFocus = _focusBeforeSettings;
+        _focusBeforeSettings = null;
+        if (!wasSettingsOpen || !restoreFocus)
+        {
+            return;
+        }
+
+        if (previousFocus?.Focus(FocusState.Programmatic) != true)
+        {
+            Page.FocusDefaultAction();
+        }
     }
 
     internal void ApplyTheme(ElementTheme theme)

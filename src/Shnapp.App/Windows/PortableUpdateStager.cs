@@ -18,6 +18,11 @@ internal sealed class PortableUpdateStager
 
     internal PortableUpdateStager(HttpClient? client = null) => _client = client ?? SharedClient;
 
+    internal static string CurrentExecutableDirectory =>
+        Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+
+    internal static string? FindCurrentInstallRoot() => FindInstallRoot(CurrentExecutableDirectory);
+
     internal static string? FindInstallRoot(string appDirectory)
     {
         try

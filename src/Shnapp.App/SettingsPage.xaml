@@ -3,254 +3,416 @@
     x:Class="Shnapp.App.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Shnapp.App"
+    Loaded="SettingsPage_Loaded"
+    SizeChanged="SettingsPage_SizeChanged"
+    KeyDown="SettingsPage_KeyDown"
     FontFamily="Segoe UI Variable Text"
     Background="Transparent">
     <Page.Resources>
-        <Style x:Key="SettingsCardStyle" TargetType="Border">
-            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
-            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
-        </Style>
-        <Style x:Key="SettingsSectionTitleStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="18" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-        <Style x:Key="SettingsSupportingTextStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="SettingsScrimBrush" Color="#B900102D" />
+                    <SolidColorBrush x:Key="SettingsSurfaceBrush" Color="#F4F7FF" />
+                    <SolidColorBrush x:Key="SettingsSidebarBrush" Color="#EAF0FB" />
+                    <SolidColorBrush x:Key="SettingsCardBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="SettingsFooterBrush" Color="#EDF3FC" />
+                    <SolidColorBrush x:Key="SettingsStrokeBrush" Color="#C7D4EB" />
+                    <SolidColorBrush x:Key="SettingsSecondaryBrush" Color="#52617A" />
+                    <SolidColorBrush x:Key="SettingsShortcutBrush" Color="#EAF0FC" />
+                    <SolidColorBrush x:Key="SettingsNavForegroundBrush" Color="#1B2B48" />
+                    <SolidColorBrush x:Key="SettingsSelectedNavForegroundBrush" Color="#152A55" />
+                    <LinearGradientBrush x:Key="SettingsEdgeBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#08AFFF" Offset="0" />
+                        <GradientStop Color="#306DFF" Offset="0.52" />
+                        <GradientStop Color="#873EFF" Offset="1" />
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="SettingsSelectedNavBrush" StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#DCEBFF" Offset="0" />
+                        <GradientStop Color="#E9E3FF" Offset="1" />
+                    </LinearGradientBrush>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="SettingsScrimBrush" Color="#BE030B20" />
+                    <SolidColorBrush x:Key="SettingsSurfaceBrush" Color="#111B3A" />
+                    <SolidColorBrush x:Key="SettingsSidebarBrush" Color="#111B36" />
+                    <SolidColorBrush x:Key="SettingsCardBrush" Color="#1B2949" />
+                    <SolidColorBrush x:Key="SettingsFooterBrush" Color="#101A37" />
+                    <SolidColorBrush x:Key="SettingsStrokeBrush" Color="#344775" />
+                    <SolidColorBrush x:Key="SettingsSecondaryBrush" Color="#B5C7E7" />
+                    <SolidColorBrush x:Key="SettingsShortcutBrush" Color="#26375F" />
+                    <SolidColorBrush x:Key="SettingsNavForegroundBrush" Color="#F4F7FF" />
+                    <SolidColorBrush x:Key="SettingsSelectedNavForegroundBrush" Color="#FFFFFF" />
+                    <LinearGradientBrush x:Key="SettingsEdgeBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#19B9FF" Offset="0" />
+                        <GradientStop Color="#276CFF" Offset="0.48" />
+                        <GradientStop Color="#843BFF" Offset="1" />
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="SettingsSelectedNavBrush" StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#16458C" Offset="0" />
+                        <GradientStop Color="#3522A4" Offset="1" />
+                    </LinearGradientBrush>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="SettingsScrimBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="SettingsSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="SettingsSidebarBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="SettingsCardBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="SettingsFooterBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="SettingsStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="SettingsSecondaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="SettingsShortcutBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="SettingsNavForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="SettingsSelectedNavForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                    <SolidColorBrush x:Key="SettingsEdgeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                    <SolidColorBrush x:Key="SettingsSelectedNavBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+            <Style x:Key="SettingsCardStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource SettingsCardBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource SettingsStrokeBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="12" />
+            </Style>
+            <Style x:Key="SettingsSectionTitleStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="17" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+            <Style x:Key="SettingsSupportingTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource SettingsSecondaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+            <Style x:Key="SettingsNavButtonStyle" TargetType="Button">
+                <Setter Property="Height" Value="44" />
+                <Setter Property="Padding" Value="12,8" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="Foreground" Value="{ThemeResource SettingsNavForegroundBrush}" />
+            </Style>
+        </ResourceDictionary>
     </Page.Resources>
 
-    <NavigationView x:Name="SettingsNavigation"
-        PaneTitle="Settings"
-        PaneDisplayMode="LeftMinimal"
-        OpenPaneLength="252"
-        IsPaneOpen="False"
-        IsPaneToggleButtonVisible="True"
-        IsSettingsVisible="False"
-        IsBackButtonVisible="Collapsed"
-        AlwaysShowHeader="False"
-        SelectionChanged="SettingsNavigation_SelectionChanged">
-        <NavigationView.MenuItems>
-            <NavigationViewItem Content="General" Tag="general" AutomationProperties.AutomationId="SettingsGeneral">
-                <NavigationViewItem.Icon><FontIcon Glyph="&#xE713;" /></NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="About &amp; Updates" Tag="updates" AutomationProperties.AutomationId="SettingsUpdates">
-                <NavigationViewItem.Icon><FontIcon Glyph="&#xE895;" /></NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="Feedback" Tag="feedback" AutomationProperties.AutomationId="SettingsFeedback">
-                <NavigationViewItem.Icon><FontIcon Glyph="&#xE939;" /></NavigationViewItem.Icon>
-            </NavigationViewItem>
-        </NavigationView.MenuItems>
+    <local:InteractiveCursorHost x:Name="SettingsScrim" Background="{ThemeResource SettingsScrimBrush}">
+        <Grid MaxWidth="900" MaxHeight="760" Margin="16"
+            HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <Border x:Name="SettingsDialog" Background="{ThemeResource SettingsSurfaceBrush}"
+                BorderBrush="{ThemeResource SettingsEdgeBrush}" BorderThickness="2" CornerRadius="18">
+                <Border.Shadow><ThemeShadow /></Border.Shadow>
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="SettingsDialogMotion" />
+                </Border.RenderTransform>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-        <NavigationView.Content>
-            <ScrollViewer x:Name="SettingsScrollViewer" VerticalScrollBarVisibility="Auto"
-                HorizontalContentAlignment="Stretch">
-                <StackPanel MaxWidth="840" HorizontalAlignment="Stretch" Margin="32,20,32,48" Spacing="28">
-                    <Button Click="BackToEditor_Click" HorizontalAlignment="Left"
-                        AutomationProperties.AutomationId="BackToEditor">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xE72B;" FontSize="16" />
-                            <TextBlock Text="Back to editor" />
-                        </StackPanel>
-                    </Button>
-                    <InfoBar x:Name="ExternalLinkMessage" IsOpen="False" IsClosable="True" />
-
-                    <StackPanel x:Name="GeneralPanel" Spacing="28">
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="General" FontSize="30" FontWeight="SemiBold" />
-                            <TextBlock Text="Choose how Shnapp captures and handles your work."
+                    <Grid Grid.Row="0" Margin="28,22,26,18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="SettingsHeaderIcon" Width="60" Height="60"
+                            Background="{ThemeResource SettingsSelectedNavBrush}"
+                            BorderBrush="{ThemeResource SettingsEdgeBrush}" BorderThickness="1"
+                            CornerRadius="14" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE713;" FontSize="30"
+                                Foreground="{ThemeResource SettingsSelectedNavForegroundBrush}" HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="20,0,12,0" VerticalAlignment="Center" Spacing="3">
+                            <TextBlock Text="Settings" FontSize="28" FontWeight="SemiBold" />
+                            <TextBlock Text="Customize how Shnapp captures and handles your work."
                                 Style="{StaticResource SettingsSupportingTextStyle}" />
+                            <TextBlock x:Name="SettingsVersionLabel" FontSize="12"
+                                Style="{StaticResource SettingsSupportingTextStyle}"
+                                IsTextSelectionEnabled="True" />
                         </StackPanel>
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="Capture" Style="{StaticResource SettingsSectionTitleStyle}" />
-                            <Border Style="{StaticResource SettingsCardStyle}">
-                                <StackPanel>
-                                    <Grid Margin="18,16">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <StackPanel Spacing="3" Margin="0,0,16,0">
-                                            <TextBlock Text="Start Shnapp at sign-in" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                            <TextBlock Text="Keep capture one shortcut away after Windows starts."
-                                                Style="{StaticResource SettingsSupportingTextStyle}" />
+                        <Button x:Name="CloseSettingsButton" Grid.Column="2" Width="40" Height="40" VerticalAlignment="Top" CornerRadius="8"
+                            Click="BackToEditor_Click" AutomationProperties.Name="Close settings"
+                            AutomationProperties.AutomationId="BackToEditor"
+                            ToolTipService.ToolTip="Close settings">
+                            <FontIcon Glyph="&#xE8BB;" FontSize="16" />
+                        </Button>
+                    </Grid>
+
+                    <Grid Grid.Row="1" MinHeight="0" Margin="22,0,22,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="SidebarColumn" Width="204" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="SidebarBorder" Grid.Column="0" Background="{ThemeResource SettingsSidebarBrush}"
+                            BorderBrush="{ThemeResource SettingsStrokeBrush}" BorderThickness="1"
+                            CornerRadius="12" Margin="0,0,20,16">
+                            <StackPanel Margin="7,8" Spacing="4">
+                                <Grid>
+                                    <Border x:Name="GeneralNavSelection" Background="{ThemeResource SettingsSelectedNavBrush}"
+                                        BorderBrush="{ThemeResource SettingsEdgeBrush}" BorderThickness="1" CornerRadius="8" />
+                                    <Button x:Name="GeneralNavButton" Style="{StaticResource SettingsNavButtonStyle}"
+                                        Click="GeneralNav_Click" ToolTipService.ToolTip="General"
+                                        AutomationProperties.Name="General" AutomationProperties.AutomationId="SettingsGeneral">
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <FontIcon Glyph="&#xE713;" FontSize="18" />
+                                            <TextBlock x:Name="GeneralNavLabel" Text="General" VerticalAlignment="Center" />
                                         </StackPanel>
-                                        <ToggleSwitch x:Name="StartAtSignIn" Grid.Column="1" VerticalAlignment="Center"
-                                            AutomationProperties.Name="Start Shnapp at sign-in"
-                                            AutomationProperties.AutomationId="StartOnLogin" />
-                                    </Grid>
-                                    <Rectangle Height="1" Margin="18,0" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
-                                    <Grid Margin="18,16">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <StackPanel Spacing="3" Margin="0,0,16,0">
-                                            <TextBlock Text="Copy new shnapps automatically" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                            <TextBlock Text="Your latest capture is ready to paste."
-                                                Style="{StaticResource SettingsSupportingTextStyle}" />
+                                    </Button>
+                                </Grid>
+                                <Grid>
+                                    <Border x:Name="UpdatesNavSelection" Background="{ThemeResource SettingsSelectedNavBrush}"
+                                        BorderBrush="{ThemeResource SettingsEdgeBrush}" BorderThickness="1" CornerRadius="8"
+                                        Visibility="Collapsed" />
+                                    <Button x:Name="UpdatesNavButton" Style="{StaticResource SettingsNavButtonStyle}"
+                                        Click="UpdatesNav_Click" ToolTipService.ToolTip="About &amp; Updates"
+                                        AutomationProperties.Name="About and Updates" AutomationProperties.AutomationId="SettingsUpdates">
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <FontIcon Glyph="&#xE895;" FontSize="18" />
+                                            <TextBlock x:Name="UpdatesNavLabel" Text="About &amp; Updates" VerticalAlignment="Center" />
                                         </StackPanel>
-                                        <ToggleSwitch x:Name="AutoCopy" Grid.Column="1" VerticalAlignment="Center"
-                                            AutomationProperties.Name="Copy new shnapps automatically"
-                                            AutomationProperties.AutomationId="AutoCopy" />
-                                    </Grid>
-                                    <Rectangle Height="1" Margin="18,0" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
-                                    <Grid Margin="18,16">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <StackPanel Spacing="3" Margin="0,0,16,0">
-                                            <TextBlock Text="Soft shadow on window shnapps" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                            <TextBlock Text="Give captured windows a little separation when shared."
-                                                Style="{StaticResource SettingsSupportingTextStyle}" />
+                                    </Button>
+                                </Grid>
+                                <Grid>
+                                    <Border x:Name="FeedbackNavSelection" Background="{ThemeResource SettingsSelectedNavBrush}"
+                                        BorderBrush="{ThemeResource SettingsEdgeBrush}" BorderThickness="1" CornerRadius="8"
+                                        Visibility="Collapsed" />
+                                    <Button x:Name="FeedbackNavButton" Style="{StaticResource SettingsNavButtonStyle}"
+                                        Click="FeedbackNav_Click" ToolTipService.ToolTip="Feedback"
+                                        AutomationProperties.Name="Feedback" AutomationProperties.AutomationId="SettingsFeedback">
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <FontIcon Glyph="&#xE939;" FontSize="18" />
+                                            <TextBlock x:Name="FeedbackNavLabel" Text="Feedback" VerticalAlignment="Center" />
                                         </StackPanel>
-                                        <ToggleSwitch x:Name="WindowShadow" Grid.Column="1" VerticalAlignment="Center"
-                                            AutomationProperties.Name="Soft shadow on window shnapps"
-                                            AutomationProperties.AutomationId="WindowShadow" />
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="Appearance" Style="{StaticResource SettingsSectionTitleStyle}" />
-                            <Border Style="{StaticResource SettingsCardStyle}" Padding="18,16">
-                                <StackPanel Spacing="10">
-                                    <TextBlock Text="Theme" FontWeight="SemiBold" />
-                                    <TextBlock Text="Match Windows or choose the look that suits your workspace."
-                                        Style="{StaticResource SettingsSupportingTextStyle}" />
-                                    <ComboBox x:Name="ThemePicker" MinWidth="200" HorizontalAlignment="Left"
-                                        AutomationProperties.Name="Theme" AutomationProperties.AutomationId="ShnappTheme">
-                                        <ComboBoxItem Content="System" />
-                                        <ComboBoxItem Content="Light" />
-                                        <ComboBoxItem Content="Dark" />
-                                    </ComboBox>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="Keyboard shortcuts" Style="{StaticResource SettingsSectionTitleStyle}" />
-                            <Border Style="{StaticResource SettingsCardStyle}" Padding="18,16">
-                                <StackPanel Spacing="12">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <TextBlock Text="Capture a window" TextWrapping="Wrap" />
-                                        <TextBlock Grid.Column="1" Text="Ctrl+Shift+4" FontFamily="Cascadia Mono"
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="16,0,0,0" />
-                                    </Grid>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <TextBlock Text="Capture full screen" TextWrapping="Wrap" />
-                                        <TextBlock Grid.Column="1" Text="Ctrl+Shift+3" FontFamily="Cascadia Mono"
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="16,0,0,0" />
-                                    </Grid>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <TextBlock Text="Capture a region" TextWrapping="Wrap" />
-                                        <TextBlock Grid.Column="1" Text="Ctrl+Shift+2" FontFamily="Cascadia Mono"
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="16,0,0,0" />
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="Local library" Style="{StaticResource SettingsSectionTitleStyle}" />
-                            <Border Style="{StaticResource SettingsCardStyle}" Padding="18,16">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Saved shnapps" FontWeight="SemiBold" />
-                                    <TextBlock x:Name="LibraryPath" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-                                    <TextBlock x:Name="LibraryNote" Style="{StaticResource SettingsSupportingTextStyle}" />
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                        <Button Content="Save preferences" Click="SavePreferences_Click"
-                            Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Left"
-                            AutomationProperties.AutomationId="SavePreferences" />
-                        <InfoBar x:Name="PreferenceMessage" IsOpen="False" IsClosable="True" />
-                    </StackPanel>
-
-                    <StackPanel x:Name="UpdatesPanel" Spacing="28" Visibility="Collapsed">
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="About &amp; Updates" FontSize="30" FontWeight="SemiBold" />
-                            <TextBlock Text="App details and the latest available release."
-                                Style="{StaticResource SettingsSupportingTextStyle}" />
-                        </StackPanel>
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="Shnapp" Style="{StaticResource SettingsSectionTitleStyle}" />
-                            <Border Style="{StaticResource SettingsCardStyle}" Padding="18,16">
-                                <StackPanel Spacing="8">
-                                    <TextBlock x:Name="VersionLabel" FontWeight="SemiBold" IsTextSelectionEnabled="True" />
-                                    <TextBlock x:Name="RuntimeLabel" IsTextSelectionEnabled="True"
-                                        Style="{StaticResource SettingsSupportingTextStyle}" />
-                                    <TextBlock Text="Published by Erik Zettersten · MIT licensed"
-                                        Style="{StaticResource SettingsSupportingTextStyle}" />
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="Updates" Style="{StaticResource SettingsSectionTitleStyle}" />
-                            <TextBlock x:Name="UpdateChannelLabel" Style="{StaticResource SettingsSupportingTextStyle}" />
-                            <InfoBar x:Name="UpdateMessage" IsOpen="True" IsClosable="False"
-                                Severity="Informational" Title="Update status" />
-                            <StackPanel Spacing="8" HorizontalAlignment="Left">
-                                <Button x:Name="CheckUpdatesButton" Content="Check for updates" Click="CheckUpdates_Click"
-                                    Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="CheckForUpdates" />
-                                <Button x:Name="OpenLatestButton" Content="View release" Click="OpenLatest_Click"
-                                    Visibility="Collapsed" AutomationProperties.AutomationId="ViewLatestRelease" />
-                                <Button x:Name="InstallStoreUpdateButton" Content="Update now" Click="InstallStoreUpdate_Click"
-                                    Visibility="Collapsed" AutomationProperties.AutomationId="InstallStoreUpdate" />
-                                <Button x:Name="RestartStoreButton" Content="Restart Shnapp" Click="RestartStore_Click"
-                                    Visibility="Collapsed" AutomationProperties.AutomationId="RestartAfterStoreUpdate" />
-                                <Button x:Name="RestartPortableButton" Content="Restart to update" Click="RestartPortable_Click"
-                                    Visibility="Collapsed" AutomationProperties.AutomationId="RestartAfterPortableUpdate" />
-                                <Button x:Name="ManagerUpdateButton" Content="Update with package manager" Click="ManagerUpdate_Click"
-                                    Visibility="Collapsed" AutomationProperties.AutomationId="UpdateWithPackageManager" />
-                                <Button x:Name="OpenStoreButton" Content="Open Microsoft Store updates" Click="OpenStore_Click"
-                                    Visibility="Collapsed" AutomationProperties.AutomationId="OpenStoreUpdates" />
-                            </StackPanel>
-                            <TextBlock x:Name="UpdateHelpText"
-                                Text="Shnapp checks for newer versions."
-                                Style="{StaticResource SettingsSupportingTextStyle}" />
-                        </StackPanel>
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="Links" Style="{StaticResource SettingsSectionTitleStyle}" />
-                            <Border Style="{StaticResource SettingsCardStyle}" Padding="18,16">
-                                <StackPanel Spacing="8" HorizontalAlignment="Left">
-                                    <Button Content="Visit shhnap.com" Click="OpenWebsite_Click"
-                                        AutomationProperties.AutomationId="OpenWebsite" />
-                                    <Button Content="Open source repository" Click="OpenRepository_Click"
-                                        AutomationProperties.AutomationId="OpenRepository" />
-                                    <Button Content="About the publisher" Click="OpenPublisher_Click"
-                                        AutomationProperties.AutomationId="OpenPublisher" />
-                                    <Button Content="Privacy" Click="OpenPrivacy_Click"
-                                        AutomationProperties.AutomationId="OpenPrivacy" />
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                    </StackPanel>
-
-                    <StackPanel x:Name="FeedbackPanel" Spacing="28" Visibility="Collapsed">
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Feedback" FontSize="30" FontWeight="SemiBold" />
-                            <TextBlock Text="Help make Shnapp better."
-                                Style="{StaticResource SettingsSupportingTextStyle}" />
-                        </StackPanel>
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="Share an idea or issue" Style="{StaticResource SettingsSectionTitleStyle}" />
-                            <TextBlock Text="GitHub issues keep bug reports and feature ideas in one place."
-                                Style="{StaticResource SettingsSupportingTextStyle}" />
-                            <StackPanel Spacing="8" HorizontalAlignment="Left">
-                                <Button Content="Report a bug" Click="ReportBug_Click"
-                                    Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="ReportBug" />
-                                <Button Content="Request a feature" Click="RequestFeature_Click"
-                                    AutomationProperties.AutomationId="RequestFeature" />
-                                <Button Content="Browse existing issues" Click="BrowseIssues_Click"
-                                    AutomationProperties.AutomationId="BrowseIssues" />
-                            </StackPanel>
-                        </StackPanel>
-                        <Border Style="{StaticResource SettingsCardStyle}" Padding="18,16">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="Before you send" FontWeight="SemiBold" />
-                                <TextBlock Text="Include your Shnapp version and Windows version when reporting a bug. Avoid sharing private captures."
-                                    Style="{StaticResource SettingsSupportingTextStyle}" />
+                                    </Button>
+                                </Grid>
                             </StackPanel>
                         </Border>
-                    </StackPanel>
-                </StackPanel>
-            </ScrollViewer>
-        </NavigationView.Content>
-    </NavigationView>
+
+                        <ScrollViewer x:Name="SettingsScrollViewer" Grid.Column="1"
+                            VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch">
+                            <StackPanel Margin="6,0,4,72" Spacing="18" HorizontalAlignment="Stretch">
+                                <StackPanel x:Name="GeneralPanel" Spacing="18">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Capture" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}">
+                                            <StackPanel>
+                                                <Grid Margin="16,12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Start Shnapp at sign-in" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                        <TextBlock Text="Keep capture one shortcut away after Windows starts."
+                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    </StackPanel>
+                                                    <ToggleSwitch x:Name="StartAtSignIn" Grid.Column="1" VerticalAlignment="Center"
+                                                        Toggled="PreferenceToggle_Changed"
+                                                        AutomationProperties.Name="Start Shnapp at sign-in"
+                                                        AutomationProperties.AutomationId="StartOnLogin" />
+                                                </Grid>
+                                                <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <Grid Margin="16,12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Copy new shnapps automatically" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                        <TextBlock Text="Your latest capture is ready to paste."
+                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    </StackPanel>
+                                                    <ToggleSwitch x:Name="AutoCopy" Grid.Column="1" VerticalAlignment="Center"
+                                                        Toggled="PreferenceToggle_Changed"
+                                                        AutomationProperties.Name="Copy new shnapps automatically"
+                                                        AutomationProperties.AutomationId="AutoCopy" />
+                                                </Grid>
+                                                <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <Grid Margin="16,12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Soft shadow on window shnapps" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                        <TextBlock Text="Give captured windows a little separation when shared."
+                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    </StackPanel>
+                                                    <ToggleSwitch x:Name="WindowShadow" Grid.Column="1" VerticalAlignment="Center"
+                                                        Toggled="PreferenceToggle_Changed"
+                                                        AutomationProperties.Name="Soft shadow on window shnapps"
+                                                        AutomationProperties.AutomationId="WindowShadow" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Appearance" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
+                                            <StackPanel Spacing="5">
+                                                <TextBlock Text="Theme" FontWeight="SemiBold" />
+                                                <TextBlock Text="Match Windows or choose the look that suits your workspace."
+                                                    Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                <ComboBox x:Name="ThemePicker" MinWidth="200" HorizontalAlignment="Left"
+                                                    SelectionChanged="ThemePicker_Changed"
+                                                    AutomationProperties.Name="Theme" AutomationProperties.AutomationId="ShnappTheme">
+                                                    <ComboBoxItem Content="System" />
+                                                    <ComboBoxItem Content="Light" />
+                                                    <ComboBoxItem Content="Dark" />
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Keyboard shortcuts" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,8">
+                                            <StackPanel Spacing="5">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Capture a window" VerticalAlignment="Center" />
+                                                    <Border Grid.Column="1" Background="{ThemeResource SettingsShortcutBrush}"
+                                                        BorderBrush="{ThemeResource SettingsStrokeBrush}" BorderThickness="1"
+                                                        CornerRadius="7" Padding="8,3">
+                                                        <TextBlock Text="Ctrl+Shift+4" FontFamily="Cascadia Mono" FontSize="12" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Capture full screen" VerticalAlignment="Center" />
+                                                    <Border Grid.Column="1" Background="{ThemeResource SettingsShortcutBrush}"
+                                                        BorderBrush="{ThemeResource SettingsStrokeBrush}" BorderThickness="1"
+                                                        CornerRadius="7" Padding="8,3">
+                                                        <TextBlock Text="Ctrl+Shift+3" FontFamily="Cascadia Mono" FontSize="12" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Capture a region" VerticalAlignment="Center" />
+                                                    <Border Grid.Column="1" Background="{ThemeResource SettingsShortcutBrush}"
+                                                        BorderBrush="{ThemeResource SettingsStrokeBrush}" BorderThickness="1"
+                                                        CornerRadius="7" Padding="8,3">
+                                                        <TextBlock Text="Ctrl+Shift+2" FontFamily="Cascadia Mono" FontSize="12" />
+                                                    </Border>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Local library" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
+                                            <StackPanel Spacing="3">
+                                                <TextBlock Text="Saved shnapps" FontWeight="SemiBold" />
+                                                <TextBlock x:Name="LibraryPath" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                                <TextBlock x:Name="LibraryNote" Style="{StaticResource SettingsSupportingTextStyle}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel x:Name="UpdatesPanel" Spacing="18" Visibility="Collapsed">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="About &amp; Updates" FontSize="22" FontWeight="SemiBold" />
+                                        <TextBlock Text="App details, installation, and update status."
+                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Shnapp" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
+                                            <StackPanel Spacing="5">
+                                                <TextBlock x:Name="VersionLabel" FontWeight="SemiBold" IsTextSelectionEnabled="True" />
+                                                <TextBlock x:Name="RuntimeLabel" IsTextSelectionEnabled="True"
+                                                    Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                <TextBlock Text="Published by Erik Zettersten · MIT licensed"
+                                                    Style="{StaticResource SettingsSupportingTextStyle}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Updates" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <TextBlock x:Name="UpdateChannelLabel" Style="{StaticResource SettingsSupportingTextStyle}" />
+                                        <InfoBar x:Name="UpdateMessage" IsOpen="True" IsClosable="False"
+                                            Severity="Informational" Title="Update status" />
+                                        <StackPanel Spacing="8" HorizontalAlignment="Left">
+                                            <Button x:Name="CheckUpdatesButton" Content="Check for updates" Click="CheckUpdates_Click" CornerRadius="8"
+                                                AutomationProperties.AutomationId="CheckForUpdates" />
+                                            <Button x:Name="OpenLatestButton" Content="View release" Click="OpenLatest_Click" CornerRadius="8"
+                                                Visibility="Collapsed" AutomationProperties.AutomationId="ViewLatestRelease" />
+                                            <Button x:Name="InstallStoreUpdateButton" Content="Update now" Click="InstallStoreUpdate_Click" CornerRadius="8"
+                                                Visibility="Collapsed" AutomationProperties.AutomationId="InstallStoreUpdate" />
+                                            <Button x:Name="RestartStoreButton" Content="Restart Shnapp" Click="RestartStore_Click" CornerRadius="8"
+                                                Visibility="Collapsed" AutomationProperties.AutomationId="RestartAfterStoreUpdate" />
+                                            <Button x:Name="RestartPortableButton" Content="Restart to update" Click="RestartPortable_Click" CornerRadius="8"
+                                                Visibility="Collapsed" AutomationProperties.AutomationId="RestartAfterPortableUpdate" />
+                                            <Button x:Name="ManagerUpdateButton" Content="Update with package manager" Click="ManagerUpdate_Click" CornerRadius="8"
+                                                Visibility="Collapsed" AutomationProperties.AutomationId="UpdateWithPackageManager" />
+                                            <Button x:Name="OpenStoreButton" Content="Open Microsoft Store updates" Click="OpenStore_Click" CornerRadius="8"
+                                                Visibility="Collapsed" AutomationProperties.AutomationId="OpenStoreUpdates" />
+                                        </StackPanel>
+                                        <TextBlock x:Name="UpdateHelpText" Text="Shnapp checks for newer versions."
+                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Links" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
+                                            <StackPanel Spacing="7" HorizontalAlignment="Left">
+                                                <Button Content="Visit shhnap.com" Click="OpenWebsite_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenWebsite" />
+                                                <Button Content="Open source repository" Click="OpenRepository_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenRepository" />
+                                                <Button Content="About the publisher" Click="OpenPublisher_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPublisher" />
+                                                <Button Content="Privacy" Click="OpenPrivacy_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPrivacy" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel x:Name="FeedbackPanel" Spacing="18" Visibility="Collapsed">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="Feedback" FontSize="22" FontWeight="SemiBold" />
+                                        <TextBlock Text="Help make Shnapp better."
+                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Share an idea or issue" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
+                                            <StackPanel Spacing="10">
+                                                <TextBlock Text="GitHub issues keep bug reports and feature ideas in one place."
+                                                    Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                <StackPanel Spacing="8" HorizontalAlignment="Left">
+                                                    <Button Content="Report a bug" Click="ReportBug_Click" CornerRadius="8" AutomationProperties.AutomationId="ReportBug" />
+                                                    <Button Content="Request a feature" Click="RequestFeature_Click" CornerRadius="8" AutomationProperties.AutomationId="RequestFeature" />
+                                                    <Button Content="Browse existing issues" Click="BrowseIssues_Click" CornerRadius="8" AutomationProperties.AutomationId="BrowseIssues" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                    <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
+                                        <StackPanel Spacing="5">
+                                            <TextBlock Text="Before you send" FontWeight="SemiBold" />
+                                            <TextBlock Text="Include your Shnapp version and Windows version when reporting a bug. Avoid sharing private captures."
+                                                Style="{StaticResource SettingsSupportingTextStyle}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <Border Grid.Row="2" Background="{ThemeResource SettingsFooterBrush}"
+                        BorderBrush="{ThemeResource SettingsStrokeBrush}" BorderThickness="0,1,0,0"
+                        Padding="16">
+                        <StackPanel Spacing="0">
+                            <InfoBar x:Name="PreferenceMessage" IsOpen="False" IsClosable="True" />
+                            <InfoBar x:Name="ExternalLinkMessage" IsOpen="False" IsClosable="True" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="SettingsSaveStatus" Text="Changes save automatically"
+                                    Style="{StaticResource SettingsSupportingTextStyle}"
+                                    VerticalAlignment="Center" Margin="0,0,16,0" />
+                                <Button x:Name="FooterCloseButton" Grid.Column="1" Content="Close" MinWidth="104" CornerRadius="8"
+                                    Click="BackToEditor_Click" AutomationProperties.AutomationId="CloseSettingsFooter" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </local:InteractiveCursorHost>
 </Page>

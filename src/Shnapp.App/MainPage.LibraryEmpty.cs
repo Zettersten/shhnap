@@ -10,7 +10,37 @@ namespace Shnapp.App;
 public sealed partial class MainPage
 {
     private void LibraryEmptyCapture_Click(SplitButton sender, SplitButtonClickEventArgs args) =>
-        _controller?.Capture(CaptureKind.Window);
+        _controller?.Capture(CaptureKind.Region);
+
+    private void LibraryEmptyCapture_Loaded(object sender, RoutedEventArgs args)
+    {
+        // The stock template reserves right padding for its narrow arrow segment.
+        // Center the chevron inside our square 54 px segment instead.
+        if (FindNamedDescendant(LibraryEmptyCapture, "SecondaryButton") is Button secondary)
+        {
+            secondary.Padding = new Thickness(0);
+            secondary.HorizontalContentAlignment = HorizontalAlignment.Center;
+        }
+    }
+
+    private static DependencyObject? FindNamedDescendant(DependencyObject root, string name)
+    {
+        for (int index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(root, index);
+            if (child is FrameworkElement element && element.Name == name)
+            {
+                return child;
+            }
+
+            if (FindNamedDescendant(child, name) is { } match)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
 
     private void LibraryEmpty_SizeChanged(object sender, SizeChangedEventArgs args) => LayoutLibraryEmpty();
 
@@ -32,8 +62,7 @@ public sealed partial class MainPage
         bool hasNoResults = _library.Count > 0 && ViewModel.Library.Count == 0;
         double minimumHeight = width < 720 ? 760 : 640;
         LibraryEmptyContent.Width = width;
-        LibraryEmptyContent.MinHeight = hasNoResults ? height : 0;
-        LibraryEmptyContent.Height = hasNoResults ? double.NaN : Math.Max(height, minimumHeight);
+        LibraryEmptyContent.Height = hasNoResults ? height : Math.Max(height, minimumHeight);
         LayoutLibraryEmptyScene();
     }
 
@@ -56,7 +85,6 @@ public sealed partial class MainPage
             TranslateX = (width - sourceWidth * scale) / 2,
         };
         LibraryEmptyArtwork.Clip = new RectangleGeometry { Rect = new Rect(0, 0, width, height) };
-        LibraryEmptyCallouts.Visibility = width >= 860 ? Visibility.Visible : Visibility.Collapsed;
 
         bool compact = width < 720;
         LibraryEmptyIntro.Margin = compact ? new Thickness(18, 24, 18, 0) : new Thickness(24, 48, 24, 0);
@@ -65,8 +93,8 @@ public sealed partial class MainPage
         LibraryEmptyLogo.Height = compact ? 60 : 88;
         LibraryEmptyTitle.FontSize = compact ? 28 : width < 1100 ? 34 : 38;
         LibraryEmptyDescription.FontSize = compact ? 15 : width < 1100 ? 17 : 19;
-        LibraryEmptyCapture.Height = compact ? 48 : 54;
-        LibraryEmptyCapture.MinWidth = compact ? 252 : 286;
+        LibraryEmptyCaptureShell.Width = compact ? 272 : 306;
+        LibraryEmptySparkleHost.Width = LibraryEmptyCaptureShell.Width - 54;
 
         bool highContrast = _themeSettings?.HighContrast ?? _accessibility.HighContrast;
         LibraryEmptyScene.Visibility = highContrast ? Visibility.Collapsed : Visibility.Visible;

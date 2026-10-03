@@ -77,6 +77,10 @@ public sealed partial class MainPage
         return HitBounds(annotation).Contains(new Point(position.X, position.Y));
     }
 
+    private Annotation? HitTopAnnotation(ImagePoint position) =>
+        _editor?.Current.OrderedAnnotations.Reverse()
+            .FirstOrDefault(annotation => HitAnnotation(annotation, position));
+
     private SelectionHandle[] HandlesFor(Annotation annotation)
     {
         if (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow)

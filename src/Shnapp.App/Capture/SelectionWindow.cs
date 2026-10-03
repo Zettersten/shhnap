@@ -29,8 +29,8 @@ internal sealed class SelectionWindow : Window, IDisposable
     private readonly bool _previewDisplay;
     private readonly bool _animationsEnabled = new UISettings().AnimationsEnabled;
     private readonly CanvasControl _canvas;
-    private readonly DispatcherTimer _pulseTimer;
-    private readonly Stopwatch _pulseClock = new();
+    private readonly DispatcherTimer _entranceTimer;
+    private readonly Stopwatch _entranceClock = new();
     private readonly TaskCompletionSource<CaptureSelection?> _completion =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private ImagePoint? _start;
@@ -49,8 +49,15 @@ internal sealed class SelectionWindow : Window, IDisposable
         _previewDisplay = previewDisplay;
         Title = "Shnapp — " + (previewDisplay ? "Full screen" : windows is null ? "Free form" : "Window");
         _canvas = new CanvasControl { IsTabStop = true };
-        _pulseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
-        _pulseTimer.Tick += (_, _) => _canvas.Invalidate();
+        _entranceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        _entranceTimer.Tick += (_, _) =>
+        {
+            _canvas.Invalidate();
+            if (_entranceClock.ElapsedMilliseconds >= 200)
+            {
+                _entranceTimer.Stop();
+            }
+        };
         _canvas.Draw += Draw;
         _canvas.PointerPressed += PointerPressed;
         _canvas.PointerMoved += PointerMoved;
@@ -96,13 +103,16 @@ internal sealed class SelectionWindow : Window, IDisposable
         using CancellationTokenRegistration registration = cancellationToken.Register(
             () => DispatcherQueue.TryEnqueue(Cancel));
         UpdatePointer();
+        if (_animationsEnabled)
+        {
+            _entranceClock.Start();
+        }
         Activate();
         NativeMethods.SetForegroundWindow(WinRT.Interop.WindowNative.GetWindowHandle(this));
         _canvas.Focus(FocusState.Programmatic);
-        if (_animationsEnabled && (_windows is not null || _previewDisplay))
+        if (_animationsEnabled)
         {
-            _pulseClock.Start();
-            _pulseTimer.Start();
+            _entranceTimer.Start();
         }
 
         if (_previewDisplay)
@@ -228,7 +238,11 @@ internal sealed class SelectionWindow : Window, IDisposable
 
         drawing.Transform = Matrix3x2.CreateScale(scaleX, scaleY);
         drawing.DrawImage(_desktop);
-        drawing.FillRectangle(0, 0, _bounds.Width, _bounds.Height, Color.FromArgb(107, 0, 0, 0));
+        float entrance = _animationsEnabled
+            ? Math.Clamp((float)(_entranceClock.Elapsed.TotalMilliseconds / 200), 0, 1)
+            : 1;
+        drawing.FillRectangle(0, 0, _bounds.Width, _bounds.Height,
+            Color.FromArgb((byte)(107 * entrance), 0, 0, 0));
         if (_selection is ImageRect selection)
         {
             double left = Math.Max(0, selection.X);
@@ -241,11 +255,12 @@ internal sealed class SelectionWindow : Window, IDisposable
                 drawing.DrawImage(_desktop, rectangle, rectangle);
                 if (_windows is not null || _previewDisplay)
                 {
-                    DrawPulsingBorder(drawing, rectangle, scaleX, scaleY);
+                    DrawSelectionBorder(drawing, rectangle, scaleX, scaleY, entrance);
                 }
                 else
                 {
-                    drawing.DrawRectangle(rectangle, Colors.White, 2 / scaleX);
+                    drawing.DrawRectangle(rectangle,
+                        Color.FromArgb((byte)(255 * entrance), 255, 255, 255), 2 / scaleX);
                 }
             }
             if (_previewDisplay)
@@ -258,11 +273,13 @@ internal sealed class SelectionWindow : Window, IDisposable
             if (_start is not null)
             {
                 DrawLabel(drawing, dimensions,
-                    (float)(_pointer.X + 24 / scaleX), (float)(_pointer.Y + 28 / scaleY), scaleX, scaleY);
+                    (float)(_pointer.X + 24 / scaleX), (float)(_pointer.Y + 28 / scaleY), scaleX, scaleY,
+                    entrance);
             }
             else
             {
-                DrawLabel(drawing, dimensions, (float)left, (float)(bottom + 8 / scaleY), scaleX, scaleY);
+                DrawLabel(drawing, dimensions, (float)left, (float)(bottom + 8 / scaleY), scaleX, scaleY,
+                    entrance);
             }
         }
 
@@ -280,16 +297,14 @@ internal sealed class SelectionWindow : Window, IDisposable
 
         DrawLabel(drawing, hint,
             (float)(_pointer.X + 24 / scaleX),
-            (float)(_pointer.Y + 28 / scaleY), scaleX, scaleY);
+            (float)(_pointer.Y + 28 / scaleY), scaleX, scaleY, entrance);
     }
 
-    private void DrawPulsingBorder(CanvasDrawingSession drawing, global::Windows.Foundation.Rect bounds,
-        float scaleX, float scaleY)
+    private static void DrawSelectionBorder(CanvasDrawingSession drawing,
+        global::Windows.Foundation.Rect bounds, float scaleX, float scaleY, float opacity)
     {
         float unit = 1 / Math.Min(scaleX, scaleY);
-        double phase = _pulseClock.Elapsed.TotalSeconds * Math.PI * 2 / 0.9;
-        float pulse = _animationsEnabled ? (float)((Math.Sin(phase) + 1) / 2) : 1;
-        double inset = 7 * unit;
+        double inset = 2 * unit;
         var border = new global::Windows.Foundation.Rect(bounds.X + inset, bounds.Y + inset,
             Math.Max(0, bounds.Width - inset * 2), Math.Max(0, bounds.Height - inset * 2));
         if (border.Width <= 0 || border.Height <= 0)
@@ -297,12 +312,11 @@ internal sealed class SelectionWindow : Window, IDisposable
             return;
         }
 
-        drawing.DrawRectangle(border, Color.FromArgb((byte)(32 + pulse * 40), 75, 203, 255), 18 * unit);
-        drawing.DrawRectangle(border, Color.FromArgb((byte)(175 + pulse * 65), 74, 210, 255), 7 * unit);
-        drawing.DrawRectangle(border, Color.FromArgb(220, 242, 253, 255), 1.5f * unit);
+        drawing.DrawRectangle(border, Color.FromArgb((byte)(245 * opacity), 74, 210, 255), 2.5f * unit);
     }
 
-    private void DrawLabel(CanvasDrawingSession drawing, string text, float x, float y, float scaleX, float scaleY)
+    private void DrawLabel(CanvasDrawingSession drawing, string text, float x, float y,
+        float scaleX, float scaleY, float opacity)
     {
         using var format = new CanvasTextFormat { FontFamily = "Segoe UI Variable Text", FontSize = 14 / scaleX };
         using var layout = new CanvasTextLayout(drawing, text, format,
@@ -314,8 +328,9 @@ internal sealed class SelectionWindow : Window, IDisposable
         float labelX = Math.Clamp(x, marginX, Math.Max(marginX, _bounds.Width - width - marginX));
         float labelY = Math.Clamp(y, marginY, Math.Max(marginY, _bounds.Height - height - marginY));
         drawing.FillRoundedRectangle(labelX, labelY, width, height,
-            6 / scaleX, 6 / scaleY, Color.FromArgb(235, 17, 20, 24));
-        drawing.DrawTextLayout(layout, labelX + 10 / scaleX, labelY + 6 / scaleY, Colors.White);
+            6 / scaleX, 6 / scaleY, Color.FromArgb((byte)(235 * opacity), 17, 20, 24));
+        drawing.DrawTextLayout(layout, labelX + 10 / scaleX, labelY + 6 / scaleY,
+            Color.FromArgb((byte)(255 * opacity), 255, 255, 255));
     }
 
     private void Cancel() => _completion.TrySetResult(null);
@@ -328,7 +343,7 @@ internal sealed class SelectionWindow : Window, IDisposable
         }
 
         _disposed = true;
-        _pulseTimer.Stop();
+        _entranceTimer.Stop();
         _completion.TrySetResult(null);
         AppWindow.Hide();
         _canvas.RemoveFromVisualTree();

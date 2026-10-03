@@ -93,7 +93,7 @@ const captureModes = [
 
   <section class="capture-section section-space" aria-labelledby="capture-title">
     <div class="shell">
-      <div class="capture-heading"><h2 id="capture-title">There when you need it.<br />Gone when you don’t.</h2><p>Shnapp waits in the Windows tray. Press a shortcut and the visible desktop holds still while you choose your capture.</p></div>
+      <div class="capture-heading"><h2 id="capture-title">There when you need it.<br />Gone when you don’t.</h2><p>Shnapp waits in the Windows tray. The main capture button starts a region shnapp; its attached arrow offers window and full-screen capture. Shortcuts work while you are in another app.</p></div>
       <div class="capture-list">
         {captureModes.map((mode) => (
           <div class="capture-row">
@@ -103,13 +103,17 @@ const captureModes = [
           </div>
         ))}
       </div>
+      <figure class="capture-app-figure">
+        <a href="/screenshots/empty-library.png" aria-label="Open a full-size screenshot of Shnapp before the first capture"><img src="/screenshots/empty-library.png" alt="Actual Shnapp empty library with the central Capture a region button and its separate dropdown arrow" width="1106" height="793" loading="lazy" /></a>
+        <figcaption>Open Shnapp and start with a region, or use the arrow for another capture mode.</figcaption>
+      </figure>
     </div>
   </section>
 
   <section class="feature-section library-feature section-space" aria-labelledby="library-title">
     <div class="shell feature-layout feature-layout-reverse">
       <figure class="feature-visual library-visual">
-        <a href="/screenshots/library.png" aria-label="Open a full-size screenshot of the Shnapp library"><img src="/screenshots/library.png" alt="Actual Shnapp library showing fictional saved captures, search, sorting, and thumbnail controls" width="1506" height="643" loading="lazy" /></a>
+        <a href="/screenshots/library.png" aria-label="Open a full-size screenshot of the Shnapp library"><img src="/screenshots/library.png" alt="Actual Shnapp library showing fictional saved captures, search, sorting, and thumbnail controls" width="1226" height="693" loading="lazy" /></a>
         <figcaption>Actual app screenshot with fictional sample content.</figcaption>
       </figure>
       <div class="feature-copy">
@@ -118,6 +122,21 @@ const captureModes = [
         <p>When you revisit an image, the canvas and your marks are ready for another pass.</p>
         <a class="arrow-link" href="/privacy/">Where your captures live <span aria-hidden="true">↗</span></a>
       </div>
+    </div>
+  </section>
+
+  <section class="feature-section settings-feature section-space" id="settings" aria-labelledby="settings-title">
+    <div class="shell feature-layout">
+      <div class="feature-copy">
+        <h2 id="settings-title">Set it once. Keep moving.</h2>
+        <p>Choose how Shnapp starts, copies new captures, and frames captured windows. Change the theme, check the keyboard shortcuts, and find your local library path in one place.</p>
+        <p>Preferences save as you change them. About &amp; Updates shows the installed version and any available release, while Feedback keeps report links close.</p>
+        <a class="arrow-link" href="/download/">Get Shnapp <span aria-hidden="true">↗</span></a>
+      </div>
+      <figure class="feature-visual settings-visual">
+        <a href="/screenshots/settings-general.png" aria-label="Open a full-size screenshot of Shnapp settings"><img src="/screenshots/settings-general.png" alt="Actual Shnapp General settings dialog showing capture preferences, appearance, and keyboard shortcuts" width="1106" height="793" loading="lazy" /></a>
+        <figcaption>Settings in the app. <a href="/screenshots/settings-about.png">See About &amp; Updates <span aria-hidden="true">↗</span></a></figcaption>
+      </figure>
     </div>
   </section>
 
@@ -136,7 +155,7 @@ const captureModes = [
     <div class="shell faq-layout">
       <div class="faq-intro"><h2 id="faq-title">Good to know.</h2><p>A few practical answers before your first shnapp.</p></div>
       <div class="faq-list">
-        <details><summary>What can Shnapp capture?</summary><p>A window, the screen beneath your pointer, or a rectangular region you draw. The visible desktop freezes while you make the selection.</p></details>
+        <details><summary>What can Shnapp capture?</summary><p>The main New shnapp button starts a rectangular region capture. Its attached arrow offers a window or the screen beneath your pointer. The visible desktop freezes while you make a selection.</p></details>
         <details><summary>Do I need an account?</summary><p>No. Capture, edit, copy, and save work without an account or internet connection.</p></details>
         <details><summary>How do I install it?</summary><p>Choose the x64 or ARM64 portable ZIP on the <a href="/download/">download page</a>, extract the whole archive, and run Shnapp.exe. Scoop is also available.</p></details>
         <details><summary>Can I hide sensitive information?</summary><p>Use opaque Cover before sharing the finished PNG. Blur and Pixelate are visual obscuring tools and may leave details recognizable. The editable original remains in your local library.</p></details>

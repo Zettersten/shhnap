@@ -271,7 +271,9 @@ internal sealed partial class AppController
             if (wasVisible)
             {
                 _window.AppWindow.Hide();
-                await Task.Delay(50, cancellationToken);
+                // Give Windows time to finish hiding Shnapp before taking the first frame.
+                // A frame captured during the hide transition can still contain our UI.
+                await Task.Delay(250, cancellationToken);
             }
 
             string title;
@@ -607,6 +609,7 @@ internal sealed partial class AppController
         _page.ShowLibrary([]);
         RecordNavigation(null);
         Renderer.ClearPastedImages();
+        _window.ShowMainPage();
         _window.AppWindow.Hide();
     }
 
@@ -619,6 +622,13 @@ internal sealed partial class AppController
             return;
         }
 
+        if (_window.Settings is { } openSettings)
+        {
+            if (showUpdates) { openSettings.ShowUpdates(); }
+            Show();
+            return;
+        }
+
         ShnappSettings displayedSettings = _settings;
         if (HasPackageIdentity && !_options.Isolated)
         {
@@ -628,6 +638,9 @@ internal sealed partial class AppController
                 {
                     StartOnLogin = await StartupPreference.IsPackagedEnabledAsync(),
                 };
+                // The OS owns packaged startup state. Keep the in-memory baseline
+                // in sync so another automatic preference save does not reapply it.
+                _settings = displayedSettings;
             }
             catch (Exception exception) when (exception is InvalidOperationException or System.Runtime.InteropServices.COMException)
             {
@@ -647,13 +660,13 @@ internal sealed partial class AppController
         Show();
     }
 
-    internal void CloseSettings() => _window.ShowMainPage();
+    internal void CloseSettings() => _window.ShowMainPage(restoreFocus: true);
 
     internal async Task SavePreferencesAsync(ShnappSettings settings)
     {
         bool packaged = HasPackageIdentity;
         bool startupChanged = !_options.Isolated &&
-            (packaged || settings.StartOnLogin != _settings.StartOnLogin);
+            settings.StartOnLogin != _settings.StartOnLogin;
         if (startupChanged) { await StartupPreference.ApplyAsync(settings.StartOnLogin, packaged); }
         try
         {

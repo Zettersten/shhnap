@@ -95,11 +95,17 @@ internal sealed partial class AppController
             UpdateCheckResult? previous = _lastUpdateResult;
             _lastUpdateResult = result;
             _window.Settings?.SetUpdateResult(result);
+            _page.SetUpdateAvailability(
+                result.UpdateAvailable || result.StoreInstallAvailable || result.PortableRestartRequired || result.StoreRestartRequired,
+                restartRequired: result.PortableRestartRequired || result.StoreRestartRequired,
+                checkFailed: result.IsError);
             if (result.UpdateAvailable || result.PortableRestartRequired || result.StoreRestartRequired)
             {
-                if (previous?.UpdateAvailable != true || previous.LatestTag != result.LatestTag)
+                if (result.PortableRestartRequired || result.StoreRestartRequired ||
+                    previous?.UpdateAvailable != true || previous.LatestTag != result.LatestTag)
                 {
-                    _page.ShowAvailableUpdate(result.Message);
+                    _page.ShowAvailableUpdate(result.Message,
+                        restartRequired: result.PortableRestartRequired || result.StoreRestartRequired);
                 }
                 if (!manual && !packaged && result.LatestTag is { } tag &&
                     await _releaseChecker.MarkNotifiedAsync(tag, _lifetime.Token))
@@ -124,7 +130,7 @@ internal sealed partial class AppController
                 release.ReleasePage, release.LatestTag, release.IsError);
         }
 
-        string? root = PortableUpdateStager.FindInstallRoot(AppContext.BaseDirectory);
+        string? root = PortableUpdateStager.FindCurrentInstallRoot();
         if (root is null)
         {
             return new UpdateCheckResult(
@@ -194,7 +200,7 @@ internal sealed partial class AppController
 
     internal async Task<UpdateCheckResult> RestartAfterPortableUpdateAsync()
     {
-        string? root = PortableUpdateStager.FindInstallRoot(AppContext.BaseDirectory);
+        string? root = PortableUpdateStager.FindCurrentInstallRoot();
         if (InstallationChannelDetector.Detect(HasPackageIdentity) != InstallationChannel.DirectZip || root is null)
         {
             return new UpdateCheckResult("This installation cannot restart through the direct ZIP updater.", IsError: true);
@@ -409,6 +415,14 @@ internal sealed partial class AppController
 
         _lastUpdateResult = result;
         _window.Settings?.SetUpdateResult(result);
+        _page.SetUpdateAvailability(
+            result.UpdateAvailable || result.StoreInstallAvailable || result.PortableRestartRequired || result.StoreRestartRequired,
+            restartRequired: result.PortableRestartRequired || result.StoreRestartRequired,
+            checkFailed: result.IsError);
+        if (result.StoreRestartRequired)
+        {
+            _page.ShowAvailableUpdate(result.Message, restartRequired: true);
+        }
         return result;
     }
 

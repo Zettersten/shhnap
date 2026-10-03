@@ -63,7 +63,7 @@ internal static class StartupPreference
 
     private static string StartupExecutable()
     {
-        return StartupPathResolver.Resolve(AppContext.BaseDirectory, Environment.ProcessPath,
+        return StartupPathResolver.Resolve(PortableUpdateStager.CurrentExecutableDirectory, Environment.ProcessPath,
             InstallationChannelDetector.Detect(packaged: false));
     }
 }

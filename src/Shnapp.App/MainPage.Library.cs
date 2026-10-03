@@ -303,7 +303,7 @@ public sealed partial class MainPage
     {
         if (args.Key == VirtualKey.Escape)
         {
-            LibrarySearch.Text = string.Empty;
+            _controller?.Hide();
             args.Handled = true;
         }
     }
