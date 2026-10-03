@@ -3,6 +3,9 @@ name: Website
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/Shnapp.Site/**'
+      - '.github/workflows/pages.yml'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -34,6 +37,8 @@ jobs:
       - uses: actions/configure-pages@v5
       - name: Install dependencies
         run: npm ci
+      - name: Test release-feed handling
+        run: npm test
       - name: Build site
         run: npm run build
       - name: Verify pages and gated media
@@ -62,7 +67,7 @@ jobs:
 
   deploy:
     name: Deploy website
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:

@@ -47,8 +47,8 @@ const contactHref = `mailto:${distribution.contactEmail}`;
 
           <section id="network" aria-labelledby="network-title">
             <h2 id="network-title">Network and updates</h2>
-            <p>Unpackaged copies check the Shnapp repository’s latest GitHub Release over HTTPS when they start, at most once per day. You can also run a check from Settings. The request contacts <code>api.github.com</code> and includes an app user-agent and, when available, an ETag so GitHub can answer without repeating release data. Shnapp stores the check time, latest release information, and notification state locally. The check does not send your captures. Current direct ZIP builds can download and verify a new release for the next restart. Scoop, WinGet, and Chocolatey copies hand updates to their package managers.</p>
-            <p>If you install a Microsoft Store package in the future, Windows Store services manage its updates. A manual update check in that build asks the Store for available package updates.</p>
+            <p>Shnapp checks the repository’s latest GitHub Release over HTTPS at most once per day. You can also check from Settings. The request contacts <code>api.github.com</code> and includes an app user-agent and, when available, an ETag. Shnapp stores the check time, release details, notification state, and any failed download time locally. A direct ZIP copy downloads a verified update from <code>github.com</code> into its app folder and starts it on the next restart. These requests do not send your captures.</p>
+            <p>Scoop, WinGet, and Chocolatey installations use their package managers for upgrades after you choose the update action. A Microsoft Store package asks Windows Store services to check and may download an update in the background; choosing Update now asks Store to install it. Sideloaded Store packages may need updates from their original source.</p>
             <p>The site itself has no analytics script or tracking cookies. As with any website, your browser makes requests to the site host to load the page and images.</p>
           </section>
 

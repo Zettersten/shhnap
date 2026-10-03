@@ -325,12 +325,13 @@
             </AppBarElementContainer>
             <AppBarElementContainer Height="48" VerticalAlignment="Center" Padding="0" Margin="0,0,8,0" Background="Transparent" BorderThickness="0">
                 <local:HandCursorToggleButton x:Name="LibraryNavButton" Width="84" Height="34" MinWidth="0" Padding="8,0"
-                    CornerRadius="8" VerticalAlignment="Center" Translation="0,7,0" BorderThickness="1"
+                    CornerRadius="8" VerticalAlignment="Center" BorderThickness="1"
                     BorderBrush="{ThemeResource LibraryButtonOutlineBrush}"
                     IsChecked="{x:Bind ViewModel.IsLibrarySelected, Mode=OneWay}"
                     Click="LibraryNav_Click" AutomationProperties.Name="Library"
                     AutomationProperties.AutomationId="OpenLibrary"
                     AutomationProperties.HelpText="Open your saved shnapps">
+                    <ToggleButton.RenderTransform><TranslateTransform Y="7" /></ToggleButton.RenderTransform>
                     <ToggleButton.Content>
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <FontIcon Glyph="&#xE8B9;" FontSize="14" />

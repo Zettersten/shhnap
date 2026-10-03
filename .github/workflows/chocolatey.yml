@@ -1,0 +1,214 @@
+name: Chocolatey catalog
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        required: true
+        type: string
+    secrets:
+      CHOCOLATEY_API_KEY:
+        required: false
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Public stable release tag to submit
+        required: true
+        type: string
+      verify_only:
+        description: Build and test the package without submitting it
+        required: false
+        type: boolean
+        default: false
+permissions:
+  contents: read
+
+concurrency:
+  group: shnapp-chocolatey-community
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Check Chocolatey catalog
+    runs-on: windows-2025
+    timeout-minutes: 10
+    outputs:
+      release_tag: ${{ steps.catalog.outputs.release_tag }}
+      should_verify: ${{ steps.catalog.outputs.should_verify }}
+      should_submit: ${{ steps.catalog.outputs.should_submit }}
+      catalog_status: ${{ steps.catalog.outputs.catalog_status }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      REQUESTED_TAG: ${{ inputs.release_tag }}
+      VERIFY_ONLY: ${{ inputs.verify_only }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: main
+      - name: Resolve release and catalog state
+        id: catalog
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_REF -ne 'refs/heads/main') {
+            throw 'Chocolatey submissions must run from main.'
+          }
+
+          $tag = $env:REQUESTED_TAG
+          if ($tag -notmatch '^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+            throw 'Provide a stable vX.Y.Z release tag.'
+          }
+          $version = $tag.Substring(1)
+          $tagCommit = git rev-parse -q --verify "refs/tags/$tag`^{commit}"
+          if ($LASTEXITCODE -ne 0) { throw 'The release tag does not exist.' }
+          git merge-base --is-ancestor $tagCommit HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'The release tag must be reachable from main.' }
+
+          $releaseJson = gh release view $tag --json isDraft,isPrerelease,assets
+          if ($LASTEXITCODE -ne 0) { throw 'The GitHub release does not exist.' }
+          $release = $releaseJson | ConvertFrom-Json
+          if ($release.isDraft -or $release.isPrerelease) {
+            throw 'Chocolatey requires a public stable GitHub release.'
+          }
+          $expected = @(
+            'Shnapp-win-x64.zip', 'Shnapp-win-x64.zip.sha256',
+            'Shnapp-win-arm64.zip', 'Shnapp-win-arm64.zip.sha256'
+          ) | Sort-Object
+          $actual = @($release.assets | ForEach-Object { $_.name } | Sort-Object)
+          if (@(Compare-Object -ReferenceObject $expected -DifferenceObject $actual).Count -ne 0) {
+            throw 'The GitHub release must contain both portable ZIPs and their checksum files.'
+          }
+          "release_tag=$tag" >> $env:GITHUB_OUTPUT
+
+          function Complete-Preflight([string] $status, [bool] $verify, [bool] $submit) {
+            "catalog_status=$status" >> $env:GITHUB_OUTPUT
+            "should_verify=$($verify.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+            "should_submit=$($submit.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+            "Chocolatey $tag`: $status" >> $env:GITHUB_STEP_SUMMARY
+          }
+
+          if ($env:VERIFY_ONLY -eq 'true') {
+            Complete-Preflight 'verification-only' $true $false
+            exit 0
+          }
+
+          function Test-PackagePage([string] $pageVersion) {
+            $url = "https://community.chocolatey.org/packages/shnapp/$pageVersion"
+            try {
+              $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30
+              if ([int] $response.StatusCode -ne 200) {
+                throw "Unexpected Chocolatey response for $url`: $($response.StatusCode)"
+              }
+              return $true
+            }
+            catch {
+              if ($_.Exception.Response -and [int] $_.Exception.Response.StatusCode -eq 404) {
+                return $false
+              }
+              throw
+            }
+          }
+
+          # A page exists even while its version is still in moderation.
+          if (Test-PackagePage $version) {
+            Complete-Preflight 'submitted-or-awaiting-moderation' $false $false
+            exit 0
+          }
+
+          Complete-Preflight 'ready-to-submit' $true $true
+
+  verify-and-submit:
+    name: Test and submit Chocolatey package
+    needs: preflight
+    if: needs.preflight.outputs.should_verify == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: main
+      - name: Download immutable release assets
+        shell: pwsh
+        run: |
+          gh release download $env:RELEASE_TAG --dir release-assets
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Generate and pack Chocolatey package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./packaging/release/New-CatalogPackages.ps1 `
+            -ReleaseTag $env:RELEASE_TAG `
+            -AssetsDirectory release-assets `
+            -OutputDirectory catalog-candidates
+          $packageDir = Join-Path $env:GITHUB_WORKSPACE 'chocolatey-package'
+          New-Item -ItemType Directory -Path $packageDir | Out-Null
+          choco pack catalog-candidates/chocolatey/shnapp.nuspec --outputdirectory $packageDir --limit-output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $version = $env:RELEASE_TAG.Substring(1)
+          $package = Join-Path $packageDir "shnapp.$version.nupkg"
+          if (-not (Test-Path -LiteralPath $package -PathType Leaf)) { throw "Missing $package" }
+          $found = choco info shnapp --source $packageDir --limit-output
+          if ($LASTEXITCODE -ne 0 -or ($found | Out-String).Trim() -ne "shnapp|$version") {
+            throw 'Chocolatey cannot read the generated package.'
+          }
+      - name: Install and uninstall the package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:RELEASE_TAG.Substring(1)
+          $packageDir = Join-Path $env:GITHUB_WORKSPACE 'chocolatey-package'
+          choco install shnapp --version $version --source $packageDir --yes --no-progress --limit-output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $appDir = Join-Path $env:ChocolateyInstall 'lib/shnapp/tools/app'
+          $pointer = Join-Path $appDir 'current-version.txt'
+          if (-not (Test-Path -LiteralPath $pointer -PathType Leaf)) {
+            throw 'Installed Shnapp is missing the launcher version pointer.'
+          }
+          $selected = (Get-Content -LiteralPath $pointer -TotalCount 1).Trim()
+          if ($selected -cne $env:RELEASE_TAG) { throw "Installed Shnapp selected $selected instead of $env:RELEASE_TAG." }
+          foreach ($required in @('Shnapp.exe', 'current-version.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', '.shnapp-install-source')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $appDir $required) -PathType Leaf)) {
+              throw "Installed Shnapp is missing $required."
+            }
+          }
+          $payload = Join-Path $appDir "versions/$env:RELEASE_TAG"
+          foreach ($required in @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $payload $required) -PathType Leaf)) {
+              throw "Installed Shnapp payload is missing $required."
+            }
+          }
+          choco uninstall shnapp --yes --no-progress --limit-output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Test-Path -LiteralPath (Join-Path $env:ChocolateyInstall 'lib/shnapp')) {
+            throw 'Chocolatey left the Shnapp package directory after uninstall.'
+          }
+      - name: Save tested Chocolatey package
+        uses: actions/upload-artifact@v7
+        with:
+          name: Chocolatey-${{ needs.preflight.outputs.release_tag }}
+          path: chocolatey-package/*.nupkg
+          if-no-files-found: error
+      - name: Submit tested package to Chocolatey Community
+        if: needs.preflight.outputs.should_submit == 'true'
+        shell: pwsh
+        env:
+          CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CHOCOLATEY_API_KEY)) {
+            throw 'Set the CHOCOLATEY_API_KEY Actions repository secret before submission.'
+          }
+          $version = $env:RELEASE_TAG.Substring(1)
+          $package = Join-Path $env:GITHUB_WORKSPACE "chocolatey-package/shnapp.$version.nupkg"
+          if (-not (Test-Path -LiteralPath $package -PathType Leaf)) { throw "Missing $package" }
+          choco push $package --source https://push.chocolatey.org/ --key $env:CHOCOLATEY_API_KEY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "Chocolatey $env:RELEASE_TAG submitted for moderation." >> $env:GITHUB_STEP_SUMMARY

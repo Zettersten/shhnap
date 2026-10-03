@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory = $true)][string] $ReleaseTag,
     [Parameter(Mandatory = $true)][string] $PayloadDirectory,
     [Parameter(Mandatory = $true)][string] $LauncherDirectory,
-    [Parameter(Mandatory = $true)][string] $OutputDirectory
+    [Parameter(Mandatory = $true)][string] $OutputDirectory,
+    [switch] $SingleFile
 )
 
 Set-StrictMode -Version Latest
@@ -30,10 +31,34 @@ if (-not (Test-Path -LiteralPath (Join-Path $launcher 'Shnapp.exe') -PathType Le
     throw 'Launcher publish is missing Shnapp.exe.'
 }
 
+if ($SingleFile) {
+    $allowed = @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt',
+        'THIRD_PARTY_NOTICES', 'Shnapp.pdb', 'Shnapp.Core.pdb')
+    $unexpected = @(Get-ChildItem -LiteralPath $payload -Force |
+        Where-Object { $_.Name -notin $allowed })
+    if ($unexpected.Count -ne 0) {
+        throw "Single-file publish contains unexpected files: $($unexpected.Name -join ', ')"
+    }
+    $notices = Join-Path $payload 'THIRD_PARTY_NOTICES'
+    if (-not (Test-Path -LiteralPath $notices -PathType Container) -or
+        @(Get-ChildItem -LiteralPath $notices -Recurse -File).Count -eq 0) {
+        throw 'Single-file publish is missing third-party license files.'
+    }
+}
+
 $versionDirectory = Join-Path $output "versions/$ReleaseTag"
 New-Item -ItemType Directory -Path $versionDirectory -Force | Out-Null
-Get-ChildItem -LiteralPath $payload -Force |
-    Copy-Item -Destination $versionDirectory -Recurse -Force
+if ($SingleFile) {
+    foreach ($name in @('Shnapp.exe', 'Shnapp.pri', 'LICENSE', 'THIRD_PARTY_NOTICES.txt')) {
+        Copy-Item -LiteralPath (Join-Path $payload $name) -Destination $versionDirectory
+    }
+    Copy-Item -LiteralPath (Join-Path $payload 'THIRD_PARTY_NOTICES') `
+        -Destination $versionDirectory -Recurse
+}
+else {
+    Get-ChildItem -LiteralPath $payload -Force |
+        Copy-Item -Destination $versionDirectory -Recurse -Force
+}
 Copy-Item -LiteralPath (Join-Path $launcher 'Shnapp.exe') -Destination (Join-Path $output 'Shnapp.exe')
 foreach ($notice in @('LICENSE', 'THIRD_PARTY_NOTICES.txt')) {
     Copy-Item -LiteralPath (Join-Path $payload $notice) -Destination (Join-Path $output $notice)

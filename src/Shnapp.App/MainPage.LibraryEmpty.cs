@@ -96,7 +96,7 @@ public sealed partial class MainPage
         LibraryEmptyCaptureShell.Width = compact ? 272 : 306;
         LibraryEmptySparkleHost.Width = LibraryEmptyCaptureShell.Width - 54;
 
-        bool highContrast = new AccessibilitySettings().HighContrast;
+        bool highContrast = _themeSettings?.HighContrast ?? _accessibility.HighContrast;
         LibraryEmptyScene.Visibility = highContrast ? Visibility.Collapsed : Visibility.Visible;
         LibraryEmptyLogo.Visibility = highContrast ? Visibility.Collapsed : Visibility.Visible;
         if (highContrast)

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
 using Shnapp.Core;
@@ -96,8 +97,19 @@ internal static class NativeMethods
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     internal static extern uint RegisterWindowMessage(string message);
 
-    [DllImport("user32.dll", EntryPoint = "LoadImageW", CharSet = CharSet.Unicode, SetLastError = true)]
-    internal static extern nint LoadImage(nint instance, string name, uint type, int width, int height, uint flags);
+    [DllImport("kernel32.dll", EntryPoint = "GetModuleHandleW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern nint GetModuleHandle(string? name);
+
+    [DllImport("user32.dll", EntryPoint = "LoadImageW", SetLastError = true)]
+    private static extern nint LoadImage(nint instance, nint name, uint type, int width, int height, uint flags);
+
+    internal static nint LoadAppIcon(int size)
+    {
+        nint module = GetModuleHandle(null);
+        nint icon = module == 0 ? 0 : LoadImage(module, 1, 1, size, size, 0);
+        return icon != 0 ? icon : throw new Win32Exception(Marshal.GetLastWin32Error(),
+            "Could not load Shnapp's embedded icon.");
+    }
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

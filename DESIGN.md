@@ -1069,13 +1069,13 @@ Single-click opens the editor.
 
 Empty states should be concise.
 
-Library example:
+When the Library has no captures, show the branded capture illustration with a single prominent action:
 
-**Your shnapps will show up here.**
+**Capture. Annotate. Organize.**
 
-Press Ctrl+Shift+4 to capture a window.
+The primary button captures a window; its menu offers full-screen and region capture. Keep the action visible at narrow widths and hide decorative artwork in high contrast.
 
-Avoid illustrations when plain guidance is clearer.
+When a search has no matches, use a simple text state with the search term and a Clear search action.
 
 ### Tray experience
 
