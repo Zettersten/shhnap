@@ -101,9 +101,11 @@ internal sealed partial class AppController
                 checkFailed: result.IsError);
             if (result.UpdateAvailable || result.PortableRestartRequired || result.StoreRestartRequired)
             {
-                if (previous?.UpdateAvailable != true || previous.LatestTag != result.LatestTag)
+                if (result.PortableRestartRequired || result.StoreRestartRequired ||
+                    previous?.UpdateAvailable != true || previous.LatestTag != result.LatestTag)
                 {
-                    _page.ShowAvailableUpdate(result.Message);
+                    _page.ShowAvailableUpdate(result.Message,
+                        restartRequired: result.PortableRestartRequired || result.StoreRestartRequired);
                 }
                 if (!manual && !packaged && result.LatestTag is { } tag &&
                     await _releaseChecker.MarkNotifiedAsync(tag, _lifetime.Token))
@@ -417,6 +419,10 @@ internal sealed partial class AppController
             result.UpdateAvailable || result.StoreInstallAvailable || result.PortableRestartRequired || result.StoreRestartRequired,
             restartRequired: result.PortableRestartRequired || result.StoreRestartRequired,
             checkFailed: result.IsError);
+        if (result.StoreRestartRequired)
+        {
+            _page.ShowAvailableUpdate(result.Message, restartRequired: true);
+        }
         return result;
     }
 

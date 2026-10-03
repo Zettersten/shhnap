@@ -1344,9 +1344,9 @@ public sealed partial class MainPage : Page
         MessageBar.IsOpen = true;
     }
 
-    internal void ShowAvailableUpdate(string message)
+    internal void ShowAvailableUpdate(string message, bool restartRequired = false)
     {
-        MessageBar.Title = "Shnapp update available";
+        MessageBar.Title = restartRequired ? "Shnapp update ready" : "Shnapp update available";
         MessageBar.Message = message;
         MessageBar.Severity = InfoBarSeverity.Informational;
         var action = new Button { Content = "About & Updates" };
@@ -1364,7 +1364,8 @@ public sealed partial class MainPage : Page
         UpdateAttentionDot.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         UpdateOverflowAccessibility();
 
-        if (!available && MessageBar.IsOpen && MessageBar.Title == "Shnapp update available")
+        if (!available && MessageBar.IsOpen &&
+            MessageBar.Title is "Shnapp update available" or "Shnapp update ready")
         {
             MessageBar.IsOpen = false;
             MessageBar.ActionButton = null;
