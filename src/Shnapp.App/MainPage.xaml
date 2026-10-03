@@ -138,7 +138,8 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <CommandBar DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True"
+        <CommandBar x:Name="PrimaryCommandBar" Loaded="PrimaryCommandBar_Loaded"
+            DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True"
             Background="{ThemeResource ShnappChromeBrush}">
             <CommandBar.Content>
                 <StackPanel Orientation="Horizontal" Spacing="0" Margin="16,0,16,0" MinHeight="48" VerticalAlignment="Center">
@@ -380,7 +381,7 @@
                 IsEnabled="{x:Bind ViewModel.HasDocument, Mode=OneWay}" AutomationProperties.AutomationId="SaveShnapp"
                 ToolTipService.ToolTip="Save PNG to a chosen location · Ctrl+S" />
             <CommandBar.SecondaryCommands>
-                <local:HandCursorAppBarButton CornerRadius="8" Width="190" x:Name="UpdateAvailableButton" Label="Update available" Icon="Download"
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" x:Name="UpdateAvailableButton" Label="Update Shnapp" Icon="Download"
                     Click="Settings_Click" IsEnabled="False"
                     AutomationProperties.AutomationId="UpdateAvailable"
                     ToolTipService.ToolTip="Open About &amp; Updates when a newer Shnapp release is available" />

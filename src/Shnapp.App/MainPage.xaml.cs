@@ -1362,11 +1362,27 @@ public sealed partial class MainPage : Page
             : available ? "Update available"
             : checkFailed ? "Updates unavailable" : "Update Shnapp";
         UpdateAttentionDot.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        UpdateOverflowAccessibility();
 
         if (!available && MessageBar.IsOpen && MessageBar.Title == "Shnapp update available")
         {
             MessageBar.IsOpen = false;
             MessageBar.ActionButton = null;
+        }
+    }
+
+    private void PrimaryCommandBar_Loaded(object sender, RoutedEventArgs args) => UpdateOverflowAccessibility();
+
+    private void UpdateOverflowAccessibility()
+    {
+        if (FindNamedDescendant(PrimaryCommandBar, "MoreButton") is FrameworkElement more)
+        {
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(more,
+                UpdateAvailableButton.IsEnabled ? "More options, Shnapp update available" : "More options");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(more,
+                UpdateAvailableButton.IsEnabled
+                    ? "Open to view the available Shnapp update in About and Updates."
+                    : "Open more Shnapp commands.");
         }
     }
 

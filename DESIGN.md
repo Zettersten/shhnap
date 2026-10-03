@@ -194,8 +194,9 @@ components:
   button-primary-pressed:
     backgroundColor: "{colors.primary-pressed}"
   new-shnapp-action:
-    gradientStart: "#1670CC"
-    gradientEnd: "#0753AC"
+    gradientStart: "#B8F48A"
+    gradientMid: "#54CBEF"
+    gradientEnd: "#26187B"
     textColor: "{colors.on-primary}"
     rounded: "{rounded.md}"
 

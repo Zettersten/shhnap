@@ -413,6 +413,10 @@ internal sealed partial class AppController
 
         _lastUpdateResult = result;
         _window.Settings?.SetUpdateResult(result);
+        _page.SetUpdateAvailability(
+            result.UpdateAvailable || result.StoreInstallAvailable || result.PortableRestartRequired || result.StoreRestartRequired,
+            restartRequired: result.PortableRestartRequired || result.StoreRestartRequired,
+            checkFailed: result.IsError);
         return result;
     }
 
