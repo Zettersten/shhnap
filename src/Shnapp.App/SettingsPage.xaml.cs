@@ -84,7 +84,7 @@ public sealed partial class SettingsPage : Page
         UpdateHelpText.Text = channel switch
         {
             InstallationChannel.Store => "Microsoft Store controls automatic updates. Shnapp can install an available Store update when you choose Update now. Windows may close the app during installation.",
-            InstallationChannel.DirectZip when PortableUpdateStager.FindInstallRoot(AppContext.BaseDirectory) is null =>
+            InstallationChannel.DirectZip when PortableUpdateStager.FindCurrentInstallRoot() is null =>
                 "This older ZIP copy needs one manual download to enable automatic updates. Your library stays in your user folder.",
             InstallationChannel.DirectZip => "Shnapp downloads a verified release in the background and uses it on the next restart. Your library stays in your user folder.",
             InstallationChannel.Chocolatey when !PackageManagerUpdateRunner.CanStartChocolatey() =>

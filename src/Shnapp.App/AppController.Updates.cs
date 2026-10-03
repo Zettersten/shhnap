@@ -130,7 +130,7 @@ internal sealed partial class AppController
                 release.ReleasePage, release.LatestTag, release.IsError);
         }
 
-        string? root = PortableUpdateStager.FindInstallRoot(AppContext.BaseDirectory);
+        string? root = PortableUpdateStager.FindCurrentInstallRoot();
         if (root is null)
         {
             return new UpdateCheckResult(
@@ -200,7 +200,7 @@ internal sealed partial class AppController
 
     internal async Task<UpdateCheckResult> RestartAfterPortableUpdateAsync()
     {
-        string? root = PortableUpdateStager.FindInstallRoot(AppContext.BaseDirectory);
+        string? root = PortableUpdateStager.FindCurrentInstallRoot();
         if (InstallationChannelDetector.Detect(HasPackageIdentity) != InstallationChannel.DirectZip || root is null)
         {
             return new UpdateCheckResult("This installation cannot restart through the direct ZIP updater.", IsError: true);
