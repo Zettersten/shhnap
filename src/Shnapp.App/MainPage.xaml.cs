@@ -60,6 +60,7 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         InitializeComponent();
+        InitializeCaptureButtonRims();
         // Page-level shortcuts remain active, but the first one (Ctrl+C) must not
         // appear as a tooltip when the pointer rests on the annotation canvas.
         KeyboardAcceleratorPlacementMode = Microsoft.UI.Xaml.Input.KeyboardAcceleratorPlacementMode.Hidden;

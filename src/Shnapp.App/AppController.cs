@@ -17,6 +17,9 @@ namespace Shnapp.App;
 
 internal sealed partial class AppController
 {
+    private const int CaptureHideSettleMilliseconds = 750;
+    private const int CaptureHideTimeoutMilliseconds = 2000;
+
     private readonly MainWindow _window;
     private readonly MainPage _page;
     private readonly LaunchOptions _options;
@@ -247,6 +250,31 @@ internal sealed partial class AppController
         NativeMethods.SetForegroundWindow(App.WindowHandle);
     }
 
+    private static async Task WaitForCaptureReadyAsync(nint hwnd, CancellationToken cancellationToken)
+    {
+        var watch = Stopwatch.StartNew();
+        TimeSpan? hiddenSince = null;
+        while (watch.ElapsedMilliseconds < CaptureHideTimeoutMilliseconds)
+        {
+            if (NativeMethods.IsWindowVisible(hwnd))
+            {
+                hiddenSince = null;
+            }
+            else
+            {
+                hiddenSince ??= watch.Elapsed;
+                if ((watch.Elapsed - hiddenSince.Value).TotalMilliseconds >= CaptureHideSettleMilliseconds)
+                {
+                    return;
+                }
+            }
+
+            await Task.Delay(16, cancellationToken);
+        }
+
+        throw new InvalidOperationException("Shnapp could not hide before capture. Try again.");
+    }
+
     private async Task CaptureAsync(CaptureKind kind)
     {
         if (_dialogOpen || !await _captureGate.WaitAsync(0, _lifetime.Token))
@@ -271,9 +299,9 @@ internal sealed partial class AppController
             if (wasVisible)
             {
                 _window.AppWindow.Hide();
-                // Give Windows time to finish hiding Shnapp before taking the first frame.
-                // A frame captured during the hide transition can still contain our UI.
-                await Task.Delay(250, cancellationToken);
+                // Require a continuous hidden interval so the compositor can remove
+                // Shnapp before graphics capture requests its first desktop frame.
+                await WaitForCaptureReadyAsync(App.WindowHandle, cancellationToken);
             }
 
             string title;
