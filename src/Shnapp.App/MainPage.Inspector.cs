@@ -104,14 +104,6 @@ public sealed partial class MainPage
         FontFamilyNoResults.Visibility = matches.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void FontFamilyChoice_SuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
-    {
-        if (args.SelectedItem is FontPreviewChoice choice)
-        {
-            ApplyFontFamily(choice);
-        }
-    }
-
     private void FontFamilyChoice_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
         FontPreviewChoice? choice = args.ChosenSuggestion as FontPreviewChoice

@@ -649,7 +649,6 @@
                                     <AutoSuggestBox x:Name="FontFamilyChoice" Header="Font" PlaceholderText="Search fonts"
                                         HorizontalAlignment="Stretch" MaxSuggestionListHeight="280" QueryIcon="Find"
                                         TextMemberPath="Name" TextChanged="FontFamilyChoice_TextChanged"
-                                        SuggestionChosen="FontFamilyChoice_SuggestionChosen"
                                         QuerySubmitted="FontFamilyChoice_QuerySubmitted"
                                         GotFocus="FontFamilyChoice_GotFocus"
                                         LostFocus="FontFamilyChoice_LostFocus"
