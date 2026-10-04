@@ -250,7 +250,7 @@ public sealed partial class MainPage
         {
             if (maintainProportions)
             {
-                return ResizeLineProportional(original, handle, point, viewport);
+                return ResizeLineProportional(original, handle, point);
             }
 
             ImagePoint start = handle == ResizeHandle.Start ? point : original.Start;
@@ -264,10 +264,7 @@ public sealed partial class MainPage
 
         if (original.Kind == AnnotationKind.Step)
         {
-            double available = 2 * Math.Min(
-                Math.Min(original.Start.X - viewport.X, viewport.Right - original.Start.X),
-                Math.Min(original.Start.Y - viewport.Y, viewport.Bottom - original.Start.Y));
-            double diameter = Math.Clamp(2 * Math.Abs(point.X - original.Start.X), 16, Math.Max(16, Math.Min(120, available)));
+            double diameter = Math.Clamp(2 * Math.Abs(point.X - original.Start.X), 16, 120);
             double fontSize = Math.Clamp(original.FontSize * diameter / original.StepDiameter, 8, 144);
             return original with { StepDiameter = diameter, FontSize = fontSize };
         }
@@ -318,31 +315,31 @@ public sealed partial class MainPage
         Rect shape = SelectionBounds(original);
         if (maintainProportions && shape.Width >= 2 && shape.Height >= 2)
         {
-            return ResizeProportionalShape(original, shape, handle, point, viewport);
+            return ResizeProportionalShape(original, shape, handle, point);
         }
 
-        double minWidth = Math.Min(2, viewport.Width);
-        double minHeight = Math.Min(2, viewport.Height);
+        const double minWidth = 2;
+        const double minHeight = 2;
         double left = shape.X;
         double top = shape.Y;
         double right = shape.Right;
         double bottom = shape.Bottom;
         if (handle is ResizeHandle.TopLeft or ResizeHandle.Left or ResizeHandle.BottomLeft)
         {
-            left = Math.Clamp(point.X, viewport.X, Math.Max(viewport.X, right - minWidth));
+            left = Math.Min(point.X, right - minWidth);
         }
         else if (handle is ResizeHandle.TopRight or ResizeHandle.Right or ResizeHandle.BottomRight)
         {
-            right = Math.Clamp(point.X, Math.Min(viewport.Right, left + minWidth), viewport.Right);
+            right = Math.Max(point.X, left + minWidth);
         }
 
         if (handle is ResizeHandle.TopLeft or ResizeHandle.Top or ResizeHandle.TopRight)
         {
-            top = Math.Clamp(point.Y, viewport.Y, Math.Max(viewport.Y, bottom - minHeight));
+            top = Math.Min(point.Y, bottom - minHeight);
         }
         else if (handle is ResizeHandle.BottomLeft or ResizeHandle.Bottom or ResizeHandle.BottomRight)
         {
-            bottom = Math.Clamp(point.Y, Math.Min(viewport.Bottom, top + minHeight), viewport.Bottom);
+            bottom = Math.Max(point.Y, top + minHeight);
         }
 
         return original with { Start = new(left, top), End = new(right, bottom) };
@@ -411,7 +408,7 @@ public sealed partial class MainPage
     }
 
     private static Annotation ResizeProportionalShape(Annotation original, Rect shape,
-        ResizeHandle handle, ImagePoint point, ImageRect viewport)
+        ResizeHandle handle, ImagePoint point)
     {
         double ratio = shape.Width / shape.Height;
         double left = shape.X;
@@ -421,29 +418,20 @@ public sealed partial class MainPage
         double centerX = (left + right) / 2;
         double centerY = (top + bottom) / 2;
         double desired;
-        double maximum;
 
         switch (handle)
         {
             case ResizeHandle.Left:
                 desired = right - point.X;
-                maximum = Math.Min(right - viewport.X,
-                    2 * Math.Min(centerY - viewport.Y, viewport.Bottom - centerY) * ratio);
                 break;
             case ResizeHandle.Right:
                 desired = point.X - left;
-                maximum = Math.Min(viewport.Right - left,
-                    2 * Math.Min(centerY - viewport.Y, viewport.Bottom - centerY) * ratio);
                 break;
             case ResizeHandle.Top:
                 desired = (bottom - point.Y) * ratio;
-                maximum = Math.Min((bottom - viewport.Y) * ratio,
-                    2 * Math.Min(centerX - viewport.X, viewport.Right - centerX));
                 break;
             case ResizeHandle.Bottom:
                 desired = (point.Y - top) * ratio;
-                maximum = Math.Min((viewport.Bottom - top) * ratio,
-                    2 * Math.Min(centerX - viewport.X, viewport.Right - centerX));
                 break;
             default:
                 bool leftHandle = handle is ResizeHandle.TopLeft or ResizeHandle.BottomLeft;
@@ -456,14 +444,7 @@ public sealed partial class MainPage
                 double extentYAsWidth = directionY * (point.Y - anchorY) * ratio;
                 desired = Math.Abs(extentX - shape.Width) >= Math.Abs(extentYAsWidth - shape.Width)
                     ? extentX : extentYAsWidth;
-                maximum = Math.Min(leftHandle ? anchorX - viewport.X : viewport.Right - anchorX,
-                    (topHandle ? anchorY - viewport.Y : viewport.Bottom - anchorY) * ratio);
-                if (maximum < Math.Max(2, 2 * ratio))
-                {
-                    return original;
-                }
-
-                double cornerWidth = Math.Clamp(desired, Math.Max(2, 2 * ratio), maximum);
+                double cornerWidth = Math.Max(desired, Math.Max(2, 2 * ratio));
                 double cornerHeight = cornerWidth / ratio;
                 left = leftHandle ? anchorX - cornerWidth : anchorX;
                 right = leftHandle ? anchorX : anchorX + cornerWidth;
@@ -472,12 +453,7 @@ public sealed partial class MainPage
                 return original with { Start = new(left, top), End = new(right, bottom) };
         }
 
-        if (maximum < Math.Max(2, 2 * ratio))
-        {
-            return original;
-        }
-
-        double width = Math.Clamp(desired, Math.Max(2, 2 * ratio), maximum);
+        double width = Math.Max(desired, Math.Max(2, 2 * ratio));
         double height = width / ratio;
         switch (handle)
         {
@@ -507,7 +483,7 @@ public sealed partial class MainPage
     }
 
     private static Annotation ResizeLineProportional(Annotation original, ResizeHandle handle,
-        ImagePoint point, ImageRect viewport)
+        ImagePoint point)
     {
         ImagePoint anchor = handle == ResizeHandle.Start ? original.End : original.Start;
         ImagePoint oldEnd = handle == ResizeHandle.Start ? original.Start : original.End;
@@ -521,26 +497,13 @@ public sealed partial class MainPage
 
         double factor = ((point.X - anchor.X) * directionX +
             (point.Y - anchor.Y) * directionY) / lengthSquared;
-        double maximum = double.PositiveInfinity;
-        if (directionX > 0) maximum = Math.Min(maximum, (viewport.Right - anchor.X) / directionX);
-        else if (directionX < 0) maximum = Math.Min(maximum, (viewport.X - anchor.X) / directionX);
-        if (directionY > 0) maximum = Math.Min(maximum, (viewport.Bottom - anchor.Y) / directionY);
-        else if (directionY < 0) maximum = Math.Min(maximum, (viewport.Y - anchor.Y) / directionY);
         double minimum = 2 / Math.Sqrt(lengthSquared);
-        if (maximum < minimum)
-        {
-            return original;
-        }
-
-        factor = Math.Clamp(factor, minimum, maximum);
+        factor = Math.Max(factor, minimum);
         ImagePoint end = new(anchor.X + directionX * factor, anchor.Y + directionY * factor);
         return handle == ResizeHandle.Start
             ? original with { Start = end }
             : original with { End = end };
     }
-
-    private static double ClampMovement(double change, double minimum, double maximum) =>
-        minimum > maximum ? 0 : Math.Clamp(change, minimum, maximum);
 
     private bool NudgeSelected(int dx, int dy)
     {
@@ -549,12 +512,8 @@ public sealed partial class MainPage
             return false;
         }
 
-        Rect bounds = SelectionBounds(selected);
-        ImageRect viewport = _editor.Current.Viewport;
-        double offsetX = selected.Kind == AnnotationKind.Image
-            ? dx : ClampNudge(dx, viewport.X - bounds.X, viewport.Right - bounds.Right);
-        double offsetY = selected.Kind == AnnotationKind.Image
-            ? dy : ClampNudge(dy, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom);
+        double offsetX = dx;
+        double offsetY = dy;
         if (offsetX != 0 || offsetY != 0)
         {
             Annotation moved = selected with
@@ -566,15 +525,16 @@ public sealed partial class MainPage
             {
                 if (selected.Kind == AnnotationKind.Image)
                 {
+                    Rect bounds = SelectionBounds(selected);
                     Vector2 center = Vector2.Transform(new((float)(bounds.X + bounds.Width / 2),
                         (float)(bounds.Y + bounds.Height / 2)), ImageTransform());
                     _pendingContentAnchor = new Point(center.X, center.Y);
                 }
                 _editor.UpdateAnnotation(moved);
             }
-            catch (ArgumentException exception) when (selected.Kind == AnnotationKind.Image)
+            catch (ArgumentException exception)
             {
-                ShowMessage("Image cannot expand the canvas", exception.Message);
+                ShowAnnotationEditError(exception);
             }
             finally
             {
@@ -584,13 +544,6 @@ public sealed partial class MainPage
 
         return true;
     }
-
-    private static double ClampNudge(int change, double minimum, double maximum) => change switch
-    {
-        > 0 when maximum > 0 => Math.Min(change, maximum),
-        < 0 when minimum < 0 => Math.Max(change, minimum),
-        _ => 0,
-    };
 
     private void EnsureDragBase()
     {

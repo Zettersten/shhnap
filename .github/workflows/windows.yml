@@ -58,7 +58,7 @@ jobs:
         run: dotnet build src/Shnapp.App/Shnapp.App.csproj -c Release -r win-x64 -p:Platform=x64 --no-restore
 
   package:
-    name: Portable ZIP (${{ matrix.rid }})
+    name: Windows distributions (${{ matrix.rid }})
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: verify
     runs-on: windows-latest
@@ -135,6 +135,27 @@ jobs:
             $layoutDir, $archive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
           $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           [System.IO.File]::WriteAllText("$archive.sha256", "$hash  $archiveName`n", [System.Text.Encoding]::ASCII)
+      - name: Restore Velopack app from lock files
+        shell: pwsh
+        run: |
+          dotnet restore src/Shnapp.App/Shnapp.App.csproj --locked-mode `
+            "-p:Platform=$env:TARGET_PLATFORM" -p:ShnappDistribution=Velopack
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install pinned Velopack CLI
+        shell: pwsh
+        run: |
+          dotnet tool install vpk --version 1.2.161 `
+            --tool-path (Join-Path $env:RUNNER_TEMP 'velopack-tools')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish Velopack installer and update feed
+        shell: pwsh
+        run: |
+          ./packaging/release/New-VelopackAssets.ps1 `
+            -ReleaseTag $env:RELEASE_TAG `
+            -RuntimeIdentifier $env:TARGET_RID `
+            -VpkPath (Join-Path $env:RUNNER_TEMP 'velopack-tools/vpk.exe') `
+            -WorkDirectory (Join-Path $env:RUNNER_TEMP 'shnapp-velopack') `
+            -OutputDirectory (Join-Path $env:GITHUB_WORKSPACE 'release-assets')
       - name: Upload release assets
         uses: actions/upload-artifact@v7
         with:
@@ -336,7 +357,7 @@ jobs:
                 fi
                 jq -er '.content' "$RUNNER_TEMP/current-release-feed-response.json" |
                   base64 --decode > "$RUNNER_TEMP/current-release-feed.json"
-                if ! jq -e '.schemaVersion == 1 and (.version | type == "string") and (.tag | type == "string")' \
+                if ! jq -e '(.schemaVersion == 1 or .schemaVersion == 2) and (.version | type == "string") and (.tag | type == "string")' \
                   "$RUNNER_TEMP/current-release-feed.json" >/dev/null; then
                   echo 'Current release metadata has an invalid schema.' >&2
                   exit 1

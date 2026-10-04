@@ -1,10 +1,9 @@
-using System.Runtime.InteropServices;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Shnapp.App;
 
-/// <summary>Applies an editor cursor to the canvas and its overlay descendants.</summary>
+/// <summary>Owns pointer input and the cursor above the canvas renderer.</summary>
 public sealed class EditorCursorHost : Grid
 {
     private const uint PanOpenCursorResourceId = 101;
@@ -13,8 +12,6 @@ public sealed class EditorCursorHost : Grid
     private readonly InputCursor _move = InputSystemCursor.Create(InputSystemCursorShape.SizeAll);
     private readonly InputCursor _panOpen = CreatePanCursor(PanOpenCursorResourceId, InputSystemCursorShape.Hand);
     private readonly InputCursor _panClosed = CreatePanCursor(PanClosedCursorResourceId, InputSystemCursorShape.SizeAll);
-    private readonly nint _panOpenHandle = LoadCursorW(GetModuleHandleW(null), (nint)PanOpenCursorResourceId);
-    private readonly nint _panClosedHandle = LoadCursorW(GetModuleHandleW(null), (nint)PanClosedCursorResourceId);
     private readonly Dictionary<InputSystemCursorShape, InputCursor> _sizingCursors = [];
     private bool _cropActive;
     private bool _canMoveCrop;
@@ -50,21 +47,6 @@ public sealed class EditorCursorHost : Grid
         _panActive = active;
         _panDragging = dragging;
         UpdateCursor();
-    }
-
-    /// <summary>Reasserts the hand after Win2D handles a captured pointer move.</summary>
-    public void ReinforcePanCursor()
-    {
-        if (!_panActive)
-        {
-            return;
-        }
-
-        nint handle = _panDragging ? _panClosedHandle : _panOpenHandle;
-        if (handle != 0)
-        {
-            SetNativeCursor(handle);
-        }
     }
 
     /// <summary>Shows the correct directional cursor over an annotation's resize handle.</summary>
@@ -105,13 +87,4 @@ public sealed class EditorCursorHost : Grid
 
         return cursor;
     }
-
-    [DllImport("kernel32.dll", EntryPoint = "GetModuleHandleW", ExactSpelling = true, CharSet = CharSet.Unicode)]
-    private static extern nint GetModuleHandleW(string? moduleName);
-
-    [DllImport("user32.dll", EntryPoint = "LoadCursorW", ExactSpelling = true)]
-    private static extern nint LoadCursorW(nint module, nint resourceId);
-
-    [DllImport("user32.dll", EntryPoint = "SetCursor", ExactSpelling = true)]
-    private static extern nint SetNativeCursor(nint cursor);
 }

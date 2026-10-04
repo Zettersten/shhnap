@@ -20,6 +20,17 @@ public sealed class InstallationChannelTests
     }
 
     [TestMethod]
+    public void VelopackInstallTakesOwnershipBeforeDirectZipFallback()
+    {
+        string executable = @"C:\Users\Erik\AppData\Local\ErikZettersten.Shnapp.x64\current\Shnapp.exe";
+        Assert.AreEqual(InstallationChannel.Velopack, Classify(executable, velopackInstalled: true));
+        Assert.AreEqual(InstallationChannel.Unknown,
+            Classify(executable, "direct-zip:shnapp", velopackInstalled: true));
+        Assert.AreEqual(InstallationChannel.Unknown,
+            Classify(@"D:\Chocolatey\lib\shnapp\tools\app\Shnapp.exe", velopackInstalled: true));
+    }
+
+    [TestMethod]
     public void ScoopMarkerAndKnownPathsBelongToScoop()
     {
         Assert.AreEqual(InstallationChannel.Scoop,
@@ -121,6 +132,6 @@ public sealed class InstallationChannelTests
     }
 
     private static InstallationChannel Classify(string executable, string? marker = null,
-        IEnumerable<WinGetPortableRegistration>? registrations = null) =>
-        InstallationChannelDetector.Classify(executable, marker, registrations ?? [], Roots);
+        IEnumerable<WinGetPortableRegistration>? registrations = null, bool velopackInstalled = false) =>
+        InstallationChannelDetector.Classify(executable, marker, registrations ?? [], Roots, velopackInstalled);
 }

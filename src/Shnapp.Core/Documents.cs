@@ -279,6 +279,11 @@ public sealed record Annotation
     /// <summary>Gets the step diameter in source pixels.</summary>
     public double StepDiameter { get; init; } = 28;
 
+    /// <summary>Lets a moved or resized step keep its full circle on an expanded canvas.</summary>
+    /// <remarks>Older steps keep their original edge-clipping behavior when this is absent.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool StepExpandsCanvas { get; init; }
+
     /// <summary>Gets the assigned step number.</summary>
     public int StepNumber { get; init; }
 

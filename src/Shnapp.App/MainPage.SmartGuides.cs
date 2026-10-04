@@ -72,13 +72,6 @@ public sealed partial class MainPage
         _activeGuideX = null;
         _activeGuideY = null;
         Rect bounds = SelectionBounds(moving);
-        ImageRect viewport = _editor!.Current.Viewport;
-        bool bounded = moving.Kind is not (AnnotationKind.Image or AnnotationKind.Text);
-        if (bounded)
-        {
-            dx = ClampMovement(dx, viewport.X - bounds.X, viewport.Right - bounds.Right);
-            dy = ClampMovement(dy, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom);
-        }
 
         // A fixed distance in DIPs makes guides equally easy to catch at any zoom level.
         double tolerance = 7 / Math.Max(0.01, _scale);
@@ -88,15 +81,8 @@ public sealed partial class MainPage
                 bounds.X + bounds.Width / 2 + dx, bounds.Right + dx, _smartGuideXs, tolerance);
             if (snap.Guide is double guide)
             {
-                double suggested = dx + snap.Correction;
-                double adjusted = bounded
-                    ? ClampMovement(suggested, viewport.X - bounds.X, viewport.Right - bounds.Right)
-                    : suggested;
-                if (Math.Abs(adjusted - suggested) < 0.001)
-                {
-                    dx = adjusted;
-                    _activeGuideX = guide;
-                }
+                dx += snap.Correction;
+                _activeGuideX = guide;
             }
         }
 
@@ -106,15 +92,8 @@ public sealed partial class MainPage
                 bounds.Y + bounds.Height / 2 + dy, bounds.Bottom + dy, _smartGuideYs, tolerance);
             if (snap.Guide is double guide)
             {
-                double suggested = dy + snap.Correction;
-                double adjusted = bounded
-                    ? ClampMovement(suggested, viewport.Y - bounds.Y, viewport.Bottom - bounds.Bottom)
-                    : suggested;
-                if (Math.Abs(adjusted - suggested) < 0.001)
-                {
-                    dy = adjusted;
-                    _activeGuideY = guide;
-                }
+                dy += snap.Correction;
+                _activeGuideY = guide;
             }
         }
 

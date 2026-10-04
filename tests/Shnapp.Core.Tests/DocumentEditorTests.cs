@@ -572,9 +572,6 @@ public sealed class DocumentEditorTests
             valid with { LayerOrder = -1 },
             valid with { Start = new ImagePoint(double.NaN, 1) },
             valid with { Start = new ImagePoint(1, double.PositiveInfinity) },
-            valid with { Start = new ImagePoint(-1, 0) },
-            valid with { Start = new ImagePoint(0, 481) },
-            valid with { End = new ImagePoint(641, 0) },
             valid with { End = new ImagePoint(0, double.NegativeInfinity) },
             valid with { StrokeWidth = -1 },
             valid with { StrokeWidth = double.NaN },
@@ -616,6 +613,37 @@ public sealed class DocumentEditorTests
         }
 
         Assert.IsTrue(editor.Current.Annotations.IsEmpty);
+        Assert.IsFalse(editor.CanUndo);
+    }
+
+    [TestMethod]
+    public void VisibleAnnotationsOutsideAnUnexpandedSavedCanvasAreRejected()
+    {
+        Annotation shape = TestDocuments.Annotation() with { End = new ImagePoint(641, 100) };
+        Assert.Throws<ArgumentException>(() =>
+            _ = new DocumentEditor(TestDocuments.Create() with { Annotations = [shape] }));
+        Assert.Throws<ArgumentException>(() =>
+            _ = new DocumentEditor(TestDocuments.Create() with
+            {
+                Annotations = [TestDocuments.Annotation() with
+                {
+                    VisibilityClip = new ImageRect(630, 470, 20, 20),
+                }],
+            }));
+    }
+
+    [TestMethod]
+    public void AnOversizedShapeDoesNotChangeTheDocumentOrUndoHistory()
+    {
+        ShnappDocument original = TestDocuments.Create();
+        var editor = new DocumentEditor(original);
+        Annotation shape = TestDocuments.Annotation() with
+        {
+            Start = new ImagePoint(-20_000, 20),
+        };
+
+        Assert.Throws<ArgumentException>(() => editor.AddAnnotation(shape));
+        Assert.AreSame(original, editor.Current);
         Assert.IsFalse(editor.CanUndo);
     }
 
@@ -671,6 +699,104 @@ public sealed class DocumentEditorTests
         Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.Viewport);
         Assert.IsTrue(editor.Undo());
         Assert.AreEqual(new ImageRect(-51, -26, 752, 537), editor.Current.CanvasBounds);
+    }
+
+    [TestMethod]
+    public void DrawingShapesAndLinesBeyondTheCaptureExpandsTheCanvas()
+    {
+        foreach (AnnotationKind kind in new[]
+            { AnnotationKind.Rectangle, AnnotationKind.Ellipse, AnnotationKind.Line, AnnotationKind.Arrow })
+        {
+            var editor = new DocumentEditor(TestDocuments.Create());
+            Annotation annotation = TestDocuments.Annotation(kind) with
+            {
+                Start = new ImagePoint(-25.5, -10.2),
+                End = new ImagePoint(660.2, 500.7),
+            };
+
+            editor.AddAnnotation(annotation);
+
+            ImageRect expanded = editor.Current.CanvasBounds;
+            Assert.IsTrue(expanded.X <= annotation.Start.X - annotation.StrokeWidth / 2);
+            Assert.IsTrue(expanded.Y <= annotation.Start.Y - annotation.StrokeWidth / 2);
+            Assert.IsTrue(expanded.Right >= annotation.End.X + annotation.StrokeWidth / 2);
+            Assert.IsTrue(expanded.Bottom >= annotation.End.Y + annotation.StrokeWidth / 2);
+            if (kind == AnnotationKind.Arrow)
+            {
+                Assert.IsTrue(expanded.Right >= annotation.End.X + 10);
+                Assert.IsTrue(expanded.Bottom >= annotation.End.Y + 10);
+            }
+            Assert.AreEqual(editor.Current.CanvasBounds, editor.Current.Viewport);
+            Assert.AreEqual(annotation, editor.Current.Annotations.Single());
+            Assert.IsTrue(editor.Undo());
+            Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.CanvasBounds);
+            Assert.IsTrue(editor.Redo());
+            Assert.AreEqual(expanded, editor.Current.CanvasBounds);
+        }
+    }
+
+    [TestMethod]
+    public void MovingShapeAndStepBeyondCaptureGrowsCanvasAndMovingBackTrimsIt()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation shape = TestDocuments.Annotation();
+        Annotation step = TestDocuments.Annotation(AnnotationKind.Step) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(100, 100),
+        };
+        editor.AddAnnotation(shape);
+        editor.AddAnnotation(step);
+
+        editor.UpdateAnnotation(shape with
+        {
+            Start = new ImagePoint(620, 460),
+            End = new ImagePoint(700, 520),
+        });
+        Assert.AreEqual(new ImageRect(0, 0, 703, 523), editor.Current.CanvasBounds);
+
+        editor.UpdateAnnotation(step with
+        {
+            Start = new ImagePoint(-20, 240),
+            End = new ImagePoint(-20, 240),
+        });
+        Assert.AreEqual(new ImageRect(-36, 0, 739, 523), editor.Current.CanvasBounds);
+
+        editor.UpdateAnnotation(shape);
+        editor.UpdateAnnotation(step);
+        Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.CanvasBounds);
+        _ = new DocumentEditor(editor.Current);
+    }
+
+    [TestMethod]
+    public void MovingACroppedShapeCanCarryItsVisibilityClipBeyondTheOldCanvas()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        editor.ApplyCrop(new ImageRect(100, 100, 100, 100));
+        Annotation shape = TestDocuments.Annotation() with
+        {
+            Start = new ImagePoint(120, 120),
+            End = new ImagePoint(150, 150),
+        };
+        editor.AddAnnotation(shape);
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(600, 400),
+            End = new ImagePoint(650, 450),
+        });
+        Assert.AreEqual(new ImageRect(100, 100, 100, 100),
+            editor.Current.Annotations.Single(item => item.Id == shape.Id).VisibilityClip);
+
+        editor.UpdateAnnotation(shape with
+        {
+            Start = new ImagePoint(650, 400),
+            End = new ImagePoint(680, 430),
+        });
+
+        Annotation moved = editor.Current.Annotations.Single(item => item.Id == shape.Id);
+        Assert.AreEqual(new ImageRect(647.5, 397.5, 35, 35), moved.VisibilityClip);
+        Assert.AreEqual(new ImageRect(0, 0, 683, 480), editor.Current.CanvasBounds);
+        _ = new DocumentEditor(editor.Current);
     }
 
     [TestMethod]
@@ -774,22 +900,73 @@ public sealed class DocumentEditorTests
     [TestMethod]
     public void StepAtCaptureEdgeDoesNotGrowCanvasWhenAnotherLayerIsDeleted()
     {
-        var editor = new DocumentEditor(TestDocuments.Create());
         Annotation step = TestDocuments.Annotation(AnnotationKind.Step) with
         {
             Start = new ImagePoint(0, 0),
             End = new ImagePoint(0, 0),
         };
+        // A saved step created before canvas expansion keeps its original clipped edge.
+        var editor = new DocumentEditor(TestDocuments.Create() with { Annotations = [step] });
         Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
         {
             Start = new ImagePoint(700, 100),
             End = new ImagePoint(900, 300),
         };
-        editor.AddAnnotation(step);
         editor.AddAnnotation(image);
 
         editor.RemoveAnnotation(image.Id);
 
+        Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.CanvasBounds);
+    }
+
+    [TestMethod]
+    public void NewlyPlacedStepNearCaptureEdgeGrowsCanvasForItsFullCircle()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation step = TestDocuments.Annotation(AnnotationKind.Step) with
+        {
+            Start = new ImagePoint(635, 240),
+            End = new ImagePoint(635, 240),
+        };
+
+        editor.AddAnnotation(step);
+
+        Assert.AreEqual(new ImageRect(0, 0, 651, 480), editor.Current.CanvasBounds);
+        Assert.IsTrue(editor.Current.Annotations.Single().StepExpandsCanvas);
+        _ = new DocumentEditor(editor.Current);
+    }
+
+    [TestMethod]
+    public void ResizedStepBeyondCaptureRetainsFullCircleAfterAnotherLayerIsRemoved()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation step = TestDocuments.Annotation(AnnotationKind.Step) with
+        {
+            Start = new ImagePoint(610, 240),
+            End = new ImagePoint(610, 240),
+        };
+        editor.AddAnnotation(step);
+        Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.CanvasBounds);
+
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(700, 100),
+            End = new ImagePoint(900, 300),
+        };
+        editor.AddAnnotation(image);
+        editor.UpdateAnnotation(step with { StepDiameter = 80 });
+        Assert.IsTrue(editor.Current.Annotations.Single(item => item.Id == step.Id).StepExpandsCanvas);
+
+        editor.RemoveAnnotation(image.Id);
+        Assert.AreEqual(new ImageRect(0, 0, 652, 480), editor.Current.CanvasBounds);
+        _ = new DocumentEditor(editor.Current);
+
+        Annotation resized = editor.Current.Annotations.Single(item => item.Id == step.Id);
+        editor.UpdateAnnotation(resized with
+        {
+            Start = new ImagePoint(100, 240),
+            End = new ImagePoint(100, 240),
+        });
         Assert.AreEqual(editor.Current.OriginalBounds, editor.Current.CanvasBounds);
     }
 

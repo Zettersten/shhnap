@@ -1,14 +1,20 @@
 export const releaseFeedUrl = 'https://raw.githubusercontent.com/Zettersten/shhnap/release-metadata/latest.json';
 
-export interface ReleaseFeed {
-  schemaVersion: 1;
+type Architecture = 'x64' | 'arm64';
+type ReleaseAsset = { url: string; sha256: string };
+
+interface ReleaseFeedBase {
   version: string;
   tag: string;
   publishedAt: string;
   releaseUrl: string;
   notes: string;
-  downloads: Record<'x64' | 'arm64', { url: string; sha256: string }>;
+  downloads: Record<Architecture, ReleaseAsset>;
 }
+
+export type ReleaseFeed =
+  | (ReleaseFeedBase & { schemaVersion: 1 })
+  | (ReleaseFeedBase & { schemaVersion: 2; installers: Record<Architecture, ReleaseAsset> });
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -16,7 +22,8 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 /** Keep an unavailable or malformed feed from replacing working static download links. */
 export function parseReleaseFeed(value: unknown): ReleaseFeed | null {
-  if (!isObject(value) || value.schemaVersion !== 1 || typeof value.version !== 'string' ||
+  if (!isObject(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2) ||
+      typeof value.version !== 'string' ||
       !/^[1-9]\d*\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value.version) ||
       value.tag !== `v${value.version}` ||
       typeof value.publishedAt !== 'string' || !Number.isFinite(Date.parse(value.publishedAt)) ||
@@ -32,9 +39,23 @@ export function parseReleaseFeed(value: unknown): ReleaseFeed | null {
         typeof download.sha256 !== 'string' || !/^[a-f\d]{64}$/i.test(download.sha256)) {
       return null;
     }
+
+    if (value.schemaVersion === 2) {
+      if (!isObject(value.installers)) return null;
+      const installer = value.installers[arch];
+      if (!isObject(installer) ||
+          installer.url !== `https://github.com/Zettersten/shhnap/releases/download/${value.tag}/ErikZettersten.Shnapp.${arch}-win-${arch}-Setup.exe` ||
+          typeof installer.sha256 !== 'string' || !/^[a-f\d]{64}$/i.test(installer.sha256)) {
+        return null;
+      }
+    }
   }
 
   return value as unknown as ReleaseFeed;
+}
+
+export function preferredReleaseAsset(feed: ReleaseFeed, architecture: Architecture): ReleaseAsset {
+  return feed.schemaVersion === 2 ? feed.installers[architecture] : feed.downloads[architecture];
 }
 
 /** Only release-specific bullets are shown inline; the full notes remain on GitHub. */

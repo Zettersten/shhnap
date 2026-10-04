@@ -23,7 +23,7 @@ const contactHref = `mailto:${distribution.contactEmail}`;
           <div><strong>Your account</strong><span>None required</span></div>
           <div><strong>App analytics</strong><span>None included</span></div>
         </div>
-        <p class="pr-update-date">Updated October 3, 2026</p>
+        <p class="pr-update-date">Updated October 4, 2026</p>
       </div>
     </section>
 
@@ -41,13 +41,13 @@ const contactHref = `mailto:${distribution.contactEmail}`;
         <div class="pr-article">
           <section id="local-files" aria-labelledby="local-title">
             <h2 id="local-title">Local files</h2>
-            <p>Shnapp keeps your capture library, editable originals, rendered previews, preferences, and update-check state on your PC. The portable edition uses <code>%LOCALAPPDATA%\Shnapp</code> by default; an advanced <code>--data-root</code> launch option can move it elsewhere. The Microsoft Store edition uses its own Windows LocalCache folder, which Windows excludes from device backup. Quit the portable edition before the Store edition's first launch. It then copies an existing portable library into that folder and leaves the portable files in place.</p>
+            <p>Shnapp keeps your capture library, editable originals, rendered previews, preferences, and update-check state on your PC. Direct-download editions use <code>%LOCALAPPDATA%\Shnapp</code> by default; an advanced <code>--data-root</code> launch option can move it elsewhere. The Microsoft Store edition uses its own Windows LocalCache folder, which Windows excludes from device backup. Quit a direct-download copy before the Store edition's first launch. It then copies an existing library into that folder and leaves the original files in place.</p>
             <p>When you copy a PNG, Shnapp places it on your Windows clipboard. When you choose Save, the exported PNG goes to the location you select. Shnapp does not automatically upload captures to us or GitHub.</p>
           </section>
 
           <section id="network" aria-labelledby="network-title">
             <h2 id="network-title">Network and updates</h2>
-            <p>Shnapp checks the repository’s latest GitHub Release over HTTPS at most once per day. You can also check from Settings. The request contacts <code>api.github.com</code> and includes an app user-agent and, when available, an ETag. Shnapp stores the check time, release details, notification state, and any failed download time locally. A direct ZIP copy downloads a verified update from <code>github.com</code> into its app folder and starts it on the next restart. These requests do not send your captures.</p>
+            <p>Portable ZIP copies check the repository’s latest GitHub Release over HTTPS at most once per day; you can also check from Settings. The request contacts <code>api.github.com</code> and includes an app user-agent and, when available, an ETag. Shnapp stores update-check details locally. A portable ZIP copy downloads a verified update from <code>github.com</code> into its app folder and starts it on the next restart. Installer copies can check for and apply app updates through Settings → About &amp; Updates using GitHub-hosted release data and assets. These requests do not send your captures.</p>
             <p>Scoop, WinGet, and Chocolatey installations use their package managers for upgrades after you choose the update action. A Microsoft Store package asks Windows Store services to check and may download an update in the background; choosing Update now asks Store to install it. Sideloaded Store packages may need updates from their original source.</p>
             <p>The site itself has no analytics script or tracking cookies. As with any website, your browser makes requests to the site host to load the page and images.</p>
           </section>
@@ -60,7 +60,7 @@ const contactHref = `mailto:${distribution.contactEmail}`;
 
           <section id="choices" aria-labelledby="choices-title">
             <h2 id="choices-title">Your choices</h2>
-            <p>You choose what to capture, copy, export, and share. For the portable edition, quit Shnapp and delete <code>%LOCALAPPDATA%\Shnapp</code>, or the folder you set with <code>--data-root</code>, to remove its local library and preferences. The Microsoft Store edition keeps a separate copy in its Windows app-data folder; removing or resetting that edition may delete its copy. Back up editable captures before removing it. PNGs saved elsewhere must be deleted separately.</p>
+            <p>You choose what to capture, copy, export, and share. For a direct-download edition, quit Shnapp and delete <code>%LOCALAPPDATA%\Shnapp</code>, or the folder you set with <code>--data-root</code>, to remove its local library and preferences. The Microsoft Store edition keeps a separate copy in its Windows app-data folder; removing or resetting that edition may delete its copy. Back up editable captures before removing it. PNGs saved elsewhere must be deleted separately.</p>
             <p>For a capture containing sensitive details, use opaque Cover on the exported image. Blur and Pixelate may leave text or shapes recognizable. The editable original remains in your local library until you delete it.</p>
           </section>
 

@@ -239,7 +239,19 @@ internal sealed partial class AppController
         catch (Exception exception)
         {
             Show();
-            _page.ShowMessage("Shnapp needs another try", exception.Message + " Your open shnapp remains in memory; try Copy or Save.");
+            System.Diagnostics.Debug.WriteLine($"Shnapp action failed: {exception}");
+            if (exception is ArgumentException { ParamName: "annotation" } &&
+                exception.Message.Contains("A visibility clip must fit inside the canvas.",
+                    StringComparison.Ordinal))
+            {
+                _page.ShowMessage("Couldn't finish the edit",
+                    "An element's visible area no longer fits the canvas. Undo the last edit and try again. Your shnapp remains open.");
+            }
+            else
+            {
+                _page.ShowMessage("Shnapp needs another try",
+                    exception.Message + " Your open shnapp remains in memory; try Copy or Save.");
+            }
         }
     }
 

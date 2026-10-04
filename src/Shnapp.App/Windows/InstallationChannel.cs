@@ -2,6 +2,8 @@ using System.Security;
 using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
+using Velopack;
+using Velopack.Sources;
 
 namespace Shnapp.App.Windows;
 
@@ -9,6 +11,7 @@ internal enum InstallationChannel
 {
     Unknown,
     DirectZip,
+    Velopack,
     Scoop,
     Chocolatey,
     WinGet,
@@ -49,6 +52,9 @@ internal sealed record InstallationChannelRoots(
 /// </summary>
 internal static class InstallationChannelDetector
 {
+    internal const string VelopackX64Id = "ErikZettersten.Shnapp.x64";
+    internal const string VelopackArm64Id = "ErikZettersten.Shnapp.arm64";
+    private const string VelopackRepository = "https://github.com/Zettersten/shhnap";
     internal const string MarkerFileName = ".shnapp-install-source";
     private const string PackageIdentifier = "Zettersten.Shnapp";
     private const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall";
@@ -85,9 +91,28 @@ internal static class InstallationChannelDetector
             return InstallationChannel.Unknown;
         }
 
-        return TryReadWinGetRegistrations(out IReadOnlyList<WinGetPortableRegistration> registrations)
-            ? Classify(executable, marker, registrations, InstallationChannelRoots.Current())
+        bool velopackInstalled = IsVelopackInstall();
+        bool registrationsAvailable = TryReadWinGetRegistrations(out IReadOnlyList<WinGetPortableRegistration> registrations);
+        return registrationsAvailable || velopackInstalled
+            ? Classify(executable, marker, registrations, InstallationChannelRoots.Current(), velopackInstalled)
             : InstallationChannel.Unknown;
+    }
+
+    private static bool IsVelopackInstall()
+    {
+        try
+        {
+            var manager = new UpdateManager(new GithubSource(VelopackRepository, null, false));
+            return manager.IsInstalled &&
+                (string.Equals(manager.AppId, VelopackX64Id, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(manager.AppId, VelopackArm64Id, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or
+            ArgumentException or InvalidOperationException or SecurityException or
+            System.Text.Json.JsonException or FormatException)
+        {
+            return false;
+        }
     }
 
     internal static string? ReadMarkerForExecutable(string executable)
@@ -119,7 +144,8 @@ internal static class InstallationChannelDetector
     }
 
     internal static InstallationChannel Classify(string executablePath, string? marker,
-        IEnumerable<WinGetPortableRegistration> registrations, InstallationChannelRoots roots)
+        IEnumerable<WinGetPortableRegistration> registrations, InstallationChannelRoots roots,
+        bool velopackInstalled = false)
     {
         if (!TryFullPath(executablePath, out string? executable) || executable is null ||
             !Path.GetFileName(executable).Equals("Shnapp.exe", StringComparison.OrdinalIgnoreCase))
@@ -148,6 +174,12 @@ internal static class InstallationChannelDetector
             registration.PackageIdentifier.Equals(PackageIdentifier, StringComparison.OrdinalIgnoreCase) &&
             (SamePath(executable, registration.TargetPath) ||
              MatchesWinGetLocation(executable, registration.InstallLocation)));
+
+        if (velopackInstalled)
+        {
+            return marker is null && !suspiciousManagerPath && !winGetRegistration
+                ? InstallationChannel.Velopack : InstallationChannel.Unknown;
+        }
 
         return marker switch
         {

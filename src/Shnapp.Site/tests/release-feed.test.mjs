@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseReleaseFeed, releaseHighlights } from '../src/lib/release-feed.ts';
+import { parseReleaseFeed, preferredReleaseAsset, releaseHighlights } from '../src/lib/release-feed.ts';
 
 const validFeed = {
   schemaVersion: 1,
@@ -23,6 +23,40 @@ const validFeed = {
 
 test('accepts a verified release feed for both Windows architectures', () => {
   assert.deepEqual(parseReleaseFeed(validFeed), validFeed);
+  assert.equal(preferredReleaseAsset(validFeed, 'x64').url, validFeed.downloads.x64.url);
+});
+
+test('prefers verified installers in v2 while retaining portable ZIP assets', () => {
+  const installerFeed = {
+    ...structuredClone(validFeed),
+    schemaVersion: 2,
+    installers: {
+      x64: {
+        url: 'https://github.com/Zettersten/shhnap/releases/download/v1.0.5/ErikZettersten.Shnapp.x64-win-x64-Setup.exe',
+        sha256: 'c'.repeat(64),
+      },
+      arm64: {
+        url: 'https://github.com/Zettersten/shhnap/releases/download/v1.0.5/ErikZettersten.Shnapp.arm64-win-arm64-Setup.exe',
+        sha256: 'd'.repeat(64),
+      },
+    },
+  };
+
+  assert.deepEqual(parseReleaseFeed(installerFeed), installerFeed);
+  assert.equal(preferredReleaseAsset(installerFeed, 'x64').url, installerFeed.installers.x64.url);
+  assert.equal(installerFeed.downloads.arm64.url, validFeed.downloads.arm64.url);
+
+  const missingInstaller = structuredClone(installerFeed);
+  delete missingInstaller.installers.arm64;
+  assert.equal(parseReleaseFeed(missingInstaller), null);
+
+  const redirectedInstaller = structuredClone(installerFeed);
+  redirectedInstaller.installers.x64.url = 'https://example.com/ErikZettersten.Shnapp.x64-win-x64-Setup.exe';
+  assert.equal(parseReleaseFeed(redirectedInstaller), null);
+
+  const badChecksum = structuredClone(installerFeed);
+  badChecksum.installers.arm64.sha256 = '';
+  assert.equal(parseReleaseFeed(badChecksum), null);
 });
 
 test('rejects a feed that could redirect downloads or show a version without valid checksums', () => {
