@@ -41,25 +41,34 @@ internal sealed partial class AppController
                 await SaveCurrentAsync();
             }
 
-            ShnappDocument document = await Library.OpenAsync(id, _lifetime.Token)
-                ?? throw new FileNotFoundException("This shnapp is no longer in your Library.");
-            EnsureLibraryImagesSafe(id, create: false);
-            string exportPath = Library.GetExportPath(id);
-            if (!File.Exists(exportPath))
+            string title;
+            string snapshotPath;
+            string thumbnailSnapshotPath;
+            await _saveGate.WaitAsync(_lifetime.Token);
+            try
             {
-                throw new FileNotFoundException("This shnapp's saved PNG is missing.", exportPath);
+                await RecoverPendingSaveUnderGateAsync(id);
+                ShnappDocument document = await Library.OpenAsync(id, _lifetime.Token)
+                    ?? throw new FileNotFoundException("This shnapp is no longer in your Library.");
+                EnsureLibraryImagesSafe(id, create: false);
+                title = document.Title;
+                snapshotPath = await _exportSnapshots.CreateAsync(id,
+                    Library.GetExportPath(id), _lifetime.Token);
+                thumbnailSnapshotPath = await _exportSnapshots.CreateThumbnailAsync(id,
+                    Library.GetGalleryPreviewPath(id), _lifetime.Token);
+            }
+            finally
+            {
+                _saveGate.Release();
             }
 
-            StorageFile image = await StorageFile.GetFileFromPathAsync(exportPath);
-            string thumbnailPath = File.Exists(Library.GetGalleryPreviewPath(id))
-                ? Library.GetGalleryPreviewPath(id)
-                : Library.GetCompactPreviewPath(id);
-            StorageFile? thumbnail = File.Exists(thumbnailPath)
-                ? await StorageFile.GetFileFromPathAsync(thumbnailPath)
-                : null;
+            // Windows may read the share payload after this method returns. The
+            // snapshot keeps its image fixed while later edits replace shnapp.png.
+            StorageFile image = await StorageFile.GetFileFromPathAsync(snapshotPath);
+            StorageFile thumbnail = await StorageFile.GetFileFromPathAsync(thumbnailSnapshotPath);
 
             EnsureShareManager();
-            _pendingShare = new SharePayload(document.Title, image, thumbnail);
+            _pendingShare = new SharePayload(title, image, thumbnail);
             try
             {
                 _shareInterop!.ShowShareUIForWindow(App.WindowHandle);
@@ -115,13 +124,10 @@ internal sealed partial class AppController
         data.RequestedOperation = DataPackageOperation.Copy;
         data.SetStorageItems([payload.Image], readOnly: true);
         data.SetBitmap(RandomAccessStreamReference.CreateFromFile(payload.Image));
-        if (payload.Thumbnail is not null)
-        {
-            data.Properties.Thumbnail = RandomAccessStreamReference.CreateFromFile(payload.Thumbnail);
-        }
+        data.Properties.Thumbnail = RandomAccessStreamReference.CreateFromFile(payload.Thumbnail);
     }
 
-    private sealed record SharePayload(string Title, StorageFile Image, StorageFile? Thumbnail);
+    private sealed record SharePayload(string Title, StorageFile Image, StorageFile Thumbnail);
 
     [ComImport]
     [Guid("3A3DCD6C-3EAB-43DC-BCDE-45671CE800C8")]

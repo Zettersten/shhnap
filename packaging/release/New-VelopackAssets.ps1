@@ -3,7 +3,9 @@ param(
     [Parameter(Mandatory = $true)][ValidateSet('win-x64', 'win-arm64')][string] $RuntimeIdentifier,
     [Parameter(Mandatory = $true)][string] $VpkPath,
     [Parameter(Mandatory = $true)][string] $WorkDirectory,
-    [Parameter(Mandatory = $true)][string] $OutputDirectory
+    [Parameter(Mandatory = $true)][string] $OutputDirectory,
+    [Parameter(Mandatory = $true)][string] $SignToolPath,
+    [Parameter(Mandatory = $true)][string] $CertificateThumbprint
 )
 
 Set-StrictMode -Version Latest
@@ -14,6 +16,10 @@ if ($ReleaseTag -cnotmatch '^v([1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')
 }
 if (-not (Test-Path -LiteralPath $VpkPath -PathType Leaf)) {
     throw "Velopack CLI not found: $VpkPath"
+}
+if (-not (Test-Path -LiteralPath $SignToolPath -PathType Leaf) -or
+    $CertificateThumbprint -cnotmatch '^[0-9A-Fa-f]{40}$') {
+    throw 'A SignTool executable and code-signing certificate are required for Velopack packaging.'
 }
 
 $repository = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
@@ -60,12 +66,13 @@ try {
     ./packaging/release/Add-ThirdPartyNotices.ps1 `
         -DepsPath $depsPath -OutputDirectory $publishDirectory
 
+    $signParams = "/sha1 $CertificateThumbprint /fd SHA256 /tr http://timestamp.digicert.com /td SHA256"
     & $VpkPath pack --packId $packId --packVersion $version `
         --packDir $publishDirectory --mainExe Shnapp.exe `
         --runtime "win11-$architecture" --channel $RuntimeIdentifier `
         --outputDir $velopackDirectory --packTitle Shnapp `
         --packAuthors 'Erik Zettersten' --icon 'src/Shnapp.App/Assets/AppIcon.ico' `
-        --instLicense LICENSE --noPortable
+        --instLicense LICENSE --noPortable --signParams $signParams
     if ($LASTEXITCODE -ne 0) { throw 'Velopack pack failed.' }
 
     $expected = @(
@@ -88,6 +95,25 @@ try {
     }
     $setupName = "$packId-$RuntimeIdentifier-Setup.exe"
     $setupPath = Join-Path $output $setupName
+    & (Join-Path $PSScriptRoot 'Sign-ReleaseExecutable.ps1') `
+        -Path $setupPath -SignToolPath $SignToolPath `
+        -CertificateThumbprint $CertificateThumbprint -VerifyOnly
+    $packagePath = Join-Path $output "$packId-$version-$RuntimeIdentifier-full.nupkg"
+    $packageArchive = [System.IO.Compression.ZipFile]::OpenRead($packagePath)
+    try {
+        $packageExecutables = @($packageArchive.Entries |
+            Where-Object { $_.FullName -match '\.exe$' } |
+            ForEach-Object FullName)
+    }
+    finally {
+        $packageArchive.Dispose()
+    }
+    if ('lib/app/Shnapp.exe' -cnotin $packageExecutables) {
+        throw 'The Velopack full package is missing Shnapp.exe.'
+    }
+    & (Join-Path $PSScriptRoot 'Assert-ReleaseArchiveSignatures.ps1') `
+        -ArchivePath $packagePath -EntryPaths $packageExecutables `
+        -SignToolPath $SignToolPath -CertificateThumbprint $CertificateThumbprint
     $hash = (Get-FileHash -LiteralPath $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
     [System.IO.File]::WriteAllText("$setupPath.sha256", "$hash  $setupName`n",
         [System.Text.Encoding]::ASCII)

@@ -194,7 +194,8 @@
                         </Border>
 
                         <ScrollViewer x:Name="SettingsScrollViewer" Grid.Column="1"
-                            VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch">
+                            VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                            HorizontalScrollMode="Disabled" HorizontalContentAlignment="Stretch">
                             <StackPanel Margin="6,0,4,72" Spacing="18" HorizontalAlignment="Stretch">
                                 <StackPanel x:Name="GeneralPanel" Spacing="18">
                                     <StackPanel Spacing="8">

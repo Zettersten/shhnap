@@ -1,3 +1,5 @@
+using System.Buffers.Text;
+
 namespace Shnapp.Core;
 
 internal static class DocumentValidation
@@ -209,6 +211,9 @@ internal static class DocumentValidation
         Require(encoded is { Length: >= 44 } && encoded.Length <= maximumEncodedLength &&
             encoded.Length % 4 == 0 && encoded.StartsWith("iVBORw0KGgo", StringComparison.Ordinal),
             "A pasted image needs a PNG no larger than 32 MiB.", parameterName);
+        Require(Base64.IsValid(encoded.AsSpan(), out int decodedLength) &&
+            decodedLength <= MaximumPastedPngBytes,
+            "A pasted image needs complete PNG base64 data no larger than 32 MiB.", parameterName);
 
         Span<byte> header = stackalloc byte[33];
         Require(Convert.TryFromBase64Chars(encoded.AsSpan(0, 44), header, out int bytesWritten) &&

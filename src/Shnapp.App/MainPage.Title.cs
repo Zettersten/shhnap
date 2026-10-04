@@ -75,6 +75,19 @@ public sealed partial class MainPage
         }
     }
 
+    /// <summary>Keeps an open editor's title aligned with a library rename.</summary>
+    internal ShnappDocument? ApplySavedDocumentTitle(Guid id, string title)
+    {
+        if (_editor?.Current.Id != id)
+        {
+            return null;
+        }
+
+        CancelTitleRename();
+        _editor.Rename(title);
+        return _editor.Current;
+    }
+
     private void CancelTitleRename()
     {
         if (DocumentTitleEditor.Visibility == Visibility.Visible)

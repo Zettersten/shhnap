@@ -6,6 +6,7 @@ namespace Shnapp.Core;
 public static class ShnappLibraryMigration
 {
     private const string CompletionFileName = "portable-library-import-v1.complete";
+    private static readonly uint[] PngCrcTable = CreatePngCrcTable();
     private static readonly string[] DocumentFiles =
     [
         "original.png", "shnapp.png", "preview.png", "preview-fit.png",
@@ -111,6 +112,8 @@ public static class ShnappLibraryMigration
                 string destinationDocument = Path.Combine(destinationDirectory, "document.json");
                 try
                 {
+                    EnsureNotReparsePoint(sourceDirectory);
+                    EnsureNoPendingSave(sourceDirectory);
                     if (File.Exists(destinationDocument))
                     {
                         EnsureNotReparsePoint(destinationDirectory);
@@ -122,12 +125,15 @@ public static class ShnappLibraryMigration
                         continue;
                     }
 
-                    EnsureNotReparsePoint(sourceDirectory);
-                    if (await source.OpenAsync(id, cancellationToken).ConfigureAwait(false) is null)
+                    ShnappDocument? sourceDocument = await source.OpenAsync(id, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (sourceDocument is null)
                     {
                         failed++;
                         continue;
                     }
+                    await ValidateOriginalPngAsync(source.GetOriginalPath(id), sourceDocument,
+                        cancellationToken).ConfigureAwait(false);
                     FileFingerprint?[] sourceBefore = await CaptureFingerprintsAsync(sourceDirectory,
                         checkPendingSave: true, cancellationToken).ConfigureAwait(false);
 
@@ -160,10 +166,14 @@ public static class ShnappLibraryMigration
                         await CopyFileIfMissingAsync(Path.Combine(sourceDirectory, "document.json"),
                             Path.Combine(stageDirectory, "document.json"), cancellationToken)
                             .ConfigureAwait(false);
-                        if (await stagedLibrary.OpenAsync(id, cancellationToken).ConfigureAwait(false) is null)
+                        ShnappDocument? stagedDocument = await stagedLibrary.OpenAsync(id, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (stagedDocument is null)
                         {
                             throw new InvalidDataException("A copied portable shnapp could not be validated.");
                         }
+                        await ValidateOriginalPngAsync(stagedLibrary.GetOriginalPath(id), stagedDocument,
+                            cancellationToken).ConfigureAwait(false);
 
                         if (beforeSourceCheck is not null)
                         {
@@ -287,10 +297,136 @@ public static class ShnappLibraryMigration
 
     private static void EnsureNoPendingSave(string directory)
     {
-        if (Directory.EnumerateFiles(directory, ".document.json.*.tmp").Any())
+        if (EntryExists(Path.Combine(directory, ".save-pending")) ||
+            Directory.EnumerateFiles(directory, ".document.json.*.tmp").Any())
         {
             throw new IOException("A portable shnapp is still being saved.");
         }
+    }
+
+    private static bool EntryExists(string path)
+    {
+        try
+        {
+            _ = File.GetAttributes(path);
+            return true;
+        }
+        catch (FileNotFoundException)
+        {
+            return false;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return false;
+        }
+    }
+
+    private static async Task ValidateOriginalPngAsync(string path, ShnappDocument document,
+        CancellationToken cancellationToken)
+    {
+        EnsureNotReparsePoint(path);
+        await using FileStream stream = new(path, FileMode.Open, FileAccess.Read,
+            FileShare.Read | FileShare.Delete, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        byte[] signature = new byte[8];
+        if (await stream.ReadAtLeastAsync(signature, signature.Length, throwOnEndOfStream: false,
+            cancellationToken: cancellationToken).ConfigureAwait(false) != signature.Length ||
+            !signature.AsSpan().SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }))
+        {
+            throw new InvalidDataException("A portable shnapp is missing a valid original PNG.");
+        }
+
+        byte[] chunkHeader = new byte[8];
+        byte[] chunkBuffer = new byte[64 * 1024];
+        byte[] storedCrc = new byte[4];
+        bool hasHeader = false;
+        bool hasImageData = false;
+        while (stream.Position < stream.Length)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (stream.Length - stream.Position < 12)
+            {
+                throw new InvalidDataException("A portable shnapp has an incomplete original PNG chunk.");
+            }
+
+            await stream.ReadExactlyAsync(chunkHeader, cancellationToken).ConfigureAwait(false);
+            uint length = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(chunkHeader.AsSpan(0, 4));
+            if (length > int.MaxValue || length > stream.Length - stream.Position - storedCrc.Length)
+            {
+                throw new InvalidDataException("A portable shnapp has an invalid original PNG chunk length.");
+            }
+
+            bool isHeader = chunkHeader.AsSpan(4, 4).SequenceEqual("IHDR"u8);
+            bool isImageData = chunkHeader.AsSpan(4, 4).SequenceEqual("IDAT"u8);
+            bool isEnd = chunkHeader.AsSpan(4, 4).SequenceEqual("IEND"u8);
+            if ((!hasHeader && (!isHeader || length != 13)) ||
+                (hasHeader && isHeader) || (isEnd && length != 0))
+            {
+                throw new InvalidDataException("A portable shnapp has an invalid original PNG chunk order.");
+            }
+
+            uint crc = UpdatePngCrc(uint.MaxValue, chunkHeader.AsSpan(4, 4));
+            int remaining = (int)length;
+            while (remaining > 0)
+            {
+                int count = Math.Min(remaining, chunkBuffer.Length);
+                await stream.ReadExactlyAsync(chunkBuffer.AsMemory(0, count), cancellationToken)
+                    .ConfigureAwait(false);
+                crc = UpdatePngCrc(crc, chunkBuffer.AsSpan(0, count));
+                remaining -= count;
+            }
+
+            await stream.ReadExactlyAsync(storedCrc, cancellationToken).ConfigureAwait(false);
+            if (~crc != System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(storedCrc))
+            {
+                throw new InvalidDataException("A portable shnapp has an invalid original PNG chunk checksum.");
+            }
+
+            if (isHeader)
+            {
+                uint width = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(chunkBuffer.AsSpan(0, 4));
+                uint height = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(chunkBuffer.AsSpan(4, 4));
+                if (width != document.PixelWidth || height != document.PixelHeight)
+                {
+                    throw new InvalidDataException("A portable shnapp's original PNG dimensions do not match its document.");
+                }
+                hasHeader = true;
+            }
+            hasImageData |= isImageData && length > 0;
+            if (isEnd)
+            {
+                if (!hasImageData || stream.Position != stream.Length)
+                {
+                    throw new InvalidDataException("A portable shnapp has an incomplete original PNG.");
+                }
+                return;
+            }
+        }
+
+        throw new InvalidDataException("A portable shnapp has an incomplete original PNG.");
+    }
+
+    private static uint UpdatePngCrc(uint crc, ReadOnlySpan<byte> bytes)
+    {
+        foreach (byte value in bytes)
+        {
+            crc = PngCrcTable[(int)((crc ^ value) & 0xff)] ^ (crc >> 8);
+        }
+        return crc;
+    }
+
+    private static uint[] CreatePngCrcTable()
+    {
+        var table = new uint[256];
+        for (int index = 0; index < table.Length; index++)
+        {
+            uint value = (uint)index;
+            for (int bit = 0; bit < 8; bit++)
+            {
+                value = (value & 1) == 0 ? value >> 1 : (value >> 1) ^ 0xedb88320u;
+            }
+            table[index] = value;
+        }
+        return table;
     }
 
     private static string[] GetSourceDirectoryNames(string documentsRoot)

@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory = $true)][string] $Repository,
     [Parameter(Mandatory = $true)][string] $ReleaseJsonPath,
     [Parameter(Mandatory = $true)][string] $AssetsDirectory,
-    [Parameter(Mandatory = $true)][string] $OutputPath
+    [string] $OutputPath,
+    [switch] $DraftPreflight
 )
 
 Set-StrictMode -Version Latest
@@ -22,8 +23,8 @@ $releaseText = [System.IO.File]::ReadAllText($releaseJson)
 $release = $releaseText | ConvertFrom-Json
 $releaseUrl = "https://github.com/$Repository/releases/tag/$ReleaseTag"
 if ($release.tagName -cne $ReleaseTag -or $release.url -cne $releaseUrl -or
-    $release.isDraft -cne $false -or $release.isPrerelease -cne $false) {
-    throw 'Release metadata must describe the requested public stable release.'
+    $release.isDraft -cne [bool]$DraftPreflight -or $release.isPrerelease -cne $false) {
+    throw 'Release metadata must describe the requested stable release and publication state.'
 }
 if ($release.body -isnot [string] -or [string]::IsNullOrWhiteSpace($release.body)) {
     throw 'The public release must have notes.'
@@ -31,17 +32,20 @@ if ($release.body -isnot [string] -or [string]::IsNullOrWhiteSpace($release.body
 if ($release.body.Length -gt 30000) {
     throw 'Release notes exceed the website feed limit of 30,000 characters.'
 }
-$document = [System.Text.Json.JsonDocument]::Parse($releaseText)
-try { $publishedAt = $document.RootElement.GetProperty('publishedAt').GetString() }
-finally { $document.Dispose() }
-if ($publishedAt -cnotmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$') {
-    throw 'The public release must have a UTC publication timestamp.'
-}
-try {
-    [void][System.DateTimeOffset]::Parse($publishedAt, [System.Globalization.CultureInfo]::InvariantCulture)
-}
-catch {
-    throw 'The public release has an invalid publication timestamp.'
+$publishedAt = $null
+if (-not $DraftPreflight) {
+    $document = [System.Text.Json.JsonDocument]::Parse($releaseText)
+    try { $publishedAt = $document.RootElement.GetProperty('publishedAt').GetString() }
+    finally { $document.Dispose() }
+    if ($publishedAt -cnotmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$') {
+        throw 'The public release must have a UTC publication timestamp.'
+    }
+    try {
+        [void][System.DateTimeOffset]::Parse($publishedAt, [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+    catch {
+        throw 'The public release has an invalid publication timestamp.'
+    }
 }
 
 $version = $ReleaseTag.Substring(1)
@@ -117,6 +121,14 @@ foreach ($architecture in @('x64', 'arm64')) {
         url = "https://github.com/$Repository/releases/download/$ReleaseTag/$installerName"
         sha256 = $hashes[$installerName]
     }
+}
+
+if ($DraftPreflight) {
+    Write-Host "Validated draft release metadata inputs for $ReleaseTag."
+    return
+}
+if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+    throw 'OutputPath is required when writing public release metadata.'
 }
 
 $feed = [ordered]@{
