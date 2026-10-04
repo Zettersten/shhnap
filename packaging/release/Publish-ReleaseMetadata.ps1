@@ -23,15 +23,18 @@ if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN)) {
 function Get-StableVersion {
     param([object] $Metadata)
 
+    if ($Metadata.schemaVersion -cnotin @(1, 2)) {
+        throw 'Release metadata has an unsupported schema version.'
+    }
     $expectedFields = @('schemaVersion', 'version', 'tag', 'publishedAt',
         'releaseUrl', 'notes', 'downloads')
+    if ($Metadata.schemaVersion -ceq 2) { $expectedFields += 'installers' }
     $fields = @($Metadata.PSObject.Properties.Name)
     if ($fields.Count -ne $expectedFields.Count -or
         @(Compare-Object $fields $expectedFields).Count -ne 0) {
         throw 'Release metadata does not have the expected feed fields.'
     }
-    if ($Metadata.schemaVersion -cne 1 -or
-        $Metadata.tag -isnot [string] -or
+    if ($Metadata.tag -isnot [string] -or
         $Metadata.tag -cnotmatch '^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' -or
         $Metadata.version -cne $Metadata.tag.Substring(1)) {
         throw 'Release metadata has an invalid schema version or stable tag.'
@@ -52,6 +55,21 @@ function Get-StableVersion {
         $expectedUrl = "https://github.com/$Repository/releases/download/$($Metadata.tag)/Shnapp-win-$architecture.zip"
         if ($download.url -cne $expectedUrl -or $download.sha256 -cnotmatch '^[0-9a-f]{64}$') {
             throw "Release metadata has an invalid $architecture download."
+        }
+    }
+    if ($Metadata.schemaVersion -ceq 2) {
+        $installerArchitectures = @($Metadata.installers.PSObject.Properties.Name)
+        if ($installerArchitectures.Count -ne 2 -or
+            @(Compare-Object $installerArchitectures @('x64', 'arm64')).Count -ne 0) {
+            throw 'Release metadata must have x64 and ARM64 Velopack installers.'
+        }
+        foreach ($architecture in @('x64', 'arm64')) {
+            $installer = $Metadata.installers.$architecture
+            $fileName = "ErikZettersten.Shnapp.$architecture-win-$architecture-Setup.exe"
+            $expectedUrl = "https://github.com/$Repository/releases/download/$($Metadata.tag)/$fileName"
+            if ($installer.url -cne $expectedUrl -or $installer.sha256 -cnotmatch '^[0-9a-f]{64}$') {
+                throw "Release metadata has an invalid $architecture installer."
+            }
         }
     }
     return $Metadata.version

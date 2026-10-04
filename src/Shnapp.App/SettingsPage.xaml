@@ -339,6 +339,8 @@
                                                 Visibility="Collapsed" AutomationProperties.AutomationId="RestartAfterStoreUpdate" />
                                             <Button x:Name="RestartPortableButton" Content="Restart to update" Click="RestartPortable_Click" CornerRadius="8"
                                                 Visibility="Collapsed" AutomationProperties.AutomationId="RestartAfterPortableUpdate" />
+                                            <Button x:Name="RestartVelopackButton" Content="Restart to install update" Click="RestartVelopack_Click" CornerRadius="8"
+                                                Visibility="Collapsed" AutomationProperties.AutomationId="RestartAfterVelopackUpdate" />
                                             <Button x:Name="ManagerUpdateButton" Content="Update with package manager" Click="ManagerUpdate_Click" CornerRadius="8"
                                                 Visibility="Collapsed" AutomationProperties.AutomationId="UpdateWithPackageManager" />
                                             <Button x:Name="OpenStoreButton" Content="Open Microsoft Store updates" Click="OpenStore_Click" CornerRadius="8"

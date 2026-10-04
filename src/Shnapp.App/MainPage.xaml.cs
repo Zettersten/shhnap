@@ -336,6 +336,7 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        Point canvasPosition = args.GetCurrentPoint(DrawingCanvas).Position;
         StopZoomAnimation();
         ClearSmartGuides();
         if (IsSpaceHeld())
@@ -346,26 +347,26 @@ public sealed partial class MainPage : Page
 
         StopCanvasPan();
         CommitText();
-        Point canvasPosition = args.GetCurrentPoint(DrawingCanvas).Position;
         if (SelectedAnnotation() is { } current &&
             HitResizeHandle(current, canvasPosition) is ResizeHandle handle and not ResizeHandle.None)
         {
             _moving = current;
             _resizeHandle = handle;
-            _dragStart = ImagePosition(canvasPosition, clamp: true);
+            _dragStart = ImagePosition(canvasPosition, allowOutside: true);
             BeginSmartGuideDrag(current);
             OpenInspectorForSelection();
             UpdateInspector();
             _crop = null;
             DrawingCanvas.Focus(FocusState.Programmatic);
-            DrawingCanvas.CapturePointer(args.Pointer);
+            CanvasHost.CapturePointer(args.Pointer);
             args.Handled = true;
             UpdateCanvasElementCursor(canvasPosition);
             DrawingCanvas.Invalidate();
             return;
         }
 
-        ImagePoint? position = ImagePosition(canvasPosition, allowOutside: _tool == EditorTool.Text);
+        ImagePoint? position = ImagePosition(canvasPosition,
+            allowOutside: _tool is not (EditorTool.Select or EditorTool.Crop));
         if (position is not ImagePoint point)
         {
             return;
@@ -380,14 +381,14 @@ public sealed partial class MainPage : Page
         // Picking an existing mark takes priority over placing a new mark, even
         // while a drawing tool is active. The chosen tool stays active so the
         // next press on empty canvas can still create a new annotation.
-        _moving = HitTopAnnotation(point);
+        _moving = _editor.Current.Viewport.Contains(point) ? HitTopAnnotation(point) : null;
         if (_moving is Annotation hit)
         {
             _selectedId = hit.Id;
             _dragStart = point;
             BeginSmartGuideDrag(hit);
             OpenInspectorForSelection();
-            DrawingCanvas.CapturePointer(args.Pointer);
+            CanvasHost.CapturePointer(args.Pointer);
         }
         else
         {
@@ -396,7 +397,7 @@ public sealed partial class MainPage : Page
                 case EditorTool.Text:
                     _textDragStart = point;
                     _textDragEnd = point;
-                    DrawingCanvas.CapturePointer(args.Pointer);
+                    CanvasHost.CapturePointer(args.Pointer);
                     break;
                 case EditorTool.Step:
                     Annotation step = NewAnnotation(AnnotationKind.Step, point) with
@@ -404,7 +405,15 @@ public sealed partial class MainPage : Page
                         StepNumber = _editor.Current.Annotations.Count(a => a.Kind == AnnotationKind.Step) + 1,
                     };
                     _selectedId = step.Id;
-                    _editor.AddAnnotation(step);
+                    try
+                    {
+                        _editor.AddAnnotation(step);
+                    }
+                    catch (ArgumentException exception)
+                    {
+                        _selectedId = null;
+                        ShowAnnotationEditError(exception);
+                    }
                     break;
                 case EditorTool.Select:
                     break;
@@ -414,7 +423,7 @@ public sealed partial class MainPage : Page
                     _cropCanMoveAtDragStart = _cropCanMove;
                     _movingCrop = ShouldMoveCrop(point);
                     _cropDragChanged = false;
-                    DrawingCanvas.CapturePointer(args.Pointer);
+                    CanvasHost.CapturePointer(args.Pointer);
                     UpdateCropHover(canvasPosition, point);
                     break;
                 default:
@@ -427,7 +436,7 @@ public sealed partial class MainPage : Page
                         _ => Enum.Parse<AnnotationKind>(_tool.ToString()),
                     };
                     _draft = NewAnnotation(kind, point);
-                    DrawingCanvas.CapturePointer(args.Pointer);
+                    CanvasHost.CapturePointer(args.Pointer);
                     break;
             }
         }
@@ -451,7 +460,6 @@ public sealed partial class MainPage : Page
         if (IsSpaceHeld())
         {
             UpdatePanCursor();
-            QueuePanCursorRefresh();
         }
 
         UpdateCanvasElementCursor(canvasPosition);
@@ -468,9 +476,9 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        ImagePoint point = (_moving?.Kind is AnnotationKind.Image or AnnotationKind.Text
-            ? ImagePosition(canvasPosition, allowOutside: true)
-            : ImagePosition(canvasPosition, clamp: true))!.Value;
+        bool cropping = _tool == EditorTool.Crop && _moving is null;
+        ImagePoint point = ImagePosition(canvasPosition,
+            clamp: cropping, allowOutside: !cropping)!.Value;
         if (_moving is not null)
         {
             if (_resizeHandle != ResizeHandle.None)
@@ -591,7 +599,7 @@ public sealed partial class MainPage : Page
                 allowOutside: true) ?? textStart;
             _textDragStart = null;
             _textDragEnd = null;
-            DrawingCanvas.ReleasePointerCapture(args.Pointer);
+            CanvasHost.ReleasePointerCapture(args.Pointer);
             bool bounded = Math.Max(Math.Abs(end.X - textStart.X),
                 Math.Abs(end.Y - textStart.Y)) * _scale >= 8;
             ImagePoint origin = bounded
@@ -624,16 +632,13 @@ public sealed partial class MainPage : Page
                 bool updated = false;
                 try
                 {
-                    if (annotation.Kind is AnnotationKind.Image or AnnotationKind.Text)
-                    {
-                        _pendingContentAnchor = args.GetCurrentPoint(DrawingCanvas).Position;
-                    }
+                    _pendingContentAnchor = args.GetCurrentPoint(DrawingCanvas).Position;
                     _editor.UpdateAnnotation(annotation);
                     updated = true;
                 }
-                catch (ArgumentException exception) when (annotation.Kind is AnnotationKind.Image or AnnotationKind.Text)
+                catch (ArgumentException exception)
                 {
-                    ShowMessage("Annotation cannot expand the canvas", exception.Message);
+                    ShowAnnotationEditError(exception);
                 }
                 finally
                 {
@@ -650,7 +655,20 @@ public sealed partial class MainPage : Page
             else if (Math.Abs(annotation.End.X - annotation.Start.X) + Math.Abs(annotation.End.Y - annotation.Start.Y) >= 2)
             {
                 _selectedId = annotation.Id;
-                _editor.AddAnnotation(annotation);
+                try
+                {
+                    _pendingContentAnchor = args.GetCurrentPoint(DrawingCanvas).Position;
+                    _editor.AddAnnotation(annotation);
+                }
+                catch (ArgumentException exception)
+                {
+                    _selectedId = null;
+                    ShowAnnotationEditError(exception);
+                }
+                finally
+                {
+                    _pendingContentAnchor = null;
+                }
             }
         }
 
@@ -662,7 +680,7 @@ public sealed partial class MainPage : Page
         _cropAtDragStart = null;
         _movingCrop = false;
         _cropDragChanged = false;
-        DrawingCanvas.ReleasePointerCapture(args.Pointer);
+        CanvasHost.ReleasePointerCapture(args.Pointer);
         UpdateCropHover(args.GetCurrentPoint(DrawingCanvas).Position);
         UpdateCanvasElementCursor(args.GetCurrentPoint(DrawingCanvas).Position);
         DrawingCanvas.Invalidate();
@@ -707,15 +725,27 @@ public sealed partial class MainPage : Page
 
     private ImagePoint ConstrainSquare(ImagePoint start, ImagePoint point)
     {
-        ImageRect viewport = _editor!.Current.Viewport;
         double dx = point.X - start.X;
         double dy = point.Y - start.Y;
         double directionX = dx < 0 ? -1 : 1;
         double directionY = dy < 0 ? -1 : 1;
-        double edgeX = directionX < 0 ? start.X - viewport.X : viewport.Right - start.X;
-        double edgeY = directionY < 0 ? start.Y - viewport.Y : viewport.Bottom - start.Y;
-        double side = Math.Min(Math.Max(Math.Abs(dx), Math.Abs(dy)), Math.Min(edgeX, edgeY));
+        double side = Math.Max(Math.Abs(dx), Math.Abs(dy));
         return new(start.X + directionX * side, start.Y + directionY * side);
+    }
+
+    private void ShowAnnotationEditError(ArgumentException exception)
+    {
+        System.Diagnostics.Debug.WriteLine($"Annotation edit rejected: {exception}");
+        if (exception.Message.StartsWith("The expanded canvas cannot exceed", StringComparison.Ordinal))
+        {
+            ShowMessage("Canvas limit reached",
+                "Move the element closer and try again. The canvas supports up to 16,384 pixels per side and 64 megapixels.");
+        }
+        else
+        {
+            ShowMessage("Element not changed",
+                "Adjust the element's properties, size, or position and try again. Your previous edit remains available.");
+        }
     }
 
     private void EditorHost_SizeChanged(object sender, SizeChangedEventArgs args)
@@ -1007,16 +1037,16 @@ public sealed partial class MainPage : Page
                 }
                 catch (ArgumentException exception)
                 {
-                    ShowMessage("Text exceeds canvas limits", exception.Message);
+                    ShowAnnotationEditError(exception);
                 }
             }
         }
         else if (!string.IsNullOrWhiteSpace(text))
         {
-            Annotation annotation = MeasureTextAnnotation((draft ?? NewAnnotation(AnnotationKind.Text, _textOrigin))
-                with { Text = text });
             try
             {
+                Annotation annotation = MeasureTextAnnotation((draft ?? NewAnnotation(AnnotationKind.Text, _textOrigin))
+                    with { Text = text });
                 _editor.AddAnnotation(annotation);
                 _selectedId = annotation.Id;
                 UpdateInspector();
@@ -1024,7 +1054,7 @@ public sealed partial class MainPage : Page
             }
             catch (ArgumentException exception)
             {
-                ShowMessage("Text exceeds canvas limits", exception.Message);
+                ShowAnnotationEditError(exception);
             }
         }
     }
@@ -1064,7 +1094,7 @@ public sealed partial class MainPage : Page
         _textDragStart = null;
         _textDragEnd = null;
         HideCropTip();
-        DrawingCanvas.ReleasePointerCaptures();
+        CanvasHost.ReleasePointerCaptures();
         DrawingCanvas.Invalidate();
     }
 
@@ -1272,7 +1302,6 @@ public sealed partial class MainPage : Page
         if (args.Key == VirtualKey.Space && _editor is not null && !EditorInputHasFocus())
         {
             CanvasHost.SetPanCursor(true, _panning);
-            QueuePanCursorRefresh();
         }
 
         if (EditorInputHasFocus() || _editor is null)
@@ -1332,7 +1361,6 @@ public sealed partial class MainPage : Page
         if (args.Key == VirtualKey.Space)
         {
             CanvasHost.SetPanCursor(_panning, _panning);
-            QueuePanCursorRefresh();
         }
     }
 

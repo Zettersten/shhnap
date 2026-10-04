@@ -77,8 +77,8 @@ jobs:
             'Shnapp-win-x64.zip', 'Shnapp-win-x64.zip.sha256',
             'Shnapp-win-arm64.zip', 'Shnapp-win-arm64.zip.sha256'
           ) | Sort-Object
-          $actual = @($release.assets | ForEach-Object { $_.name } | Sort-Object)
-          if (@(Compare-Object -ReferenceObject $expected -DifferenceObject $actual).Count -ne 0) {
+          $actual = @($release.assets | ForEach-Object { $_.name })
+          if (@($expected | Where-Object { $_ -notin $actual }).Count -ne 0) {
             throw 'The GitHub release must contain both portable ZIPs and their checksum files.'
           }
           "release_tag=$tag" >> $env:GITHUB_OUTPUT

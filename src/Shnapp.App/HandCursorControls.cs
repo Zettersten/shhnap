@@ -2,7 +2,6 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Input;
 
 namespace Shnapp.App;
 
@@ -13,26 +12,40 @@ internal static class ActionHandCursor
 
 public sealed class HandCursorAppBarButton : AppBarButton
 {
-    public bool CenterFlyoutChevron { get; set; }
+    public bool HideFlyoutChevron { get; set; }
 
     public HandCursorAppBarButton()
     {
         ProtectedCursor = ActionHandCursor.Value;
-        Loaded += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
+        Loaded += (_, _) =>
+        {
+            ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
+            UpdateFlyoutChevron();
+        };
         IsEnabledChanged += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
-        PointerEntered += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
-        AddHandler(PointerMovedEvent, new PointerEventHandler((_, _) =>
-            ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null), true);
     }
 
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
-        if (CenterFlyoutChevron && GetTemplateChild("SubItemChevron") is FontIcon chevron)
+        UpdateFlyoutChevron();
+    }
+
+    private void UpdateFlyoutChevron()
+    {
+        if (!HideFlyoutChevron)
         {
-            // The stock chevron is positioned for a labeled command. This toolbar hides labels.
-            chevron.Glyph = "\uE70D";
-            chevron.Margin = new Thickness(-23, 19, 12, 0);
+            return;
+        }
+
+        foreach (string name in new[] { "SubItemChevron", "OverflowSubItemChevron" })
+        {
+            if (GetTemplateChild(name) is FontIcon chevron)
+            {
+                chevron.Glyph = string.Empty;
+                chevron.Margin = new Thickness(0);
+                chevron.Width = 0;
+            }
         }
     }
 }
@@ -44,9 +57,6 @@ public sealed class HandCursorAppBarToggleButton : AppBarToggleButton
         ProtectedCursor = ActionHandCursor.Value;
         Loaded += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
         IsEnabledChanged += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
-        PointerEntered += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
-        AddHandler(PointerMovedEvent, new PointerEventHandler((_, _) =>
-            ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null), true);
     }
 }
 
@@ -57,9 +67,6 @@ public sealed class HandCursorToggleButton : ToggleButton
         ProtectedCursor = ActionHandCursor.Value;
         Loaded += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
         IsEnabledChanged += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
-        PointerEntered += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
-        AddHandler(PointerMovedEvent, new PointerEventHandler((_, _) =>
-            ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null), true);
     }
 }
 
@@ -70,9 +77,6 @@ public sealed class HandCursorSplitButton : SplitButton
         ProtectedCursor = ActionHandCursor.Value;
         Loaded += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
         IsEnabledChanged += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
-        PointerEntered += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
-        AddHandler(PointerMovedEvent, new PointerEventHandler((_, _) =>
-            ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null), true);
     }
 }
 
@@ -82,8 +86,5 @@ public sealed class HandCursorRegion : Grid
     {
         ProtectedCursor = ActionHandCursor.Value;
         Loaded += (_, _) => ProtectedCursor = ActionHandCursor.Value;
-        PointerEntered += (_, _) => ProtectedCursor = ActionHandCursor.Value;
-        AddHandler(PointerMovedEvent, new PointerEventHandler((_, _) =>
-            ProtectedCursor = ActionHandCursor.Value), true);
     }
 }

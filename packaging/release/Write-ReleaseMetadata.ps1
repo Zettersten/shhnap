@@ -44,14 +44,25 @@ catch {
     throw 'The public release has an invalid publication timestamp.'
 }
 
+$version = $ReleaseTag.Substring(1)
 $expectedNames = @(
-    'Shnapp-win-x64.zip', 'Shnapp-win-x64.zip.sha256',
-    'Shnapp-win-arm64.zip', 'Shnapp-win-arm64.zip.sha256'
+    foreach ($architecture in @('x64', 'arm64')) {
+        $rid = "win-$architecture"
+        $packId = "ErikZettersten.Shnapp.$architecture"
+        "Shnapp-$rid.zip"
+        "Shnapp-$rid.zip.sha256"
+        "assets.$rid.json"
+        "$packId-$version-$rid-full.nupkg"
+        "$packId-$rid-Setup.exe"
+        "$packId-$rid-Setup.exe.sha256"
+        "RELEASES-$rid"
+        "releases.$rid.json"
+    }
 )
 $assets = @($release.assets)
 $localItems = @(Get-ChildItem -LiteralPath $assetsPath -Force)
 if ($assets.Count -ne $expectedNames.Count -or $localItems.Count -ne $expectedNames.Count) {
-    throw 'The release and assets directory must contain exactly two ZIPs and their checksum files.'
+    throw 'The release and assets directory must contain both ZIP and Velopack distributions.'
 }
 
 $hashes = @{}
@@ -83,29 +94,40 @@ foreach ($asset in $assets) {
 }
 
 $downloads = [ordered]@{}
+$installers = [ordered]@{}
 foreach ($architecture in @('x64', 'arm64')) {
-    $archiveName = "Shnapp-win-$architecture.zip"
-    $checksumName = "$archiveName.sha256"
-    $checksumText = [System.IO.File]::ReadAllText((Join-Path $assetsPath $checksumName))
-    $pattern = '^([0-9a-f]{64})  ' + [regex]::Escape($archiveName) + '(?:\r?\n)?\z'
-    $match = [regex]::Match($checksumText, $pattern, [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
-    if (-not $match.Success -or $match.Groups[1].Value -cne $hashes[$archiveName]) {
-        throw "Checksum file does not match the release ZIP: $checksumName"
+    $rid = "win-$architecture"
+    $packId = "ErikZettersten.Shnapp.$architecture"
+    $archiveName = "Shnapp-$rid.zip"
+    $installerName = "$packId-$rid-Setup.exe"
+    foreach ($name in @($archiveName, $installerName)) {
+        $checksumName = "$name.sha256"
+        $checksumText = [System.IO.File]::ReadAllText((Join-Path $assetsPath $checksumName))
+        $pattern = '^([0-9a-f]{64})  ' + [regex]::Escape($name) + '(?:\r?\n)?\z'
+        $match = [regex]::Match($checksumText, $pattern, [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+        if (-not $match.Success -or $match.Groups[1].Value -cne $hashes[$name]) {
+            throw "Checksum file does not match the release asset: $checksumName"
+        }
     }
     $downloads[$architecture] = [ordered]@{
         url = "https://github.com/$Repository/releases/download/$ReleaseTag/$archiveName"
         sha256 = $hashes[$archiveName]
     }
+    $installers[$architecture] = [ordered]@{
+        url = "https://github.com/$Repository/releases/download/$ReleaseTag/$installerName"
+        sha256 = $hashes[$installerName]
+    }
 }
 
 $feed = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     version = $ReleaseTag.Substring(1)
     tag = $ReleaseTag
     publishedAt = $publishedAt
     releaseUrl = $releaseUrl
     notes = $release.body
     downloads = $downloads
+    installers = $installers
 }
 $output = [System.IO.Path]::GetFullPath($OutputPath)
 [void][System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($output))

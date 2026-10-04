@@ -20,8 +20,8 @@ $index.Add('Third-party notices for Shnapp')
 $index.Add('')
 $index.Add('Shnapp source and first-party artwork are covered by the adjacent LICENSE file.')
 $index.Add('The self-contained distribution also includes code from the components below.')
-$index.Add('Each notice is copied from the exact NuGet package used by this build, except')
-$index.Add('the Win2D source license, whose package contains no license file.')
+$index.Add('Notices are copied from the exact NuGet packages or generated from an')
+$index.Add('explicit MIT package license expression. Win2D uses its source license.')
 $index.Add('')
 
 foreach ($library in $deps.libraries.PSObject.Properties.Name) {
@@ -48,7 +48,18 @@ foreach ($library in $deps.libraries.PSObject.Properties.Name) {
     if ($packageName -eq 'Microsoft.Graphics.Win2D' -and $sourceFiles.Count -eq 0) {
         $sourceFiles = @(Get-Item -LiteralPath (Join-Path $PSScriptRoot 'Win2D-LICENSE.txt'))
     }
-    if ($sourceFiles.Count -eq 0) {
+    $nuspecPath = Join-Path $packagePath "$($packageName.ToLowerInvariant()).nuspec"
+    $nuspec = $null
+    if (Test-Path -LiteralPath $nuspecPath -PathType Leaf) {
+        [xml] $nuspec = Get-Content -LiteralPath $nuspecPath -Raw
+    }
+    $licenseNode = if ($null -ne $nuspec) {
+        $nuspec.SelectSingleNode("//*[local-name()='metadata']/*[local-name()='license']")
+    } else { $null }
+    $hasMitExpression = $null -ne $licenseNode -and
+        $licenseNode.GetAttribute('type') -eq 'expression' -and
+        $licenseNode.InnerText -eq 'MIT'
+    if ($sourceFiles.Count -eq 0 -and -not $hasMitExpression) {
         throw "No license or notice file found for $name/$version; review its NuGet package before distributing."
     }
 
@@ -65,13 +76,7 @@ foreach ($library in $deps.libraries.PSObject.Properties.Name) {
     }
 
     if (-not @($sourceFiles | Where-Object { $_.Name -match '^license([.\-_]|$)' }).Count) {
-        $nuspecPath = Join-Path $packagePath "$($packageName.ToLowerInvariant()).nuspec"
-        if (-not (Test-Path -LiteralPath $nuspecPath -PathType Leaf)) {
-            throw "No license file or nuspec found for $name/$version."
-        }
-        [xml] $nuspec = Get-Content -LiteralPath $nuspecPath -Raw
-        $licenseNode = $nuspec.SelectSingleNode("//*[local-name()='metadata']/*[local-name()='license']")
-        if ($null -ne $licenseNode -and $licenseNode.InnerText -eq 'MIT') {
+        if ($hasMitExpression) {
             $copyrightNode = $nuspec.SelectSingleNode("//*[local-name()='metadata']/*[local-name()='copyright']")
             $holder = if ($null -ne $copyrightNode) { $copyrightNode.InnerText } else { $packageName }
             $mitText = @"

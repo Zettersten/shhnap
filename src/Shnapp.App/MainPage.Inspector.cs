@@ -14,6 +14,7 @@ namespace Shnapp.App;
 public sealed partial class MainPage
 {
     private readonly Dictionary<TextBox, NumberBox> _numberBoxInputs = [];
+    private FontPreviewChoice[] _fontChoices = [];
 
     private void InitializeFontFamilies()
     {
@@ -24,8 +25,7 @@ public sealed partial class MainPage
         }
         catch
         {
-            // The five built-in choices remain available if Windows cannot enumerate fonts.
-            return;
+            installed = [];
         }
 
         _updatingOptions = true;
@@ -34,14 +34,105 @@ public sealed partial class MainPage
             .Where(name => !string.IsNullOrWhiteSpace(name) && !name.StartsWith('@'))
             .Distinct(StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
-        FontFamilyChoice.Items.Clear();
-        foreach (string family in choices)
+        _fontChoices = choices.Select(name => new FontPreviewChoice(name)).ToArray();
+        FontFamilyChoice.ItemsSource = _fontChoices;
+        FontFamilyChoice.Text = preferred[0];
+        _updatingOptions = false;
+    }
+
+    private void FontFamilyChoice_GotFocus(object sender, RoutedEventArgs args)
+    {
+        FontFamilyChoice.ItemsSource = _fontChoices;
+        FontFamilyNoResults.Visibility = Visibility.Collapsed;
+        FontFamilyChoice.IsSuggestionListOpen = _fontChoices.Length > 0;
+        FindFontSearchInput(FontFamilyChoice)?.SelectAll();
+    }
+
+    private void FontFamilyChoice_LostFocus(object sender, RoutedEventArgs args)
+    {
+        // Selecting a suggestion briefly moves focus into the popup. Restore an uncommitted
+        // search only after the popup is dismissed, so the field always shows the applied font.
+        DispatcherQueue.TryEnqueue(() =>
         {
-            FontFamilyChoice.Items.Add(new ComboBoxItem { Content = family, Tag = family });
+            if (FontFamilyChoice.IsSuggestionListOpen)
+            {
+                return;
+            }
+
+            string applied = StyleFor(InspectorAnnotation(), InspectorTool()).FontFamily;
+            if (!string.Equals(FontFamilyChoice.Text, applied, StringComparison.Ordinal))
+            {
+                FontFamilyChoice.Text = applied;
+            }
+
+            FontFamilyNoResults.Visibility = Visibility.Collapsed;
+        });
+    }
+
+    private static TextBox? FindFontSearchInput(DependencyObject root)
+    {
+        if (root is TextBox textBox)
+        {
+            return textBox;
         }
 
-        SelectComboValue(FontFamilyChoice, preferred[0]);
+        for (int index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            if (FindFontSearchInput(VisualTreeHelper.GetChild(root, index)) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private void FontFamilyChoice_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (_updatingOptions || args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
+        {
+            return;
+        }
+
+        string query = sender.Text.Trim();
+        FontPreviewChoice[] matches = query.Length == 0
+            ? _fontChoices
+            : _fontChoices.Where(choice => choice.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase))
+                .ToArray();
+        sender.ItemsSource = matches;
+        sender.IsSuggestionListOpen = matches.Length > 0;
+        FontFamilyNoResults.Visibility = matches.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void FontFamilyChoice_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        FontPreviewChoice? choice = args.ChosenSuggestion as FontPreviewChoice
+            ?? _fontChoices.FirstOrDefault(item => string.Equals(item.Name, args.QueryText.Trim(), StringComparison.CurrentCultureIgnoreCase));
+        if (choice is not null)
+        {
+            ApplyFontFamily(choice);
+        }
+        else
+        {
+            sender.IsSuggestionListOpen = sender.ItemsSource is FontPreviewChoice[] { Length: > 0 };
+        }
+    }
+
+    private void ApplyFontFamily(FontPreviewChoice choice)
+    {
+        if (_updatingOptions || InspectorTitle is null)
+        {
+            return;
+        }
+
+        ToolStyle style = _toolStyles[InspectorTool()];
+        style.FontFamily = choice.Name;
+        _updatingOptions = true;
+        FontFamilyChoice.Text = choice.Name;
+        FontFamilyChoice.IsSuggestionListOpen = false;
+        FontFamilyNoResults.Visibility = Visibility.Collapsed;
         _updatingOptions = false;
+        UpdateSelected(annotation => annotation with { FontFamily = choice.Name });
     }
 
     private Annotation? SelectedAnnotation() =>
@@ -241,7 +332,7 @@ public sealed partial class MainPage
         SelectComboValue(EndCapChoice, style.EndCap.ToString());
         SelectComboValue(LinePatternChoice, style.LinePattern.ToString());
         SelectComboValue(RedactionModeChoice, style.RedactionMode.ToString());
-        SelectComboValue(FontFamilyChoice, style.FontFamily);
+        FontFamilyChoice.Text = style.FontFamily;
         SelectComboValue(FontWeightChoice, style.FontWeight.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SelectComboValue(TextTransformChoice, style.TextTransform.ToString());
         SelectComboValue(TextAlignmentChoice, style.TextAlignment.ToString());
@@ -351,11 +442,6 @@ public sealed partial class MainPage
         else if (ReferenceEquals(sender, StepResetCount))
         {
             UpdateSelected(annotation => annotation with { StepReset = StepResetCount.IsChecked == true });
-        }
-        else if (ReferenceEquals(sender, FontFamilyChoice) && FontFamilyChoice.SelectedItem is ComboBoxItem family)
-        {
-            style.FontFamily = family.Tag?.ToString() ?? family.Content?.ToString() ?? style.FontFamily;
-            UpdateSelected(annotation => annotation with { FontFamily = style.FontFamily });
         }
         else if (ReferenceEquals(sender, FontWeightChoice) && FontWeightChoice.SelectedItem is ComboBoxItem weight &&
             int.TryParse(weight.Tag?.ToString(), out int fontWeight))
@@ -563,11 +649,17 @@ public sealed partial class MainPage
                 {
                     _editor!.UpdateAnnotation(updated);
                 }
-                catch (ArgumentException exception) when (updated.Kind == AnnotationKind.Text)
+                catch (ArgumentException exception)
                 {
-                    ShowMessage("Text exceeds canvas limits", exception.Message);
+                    ShowAnnotationEditError(exception);
                 }
             }
         }
     }
+}
+
+public sealed class FontPreviewChoice(string name)
+{
+    public string Name { get; } = name;
+    public FontFamily PreviewFont { get; } = new(name);
 }

@@ -66,6 +66,7 @@ public sealed partial class SettingsPage : Page
         {
             InstallationChannel.Store => "Microsoft Store package. Store-installed copies can update here; sideloaded packages depend on their original source.",
             InstallationChannel.DirectZip => "Direct ZIP copy. Shnapp checks GitHub for newer stable releases.",
+            InstallationChannel.Velopack => "Velopack installation. Shnapp installs verified updates from stable GitHub releases.",
             InstallationChannel.Scoop => "Scoop owns this installation. Shnapp hands upgrades back to Scoop.",
             InstallationChannel.WinGet => "WinGet owns this installation. Shnapp hands upgrades back to WinGet.",
             InstallationChannel.Chocolatey => PackageManagerUpdateRunner.CanStartChocolatey()
@@ -77,16 +78,21 @@ public sealed partial class SettingsPage : Page
         InstallStoreUpdateButton.Visibility = Visibility.Collapsed;
         RestartStoreButton.Visibility = Visibility.Collapsed;
         RestartPortableButton.Visibility = Visibility.Collapsed;
+        RestartVelopackButton.Visibility = Visibility.Collapsed;
         ManagerUpdateButton.Visibility = Visibility.Collapsed;
-        UpdateMessage.Message = packaged
-            ? "Microsoft Store normally updates Store-installed copies. Shnapp checks periodically and can install an available update when you choose Update now."
-            : "Shnapp checks for a stable GitHub release in the background at most once a day.";
+        UpdateMessage.Message = channel switch
+        {
+            InstallationChannel.Store => "Microsoft Store normally updates Store-installed copies. Shnapp checks periodically and can install an available update when you choose Update now.",
+            InstallationChannel.Velopack => "Velopack checks for stable updates in the background.",
+            _ => "Shnapp checks for a stable GitHub release in the background at most once a day.",
+        };
         UpdateHelpText.Text = channel switch
         {
             InstallationChannel.Store => "Microsoft Store controls automatic updates. Shnapp can install an available Store update when you choose Update now. Windows may close the app during installation.",
             InstallationChannel.DirectZip when PortableUpdateStager.FindCurrentInstallRoot() is null =>
                 "This older ZIP copy needs one manual download to enable automatic updates. Your library stays in your user folder.",
             InstallationChannel.DirectZip => "Shnapp downloads a verified release in the background and uses it on the next restart. Your library stays in your user folder.",
+            InstallationChannel.Velopack => "Velopack prepares verified updates in the background. Choose Restart to install update when one is ready. Your library stays in your user folder.",
             InstallationChannel.Chocolatey when !PackageManagerUpdateRunner.CanStartChocolatey() =>
                 "This Chocolatey installation uses a custom location. Run choco upgrade shnapp -y from an Administrator terminal.",
             InstallationChannel.Scoop or InstallationChannel.WinGet or InstallationChannel.Chocolatey =>
@@ -109,13 +115,14 @@ public sealed partial class SettingsPage : Page
         UpdateMessage.IsOpen = true;
         UpdateMessage.Message = result.Message;
         UpdateMessage.Severity = result.IsError ? InfoBarSeverity.Warning :
-            result.PortableRestartRequired || result.StoreRestartRequired
+            result.PortableRestartRequired || result.VelopackRestartRequired || result.StoreRestartRequired
                 ? InfoBarSeverity.Success : InfoBarSeverity.Informational;
         _latestRelease = result.ReleasePage;
         OpenLatestButton.Visibility = _latestRelease is null ? Visibility.Collapsed : Visibility.Visible;
         InstallStoreUpdateButton.Visibility = result.StoreInstallAvailable ? Visibility.Visible : Visibility.Collapsed;
         RestartStoreButton.Visibility = result.StoreRestartRequired ? Visibility.Visible : Visibility.Collapsed;
         RestartPortableButton.Visibility = result.PortableRestartRequired ? Visibility.Visible : Visibility.Collapsed;
+        RestartVelopackButton.Visibility = result.VelopackRestartRequired ? Visibility.Visible : Visibility.Collapsed;
         _managerChannel = result.ManagerChannel;
         ManagerUpdateButton.Visibility = _managerChannel is InstallationChannel.Scoop or InstallationChannel.WinGet or InstallationChannel.Chocolatey
             ? Visibility.Visible : Visibility.Collapsed;
@@ -435,6 +442,20 @@ public sealed partial class SettingsPage : Page
         finally
         {
             RestartPortableButton.IsEnabled = true;
+        }
+    }
+
+    private async void RestartVelopack_Click(object sender, RoutedEventArgs args)
+    {
+        if (_controller is null) { return; }
+        RestartVelopackButton.IsEnabled = false;
+        try
+        {
+            SetUpdateResult(await _controller.RestartAfterVelopackUpdateAsync());
+        }
+        finally
+        {
+            RestartVelopackButton.IsEnabled = true;
         }
     }
 

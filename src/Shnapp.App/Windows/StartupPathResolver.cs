@@ -13,6 +13,22 @@ internal static class StartupPathResolver
                 "Shnapp could not find Scoop's current launcher. Repair the Scoop installation before enabling start at sign-in.");
         }
 
+        if (channel == InstallationChannel.Velopack)
+        {
+            string current = Path.TrimEndingDirectorySeparator(Path.GetFullPath(appDirectory));
+            string? installRoot = Path.GetDirectoryName(current);
+            string? launcher = installRoot is null ? null : Path.Combine(installRoot, "Shnapp.exe");
+            if (!Path.GetFileName(current).Equals("current", StringComparison.OrdinalIgnoreCase) ||
+                launcher is null || !File.Exists(launcher) ||
+                !File.Exists(Path.Combine(current, "sq.version")))
+            {
+                throw new InvalidOperationException(
+                    "Shnapp could not find its Velopack launcher. Repair the installation before enabling start at sign-in.");
+            }
+
+            return launcher;
+        }
+
         if (PortableUpdateStager.FindInstallRoot(appDirectory) is { } root)
         {
             return Path.Combine(root, "Shnapp.exe");

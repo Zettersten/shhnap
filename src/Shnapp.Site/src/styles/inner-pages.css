@@ -26,6 +26,7 @@
 
 .download-page code,
 .privacy-page code { font-family: 'Cascadia Mono', Consolas, monospace; overflow-wrap: anywhere; }
+.download-page [hidden] { display: none !important; }
 
 /* Download */
 .download-page .dl-hero {
@@ -77,6 +78,7 @@
 .download-page .dl-build-action:hover { transform: translateY(-2px); background: #0568d0; color: #fff; }
 .download-page .dl-build-action svg { width: 18px; height: 18px; }
 .download-page .dl-build-hash { color: #095cb4; font-size: .82rem; font-weight: 640; }
+.download-page .dl-build-portable { color: #095cb4; font-size: .82rem; font-weight: 640; }
 .download-page .dl-build-pending { display: inline-flex; min-height: 48px; align-items: center; padding: .7rem 1rem; border-radius: 10px; background: #edf0f6; color: #4f5c72; font-size: .87rem; font-weight: 650; }
 .download-page .dl-architecture-help { margin: 1.65rem 0 0; color: var(--inner-muted); font-size: .93rem; }
 .download-page .dl-architecture-help strong,

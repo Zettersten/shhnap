@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Diagnostics;
+using Velopack;
+using Velopack.Sources;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Controls;
 using Shnapp.App.Windows;
@@ -17,6 +19,8 @@ internal sealed partial class AppController
     private DispatcherQueueTimer? _storeUpdateTimer;
     private bool _storeRestartPending;
     private UpdateCheckResult? _lastUpdateResult;
+    private DateTimeOffset? _lastVelopackCheckUtc;
+    private const string VelopackRepository = "https://github.com/Zettersten/shhnap";
 
     private static bool HasPackageIdentity
     {
@@ -70,6 +74,10 @@ internal sealed partial class AppController
             {
                 result = await CheckStoreAsync(manual);
             }
+            else if (channel == InstallationChannel.Velopack)
+            {
+                result = await CheckVelopackAsync(manual);
+            }
             else
             {
                 ReleaseCheckResult release = await _releaseChecker.CheckAsync(InstalledVersion, manual, _lifetime.Token);
@@ -96,16 +104,19 @@ internal sealed partial class AppController
             _lastUpdateResult = result;
             _window.Settings?.SetUpdateResult(result);
             _page.SetUpdateAvailability(
-                result.UpdateAvailable || result.StoreInstallAvailable || result.PortableRestartRequired || result.StoreRestartRequired,
-                restartRequired: result.PortableRestartRequired || result.StoreRestartRequired,
+                result.UpdateAvailable || result.StoreInstallAvailable || result.PortableRestartRequired ||
+                result.VelopackRestartRequired || result.StoreRestartRequired,
+                restartRequired: result.PortableRestartRequired || result.VelopackRestartRequired || result.StoreRestartRequired,
                 checkFailed: result.IsError);
-            if (result.UpdateAvailable || result.PortableRestartRequired || result.StoreRestartRequired)
+            if (result.UpdateAvailable || result.PortableRestartRequired || result.VelopackRestartRequired ||
+                result.StoreRestartRequired)
             {
-                if (result.PortableRestartRequired || result.StoreRestartRequired ||
+                if (result.PortableRestartRequired || result.VelopackRestartRequired || result.StoreRestartRequired ||
                     previous?.UpdateAvailable != true || previous.LatestTag != result.LatestTag)
                 {
                     _page.ShowAvailableUpdate(result.Message,
-                        restartRequired: result.PortableRestartRequired || result.StoreRestartRequired);
+                        restartRequired: result.PortableRestartRequired || result.VelopackRestartRequired ||
+                            result.StoreRestartRequired);
                 }
                 if (!manual && !packaged && result.LatestTag is { } tag &&
                     await _releaseChecker.MarkNotifiedAsync(tag, _lifetime.Token))
@@ -115,6 +126,119 @@ internal sealed partial class AppController
             }
 
             return result;
+        }
+        finally
+        {
+            _updateGate.Release();
+        }
+    }
+
+    private async Task<UpdateCheckResult> CheckVelopackAsync(bool manual)
+    {
+        try
+        {
+            var manager = new UpdateManager(new GithubSource(VelopackRepository, null, false));
+            if (!manager.IsInstalled)
+            {
+                return new UpdateCheckResult("This copy is not a complete Velopack installation. Repair it from the Shnapp download page.",
+                    IsError: true);
+            }
+
+            if (manager.UpdatePendingRestart is { } pending)
+            {
+                string pendingTag = "v" + pending.Version;
+                return new UpdateCheckResult($"Shnapp {pendingTag} is ready. Restart now or reopen Shnapp to install it. Your library stays in your user folder.",
+                    ReleasePage: VelopackReleasePage(pendingTag), LatestTag: pendingTag,
+                    VelopackRestartRequired: true);
+            }
+
+            if (!manual && _lastVelopackCheckUtc is { } previous &&
+                DateTimeOffset.UtcNow - previous < TimeSpan.FromDays(1))
+            {
+                return _lastUpdateResult ?? new UpdateCheckResult("Shnapp is up to date.");
+            }
+
+            _lastVelopackCheckUtc = DateTimeOffset.UtcNow;
+            UpdateInfo? update = await manager.CheckForUpdatesAsync();
+            if (update is null)
+            {
+                return new UpdateCheckResult("Shnapp is up to date. Velopack checks stable releases in the background.");
+            }
+
+            string tag = "v" + update.TargetFullRelease.Version;
+            Uri releasePage = VelopackReleasePage(tag);
+            if (_options.Isolated)
+            {
+                return new UpdateCheckResult($"Shnapp {tag} is available. Automatic updates are disabled for this verification copy.",
+                    UpdateAvailable: true, ReleasePage: releasePage, LatestTag: tag);
+            }
+
+            _window.Settings?.SetUpdateResult(new UpdateCheckResult($"Preparing Shnapp {tag} with Velopack…"));
+            try
+            {
+                await manager.DownloadUpdatesAsync(update, cancelToken: _lifetime.Token);
+                return new UpdateCheckResult($"Shnapp {tag} is ready. Restart now or reopen Shnapp to install it. Your library stays in your user folder.",
+                    ReleasePage: releasePage, LatestTag: tag, VelopackRestartRequired: true);
+            }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine("Velopack download failed: " + exception);
+                return new UpdateCheckResult($"Shnapp {tag} is available, but the download could not be prepared. Choose Check for updates to retry.",
+                    UpdateAvailable: true, ReleasePage: releasePage, LatestTag: tag, IsError: true);
+            }
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine("Velopack update check failed: " + exception);
+            return new UpdateCheckResult("Could not check Velopack releases right now. Your current Shnapp copy still works.",
+                IsError: true);
+        }
+    }
+
+    private static Uri VelopackReleasePage(string tag) =>
+        new($"{VelopackRepository}/releases/tag/{Uri.EscapeDataString(tag)}");
+
+    internal async Task<UpdateCheckResult> RestartAfterVelopackUpdateAsync()
+    {
+        await _updateGate.WaitAsync(_lifetime.Token);
+        try
+        {
+            if (_options.Isolated || InstallationChannelDetector.Detect(HasPackageIdentity) != InstallationChannel.Velopack)
+            {
+                return new UpdateCheckResult("This copy cannot restart through Velopack.", IsError: true);
+            }
+            if (_activeCapture is not null || _dialogOpen)
+            {
+                return new UpdateCheckResult("Finish the current capture or dialog before restarting.",
+                    VelopackRestartRequired: true);
+            }
+
+            var manager = new UpdateManager(new GithubSource(VelopackRepository, null, false));
+            if (manager.UpdatePendingRestart is not { } pending)
+            {
+                return new UpdateCheckResult("No Velopack update is ready to install.");
+            }
+
+            _saveTimer.Stop();
+            _page.CommitText();
+            await SaveCurrentAsync();
+            manager.WaitExitThenApplyUpdates(pending, restart: true);
+            await QuitAsync();
+            return new UpdateCheckResult("Shnapp is restarting to install the update.");
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine("Velopack restart failed: " + exception);
+            return new UpdateCheckResult("Shnapp could not restart for this update. Save your work, then quit and reopen the app.",
+                IsError: true, VelopackRestartRequired: true);
         }
         finally
         {
@@ -449,4 +573,5 @@ internal sealed partial class AppController
 internal sealed record UpdateCheckResult(string Message, bool UpdateAvailable = false,
     Uri? ReleasePage = null, string? LatestTag = null, bool IsError = false,
     bool StoreInstallAvailable = false, bool StoreRestartRequired = false,
-    bool PortableRestartRequired = false, InstallationChannel ManagerChannel = InstallationChannel.Unknown);
+    bool PortableRestartRequired = false, InstallationChannel ManagerChannel = InstallationChannel.Unknown,
+    bool VelopackRestartRequired = false);

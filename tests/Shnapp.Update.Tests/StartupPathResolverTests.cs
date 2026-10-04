@@ -70,6 +70,33 @@ public sealed class StartupPathResolverTests
             Path.Combine(runningDirectory, "Shnapp.exe"), InstallationChannel.DirectZip));
     }
 
+    [TestMethod]
+    public void VelopackUsesStableRootExecutionStub()
+    {
+        using var files = new TemporaryFiles();
+        string root = Path.Combine(files.Root, InstallationChannelDetector.VelopackX64Id);
+        string current = Path.Combine(root, "current");
+        Directory.CreateDirectory(current);
+        File.WriteAllText(Path.Combine(current, "sq.version"), "manifest");
+        string launcher = Path.Combine(root, "Shnapp.exe");
+        File.WriteAllText(launcher, "stub");
+
+        Assert.AreEqual(launcher, StartupPathResolver.Resolve(current,
+            Path.Combine(current, "Shnapp.exe"), InstallationChannel.Velopack));
+    }
+
+    [TestMethod]
+    public void VelopackNeverRegistersVersionDirectoryWhenStubIsMissing()
+    {
+        using var files = new TemporaryFiles();
+        string current = Path.Combine(files.Root, InstallationChannelDetector.VelopackX64Id, "current");
+        Directory.CreateDirectory(current);
+        File.WriteAllText(Path.Combine(current, "sq.version"), "manifest");
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => StartupPathResolver.Resolve(current,
+            Path.Combine(current, "Shnapp.exe"), InstallationChannel.Velopack));
+    }
+
     private sealed class TemporaryFiles : IDisposable
     {
         internal string Root { get; } = Path.Combine(Path.GetTempPath(), "ShnappStartupTests", Guid.NewGuid().ToString("N"));

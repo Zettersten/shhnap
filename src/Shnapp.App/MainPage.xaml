@@ -433,10 +433,14 @@
         <Grid x:Name="EditorHost" Grid.Row="2" Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
             SizeChanged="EditorHost_SizeChanged"
             Background="{ThemeResource ShnappCanvasBrush}">
-                    <local:EditorCursorHost x:Name="CanvasHost" Background="{ThemeResource ShnappCanvasBrush}"
+                    <Grid Background="{ThemeResource ShnappCanvasBrush}"
                         SizeChanged="GalleryCanvasHost_SizeChanged"
                         PointerMoved="GalleryCanvasHost_PointerMoved" PointerExited="GalleryCanvasHost_PointerExited">
                         <canvas:CanvasControl x:Name="DrawingCanvas" Draw="Canvas_Draw" SizeChanged="Canvas_SizeChanged"
+                            IsHitTestVisible="False" IsTabStop="True" />
+                        <!-- Keep the cursor on the element that receives pointer input. Win2D's
+                             CanvasControl otherwise restores its own default cursor on movement. -->
+                        <local:EditorCursorHost x:Name="CanvasHost" Background="Transparent"
                             PointerPressed="Canvas_PointerPressed" PointerMoved="Canvas_PointerMoved"
                             PointerReleased="Canvas_PointerReleased" PointerCanceled="Canvas_PointerCanceled"
                             PointerCaptureLost="Canvas_PointerCaptureLost"
@@ -444,7 +448,7 @@
                             PointerWheelChanged="Canvas_PointerWheelChanged"
                             DoubleTapped="Canvas_DoubleTapped" RightTapped="Canvas_RightTapped" AllowDrop="True"
                             DragOver="Canvas_DragOver" Drop="Canvas_Drop"
-                            IsTabStop="True" AutomationProperties.Name="Shnapp annotation canvas"
+                            AutomationProperties.Name="Shnapp annotation canvas"
                             AutomationProperties.AutomationId="ShnappCanvas" />
                         <Canvas x:Name="TextOverlay" />
                         <Canvas x:Name="CropOverlay" IsHitTestVisible="False">
@@ -485,7 +489,7 @@
                                 </Button>
                             </StackPanel>
                         </Border>
-                    </local:EditorCursorHost>
+                    </Grid>
                     <Border x:Name="InspectorPanel" Visibility="Visible"
                         Width="252" MaxHeight="560" Margin="12,64,12,12"
                         HorizontalAlignment="Right" VerticalAlignment="Top"
@@ -642,14 +646,33 @@
                                         Loaded="NumberBox_Loaded" />
                                 </StackPanel>
                                 <StackPanel x:Name="FontFamilyRow" Visibility="Collapsed">
-                                    <ComboBox x:Name="FontFamilyChoice" Header="Font" SelectedIndex="0"
-                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed">
-                                        <ComboBoxItem Content="Segoe UI Variable Text" Tag="Segoe UI Variable Text" />
-                                        <ComboBoxItem Content="Arial" Tag="Arial" />
-                                        <ComboBoxItem Content="Calibri" Tag="Calibri" />
-                                        <ComboBoxItem Content="Georgia" Tag="Georgia" />
-                                        <ComboBoxItem Content="Consolas" Tag="Consolas" />
-                                    </ComboBox>
+                                    <AutoSuggestBox x:Name="FontFamilyChoice" Header="Font" PlaceholderText="Search fonts"
+                                        HorizontalAlignment="Stretch" MaxSuggestionListHeight="280" QueryIcon="Find"
+                                        TextMemberPath="Name" TextChanged="FontFamilyChoice_TextChanged"
+                                        QuerySubmitted="FontFamilyChoice_QuerySubmitted"
+                                        GotFocus="FontFamilyChoice_GotFocus"
+                                        LostFocus="FontFamilyChoice_LostFocus"
+                                        AutomationProperties.Name="Search fonts">
+                                        <AutoSuggestBox.ItemTemplate>
+                                            <DataTemplate x:DataType="local:FontPreviewChoice">
+                                                <Grid MinWidth="204" Height="38" ColumnSpacing="8"
+                                                    AutomationProperties.Name="{x:Bind Name}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{x:Bind Name}" VerticalAlignment="Center"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Column="1" Text="Aa" FontFamily="{x:Bind PreviewFont}"
+                                                        FontSize="19" VerticalAlignment="Center"
+                                                        AutomationProperties.AccessibilityView="Raw" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </AutoSuggestBox.ItemTemplate>
+                                    </AutoSuggestBox>
+                                    <TextBlock x:Name="FontFamilyNoResults" Text="No matching fonts"
+                                        Visibility="Collapsed" Margin="0,4,0,0" FontSize="12"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                                 <StackPanel x:Name="FontWeightRow" Visibility="Collapsed">
                                     <ComboBox x:Name="FontWeightChoice" Header="Weight" SelectedIndex="2"
@@ -827,7 +850,7 @@
                     </AppBarToggleButton.Icon>
                 </local:HandCursorAppBarToggleButton>
                 <local:HandCursorAppBarButton CornerRadius="8" x:Name="ShapesTool" Label="Shapes" Tag="Rectangle"
-                    CenterFlyoutChevron="True"
+                    HideFlyoutChevron="True"
                     ToolTipService.ToolTip="Rectangle, square, ellipse, or circle · R" AutomationProperties.AutomationId="ToolShapes">
                     <AppBarButton.Icon>
                         <PathIcon Data="F0 M2,2 L14,2 L14,14 L2,14 Z M3.5,3.5 L3.5,12.5 L12.5,12.5 L12.5,3.5 Z" />

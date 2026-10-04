@@ -31,10 +31,16 @@
     <PublishSingleFile Condition="'$(ShnappDistribution)' == 'PortableSingleFile'">true</PublishSingleFile>
     <IncludeAllContentForSelfExtract Condition="'$(ShnappDistribution)' == 'PortableSingleFile'">true</IncludeAllContentForSelfExtract>
     <EnableWinAppRunSupport>false</EnableWinAppRunSupport>
+    <DefineConstants Condition="'$(WindowsPackageType)' == 'None'">$(DefineConstants);DISABLE_XAML_GENERATED_MAIN;SHNAPP_VELOPACK</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <!-- Store/MSIX keeps WinUI's generated entry point and never invokes Velopack hooks. -->
+  <ItemGroup Condition="'$(WindowsPackageType)' != 'None'">
+    <Compile Remove="Program.cs" />
+  </ItemGroup>
 
   <!-- Store artwork is retained in source, but the portable build has no package manifest. -->
   <ItemGroup Condition="'$(WindowsPackageType)' != 'None'">
@@ -147,6 +153,7 @@
     <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.9" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <ProjectReference Include="..\Shnapp.Core\Shnapp.Core.csproj" />
   </ItemGroup>

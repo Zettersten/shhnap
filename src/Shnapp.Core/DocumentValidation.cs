@@ -51,11 +51,15 @@ internal static class DocumentValidation
         foreach (Annotation annotation in document.Annotations)
         {
             ValidateAnnotation(annotation, document);
-            if (annotation.Kind is AnnotationKind.Image or AnnotationKind.Text &&
-                annotation.VisibilityClip is null && !annotation.HiddenByCrop)
+            if (annotation.VisibilityClip is null && !annotation.HiddenByCrop)
             {
-                Require(Contains(canvas, annotation.Bounds),
-                    "Image and text layers must fit inside the expanded canvas.", nameof(document));
+                ImageRect content = annotation.Kind == AnnotationKind.Step && annotation.StepExpandsCanvas
+                    ? new ImageRect(annotation.Start.X - annotation.StepDiameter / 2,
+                        annotation.Start.Y - annotation.StepDiameter / 2,
+                        annotation.StepDiameter, annotation.StepDiameter)
+                    : annotation.Bounds;
+                Require(Contains(canvas, content),
+                    "Visible annotations must fit inside the expanded canvas.", nameof(document));
             }
             Require(identifiers.Add(annotation.Id), "Annotation identifiers must be unique.", nameof(document));
             if (annotation.Kind == AnnotationKind.Step)
@@ -87,13 +91,14 @@ internal static class DocumentValidation
             "A text formatting option is not supported.", nameof(annotation));
         Require(annotation.Kind == AnnotationKind.Step || !annotation.StepReset,
             "Only a step can restart numbering.", nameof(annotation));
+        Require(annotation.Kind == AnnotationKind.Step || !annotation.StepExpandsCanvas,
+            "Only a step can expand its full circle beyond the capture.", nameof(annotation));
         Require(annotation.LayerOrder >= 0,
             "An annotation layer order cannot be negative.", nameof(annotation));
-        // A trim can leave cropped-out annotations outside the visible canvas.
-        bool mayExpandCanvas = annotation.Kind is AnnotationKind.Image or AnnotationKind.Text ||
-            annotation.HiddenByCrop || annotation.VisibilityClip is not null;
-        ValidatePoint(annotation.Start, document, nameof(annotation), mayExpandCanvas);
-        ValidatePoint(annotation.End, document, nameof(annotation), mayExpandCanvas);
+        // New marks may extend the canvas; document validation verifies the final bounds.
+        // A trim can also leave cropped-out annotations outside the visible canvas.
+        ValidatePoint(annotation.Start, nameof(annotation));
+        ValidatePoint(annotation.End, nameof(annotation));
         if (annotation.Kind == AnnotationKind.Image)
         {
             ImageRect bounds = annotation.Bounds;
@@ -182,13 +187,10 @@ internal static class DocumentValidation
             "A rectangle must have positive width and height.", parameterName);
     }
 
-    private static void ValidatePoint(ImagePoint point, ShnappDocument document, string parameterName,
-        bool allowOutsideCanvas)
+    private static void ValidatePoint(ImagePoint point, string parameterName)
     {
-        ImageRect canvas = document.CanvasBounds;
-        Require(double.IsFinite(point.X) && double.IsFinite(point.Y) &&
-            (allowOutsideCanvas || canvas.Contains(point)),
-            "Annotation points must be finite and inside the canvas.", parameterName);
+        Require(double.IsFinite(point.X) && double.IsFinite(point.Y),
+            "Annotation points must be finite.", parameterName);
     }
 
     internal static void ValidateCanvasSize(ShnappDocument document)

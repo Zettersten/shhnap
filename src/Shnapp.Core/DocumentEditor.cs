@@ -49,12 +49,12 @@ public sealed class DocumentEditor(ShnappDocument document)
     }
 
     /// <summary>Adds an annotation and assigns step numbers, restarting at marked steps.</summary>
-    /// <param name="annotation">An annotation with a unique, nonempty identifier and valid source coordinates.</param>
+    /// <param name="annotation">An annotation with a unique, nonempty identifier and finite source coordinates.</param>
     /// <exception cref="ArgumentNullException">The annotation is null.</exception>
     /// <exception cref="ArgumentException">The annotation is invalid or its identifier already exists.</exception>
     public void AddAnnotation(Annotation annotation)
     {
-        DocumentValidation.ValidateAnnotation(annotation, Current);
+        ArgumentNullException.ThrowIfNull(annotation);
         if (FindAnnotation(annotation.Id) >= 0)
         {
             throw new ArgumentException("An annotation with this identifier already exists.", nameof(annotation));
@@ -66,8 +66,18 @@ public sealed class DocumentEditor(ShnappDocument document)
             annotation = annotation with { LayerOrder = highest == int.MaxValue ? highest : highest + 1 };
         }
 
+        if (annotation.Kind == AnnotationKind.Step &&
+            (!Contains(Current.Viewport, ContentBounds(annotation)) ||
+             !Contains(Current.OriginalBounds, ContentBounds(annotation))))
+        {
+            annotation = annotation with { StepExpandsCanvas = true };
+        }
+
         ShnappDocument next = ExpandCanvasForContent(Current, annotation);
-        Commit(next with { Annotations = RenumberSteps(next.Annotations.Add(annotation)) });
+        DocumentValidation.ValidateAnnotation(annotation, next);
+        next = next with { Annotations = RenumberSteps(next.Annotations.Add(annotation)) };
+        DocumentValidation.Validate(next);
+        Commit(next);
     }
 
     /// <summary>
@@ -79,15 +89,27 @@ public sealed class DocumentEditor(ShnappDocument document)
     /// <exception cref="ArgumentException">The replacement annotation is invalid.</exception>
     public void UpdateAnnotation(Annotation annotation)
     {
-        DocumentValidation.ValidateAnnotation(annotation, Current);
+        ArgumentNullException.ThrowIfNull(annotation);
         int index = FindAnnotation(annotation.Id);
         if (index < 0)
         {
+            DocumentValidation.ValidateAnnotation(annotation, Current);
             return;
         }
 
         Annotation previous = Current.Annotations[index];
         annotation = CarryVisibilityWithGeometry(previous, annotation);
+        if (annotation.Kind == AnnotationKind.Step &&
+            (annotation.Start != previous.Start || annotation.StepDiameter != previous.StepDiameter) &&
+            (!Contains(Current.Viewport, ContentBounds(annotation)) ||
+             !Contains(Current.OriginalBounds, ContentBounds(annotation))))
+        {
+            annotation = annotation with { StepExpandsCanvas = true };
+        }
+        else if (annotation.Kind != AnnotationKind.Step && annotation.StepExpandsCanvas)
+        {
+            annotation = annotation with { StepExpandsCanvas = false };
+        }
         if (annotation.LayerOrder == 0 && previous.LayerOrder > 0)
         {
             annotation = annotation with { LayerOrder = previous.LayerOrder };
@@ -96,8 +118,8 @@ public sealed class DocumentEditor(ShnappDocument document)
         {
             return;
         }
-        DocumentValidation.ValidateAnnotation(annotation, Current);
         ShnappDocument next = ExpandCanvasForContent(Current, annotation, annotation.Id);
+        DocumentValidation.ValidateAnnotation(annotation, next);
         next = next with { Annotations = RenumberSteps(next.Annotations.SetItem(index, annotation)) };
         if (next.Crop == Current.Crop && next.BaseImageCrop == Current.BaseImageCrop &&
             next.HideOriginalImage == Current.HideOriginalImage &&
@@ -109,11 +131,14 @@ public sealed class DocumentEditor(ShnappDocument document)
 
         bool boundsChanged = annotation.Kind != previous.Kind || annotation.Start != previous.Start ||
             annotation.End != previous.End || annotation.StepDiameter != previous.StepDiameter ||
+            annotation.StepExpandsCanvas != previous.StepExpandsCanvas ||
             annotation.TextBoxWidth != previous.TextBoxWidth ||
             annotation.TextBoxHeight != previous.TextBoxHeight ||
             annotation.VisibilityClip != previous.VisibilityClip ||
             annotation.HiddenByCrop != previous.HiddenByCrop;
-        Commit(boundsChanged ? TrimCanvasToContent(next) : next);
+        next = boundsChanged ? TrimCanvasToContent(next) : next;
+        DocumentValidation.Validate(next);
+        Commit(next);
     }
 
     /// <summary>Removes an annotation and renumbers remaining steps; an unknown identifier is a no-op.</summary>
@@ -368,25 +393,27 @@ public sealed class DocumentEditor(ShnappDocument document)
     private static ShnappDocument ExpandCanvasForContent(ShnappDocument document, Annotation annotation,
         Guid? updatedId = null)
     {
-        if (annotation.Kind is not (AnnotationKind.Image or AnnotationKind.Text))
+        ImageRect content = annotation.Kind == AnnotationKind.Step && !annotation.StepExpandsCanvas
+            ? annotation.Bounds
+            : ContentBounds(annotation);
+        ImageRect canvas = UnionPixelBounds(document.CanvasBounds, content);
+        if (annotation.VisibilityClip is ImageRect clip)
         {
-            return document;
+            canvas = UnionPixelBounds(canvas, clip);
         }
-
-        ImageRect canvas = UnionPixelBounds(document.CanvasBounds, annotation.Bounds);
         ImageRect? crop = document.Crop;
         ImageRect? baseImageCrop = document.BaseImageCrop;
         ImmutableArray<Annotation> annotations = document.Annotations;
-        if (crop is ImageRect visible && !Contains(visible, annotation.Bounds))
+        if (crop is ImageRect visible && !Contains(visible, content))
         {
             if (!document.HideOriginalImage)
             {
                 baseImageCrop ??= visible;
             }
             // The older layers were visible only inside the current crop. Keep that
-            // mask when this image widens the viewport; the new or moved image stays visible.
+            // mask when new content widens the viewport; the new or moved mark stays visible.
             annotations = ClipExistingAnnotations(annotations, visible, updatedId);
-            crop = UnionPixelBounds(visible, annotation.Bounds);
+            crop = UnionPixelBounds(visible, content);
         }
 
         if (canvas == document.CanvasBounds && crop == document.Crop &&
@@ -451,14 +478,16 @@ public sealed class DocumentEditor(ShnappDocument document)
                 continue;
             }
 
-            if (crop is not null && remainder != bounds && annotation.VisibilityClip != remainder)
+            if (annotation.VisibilityClip != remainder &&
+                (annotation.VisibilityClip is not null || crop is not null && remainder != bounds))
             {
                 clippedAnnotations ??= document.Annotations.ToBuilder();
                 clippedAnnotations[index] = annotation with { VisibilityClip = remainder };
             }
 
             ImageRect canvasContent = remainder;
-            if (crop is null && annotation.Kind == AnnotationKind.Step && original.Contains(annotation.Start))
+            if (crop is null && annotation.Kind == AnnotationKind.Step &&
+                !annotation.StepExpandsCanvas && original.Contains(annotation.Start))
             {
                 canvasContent = Intersection(remainder, original) ??
                     new ImageRect(annotation.Start.X, annotation.Start.Y, 1, 1);
@@ -512,13 +541,56 @@ public sealed class DocumentEditor(ShnappDocument document)
     {
         if (annotation.Kind == AnnotationKind.Step)
         {
-            double radius = annotation.StepDiameter / 2;
+            // The renderer draws a two-pixel white ring around the filled dot.
+            double radius = annotation.StepDiameter / 2 + 2;
             return new ImageRect(annotation.Start.X - radius, annotation.Start.Y - radius,
-                annotation.StepDiameter, annotation.StepDiameter);
+                radius * 2, radius * 2);
         }
 
         ImageRect bounds = annotation.Bounds;
+        if (annotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse && !annotation.HideOutline)
+        {
+            return Inflate(bounds, annotation.StrokeWidth / 2 + 1);
+        }
+
+        if (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow)
+        {
+            double shaftOutset = Math.Max(0.75, annotation.StrokeWidth / 2) + 1;
+            ImageRect content = Inflate(bounds, shaftOutset);
+            double dx = annotation.End.X - annotation.Start.X;
+            double dy = annotation.End.Y - annotation.Start.Y;
+            if (dx * dx + dy * dy > 1)
+            {
+                double capOutset = Math.Max(10, annotation.StrokeWidth * 3.5) +
+                    Math.Max(1, annotation.StrokeWidth) / 2 + 1;
+                if (annotation.EffectiveStartCap != LineEndCap.None)
+                {
+                    content = IncludeRadius(content, annotation.Start, capOutset);
+                }
+                if (annotation.EffectiveEndCap != LineEndCap.None)
+                {
+                    content = IncludeRadius(content, annotation.End, capOutset);
+                }
+            }
+
+            return content;
+        }
+
         return new ImageRect(bounds.X, bounds.Y, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height));
+    }
+
+    private static ImageRect Inflate(ImageRect bounds, double amount) =>
+        new(bounds.X - amount, bounds.Y - amount,
+            Math.Max(1, bounds.Width) + amount * 2,
+            Math.Max(1, bounds.Height) + amount * 2);
+
+    private static ImageRect IncludeRadius(ImageRect bounds, ImagePoint center, double radius)
+    {
+        double left = Math.Min(bounds.X, center.X - radius);
+        double top = Math.Min(bounds.Y, center.Y - radius);
+        double right = Math.Max(bounds.Right, center.X + radius);
+        double bottom = Math.Max(bounds.Bottom, center.Y + radius);
+        return new ImageRect(left, top, right - left, bottom - top);
     }
 
     private static ImageRect WholePixelBounds(ImageRect area)

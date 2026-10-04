@@ -64,12 +64,19 @@ public sealed class InteractiveCursorHost : Grid
             actionable = IsWithinEnabledAction(commandBar, args.GetCurrentPoint(this).Position);
         }
 
-        ProtectedCursor = actionable ? _hand : null;
+        InputCursor? cursor = actionable ? _hand : null;
+        if (!ReferenceEquals(ProtectedCursor, cursor))
+        {
+            ProtectedCursor = cursor;
+        }
     }
 
     internal void ReleaseCursor()
     {
-        ProtectedCursor = null;
+        if (ProtectedCursor is not null)
+        {
+            ProtectedCursor = null;
+        }
     }
 
     private bool IsWithinEnabledAction(DependencyObject element, Point pointer)
