@@ -56,12 +56,30 @@ jobs:
         run: dotnet restore src/Shnapp.App/Shnapp.App.csproj -p:Platform=x64 --locked-mode
       - name: Build Windows app
         run: dotnet build src/Shnapp.App/Shnapp.App.csproj -c Release -r win-x64 -p:Platform=x64 --no-restore
+      - name: Test release signature verification
+        shell: pwsh
+        run: ./packaging/release/tests/Test-ReleaseSigning.ps1
+
+  release-script-tests:
+    name: Test release evidence and feed validation
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Reject changed build evidence
+        run: bash packaging/release/tests/test-release-evidence.sh
+      - name: Validate draft and public feed generation
+        shell: pwsh
+        run: ./packaging/release/tests/Test-ReleaseMetadata.ps1
 
   package:
     name: Windows distributions (${{ matrix.rid }})
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: verify
+    needs: [verify, release-script-tests]
     runs-on: windows-latest
+    environment: release-signing
     strategy:
       fail-fast: false
       matrix:
@@ -87,6 +105,12 @@ jobs:
           if ($env:RELEASE_TAG -notmatch '^v([1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
             throw 'Public release tags must look like v1.0.0; prerelease tags are not supported by this workflow.'
           }
+      - name: Require trusted code signing
+        shell: pwsh
+        env:
+          RELEASE_SIGNING_PFX_BASE64: ${{ secrets.RELEASE_SIGNING_PFX_BASE64 }}
+          RELEASE_SIGNING_PFX_PASSWORD: ${{ secrets.RELEASE_SIGNING_PFX_PASSWORD }}
+        run: ./packaging/release/Initialize-ReleaseSigning.ps1
       - name: Restore target architecture from lock files
         shell: pwsh
         run: |
@@ -122,6 +146,11 @@ jobs:
           ./packaging/release/Add-ThirdPartyNotices.ps1 `
             -DepsPath (Join-Path $buildDir 'Shnapp.deps.json') `
             -OutputDirectory $publishDir
+          foreach ($binary in @((Join-Path $publishDir 'Shnapp.exe'), (Join-Path $launcherDir 'Shnapp.exe'))) {
+            ./packaging/release/Sign-ReleaseExecutable.ps1 `
+              -Path $binary -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
+              -CertificateThumbprint $env:RELEASE_SIGNING_THUMBPRINT
+          }
           ./packaging/release/New-PortableLayout.ps1 `
             -ReleaseTag $env:RELEASE_TAG `
             -PayloadDirectory $publishDir `
@@ -133,6 +162,11 @@ jobs:
           $archive = Join-Path $assetsDir $archiveName
           [System.IO.Compression.ZipFile]::CreateFromDirectory(
             $layoutDir, $archive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+          ./packaging/release/Assert-ReleaseArchiveSignatures.ps1 `
+            -ArchivePath $archive `
+            -EntryPaths @('Shnapp.exe', "versions/$env:RELEASE_TAG/Shnapp.exe") `
+            -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
+            -CertificateThumbprint $env:RELEASE_SIGNING_THUMBPRINT
           $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           [System.IO.File]::WriteAllText("$archive.sha256", "$hash  $archiveName`n", [System.Text.Encoding]::ASCII)
       - name: Restore Velopack app from lock files
@@ -155,7 +189,9 @@ jobs:
             -RuntimeIdentifier $env:TARGET_RID `
             -VpkPath (Join-Path $env:RUNNER_TEMP 'velopack-tools/vpk.exe') `
             -WorkDirectory (Join-Path $env:RUNNER_TEMP 'shnapp-velopack') `
-            -OutputDirectory (Join-Path $env:GITHUB_WORKSPACE 'release-assets')
+            -OutputDirectory (Join-Path $env:GITHUB_WORKSPACE 'release-assets') `
+            -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
+            -CertificateThumbprint $env:RELEASE_SIGNING_THUMBPRINT
       - name: Upload release assets
         uses: actions/upload-artifact@v7
         with:
@@ -168,6 +204,9 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: package
     runs-on: ubuntu-latest
+    concurrency:
+      group: shnapp-release-stage-${{ github.ref_name }}
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -220,19 +259,49 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          remote_sha="$(git ls-remote origin "refs/tags/$RELEASE_TAG^{}" | cut -f1)"
+          if [[ -z "$remote_sha" ]]; then
+            remote_sha="$(git ls-remote origin "refs/tags/$RELEASE_TAG" | cut -f1)"
+          fi
+          if [[ "$remote_sha" != "$(git rev-parse HEAD)" ]]; then
+            echo 'The release tag moved after this build began.' >&2
+            exit 1
+          fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" != 'true' ]]; then
               echo "Release $RELEASE_TAG is already public. This workflow never overwrites published assets." >&2
               exit 1
             fi
           else
-            gh release create "$RELEASE_TAG" release-assets/* --draft --verify-tag \
+            gh release create "$RELEASE_TAG" --draft --verify-tag \
               --title "Shnapp $RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
           if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" != 'true' ]]; then
             echo 'The staged release is unexpectedly public.' >&2
             exit 1
           fi
+          gh release view "$RELEASE_TAG" --json assets > "$RUNNER_TEMP/draft-assets.json"
+          while IFS= read -r name; do
+            if [[ ! -f "release-assets/$name" ]]; then
+              echo "The draft contains an unexpected asset: $name" >&2
+              exit 1
+            fi
+          done < <(jq -r '.assets[].name' "$RUNNER_TEMP/draft-assets.json")
+          for asset in release-assets/*; do
+            name="$(basename "$asset")"
+            expected_digest="sha256:$(sha256sum "$asset" | cut -d' ' -f1)"
+            expected_size="$(stat -c %s "$asset")"
+            existing="$(jq -c --arg name "$name" '[.assets[] | select(.name == $name)]' \
+              "$RUNNER_TEMP/draft-assets.json")"
+            if [[ "$(jq 'length' <<< "$existing")" -eq 0 ]]; then
+              gh release upload "$RELEASE_TAG" "$asset"
+            elif [[ "$(jq 'length' <<< "$existing")" -ne 1 ||
+                    "$(jq -r '.[0].digest' <<< "$existing")" != "$expected_digest" ||
+                    "$(jq -r '.[0].size' <<< "$existing")" != "$expected_size" ]]; then
+              echo "The draft asset $name differs from this build; refusing to replace it." >&2
+              exit 1
+            fi
+          done
           mkdir -p uploaded-assets
           gh release download "$RELEASE_TAG" --dir uploaded-assets
           bash packaging/release/verify-release-assets.sh uploaded-assets "$RELEASE_TAG"
@@ -254,6 +323,19 @@ jobs:
           name: Catalog-candidates-${{ github.ref_name }}
           path: catalog-candidates/
           if-no-files-found: error
+      - name: Record exact successful build evidence
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          bash packaging/release/release-evidence.sh write release-assets \
+            "$RELEASE_TAG" "$(git rev-parse HEAD)" "$GITHUB_RUN_ID" release-evidence
+      - name: Save release evidence for publication
+        uses: actions/upload-artifact@v7
+        with:
+          name: Release-evidence-${{ github.ref_name }}
+          path: release-evidence/
+          if-no-files-found: error
 
   publish-release:
     name: Publish release and current-version feed
@@ -262,11 +344,13 @@ jobs:
       github.ref == 'refs/heads/main' &&
       (inputs.operation == 'publish-github-release' || inputs.operation == 'refresh-release-metadata')
     runs-on: ubuntu-latest
+    environment: release-publication
     concurrency:
       group: shnapp-release-publication
       cancel-in-progress: false
     permissions:
       contents: write
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -278,8 +362,11 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           ref: main
-      - name: Verify release assets and publish reviewed draft
+      - name: Verify release assets and publication prerequisites
+        id: preflight
         shell: bash
+        env:
+          RELEASE_SETTINGS_TOKEN: ${{ secrets.RELEASE_SETTINGS_TOKEN }}
         run: |
           set -euo pipefail
           if [[ ! "$RELEASE_TAG" =~ ^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
@@ -289,6 +376,15 @@ jobs:
           if ! git rev-parse -q --verify "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null ||
              ! git merge-base --is-ancestor "refs/tags/${RELEASE_TAG}^{commit}" origin/main; then
             echo 'Release tag commit must be reachable from main.' >&2
+            exit 1
+          fi
+          tag_sha="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          remote_sha="$(git ls-remote origin "refs/tags/$RELEASE_TAG^{}" | cut -f1)"
+          if [[ -z "$remote_sha" ]]; then
+            remote_sha="$(git ls-remote origin "refs/tags/$RELEASE_TAG" | cut -f1)"
+          fi
+          if [[ "$remote_sha" != "$tag_sha" ]]; then
+            echo 'The release tag moved after checkout; refusing publication.' >&2
             exit 1
           fi
           is_draft="$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)"
@@ -303,6 +399,28 @@ jobs:
           mkdir -p downloaded-assets
           gh release download "$RELEASE_TAG" --dir downloaded-assets
           bash packaging/release/verify-release-assets.sh downloaded-assets "$RELEASE_TAG"
+          if [[ "$RELEASE_OPERATION" == 'publish-github-release' ]]; then
+            if [[ -z "$RELEASE_SETTINGS_TOKEN" ]]; then
+              echo 'Set RELEASE_SETTINGS_TOKEN with repository Administration:read before publication.' >&2
+              exit 1
+            fi
+            if [[ "$(GH_TOKEN="$RELEASE_SETTINGS_TOKEN" gh api "repos/$GH_REPO/immutable-releases" \
+              -H 'X-GitHub-Api-Version: 2026-03-10' --jq .enabled)" != 'true' ]]; then
+              echo 'Enable immutable releases before publishing.' >&2
+              exit 1
+            fi
+            runs="$(gh api "repos/$GH_REPO/actions/workflows/windows.yml/runs?event=push&branch=$RELEASE_TAG&status=success&per_page=100")"
+            run_id="$(jq -er --arg tag "$RELEASE_TAG" --arg sha "$tag_sha" '
+              [.workflow_runs[] |
+               select(.event == "push" and .conclusion == "success" and
+                      .head_branch == $tag and .head_sha == $sha and
+                      .path == ".github/workflows/windows.yml")] |
+              max_by(.id) | .id
+            ' <<< "$runs")"
+            gh run download "$run_id" --name "Release-evidence-$RELEASE_TAG" --dir release-evidence
+            bash packaging/release/release-evidence.sh verify downloaded-assets \
+              "$RELEASE_TAG" "$tag_sha" "$run_id" release-evidence
+          fi
           gh release view "$RELEASE_TAG" --json body --jq .body > "$RUNNER_TEMP/release-body.md"
           if (( $(wc -c < "$RUNNER_TEMP/release-body.md") > 30000 )); then
             echo 'Release notes exceed the website feed limit of 30,000 UTF-8 bytes.' >&2
@@ -343,6 +461,10 @@ jobs:
               200)
                 latest_tag="$(jq -er '.tag_name' "$RUNNER_TEMP/latest-release.json")"
                 require_newer_than "$latest_tag" 'latest public release'
+                if ! git merge-base --is-ancestor "refs/tags/${latest_tag}^{commit}" "$tag_sha"; then
+                  echo "Release $RELEASE_TAG must contain the source of $latest_tag." >&2
+                  exit 1
+                fi
                 ;;
               404) ;;
               *) echo "Could not read the latest public release (HTTP $latest_status)." >&2; exit 1 ;;
@@ -373,9 +495,38 @@ jobs:
               404) ;;
               *) echo "Could not read current release metadata (HTTP $feed_status)." >&2; exit 1 ;;
             esac
-            gh release edit "$RELEASE_TAG" --draft=false
           fi
+      - name: Prevalidate the draft website feed
+        if: inputs.operation == 'publish-github-release'
+        shell: pwsh
+        run: |
+          gh release view $env:RELEASE_TAG --json tagName,url,isDraft,isPrerelease,publishedAt,body,assets > draft-details.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./packaging/release/Write-ReleaseMetadata.ps1 `
+            -ReleaseTag $env:RELEASE_TAG `
+            -Repository $env:GH_REPO `
+            -ReleaseJsonPath draft-details.json `
+            -AssetsDirectory downloaded-assets `
+            -DraftPreflight
+      - name: Publish the reviewed draft
+        id: publication
+        if: inputs.operation == 'publish-github-release'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --json assets > "$RUNNER_TEMP/final-draft-assets.json"
+          awk '{ name = $2; sub(/^\*/, "", name); print $1 "  " name }' \
+            release-evidence/assets.sha256 | LC_ALL=C sort -k2 > "$RUNNER_TEMP/build-digests.txt"
+          jq -r '.assets[] | select(.digest | test("^sha256:[0-9a-f]{64}$")) |
+            "\(.digest[7:])  \(.name)"' "$RUNNER_TEMP/final-draft-assets.json" |
+            LC_ALL=C sort -k2 > "$RUNNER_TEMP/draft-digests.txt"
+          if ! cmp "$RUNNER_TEMP/build-digests.txt" "$RUNNER_TEMP/draft-digests.txt"; then
+            echo 'Draft assets changed during publication preflight.' >&2
+            exit 1
+          fi
+          gh release edit "$RELEASE_TAG" --draft=false
       - name: Publish verified release metadata for the website
+        id: metadata
         shell: pwsh
         run: |
           gh release view $env:RELEASE_TAG --json tagName,url,isDraft,isPrerelease,publishedAt,body,assets > release-details.json
@@ -389,6 +540,34 @@ jobs:
           ./packaging/release/Publish-ReleaseMetadata.ps1 `
             -FilePath release-metadata/latest.json `
             -Repository $env:GH_REPO
+      - name: Check public release and website feed health
+        if: >-
+          always() && steps.preflight.outcome == 'success' &&
+          (steps.publication.outcome == 'success' || inputs.operation == 'refresh-release-metadata')
+        shell: bash
+        env:
+          METADATA_OUTCOME: ${{ steps.metadata.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" != 'false' ]]; then
+            echo 'The release is not public.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if [[ "$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" --jq .immutable)" != 'true' ]]; then
+            echo "### $RELEASE_TAG is public but release immutability is missing" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if [[ "$METADATA_OUTCOME" != 'success' ]] ||
+             ! feed="$(gh api "repos/$GH_REPO/contents/latest.json?ref=release-metadata" \
+            --jq .content | base64 --decode)" ||
+             [[ "$(jq -r '.tag // empty' <<< "$feed")" != "$RELEASE_TAG" ]]; then
+            {
+              echo "### $RELEASE_TAG is public, but the website feed needs repair"
+              echo 'Run refresh-release-metadata for this tag after resolving the metadata error.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "### $RELEASE_TAG is public and the website feed matches" >> "$GITHUB_STEP_SUMMARY"
 
   scoop-release:
     name: Verify Scoop update

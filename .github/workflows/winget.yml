@@ -6,6 +6,9 @@ on:
       release_tag:
         required: true
         type: string
+      catalog_source_sha:
+        required: false
+        type: string
     secrets:
       WINGET_CREATE_GITHUB_TOKEN:
         required: false
@@ -18,6 +21,10 @@ on:
       release_tag:
         description: Public stable Shnapp release tag
         required: true
+        type: string
+      catalog_source_sha:
+        description: Reviewed main commit SHA for a catalog-only correction; blank uses the release tag
+        required: false
         type: string
 permissions:
   contents: read
@@ -37,12 +44,13 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       RELEASE_TAG: ${{ inputs.release_tag }}
+      CATALOG_SOURCE_SHA: ${{ inputs.catalog_source_sha }}
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: main
+          ref: ${{ inputs.catalog_source_sha || format('refs/tags/{0}', inputs.release_tag) }}
       - name: Require a public stable release from main
         shell: pwsh
         run: |
@@ -53,8 +61,17 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tagCommit)) {
             throw 'The release tag does not exist in this repository.'
           }
-          git merge-base --is-ancestor $tagCommit HEAD
+          git merge-base --is-ancestor $tagCommit origin/main
           if ($LASTEXITCODE -ne 0) { throw 'The release tag must be reachable from main.' }
+          if (-not [string]::IsNullOrWhiteSpace($env:CATALOG_SOURCE_SHA)) {
+            $catalogSha = $env:CATALOG_SOURCE_SHA
+            if ($catalogSha -cnotmatch '^[0-9a-f]{40}$' -or (git rev-parse HEAD).Trim() -cne $catalogSha) {
+              throw 'Catalog source must be the exact reviewed 40-character commit SHA.'
+            }
+            git merge-base --is-ancestor $catalogSha origin/main
+            if ($LASTEXITCODE -ne 0) { throw 'Catalog source commit must be reachable from main.' }
+          }
+          "Catalog candidate source: $(git rev-parse HEAD)" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
           $release = gh release view $env:RELEASE_TAG --repo $env:GH_REPO --json isDraft,isPrerelease | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0 -or $release.isDraft -or $release.isPrerelease) {
             throw 'WinGet candidates require a public stable GitHub release.'

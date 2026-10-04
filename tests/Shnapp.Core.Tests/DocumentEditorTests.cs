@@ -1174,6 +1174,7 @@ public sealed class DocumentEditorTests
         [
             valid with { ImagePngBase64 = null },
             valid with { ImagePngBase64 = "not a PNG" },
+            valid with { ImagePngBase64 = valid.ImagePngBase64![..48] + "!" + valid.ImagePngBase64[49..] },
             valid with { Start = new ImagePoint(0, 0), End = new ImagePoint(0, 10) },
             valid with { Start = new ImagePoint(50_000, 0), End = new ImagePoint(50_010, 10) },
         ];

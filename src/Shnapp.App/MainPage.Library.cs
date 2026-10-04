@@ -39,6 +39,19 @@ public sealed partial class MainPage
         Dimensions,
     }
 
+    internal void UpdateReadyLibrary(IReadOnlyList<ShnappSummary> documents)
+    {
+        _library = documents;
+        if (_editor is null) { RebuildLibraryEntries(); }
+    }
+
+    internal void SetLibraryRecoveryState(bool restoring)
+    {
+        LibraryEmptyDescription.Text = restoring
+            ? "Restoring saved shnapps. They will appear here as they are ready."
+            : "The fast, beautiful way to capture your screen and turn ideas into reality.";
+    }
+
     private void RebuildLibraryEntries()
     {
         if (_controller is null)
@@ -364,7 +377,7 @@ public sealed partial class MainPage
         var menu = new MenuFlyout();
         AddAction("Clone", Symbol.Copy, () => _controller.CloneDocument(entry.Id));
         AddAction("Rename", Symbol.Edit, () => _controller.RequestRenameDocument(entry.Id));
-        AddAction("Copy full path", Symbol.Copy, () => _controller.CopyDocumentPath(entry.Id));
+        AddAction("Copy snapshot path", Symbol.Copy, () => _controller.CopyDocumentPath(entry.Id));
         AddAction("Share", Symbol.Share, () => _controller.ShareDocument(entry.Id));
         menu.Items.Add(new MenuFlyoutSeparator());
         AddAction("Delete", Symbol.Delete, () => _controller.RequestDeleteDocuments([entry.Id]));

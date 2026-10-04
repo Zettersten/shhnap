@@ -43,53 +43,64 @@ internal sealed partial class AppController
 
         try
         {
-            ShnappDocument source = await Library.OpenAsync(id, _lifetime.Token)
-                ?? throw new FileNotFoundException("This shnapp is no longer in your Library.");
-            EnsureLibraryImagesSafe(id, create: false);
-            if (!File.Exists(Library.GetOriginalPath(id)))
-            {
-                throw new FileNotFoundException("This shnapp's original image is missing.");
-            }
-
-            IReadOnlyList<ShnappSummary> existing = await Library.ListSummariesAsync(_lifetime.Token);
-            string title = UniqueCopyTitle(source.Title, existing);
-            ShnappDocument clone = source with
-            {
-                Id = Guid.NewGuid(),
-                Title = title,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
-
+            string title;
+            await _saveGate.WaitAsync(_lifetime.Token);
             try
             {
-                EnsureLibraryImagesSafe(clone.Id, create: true);
-                Copy(Library.GetOriginalPath);
-                Copy(Library.GetExportPath);
-                Copy(Library.GetPreviewPath);
-                Copy(Library.GetFittedPreviewPath);
-                Copy(Library.GetCompactPreviewPath);
-                Copy(Library.GetGalleryPreviewPath);
-                await EnsureClonedImagesAsync(source, clone.Id);
-                await Library.SaveAsync(clone, _lifetime.Token);
+                await RecoverPendingSaveUnderGateAsync(id);
+                ShnappDocument source = await Library.OpenAsync(id, _lifetime.Token)
+                    ?? throw new FileNotFoundException("This shnapp is no longer in your Library.");
+                EnsureLibraryImagesSafe(id, create: false);
+                if (!File.Exists(Library.GetOriginalPath(id)))
+                {
+                    throw new FileNotFoundException("This shnapp's original image is missing.");
+                }
+
+                IReadOnlyList<ShnappSummary> existing = await Library.ListSummariesAsync(_lifetime.Token);
+                title = UniqueCopyTitle(source.Title, existing);
+                ShnappDocument clone = source with
+                {
+                    Id = Guid.NewGuid(),
+                    Title = title,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                };
+
+                try
+                {
+                    EnsureLibraryImagesSafe(clone.Id, create: true);
+                    Copy(Library.GetOriginalPath);
+                    Copy(Library.GetExportPath);
+                    Copy(Library.GetPreviewPath);
+                    Copy(Library.GetFittedPreviewPath);
+                    Copy(Library.GetCompactPreviewPath);
+                    Copy(Library.GetGalleryPreviewPath);
+                    await EnsureClonedImagesAsync(source, clone.Id);
+                    await Library.SaveAsync(clone, _lifetime.Token);
+                    _documentSaveJournal.Complete(clone.Id);
+                }
+                catch
+                {
+                    try { await Library.DeleteAsync(clone.Id); }
+                    catch { /* Preserve the original copy failure. */ }
+                    throw;
+                }
+
+                void Copy(Func<Guid, string> path)
+                {
+                    string from = path(id);
+                    if (File.Exists(from))
+                    {
+                        File.Copy(from, path(clone.Id), overwrite: false);
+                    }
+                }
             }
-            catch
+            finally
             {
-                try { await Library.DeleteAsync(clone.Id); }
-                catch { /* Preserve the original copy failure. */ }
-                throw;
+                _saveGate.Release();
             }
 
             await RefreshLibraryAfterActionAsync();
             _page.ViewModel.Status = $"Cloned as {title}";
-
-            void Copy(Func<Guid, string> path)
-            {
-                string from = path(id);
-                if (File.Exists(from))
-                {
-                    File.Copy(from, path(clone.Id), overwrite: false);
-                }
-            }
         }
         finally
         {
@@ -200,6 +211,12 @@ internal sealed partial class AppController
                 return;
             }
 
+            if (_page.Document?.Id == id)
+            {
+                _page.CommitText();
+                _page.CommitTitleRename();
+            }
+
             string title;
             try { title = ShnappTitles.Normalize(name.Text); }
             catch (ArgumentException exception)
@@ -208,13 +225,50 @@ internal sealed partial class AppController
                 return;
             }
 
-            if (title == document.Title)
+            bool editorIsOpen;
+            await _saveGate.WaitAsync(_lifetime.Token);
+            try
             {
-                return;
+                // The dialog can remain open while an autosave commits newer annotations.
+                ShnappDocument latest = await Library.OpenAsync(id, _lifetime.Token)
+                    ?? throw new FileNotFoundException("This shnapp is no longer in your Library.");
+                if (latest.Title != title)
+                {
+                    await Library.SaveAsync(latest with { Title = title }, _lifetime.Token);
+                }
+
+                ShnappDocument? editorBefore = _page.Document;
+                editorIsOpen = editorBefore?.Id == id;
+                if (editorIsOpen)
+                {
+                    bool editorWasSaved = ReferenceEquals(editorBefore, _saved);
+                    ShnappDocument editorAfter = _page.ApplySavedDocumentTitle(id, title)!;
+                    if (editorWasSaved)
+                    {
+                        _saved = editorAfter;
+                        _saveTimer.Stop();
+                    }
+                    else
+                    {
+                        // An unsaved edit still needs its annotations persisted with the new title.
+                        _saveTimer.Stop();
+                        _saveTimer.Start();
+                    }
+                }
+            }
+            finally
+            {
+                _saveGate.Release();
             }
 
-            await Library.SaveAsync(document with { Title = title }, _lifetime.Token);
-            await RefreshLibraryAfterActionAsync();
+            if (editorIsOpen)
+            {
+                _page.SetGalleryDocuments(await ListReadySummariesAsync());
+            }
+            else
+            {
+                await RefreshLibraryAfterActionAsync();
+            }
             _page.ViewModel.Status = $"Renamed to {title}";
         }
         finally
@@ -257,22 +311,44 @@ internal sealed partial class AppController
 
             // A pending autosave must finish before the file is removed; holding
             // the gate until the editor closes prevents a queued save restoring it.
+            var snapshotsNeedingRetry = new List<Guid>();
             await _saveGate.WaitAsync(_lifetime.Token);
             try
             {
                 foreach (Guid id in ids)
                 {
+                    bool snapshotPurgeFailed = false;
+                    try
+                    {
+                        _exportSnapshots.DeleteForDocument(id);
+                    }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Could not remove export snapshots for {id}: {exception}");
+                        snapshotPurgeFailed = true;
+                    }
+
                     await Library.DeleteAsync(id, _lifetime.Token);
+                    if (snapshotPurgeFailed) { snapshotsNeedingRetry.Add(id); }
                 }
 
                 ForgetNavigationDocuments(ids);
                 _page.RemoveLibrarySelection(ids);
-                await RefreshLibraryAfterActionAsync();
-                _page.ViewModel.Status = ids.Count == 1 ? "Shnapp deleted" : $"{ids.Count} shnapps deleted";
+                await RefreshLibraryAfterActionAsync(saveGateHeld: true);
+                _page.ViewModel.Status = snapshotsNeedingRetry.Count == 0
+                    ? (ids.Count == 1 ? "Shnapp deleted" : $"{ids.Count} shnapps deleted")
+                    : $"{ids.Count} shnapp(s) deleted · saved PNG copy removal pending";
             }
             finally
             {
                 _saveGate.Release();
+                if (snapshotsNeedingRetry.Count > 0)
+                {
+                    _page.ShowMessage("Saved PNG copy may remain on this device",
+                        "The shnapp was deleted, but a saved PNG copy could not be removed. " +
+                        "Shnapp will retry shortly. If another app is using the copy, close it.", InfoBarSeverity.Warning);
+                    _ = RetrySnapshotPurgeAsync(snapshotsNeedingRetry);
+                }
             }
         }
         finally
@@ -282,30 +358,65 @@ internal sealed partial class AppController
         }
     }
 
+    private async Task RetrySnapshotPurgeAsync(IReadOnlyList<Guid> ids)
+    {
+        var remaining = ids.ToHashSet();
+        try
+        {
+            foreach (TimeSpan delay in new[] { TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10),
+                TimeSpan.FromMinutes(1) })
+            {
+                await Task.Delay(delay, _lifetime.Token);
+                foreach (Guid id in remaining.ToArray())
+                {
+                    try
+                    {
+                        _exportSnapshots.DeleteForDocument(id);
+                        remaining.Remove(id);
+                    }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Could not retry export snapshot removal for {id}: {exception}");
+                    }
+                }
+
+                if (remaining.Count == 0) { return; }
+            }
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+    }
+
     private async Task CopyDocumentPathAsync(Guid id)
     {
-        if (await Library.OpenAsync(id, _lifetime.Token) is null)
+        string snapshotPath;
+        await _saveGate.WaitAsync(_lifetime.Token);
+        try
         {
-            throw new FileNotFoundException("This shnapp is no longer in your Library.");
-        }
+            await RecoverPendingSaveUnderGateAsync(id);
+            if (await Library.OpenAsync(id, _lifetime.Token) is null)
+            {
+                throw new FileNotFoundException("This shnapp is no longer in your Library.");
+            }
 
-        EnsureLibraryImagesSafe(id, create: false);
-        string path = Library.GetExportPath(id);
-        if (!File.Exists(path))
+            EnsureLibraryImagesSafe(id, create: false);
+            snapshotPath = await _exportSnapshots.CreateAsync(id,
+                Library.GetExportPath(id), _lifetime.Token);
+        }
+        finally
         {
-            throw new FileNotFoundException("This shnapp's saved PNG is missing.", path);
+            _saveGate.Release();
         }
 
         var package = new DataPackage { RequestedOperation = DataPackageOperation.Copy };
-        package.SetText(path);
+        package.SetText(snapshotPath);
         Clipboard.SetContent(package);
         Clipboard.Flush();
-        _page.ViewModel.Status = "Full PNG path copied";
+        _page.ViewModel.Status = "PNG snapshot path copied · kept at least 7 days unless this shnapp is deleted";
     }
 
-    private async Task RefreshLibraryAfterActionAsync()
+    private async Task RefreshLibraryAfterActionAsync(bool saveGateHeld = false)
     {
-        IReadOnlyList<ShnappSummary> documents = await Library.ListSummariesAsync(_lifetime.Token);
+        IReadOnlyList<ShnappSummary> documents = await ListReadySummariesAsync(saveGateHeld);
         _page.ShowLibrary(documents);
         RecordNavigation(null);
         _page.SetGalleryDocuments(documents);

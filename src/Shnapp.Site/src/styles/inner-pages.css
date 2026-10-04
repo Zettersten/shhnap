@@ -74,8 +74,8 @@
 .download-page .dl-build-content p { margin: 0; color: var(--inner-muted); font-size: .98rem; }
 .download-page .dl-build-filename { display: block; margin-top: 1.15rem; color: #65718a; font: .8rem 'Cascadia Mono', Consolas, monospace; overflow-wrap: anywhere; }
 .download-page .dl-build-bottom { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.4rem; margin-top: auto; padding-top: 2.4rem; }
-.download-page .dl-build-action { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 1.5rem; padding: .7rem 1.15rem; border-radius: 10px; background: #0878ec; color: #fff; font-size: .9rem; font-weight: 710; text-decoration: none; transition: background-color .2s, transform .2s cubic-bezier(.2,.8,.2,1); }
-.download-page .dl-build-action:hover { transform: translateY(-2px); background: #0568d0; color: #fff; }
+.download-page .dl-build-action { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 1.5rem; padding: .7rem 1.15rem; border-radius: 10px; background: var(--blue-deep); color: #fff; font-size: .9rem; font-weight: 710; text-decoration: none; transition: background-color .2s, transform .2s cubic-bezier(.2,.8,.2,1); }
+.download-page .dl-build-action:hover { transform: translateY(-2px); background: #0753ac; color: #fff; }
 .download-page .dl-build-action svg { width: 18px; height: 18px; }
 .download-page .dl-build-hash { color: #095cb4; font-size: .82rem; font-weight: 640; }
 .download-page .dl-build-portable { color: #095cb4; font-size: .82rem; font-weight: 640; }
@@ -124,7 +124,7 @@
 .download-page .dl-catalog-available > a { color: #0868d3; font-size: .9rem; font-weight: 700; }
 .download-page .dl-catalog-available dl { display: grid; gap: .7rem; margin: 1.1rem 0 0; }
 .download-page .dl-catalog-available dl > div { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); gap: .5rem; }
-.download-page .dl-catalog-available dt { color: #6f7d92; font-size: .79rem; }
+.download-page .dl-catalog-available dt { color: #5f6b7e; font-size: .79rem; }
 .download-page .dl-catalog-available dd { min-width: 0; margin: 0; color: #24334a; font-size: .85rem; overflow-wrap: anywhere; }
 .download-page .dl-catalog-available code { font-size: .84em; line-height: 1.7; white-space: pre-wrap; }
 

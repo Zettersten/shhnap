@@ -412,10 +412,10 @@
                     Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
                     AutomationProperties.AutomationId="ShareShnapp"
                     ToolTipService.ToolTip="Share this shnapp with another app" />
-                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Copy full path" Icon="Copy" Click="CopyCurrentPath_Click"
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Copy snapshot path" Icon="Copy" Click="CopyCurrentPath_Click"
                     Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
                     AutomationProperties.AutomationId="CopyCurrentShnappPath"
-                    ToolTipService.ToolTip="Copy the saved PNG's full path" />
+                    ToolTipService.ToolTip="Copy an unchanged PNG path, kept at least 7 days unless this shnapp is deleted" />
                 <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Delete shnapp" Icon="Delete" Click="DeleteCurrent_Click"
                     Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
                     AutomationProperties.AutomationId="DeleteCurrentShnapp"

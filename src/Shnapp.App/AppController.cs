@@ -51,6 +51,8 @@ internal sealed partial class AppController
         Renderer = new(_device);
         _capture = new(_device);
         Library = new(options.DataRoot);
+        _documentSaveJournal = new(Library);
+        _exportSnapshots = new(Library);
         _releaseChecker = new(options.DataRoot);
         _page.Configure(this);
         _tray = new(App.WindowHandle, activationMessage);
@@ -130,7 +132,7 @@ internal sealed partial class AppController
         {
             _settings = await Library.LoadSettingsAsync(_lifetime.Token);
             ApplyTheme();
-            IReadOnlyList<ShnappSummary> documents = await Library.ListSummariesAsync(_lifetime.Token);
+            IReadOnlyList<ShnappSummary> documents = await ListReadySummariesAsync();
             _page.ShowLibrary(documents);
             UpdateNavigationButtons();
             _page.SetGalleryDocuments(documents);
@@ -178,6 +180,7 @@ internal sealed partial class AppController
 
         Run(async () => { await CheckForUpdatesAsync(manual: false); });
         if (!HasPackageIdentity) { _updateTimer.Start(); }
+        _ = CleanupExpiredExportSnapshotsAsync();
     }
 
     internal void Capture(CaptureKind kind) => Run(() => CaptureAsync(kind));
@@ -195,8 +198,8 @@ internal sealed partial class AppController
     internal void OpenSettingsUpdates() => Run(() => SettingsAsync(showUpdates: true));
     internal void Quit() => Run(QuitAsync);
 
-    /// <summary>Opens a saved shnapp's rendered PNG for adding it as an image layer.</summary>
-    internal async Task<StorageFile> OpenSavedImageForLayerAsync(Guid id)
+    /// <summary>Snapshots a saved shnapp's rendered PNG for adding it as an image layer.</summary>
+    internal async Task<byte[]> ReadSavedImageForLayerAsync(Guid id)
     {
         if (_page.Document?.Id == id)
         {
@@ -205,25 +208,37 @@ internal sealed partial class AppController
             await SaveCurrentAsync();
         }
 
-        if (await Library.OpenAsync(id, _lifetime.Token) is null)
+        await _saveGate.WaitAsync(_lifetime.Token);
+        try
         {
-            throw new FileNotFoundException("This shnapp is no longer in your Library.");
-        }
+            await RecoverPendingSaveUnderGateAsync(id);
+            if (await Library.OpenAsync(id, _lifetime.Token) is null)
+            {
+                throw new FileNotFoundException("This shnapp is no longer in your Library.");
+            }
 
-        EnsureLibraryImagesSafe(id, create: false);
-        string path = Library.GetExportPath(id);
-        var file = new FileInfo(path);
-        if (!file.Exists)
+            EnsureLibraryImagesSafe(id, create: false);
+            string path = Library.GetExportPath(id);
+            await using FileStream source = new(path, FileMode.Open, FileAccess.Read,
+                FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            long length = source.Length;
+            if (length > 32L * 1024 * 1024)
+            {
+                throw new InvalidDataException("This shnapp is too large to add as an image layer (32 MB limit).");
+            }
+
+            byte[] image = new byte[checked((int)length)];
+            await source.ReadExactlyAsync(image.AsMemory(), _lifetime.Token);
+            if (source.Length != length)
+            {
+                throw new IOException("This shnapp's saved image changed while it was being read.");
+            }
+            return image;
+        }
+        finally
         {
-            throw new FileNotFoundException("This shnapp has no saved image to add.", path);
+            _saveGate.Release();
         }
-
-        if (file.Length > 32L * 1024 * 1024)
-        {
-            throw new InvalidDataException("This shnapp is too large to add as an image layer (32 MB limit).");
-        }
-
-        return await StorageFile.GetFileFromPathAsync(path);
     }
 
     private async void Run(Func<Task> action)
@@ -403,7 +418,7 @@ internal sealed partial class AppController
             Debug.WriteLine($"Shnapp {kind}: {watch.ElapsedMilliseconds} ms to editor.");
             await SaveCurrentAsync();
             RecordNavigation(document.Id);
-            _page.SetGalleryDocuments(await Library.ListSummariesAsync(_lifetime.Token));
+            _page.SetGalleryDocuments(await ListReadySummariesAsync());
             if (_settings.AutoCopy)
             {
                 await CopyAsync();
@@ -455,11 +470,16 @@ internal sealed partial class AppController
         {
             ShnappDocument? document = _page.Document;
             CanvasBitmap? original = _page.Original;
-            if (document is null || original is null || (ReferenceEquals(document, _saved) &&
-                File.Exists(Library.GetExportPath(document.Id)) && File.Exists(Library.GetPreviewPath(document.Id)) &&
-                File.Exists(Library.GetCompactPreviewPath(document.Id)) &&
-                File.Exists(Library.GetFittedPreviewPath(document.Id)) &&
-                File.Exists(Library.GetGalleryPreviewPath(document.Id))))
+            if (document is null || original is null)
+            {
+                return;
+            }
+
+            // The live canvas is authoritative for this save. If an earlier save
+            // was interrupted, write from memory instead of requiring its old
+            // on-disk original to decode successfully first.
+            bool cachedReady = IsCachedRenderReady(document.Id);
+            if (ReferenceEquals(document, _saved) && cachedReady)
             {
                 return;
             }
@@ -468,22 +488,18 @@ internal sealed partial class AppController
             await using ShnappLibrary.PreparedDocumentSave prepared =
                 await Library.PrepareSaveAsync(document);
             EnsureLibraryImagesSafe(document.Id, create: true);
-            if (!File.Exists(Library.GetOriginalPath(document.Id)))
+            await _documentSaveJournal.BeginAsync(document.Id);
+            if (!cachedReady || !File.Exists(Library.GetOriginalPath(document.Id)))
             {
                 await ShnappRenderer.SavePngAtomicAsync(original, Library.GetOriginalPath(document.Id), CancellationToken.None);
             }
 
-            using CanvasRenderTarget gallery = Renderer.Thumbnail(flattened, 160, 160);
-            await ShnappRenderer.SavePngAtomicAsync(gallery, Library.GetGalleryPreviewPath(document.Id), CancellationToken.None);
-            using CanvasRenderTarget compact = Renderer.Thumbnail(flattened, 192, 128);
-            await ShnappRenderer.SavePngAtomicAsync(compact, Library.GetCompactPreviewPath(document.Id), CancellationToken.None);
-            using CanvasRenderTarget preview = Renderer.Thumbnail(flattened, 384, 256);
-            await ShnappRenderer.SavePngAtomicAsync(preview, Library.GetPreviewPath(document.Id), CancellationToken.None);
-            using CanvasRenderTarget fittedPreview = Renderer.Thumbnail(flattened, 384, 256,
-                preserveEntireImage: true);
-            await ShnappRenderer.SavePngAtomicAsync(fittedPreview, Library.GetFittedPreviewPath(document.Id), CancellationToken.None);
-            await ShnappRenderer.SavePngAtomicAsync(flattened, Library.GetExportPath(document.Id), CancellationToken.None);
+            // Keep canonical PNGs absent across the metadata commit. A crash can
+            // then leave only missing images, never an image from an uncommitted edit.
+            DeleteDerivedImages(document.Id);
             await prepared.CommitAsync();
+            await WriteDerivedImagesAsync(document.Id, flattened);
+            _documentSaveJournal.Complete(document.Id);
             _saved = document;
             if (ReferenceEquals(document, _page.Document))
             {
@@ -571,7 +587,8 @@ internal sealed partial class AppController
             _page.CommitText();
             _saveTimer.Stop();
             await SaveCurrentAsync();
-            IReadOnlyList<ShnappSummary> documents = await Library.ListSummariesAsync(_lifetime.Token);
+            _failedRecovery.Clear();
+            IReadOnlyList<ShnappSummary> documents = await ListReadySummariesAsync();
             _page.ShowLibrary(documents);
             if (recordHistory) { RecordNavigation(null); }
             _page.SetGalleryDocuments(documents);
@@ -598,6 +615,7 @@ internal sealed partial class AppController
             _page.CommitText();
             _saveTimer.Stop();
             await SaveCurrentAsync();
+            await RecoverPendingSaveAsync(id);
             ShnappDocument document = await Library.OpenAsync(id, _lifetime.Token)
                 ?? throw new FileNotFoundException("This shnapp is no longer in your Library.");
             if ((long)document.PixelWidth * document.PixelHeight > 64_000_000)
@@ -626,7 +644,7 @@ internal sealed partial class AppController
             _saved = document;
             _page.OpenDocument(document, bitmap);
             if (recordHistory) { RecordNavigation(id); }
-            _page.SetGalleryDocuments(await Library.ListSummariesAsync(_lifetime.Token));
+            _page.SetGalleryDocuments(await ListReadySummariesAsync());
             Renderer.RetainPastedImages(document);
             Show();
         }

@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Diagnostics;
+using System.Net;
 using Velopack;
 using Velopack.Sources;
 using Microsoft.UI.Dispatching;
@@ -19,7 +20,7 @@ internal sealed partial class AppController
     private DispatcherQueueTimer? _storeUpdateTimer;
     private bool _storeRestartPending;
     private UpdateCheckResult? _lastUpdateResult;
-    private DateTimeOffset? _lastVelopackCheckUtc;
+    private VelopackCheckSchedule? _velopackCheckSchedule;
     private const string VelopackRepository = "https://github.com/Zettersten/shhnap";
 
     private static bool HasPackageIdentity
@@ -152,16 +153,26 @@ internal sealed partial class AppController
                     VelopackRestartRequired: true);
             }
 
-            if (!manual && _lastVelopackCheckUtc is { } previous &&
-                DateTimeOffset.UtcNow - previous < TimeSpan.FromDays(1))
+            VelopackCheckSchedule schedule = _velopackCheckSchedule ??= new VelopackCheckSchedule(_options.DataRoot);
+            (bool shouldCheck, DateTimeOffset? retryAfterUtc) =
+                await schedule.ShouldCheckAsync(manual, _lifetime.Token);
+            if (!shouldCheck)
             {
-                return _lastUpdateResult ?? new UpdateCheckResult("Shnapp is up to date.");
+                if (retryAfterUtc is not null)
+                {
+                    return new UpdateCheckResult(
+                        $"GitHub is temporarily limiting update checks. Try again after {retryAfterUtc.Value.ToLocalTime():t}.",
+                        IsError: true);
+                }
+
+                return _lastUpdateResult ?? new UpdateCheckResult(
+                    "Shnapp checked for updates recently. Choose Check for updates to check now.");
             }
 
-            _lastVelopackCheckUtc = DateTimeOffset.UtcNow;
             UpdateInfo? update = await manager.CheckForUpdatesAsync();
             if (update is null)
             {
+                await schedule.RecordSuccessAsync(_lifetime.Token);
                 return new UpdateCheckResult("Shnapp is up to date. Velopack checks stable releases in the background.");
             }
 
@@ -169,6 +180,7 @@ internal sealed partial class AppController
             Uri releasePage = VelopackReleasePage(tag);
             if (_options.Isolated)
             {
+                await schedule.RecordSuccessAsync(_lifetime.Token);
                 return new UpdateCheckResult($"Shnapp {tag} is available. Automatic updates are disabled for this verification copy.",
                     UpdateAvailable: true, ReleasePage: releasePage, LatestTag: tag);
             }
@@ -177,6 +189,7 @@ internal sealed partial class AppController
             try
             {
                 await manager.DownloadUpdatesAsync(update, cancelToken: _lifetime.Token);
+                await schedule.RecordSuccessAsync(_lifetime.Token);
                 return new UpdateCheckResult($"Shnapp {tag} is ready. Restart now or reopen Shnapp to install it. Your library stays in your user folder.",
                     ReleasePage: releasePage, LatestTag: tag, VelopackRestartRequired: true);
             }
@@ -186,6 +199,7 @@ internal sealed partial class AppController
             }
             catch (Exception exception)
             {
+                await schedule.RecordFailureAsync(IsVelopackRateLimit(exception), _lifetime.Token);
                 Debug.WriteLine("Velopack download failed: " + exception);
                 return new UpdateCheckResult($"Shnapp {tag} is available, but the download could not be prepared. Choose Check for updates to retry.",
                     UpdateAvailable: true, ReleasePage: releasePage, LatestTag: tag, IsError: true);
@@ -197,10 +211,28 @@ internal sealed partial class AppController
         }
         catch (Exception exception)
         {
+            if (_velopackCheckSchedule is not null)
+            {
+                await _velopackCheckSchedule.RecordFailureAsync(IsVelopackRateLimit(exception), _lifetime.Token);
+            }
             Debug.WriteLine("Velopack update check failed: " + exception);
             return new UpdateCheckResult("Could not check Velopack releases right now. Your current Shnapp copy still works.",
                 IsError: true);
         }
+    }
+
+    private static bool IsVelopackRateLimit(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is HttpRequestException { StatusCode: HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests } ||
+                current.Message.Contains("rate limit", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static Uri VelopackReleasePage(string tag) =>

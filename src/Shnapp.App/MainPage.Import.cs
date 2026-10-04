@@ -5,7 +5,6 @@ using Shnapp.App.Editor;
 using Shnapp.Core;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
-using Windows.Storage;
 using Windows.Storage.Streams;
 
 namespace Shnapp.App;
@@ -66,8 +65,9 @@ public sealed partial class MainPage
                 throw new InvalidDataException("This shnapp is not available in the current gallery.");
             }
 
-            StorageFile file = await _controller.OpenSavedImageForLayerAsync(id);
-            using IRandomAccessStreamWithContentType stream = await file.OpenReadAsync();
+            byte[] image = await _controller.ReadSavedImageForLayerAsync(id);
+            using var memory = new MemoryStream(image, writable: false);
+            using IRandomAccessStream stream = memory.AsRandomAccessStream();
             annotation = await ReadClipboardImageAsync(stream, placement, original);
             annotation = FitGalleryImageToViewport(annotation, placement, editor.Current.Viewport);
             if (!ReferenceEquals(_editor, editor))
