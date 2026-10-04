@@ -414,7 +414,7 @@ jobs:
               [.workflow_runs[] |
                select(.event == "push" and .conclusion == "success" and
                       .head_branch == $tag and .head_sha == $sha and
-                      .path == ".github/workflows/windows.yml")] |
+                      (.path | split("@")[0]) == ".github/workflows/windows.yml")] |
               max_by(.id) | .id
             ' <<< "$runs")"
             gh run download "$run_id" --name "Release-evidence-$RELEASE_TAG" --dir release-evidence
