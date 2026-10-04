@@ -44,6 +44,9 @@ try {
     }
     catch { $unsignedRejected = $true }
     if (-not $unsignedRejected) { throw 'An unsigned archive executable was accepted.' }
+    # GitHub's pwsh command wrapper returns the last native exit code even when
+    # this expected SignTool failure was caught by the negative test.
+    $global:LASTEXITCODE = 0
     Write-Host 'Release archive signature checks reject an unsigned or differently signed executable.'
 }
 finally {
