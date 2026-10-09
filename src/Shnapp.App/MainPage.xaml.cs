@@ -1,5 +1,6 @@
 using System.Numerics;
 using Microsoft.Graphics.Canvas;
+using Microsoft.Graphics.Canvas.Text;
 using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI;
 using Microsoft.UI.Input;
@@ -26,6 +27,7 @@ public sealed partial class MainPage : Page
     private CanvasRenderTarget? _flattened;
     private CanvasRenderTarget? _dragBase;
     private EditorTool _tool;
+    private bool _cropEscapeHandledUntilKeyUp;
     private Guid? _selectedId;
     private ImagePoint? _dragStart;
     private Annotation? _moving;
@@ -66,6 +68,7 @@ public sealed partial class MainPage : Page
         KeyboardAcceleratorPlacementMode = Microsoft.UI.Xaml.Input.KeyboardAcceleratorPlacementMode.Hidden;
         DrawingCanvas.KeyboardAcceleratorPlacementMode = Microsoft.UI.Xaml.Input.KeyboardAcceleratorPlacementMode.Hidden;
         InitializeNavigationInput();
+        AddHandler(PreviewKeyDownEvent, new KeyEventHandler(Page_PreviewKeyDown), true);
         AddHandler(KeyUpEvent, new KeyEventHandler(Page_KeyUp), true);
         InitializeFontFamilies();
         ActualThemeChanged += (_, _) =>
@@ -319,6 +322,43 @@ public sealed partial class MainPage : Page
             drawing.FillRectangle(textFrame, Color.FromArgb(36, 42, 138, 245));
             drawing.DrawRectangle(textFrame, Colors.DodgerBlue, (float)(2 / _scale));
         }
+
+        DrawCropTip(drawing);
+    }
+
+    private void DrawCropTip(CanvasDrawingSession drawing)
+    {
+        if (!_cropTipVisible || _tool != EditorTool.Crop)
+        {
+            return;
+        }
+
+        const float width = 190;
+        const float height = 52;
+        float left = (float)_cropTipLeft;
+        float top = (float)_cropTipTop;
+        Color panel = CanvasThemeColor("ShnappPanelBrush");
+        Color border = CanvasThemeColor("ShnappCanvasEdgeBrush");
+        // Use the panel's actual theme color so the text stays legible in high contrast.
+        Color text = _accessibility.HighContrast ? border
+            : panel.R * 299 + panel.G * 587 + panel.B * 114 > 128000
+                ? Colors.Black : Colors.White;
+        Color secondary = _accessibility.HighContrast
+            ? text : Color.FromArgb(184, text.R, text.G, text.B);
+
+        drawing.Transform = Matrix3x2.Identity;
+        drawing.FillRoundedRectangle(left, top, width, height, 8, 8, panel);
+        drawing.DrawRoundedRectangle(left, top, width, height, 8, 8, border, 1);
+        using var format = new CanvasTextFormat
+        {
+            FontFamily = "Segoe UI Variable Text",
+            FontSize = 12,
+            FontWeight = new FontWeight { Weight = 600 },
+            WordWrapping = CanvasWordWrapping.NoWrap,
+        };
+        drawing.DrawText(_cropTipPosition, new Rect(left + 12, top + 7, width - 24, 18), text, format);
+        format.FontWeight = new FontWeight { Weight = 400 };
+        drawing.DrawText(_cropTipSize, new Rect(left + 12, top + 27, width - 24, 18), secondary, format);
     }
 
     private void Canvas_SizeChanged(object sender, SizeChangedEventArgs args)
@@ -681,6 +721,7 @@ public sealed partial class MainPage : Page
         _movingCrop = false;
         _cropDragChanged = false;
         CanvasHost.ReleasePointerCapture(args.Pointer);
+        if (_tool == EditorTool.Crop) UpdateCropInspector();
         UpdateCropHover(args.GetCurrentPoint(DrawingCanvas).Position);
         UpdateCanvasElementCursor(args.GetCurrentPoint(DrawingCanvas).Position);
         DrawingCanvas.Invalidate();
@@ -710,7 +751,8 @@ public sealed partial class MainPage : Page
         }
 
         Annotation? text = _editor.Current.OrderedAnnotations.Reverse().FirstOrDefault(annotation =>
-            annotation.Kind == AnnotationKind.Text && HitBounds(annotation).Contains(new Point(point.X, point.Y)));
+            !annotation.IsFlattened && annotation.Kind == AnnotationKind.Text &&
+            HitBounds(annotation).Contains(new Point(point.X, point.Y)));
         if (text is null)
         {
             return;
@@ -1120,8 +1162,7 @@ public sealed partial class MainPage : Page
                 _cropCanMove = _crop != _editor.Current.Viewport;
             }
         }
-        UpdateCropCursor(false);
-        CanvasHost.SetSelectionCursor(null);
+        CanvasHost.SetToolCursor(tool);
         if (tool != EditorTool.Select)
         {
             _selectedId = null;
@@ -1268,33 +1309,46 @@ public sealed partial class MainPage : Page
 
     private void EscapeAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        HandleEscape();
+        args.Handled = true;
+    }
+
+    private void Page_PreviewKeyDown(object sender, KeyRoutedEventArgs args)
+    {
+        if (args.Key == VirtualKey.Escape && !args.KeyStatus.WasKeyDown)
+        {
+            _cropEscapeHandledUntilKeyUp = false;
+        }
+    }
+
+    private void HandleEscape()
+    {
+        if (_cropEscapeHandledUntilKeyUp)
+        {
+            return;
+        }
+
         if (_editor is null)
         {
             _controller?.Hide();
+        }
+        else if (_tool == EditorTool.Crop)
+        {
+            _cropEscapeHandledUntilKeyUp = true;
+            SetTool(EditorTool.Select);
         }
         else
         {
             CancelInteraction();
             _controller?.OpenLibrary();
         }
-
-        args.Handled = true;
     }
 
     private void Page_KeyDown(object sender, KeyRoutedEventArgs args)
     {
         if (args.Key == VirtualKey.Escape)
         {
-            if (_editor is null)
-            {
-                _controller?.Hide();
-            }
-            else
-            {
-                CancelInteraction();
-                _controller?.OpenLibrary();
-            }
-
+            HandleEscape();
             args.Handled = true;
             return;
         }
@@ -1358,6 +1412,11 @@ public sealed partial class MainPage : Page
 
     private void Page_KeyUp(object sender, KeyRoutedEventArgs args)
     {
+        if (args.Key == VirtualKey.Escape)
+        {
+            _cropEscapeHandledUntilKeyUp = false;
+        }
+
         if (args.Key == VirtualKey.Space)
         {
             CanvasHost.SetPanCursor(_panning, _panning);

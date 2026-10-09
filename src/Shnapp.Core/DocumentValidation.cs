@@ -8,6 +8,7 @@ internal static class DocumentValidation
     private const int MaximumPastedPngBytes = 32 * 1024 * 1024;
     private const int MaximumPastedImageSide = 12_000;
     private const long MaximumPastedImagePixels = 40_000_000;
+    private const int MaximumFlattenedPngBytes = 128 * 1024 * 1024;
 
     internal static void Validate(ShnappDocument document, bool validateStepNumbers = true)
     {
@@ -55,7 +56,9 @@ internal static class DocumentValidation
             ValidateAnnotation(annotation, document);
             if (annotation.VisibilityClip is null && !annotation.HiddenByCrop)
             {
-                ImageRect content = annotation.Kind == AnnotationKind.Step && annotation.StepExpandsCanvas
+                ImageRect content = annotation.IsFlattened
+                    ? annotation.RasterizedBounds!.Value
+                    : annotation.Kind == AnnotationKind.Step && annotation.StepExpandsCanvas
                     ? new ImageRect(annotation.Start.X - annotation.StepDiameter / 2,
                         annotation.Start.Y - annotation.StepDiameter / 2,
                         annotation.StepDiameter, annotation.StepDiameter)
@@ -71,9 +74,10 @@ internal static class DocumentValidation
                     stepNumber = 0;
                 }
 
-                stepNumber++;
-                Require(!validateStepNumbers || annotation.StepNumber == stepNumber,
-                    "Step annotations must be numbered consecutively in document order.", nameof(document));
+                stepNumber = annotation.IsFlattened ? annotation.StepNumber : stepNumber + 1;
+                Require((!annotation.IsFlattened || annotation.StepNumber > 0) &&
+                    (!validateStepNumbers || annotation.StepNumber == stepNumber),
+                    "Editable steps must follow the previous step's number.", nameof(document));
             }
         }
     }
@@ -97,22 +101,42 @@ internal static class DocumentValidation
             "Only a step can expand its full circle beyond the capture.", nameof(annotation));
         Require(annotation.LayerOrder >= 0,
             "An annotation layer order cannot be negative.", nameof(annotation));
+        Require(annotation.FlattenOrder >= 0 && (annotation.IsFlattened || annotation.FlattenOrder == 0),
+            "Only a flattened element can have a background order.", nameof(annotation));
         // New marks may extend the canvas; document validation verifies the final bounds.
         // A trim can also leave cropped-out annotations outside the visible canvas.
         ValidatePoint(annotation.Start, nameof(annotation));
         ValidatePoint(annotation.End, nameof(annotation));
-        if (annotation.Kind == AnnotationKind.Image)
+        if (annotation.IsFlattened)
+        {
+            Require(annotation.RasterizedBounds is ImageRect,
+                "A flattened element needs pixel bounds.", nameof(annotation));
+            ImageRect raster = annotation.RasterizedBounds!.Value;
+            ValidateRectangle(raster, nameof(annotation));
+            Require(IsInteger(raster.X) && IsInteger(raster.Y) &&
+                IsInteger(raster.Width) && IsInteger(raster.Height) &&
+                Contains(document.CanvasBounds, raster),
+                "A flattened element must occupy whole pixels inside the canvas.", nameof(annotation));
+            (uint width, uint height) = ValidatePng(annotation.ImagePngBase64,
+                MaximumFlattenedPngBytes, 16_384, 64_000_000, nameof(annotation));
+            Require(width == raster.Width && height == raster.Height,
+                "A flattened element's PNG must match its pixel bounds.", nameof(annotation));
+        }
+        else if (annotation.Kind == AnnotationKind.Image)
         {
             ImageRect bounds = annotation.Bounds;
             Require(bounds.Width >= 1 && bounds.Height >= 1,
                 "A pasted image must have positive visible dimensions.", nameof(annotation));
-            ValidatePastedPng(annotation.ImagePngBase64, nameof(annotation));
+            ValidatePng(annotation.ImagePngBase64, MaximumPastedPngBytes,
+                MaximumPastedImageSide, MaximumPastedImagePixels, nameof(annotation));
         }
         else
         {
             Require(annotation.ImagePngBase64 is null,
                 "Only a pasted image can contain PNG data.", nameof(annotation));
         }
+        Require(annotation.IsFlattened || annotation.RasterizedBounds is null,
+            "Only a flattened element can have rasterized bounds.", nameof(annotation));
         if (annotation.VisibilityClip is ImageRect visibilityClip)
         {
             ValidateRectangle(visibilityClip, nameof(annotation));
@@ -205,15 +229,16 @@ internal static class DocumentValidation
             "The expanded canvas cannot exceed 16,384 pixels per side or 64 megapixels.", nameof(document));
     }
 
-    private static void ValidatePastedPng(string? encoded, string parameterName)
+    private static (uint Width, uint Height) ValidatePng(string? encoded, int maximumBytes,
+        int maximumSide, long maximumPixels, string parameterName)
     {
-        int maximumEncodedLength = ((MaximumPastedPngBytes + 2) / 3) * 4;
+        int maximumEncodedLength = ((maximumBytes + 2) / 3) * 4;
         Require(encoded is { Length: >= 44 } && encoded.Length <= maximumEncodedLength &&
             encoded.Length % 4 == 0 && encoded.StartsWith("iVBORw0KGgo", StringComparison.Ordinal),
-            "A pasted image needs a PNG no larger than 32 MiB.", parameterName);
+            "An image needs a PNG within the image size limit.", parameterName);
         Require(Base64.IsValid(encoded.AsSpan(), out int decodedLength) &&
-            decodedLength <= MaximumPastedPngBytes,
-            "A pasted image needs complete PNG base64 data no larger than 32 MiB.", parameterName);
+            decodedLength <= maximumBytes,
+            "An image needs complete PNG base64 data within the image size limit.", parameterName);
 
         Span<byte> header = stackalloc byte[33];
         Require(Convert.TryFromBase64Chars(encoded.AsSpan(0, 44), header, out int bytesWritten) &&
@@ -221,14 +246,15 @@ internal static class DocumentValidation
             header[10] == 0 && header[11] == 13 &&
             header[12] == (byte)'I' && header[13] == (byte)'H' &&
             header[14] == (byte)'D' && header[15] == (byte)'R',
-            "A pasted image needs a valid PNG header.", parameterName);
+            "An image needs a valid PNG header.", parameterName);
 
         uint width = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(header[16..20]);
         uint height = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(header[20..24]);
-        Require(width is > 0 and <= MaximumPastedImageSide &&
-            height is > 0 and <= MaximumPastedImageSide &&
-            (long)width * height <= MaximumPastedImagePixels,
-            "A pasted image exceeds the 40-megapixel limit.", parameterName);
+        Require(width > 0 && width <= maximumSide &&
+            height > 0 && height <= maximumSide &&
+            (long)width * height <= maximumPixels,
+            "An image exceeds the pixel limit.", parameterName);
+        return (width, height);
     }
 
     private static bool Contains(ImageRect outer, ImageRect inner) =>

@@ -36,7 +36,7 @@ public sealed partial class MainPage
 
     private bool HitAnnotation(Annotation annotation, ImagePoint position)
     {
-        if (annotation.HiddenByCrop ||
+        if (annotation.IsFlattened || annotation.HiddenByCrop ||
             annotation.VisibilityClip is ImageRect clip && !clip.Contains(position))
         {
             return false;

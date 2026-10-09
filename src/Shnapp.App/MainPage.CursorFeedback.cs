@@ -9,7 +9,7 @@ public sealed partial class MainPage
 {
     private void UpdateCanvasElementCursor(Point canvasPosition)
     {
-        if (_editor is null || _panning || _textBox is not null)
+        if (_editor is null || _panning || _textBox is not null || _tool == EditorTool.Crop)
         {
             CanvasHost.SetSelectionCursor(null);
             return;
@@ -20,6 +20,12 @@ public sealed partial class MainPage
             CanvasHost.SetSelectionCursor(_resizeHandle == ResizeHandle.None
                 ? InputSystemCursorShape.SizeAll
                 : CursorForHandle(_resizeHandle, moving));
+            return;
+        }
+
+        if (_tool != EditorTool.Select)
+        {
+            CanvasHost.SetSelectionCursor(null);
             return;
         }
 

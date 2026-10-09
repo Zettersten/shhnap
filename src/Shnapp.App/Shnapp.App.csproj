@@ -91,6 +91,10 @@
       <_ShnappNativeResourceLine Include="1 24 &quot;$(_ShnappManifestPath)&quot;" />
       <_ShnappNativeResourceLine Include="101 CURSOR &quot;$(_ShnappAssetDirectory)/PanOpen.cur&quot;" />
       <_ShnappNativeResourceLine Include="102 CURSOR &quot;$(_ShnappAssetDirectory)/PanClosed.cur&quot;" />
+      <_ShnappNativeResourceLine Include="103 CURSOR &quot;$(_ShnappAssetDirectory)/PlaceShape.cur&quot;" />
+      <_ShnappNativeResourceLine Include="104 CURSOR &quot;$(_ShnappAssetDirectory)/PlaceLine.cur&quot;" />
+      <_ShnappNativeResourceLine Include="105 CURSOR &quot;$(_ShnappAssetDirectory)/PlaceStep.cur&quot;" />
+      <_ShnappNativeResourceLine Include="106 CURSOR &quot;$(_ShnappAssetDirectory)/PlacePrivacy.cur&quot;" />
       <_ShnappNativeResourceLine Include="1 VERSIONINFO" />
       <_ShnappNativeResourceLine Include="FILEVERSION $(_ShnappNativeVersionCommas)" />
       <_ShnappNativeResourceLine Include="PRODUCTVERSION $(_ShnappNativeVersionCommas)" />

@@ -74,7 +74,7 @@ export const catalogChannels: CatalogChannel[] = [
     listingUrl: null,
     installCommand: 'choco install shnapp',
     updateCommand: 'choco upgrade shnapp',
-    description: 'Submitted to Chocolatey Community; awaiting moderation.',
+    description: 'Pending Chocolatey Community approval.',
   },
   {
     id: 'microsoft-store',

@@ -30,6 +30,11 @@ public sealed partial class MainPage
     private int _viewShadowPadding;
     private Point? _pendingContentAnchor;
     private bool _panning;
+    private bool _cropTipVisible;
+    private string _cropTipPosition = string.Empty;
+    private string _cropTipSize = string.Empty;
+    private double _cropTipLeft;
+    private double _cropTipTop;
     private Point _panLastPoint;
     private Vector2 _panVelocity;
     private DateTimeOffset _panLastSample;
@@ -293,20 +298,16 @@ public sealed partial class MainPage
 
     private void HideCropTip()
     {
-        if (CropTip is not null)
+        if (_cropTipVisible)
         {
-            CropTip.Visibility = Visibility.Collapsed;
+            _cropTipVisible = false;
+            DrawingCanvas.Invalidate();
         }
-    }
-
-    private void UpdateCropCursor(bool moving)
-    {
-        CanvasHost.SetCropCursor(_tool == EditorTool.Crop, moving);
     }
 
     private void UpdateCropHover(Point canvasPosition, ImagePoint? knownPoint = null)
     {
-        if (_tool != EditorTool.Crop || _editor is null || _panning || CropTip is null || _moving is not null)
+        if (_tool != EditorTool.Crop || _editor is null || _panning || _moving is not null)
         {
             HideCropTip();
             return;
@@ -316,7 +317,6 @@ public sealed partial class MainPage
         if (imagePoint is not ImagePoint point)
         {
             HideCropTip();
-            UpdateCropCursor(false);
             return;
         }
 
@@ -326,28 +326,34 @@ public sealed partial class MainPage
             return;
         }
 
-        bool moving = _movingCrop || (_dragStart is null && _cropCanMove &&
-            _crop is ImageRect selectable && selectable.Contains(point));
-        UpdateCropCursor(moving);
-
         ImageRect? preview = _dragStart is ImagePoint dragStart && !_movingCrop && !_cropDragChanged
             ? new ImageRect(Math.Round(dragStart.X), Math.Round(dragStart.Y), 0, 0)
             : _cropCanMove ? _crop : null;
         ImagePoint origin = preview is ImageRect crop ? new(crop.X, crop.Y) : point;
-        CropPositionTip.Text = $"X {origin.X:0}   Y {origin.Y:0}";
-        CropSizeTip.Text = preview is ImageRect area
+        string position = $"X {origin.X:0}   Y {origin.Y:0}";
+        string size = preview is ImageRect area
             ? $"W {area.Width:0}   H {area.Height:0} px"
             : "W —   H — px";
-        CropTip.Visibility = Visibility.Visible;
-
-        double width = Math.Max(132, CropTip.ActualWidth);
-        double height = Math.Max(50, CropTip.ActualHeight);
+        const double width = 190;
+        const double height = 52;
         double left = canvasPosition.X + 16;
         double top = canvasPosition.Y + 18;
         if (left + width > DrawingCanvas.ActualWidth - 8) left = canvasPosition.X - width - 16;
         if (top + height > DrawingCanvas.ActualHeight - 8) top = canvasPosition.Y - height - 16;
-        Canvas.SetLeft(CropTip, Math.Clamp(left, 8, Math.Max(8, DrawingCanvas.ActualWidth - width - 8)));
-        Canvas.SetTop(CropTip, Math.Clamp(top, 8, Math.Max(8, DrawingCanvas.ActualHeight - height - 8)));
+        left = Math.Clamp(left, 8, Math.Max(8, DrawingCanvas.ActualWidth - width - 8));
+        top = Math.Clamp(top, 8, Math.Max(8, DrawingCanvas.ActualHeight - height - 8));
+        if (_cropTipVisible && _cropTipPosition == position && _cropTipSize == size &&
+            _cropTipLeft == left && _cropTipTop == top)
+        {
+            return;
+        }
+
+        _cropTipVisible = true;
+        _cropTipPosition = position;
+        _cropTipSize = size;
+        _cropTipLeft = left;
+        _cropTipTop = top;
+        DrawingCanvas.Invalidate();
     }
 
     private bool ShouldMoveCrop(ImagePoint point) =>
@@ -402,6 +408,13 @@ public sealed partial class MainPage
 
     private void UpdateCropInspector()
     {
+        // Keep NumberBox layout stable while the crop follows the pointer. The
+        // floating readout above shows live values; sync fields on release.
+        if (_tool == EditorTool.Crop && _dragStart is not null && _moving is null)
+        {
+            return;
+        }
+
         if (CropOptionsRow is null)
         {
             return;

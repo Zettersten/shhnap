@@ -52,7 +52,23 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                         continue;
                     }
 
-                    if (annotation.Kind == AnnotationKind.Redaction &&
+                    if (annotation.IsFlattened && annotation.Kind == AnnotationKind.Redaction &&
+                        annotation.RedactionMode != RedactionMode.Solid)
+                    {
+                        // This PNG already includes the pixels beneath the privacy effect.
+                        // Copying them keeps alpha exact on an expanded transparent canvas.
+                        CanvasBlend previousBlend = drawing.Blend;
+                        drawing.Blend = CanvasBlend.Copy;
+                        using (var layer = annotation.VisibilityClip is ImageRect clip
+                            ? drawing.CreateLayer(1, ToRect(clip)) : null)
+                        {
+                            DrawImageAnnotation(drawing, annotation);
+                        }
+                        drawing.Blend = previousBlend;
+                        continue;
+                    }
+
+                    if (!annotation.IsFlattened && annotation.Kind == AnnotationKind.Redaction &&
                         annotation.RedactionMode != RedactionMode.Solid)
                     {
                         // An effect reads the layers beneath it. Finish writing that source
@@ -99,7 +115,7 @@ internal sealed class ShnappRenderer(CanvasDevice device)
 
                     void DrawLayer(Annotation item)
                     {
-                        if (item.Kind == AnnotationKind.Image)
+                        if (item.IsFlattened || item.Kind == AnnotationKind.Image)
                         {
                             DrawImageAnnotation(drawing, item);
                         }
@@ -180,6 +196,116 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         return preview;
     }
 
+    /// <summary>Captures one element as pixels at its source coordinates for the frozen background.</summary>
+    internal async Task<(string PngBase64, ImageRect Bounds)> RasterizeElementAsync(
+        CanvasBitmap original, ShnappDocument document, Annotation annotation)
+    {
+        if (annotation.IsFlattened || annotation.HiddenByCrop)
+        {
+            throw new ArgumentException("The element is not editable.", nameof(annotation));
+        }
+
+        ImageRect bounds = ElementRasterBounds(annotation, document.Viewport);
+        using var raster = new CanvasRenderTarget(_device, (float)bounds.Width, (float)bounds.Height, 96);
+        bool samplesBackdrop = annotation.Kind == AnnotationKind.Redaction &&
+            annotation.RedactionMode != RedactionMode.Solid;
+        using CanvasRenderTarget? composited = samplesBackdrop
+            ? Flatten(original, document with
+            {
+                // A flattened effect becomes part of the background. Sample only
+                // pixels already frozen there; editable marks render above it.
+                Annotations = [..document.OrderedAnnotations.Where(item => item.IsFlattened), annotation],
+                HasWindowShadow = false,
+            })
+            : null;
+        using (CanvasDrawingSession drawing = raster.CreateDrawingSession())
+        {
+            drawing.Clear(Colors.Transparent);
+            drawing.Transform = Matrix3x2.CreateTranslation(-(float)bounds.X, -(float)bounds.Y);
+            using var visible = !samplesBackdrop && annotation.VisibilityClip is ImageRect clip
+                ? drawing.CreateLayer(1, ToRect(clip)) : null;
+            if (composited is not null)
+            {
+                // Blur and pixelation depend on background pixels. Capture their
+                // result so the frozen layer can replace those pixels exactly.
+                ImageRect viewport = document.Viewport;
+                drawing.DrawImage(composited, ToRect(bounds),
+                    new Rect(bounds.X - viewport.X, bounds.Y - viewport.Y,
+                        bounds.Width, bounds.Height));
+            }
+            else if (annotation.Kind == AnnotationKind.Image)
+            {
+                DrawImageAnnotation(drawing, annotation);
+            }
+            else
+            {
+                DrawAnnotation(drawing, annotation);
+            }
+        }
+
+        using var stream = new InMemoryRandomAccessStream();
+        await raster.SaveAsync(stream, CanvasBitmapFileFormat.Png);
+        if (stream.Size > 128L * 1024 * 1024)
+        {
+            throw new InvalidDataException("The flattened element exceeds the PNG size limit.");
+        }
+
+        stream.Seek(0);
+        using var reader = new DataReader(stream);
+        await reader.LoadAsync(checked((uint)stream.Size));
+        byte[] pixels = new byte[checked((int)stream.Size)];
+        reader.ReadBytes(pixels);
+        return (Convert.ToBase64String(pixels), bounds);
+    }
+
+    private ImageRect ElementRasterBounds(Annotation annotation, ImageRect viewport)
+    {
+        ImageRect area = annotation.Kind switch
+        {
+            AnnotationKind.Text => FromRect(MeasureTextBounds(annotation),
+                Math.Max(4, annotation.FontSize * 0.3)),
+            AnnotationKind.Step => new ImageRect(
+                annotation.Start.X - annotation.StepDiameter / 2 - 3,
+                annotation.Start.Y - annotation.StepDiameter / 2 - 3,
+                annotation.StepDiameter + 6, annotation.StepDiameter + 6),
+            AnnotationKind.Line or AnnotationKind.Arrow => FromRect(ToRect(annotation.Bounds),
+                Math.Max(10, annotation.StrokeWidth * 3.5) +
+                Math.Max(1, annotation.StrokeWidth) / 2 + 2),
+            AnnotationKind.Rectangle or AnnotationKind.Ellipse when !annotation.HideOutline =>
+                FromRect(ToRect(annotation.Bounds), annotation.StrokeWidth / 2 + 3),
+            AnnotationKind.Redaction => WholePixelBounds(annotation.Bounds),
+            _ => annotation.Bounds,
+        };
+        area = Intersection(area, viewport);
+        if (annotation.VisibilityClip is ImageRect clip)
+        {
+            area = Intersection(area, clip);
+        }
+
+        double left = Math.Floor(area.X);
+        double top = Math.Floor(area.Y);
+        double right = Math.Ceiling(area.Right);
+        double bottom = Math.Ceiling(area.Bottom);
+        if (right <= left || bottom <= top)
+        {
+            throw new InvalidDataException("The selected element has no visible pixels to flatten.");
+        }
+
+        return new ImageRect(left, top, right - left, bottom - top);
+    }
+
+    private static ImageRect FromRect(Rect area, double padding) => new(
+        area.X - padding, area.Y - padding,
+        area.Width + padding * 2, area.Height + padding * 2);
+
+    private static ImageRect WholePixelBounds(ImageRect area)
+    {
+        double left = Math.Floor(area.X);
+        double top = Math.Floor(area.Y);
+        return new ImageRect(left, top,
+            Math.Ceiling(area.Right) - left, Math.Ceiling(area.Bottom) - top);
+    }
+
     /// <summary>Decodes a pasted PNG before a synchronous canvas draw needs it.</summary>
     internal async Task PreloadImageAsync(Annotation annotation)
     {
@@ -206,7 +332,7 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         var prepared = new Dictionary<Guid, (string Payload, CanvasBitmap Bitmap)>();
         try
         {
-            foreach (Annotation annotation in document.Annotations.Where(a => a.Kind == AnnotationKind.Image))
+            foreach (Annotation annotation in document.Annotations.Where(a => a.IsFlattened || a.Kind == AnnotationKind.Image))
             {
                 string payload = ImagePayload(annotation);
                 if (_pastedImages.TryGetValue(annotation.Id, out var existing) &&
@@ -243,16 +369,17 @@ internal sealed class ShnappRenderer(CanvasDevice device)
 
     private static string ImagePayload(Annotation annotation)
     {
-        if (annotation.Kind != AnnotationKind.Image)
+        if (annotation.Kind != AnnotationKind.Image && !annotation.IsFlattened)
         {
-            throw new ArgumentException("Only a pasted image can be preloaded.", nameof(annotation));
+            throw new ArgumentException("Only a pixel-backed element can be preloaded.", nameof(annotation));
         }
 
         string payload = annotation.ImagePngBase64
             ?? throw new InvalidDataException("This pasted image has no PNG data.");
-        if (payload.Length > ((32 * 1024 * 1024 + 2) / 3) * 4)
+        int maximumBytes = annotation.IsFlattened ? 128 * 1024 * 1024 : 32 * 1024 * 1024;
+        if (payload.Length > ((maximumBytes + 2) / 3) * 4)
         {
-            throw new InvalidDataException("This pasted image exceeds the 32 MiB PNG limit.");
+            throw new InvalidDataException("This element exceeds the PNG size limit.");
         }
 
         return payload;
@@ -267,10 +394,12 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         return await CanvasBitmap.LoadAsync(_device, stream, 96);
     }
 
-    /// <summary>Releases decoded images that are no longer used after switching documents.</summary>
-    internal void RetainPastedImages(ShnappDocument document)
+    /// <summary>Releases decoded images no longer used by the visible document or undo history.</summary>
+    internal void RetainPastedImages(ShnappDocument document,
+        IEnumerable<Annotation>? historicalElements = null)
     {
-        var retained = document.Annotations.Where(a => a.Kind == AnnotationKind.Image)
+        var retained = document.Annotations.Concat(historicalElements ?? [])
+            .Where(a => a.IsFlattened || a.Kind == AnnotationKind.Image)
             .ToLookup(a => a.Id);
         foreach ((Guid id, var entries) in _pastedImages.ToArray())
         {
@@ -315,6 +444,28 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         }
     }
 
+    internal void DiscardPastedImagePayload(Guid id, string payload)
+    {
+        if (!_pastedImages.TryGetValue(id, out var entries))
+        {
+            return;
+        }
+
+        for (int index = entries.Count - 1; index >= 0; index--)
+        {
+            if (ReferenceEquals(entries[index].Payload, payload))
+            {
+                entries[index].Bitmap.Dispose();
+                entries.RemoveAt(index);
+            }
+        }
+
+        if (entries.Count == 0)
+        {
+            _pastedImages.Remove(id);
+        }
+    }
+
     internal void DrawImageAnnotation(CanvasDrawingSession drawing, Annotation annotation)
     {
         if (!_pastedImages.TryGetValue(annotation.Id, out var entries))
@@ -326,7 +477,8 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         {
             if (ReferenceEquals(entry.Payload, annotation.ImagePngBase64))
             {
-                drawing.DrawImage(entry.Bitmap, ToRect(annotation.Bounds));
+                drawing.DrawImage(entry.Bitmap, ToRect(annotation.IsFlattened
+                    ? annotation.RasterizedBounds!.Value : annotation.Bounds));
                 return;
             }
         }
