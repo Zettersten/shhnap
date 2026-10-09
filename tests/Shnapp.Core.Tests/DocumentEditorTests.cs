@@ -62,6 +62,149 @@ public sealed class DocumentEditorTests
     }
 
     [TestMethod]
+    public void FlattenCommitsOneUndoableEditAndPreventsFurtherElementEdits()
+    {
+        Annotation first = TestDocuments.Annotation(AnnotationKind.Rectangle);
+        Annotation second = TestDocuments.Annotation(AnnotationKind.Step) with
+        {
+            Start = new ImagePoint(120, 100),
+            StepNumber = 1,
+        };
+        Annotation third = TestDocuments.Annotation(AnnotationKind.Rectangle) with
+        {
+            Start = new ImagePoint(200, 120),
+            End = new ImagePoint(260, 180),
+        };
+        var editor = new DocumentEditor(TestDocuments.Create() with
+        {
+            Annotations = [first, second, third],
+        });
+        int changes = 0;
+        editor.Changed += (_, _) => changes++;
+        ImageRect pixels = new(110, 90, 1, 1);
+
+        Assert.IsTrue(editor.FlattenAnnotation(second.Id, TestDocuments.OnePixelPngBase64, pixels));
+        Annotation frozen = editor.Current.Annotations[1];
+        Assert.IsTrue(frozen.IsFlattened);
+        Assert.AreEqual(second.Kind, frozen.Kind);
+        Assert.AreEqual(1, frozen.StepNumber);
+        Assert.AreEqual(pixels, frozen.RasterizedBounds);
+        Assert.AreEqual(1, changes);
+
+        editor.UpdateAnnotation(frozen with { Start = new ImagePoint(300, 300) });
+        editor.RemoveAnnotation(frozen.Id);
+        editor.MoveAnnotationToFront(frozen.Id);
+        editor.MoveAnnotationToBack(frozen.Id);
+        Assert.IsNull(editor.CloneAnnotation(frozen.Id));
+        Assert.IsFalse(editor.FlattenAnnotation(frozen.Id, TestDocuments.OnePixelPngBase64, pixels));
+        Assert.AreEqual(1, changes);
+        Assert.AreEqual(frozen, editor.Current.Annotations[1]);
+
+        Assert.IsTrue(editor.Undo());
+        Assert.IsFalse(editor.Current.Annotations[1].IsFlattened);
+        Assert.IsNull(editor.Current.Annotations[1].ImagePngBase64);
+        Assert.IsFalse(editor.CanUndo);
+        Assert.IsTrue(editor.Redo());
+        Assert.AreEqual(frozen, editor.Current.Annotations[1]);
+    }
+
+    [TestMethod]
+    public async Task FlattenedStepKeepsItsPixelsAndNumberAfterEarlierStepChangesAndSave()
+    {
+        Annotation first = TestDocuments.Annotation(AnnotationKind.Step) with
+        {
+            Start = new ImagePoint(50, 50),
+        };
+        Annotation frozen = TestDocuments.Annotation(AnnotationKind.Step) with
+        {
+            Start = new ImagePoint(100, 100),
+        };
+        Annotation following = TestDocuments.Annotation(AnnotationKind.Step) with
+        {
+            Start = new ImagePoint(150, 150),
+        };
+        var editor = new DocumentEditor(TestDocuments.Create() with
+        {
+            Annotations = [first, frozen, following],
+        });
+        Assert.IsTrue(editor.FlattenAnnotation(frozen.Id, TestDocuments.OnePixelPngBase64,
+            new ImageRect(100, 100, 1, 1)));
+        editor.RemoveAnnotation(first.Id);
+        Assert.AreEqual(2, editor.Current.Annotations[0].StepNumber);
+        Assert.AreEqual(3, editor.Current.Annotations[1].StepNumber);
+
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Step) with
+        {
+            Start = new ImagePoint(200, 200),
+        });
+        Assert.AreEqual(4, editor.Current.Annotations[2].StepNumber);
+
+        using var temporary = new TemporaryLibrary();
+        await temporary.Library.SaveAsync(editor.Current);
+        ShnappDocument reopened = (await temporary.Library.OpenAsync(editor.Current.Id))!;
+        Assert.IsTrue(reopened.Annotations[0].IsFlattened);
+        Assert.AreEqual(2, reopened.Annotations[0].StepNumber);
+        Assert.AreEqual(TestDocuments.OnePixelPngBase64,
+            reopened.Annotations[0].ImagePngBase64);
+        Assert.AreEqual(new ImageRect(100, 100, 1, 1),
+            reopened.Annotations[0].RasterizedBounds);
+        Assert.AreEqual(3, reopened.Annotations[1].StepNumber);
+        Assert.AreEqual(4, reopened.Annotations[2].StepNumber);
+    }
+
+    [TestMethod]
+    public async Task FlattenedPixelsStayBehindEditableMarksInFlattenOrderThroughReorderingUndoAndSave()
+    {
+        Annotation first = TestDocuments.Annotation();
+        Annotation second = TestDocuments.Annotation(AnnotationKind.Ellipse);
+        Annotation third = TestDocuments.Annotation(AnnotationKind.Line);
+        Annotation fourth = TestDocuments.Annotation(AnnotationKind.Text);
+        var editor = new DocumentEditor(TestDocuments.Create() with
+        {
+            Annotations = [first, second, third, fourth],
+        });
+        ImageRect pixel = new(100, 100, 1, 1);
+
+        Assert.IsTrue(editor.FlattenAnnotation(third.Id, TestDocuments.OnePixelPngBase64, pixel));
+        Assert.IsTrue(editor.FlattenAnnotation(first.Id, TestDocuments.OnePixelPngBase64, pixel));
+        CollectionAssert.AreEqual(new[] { third.Id, first.Id, second.Id, fourth.Id },
+            editor.Current.OrderedAnnotations.Select(item => item.Id).ToArray());
+        Assert.AreEqual(1, editor.Current.Annotations[2].FlattenOrder);
+        Assert.AreEqual(2, editor.Current.Annotations[0].FlattenOrder);
+
+        ShnappDocument unchanged = editor.Current;
+        editor.MoveAnnotationToBack(second.Id);
+        Assert.AreSame(unchanged, editor.Current);
+        editor.MoveAnnotationToBack(fourth.Id);
+        CollectionAssert.AreEqual(new[] { third.Id, first.Id, fourth.Id, second.Id },
+            editor.Current.OrderedAnnotations.Select(item => item.Id).ToArray());
+        ShnappDocument reordered = editor.Current;
+        editor.MoveAnnotationToFront(third.Id);
+        Assert.AreSame(reordered, editor.Current);
+        CollectionAssert.AreEqual(new[] { third.Id, first.Id, fourth.Id, second.Id },
+            editor.Current.OrderedAnnotations.Select(item => item.Id).ToArray());
+
+        Assert.IsTrue(editor.Undo());
+        CollectionAssert.AreEqual(new[] { third.Id, first.Id, second.Id, fourth.Id },
+            editor.Current.OrderedAnnotations.Select(item => item.Id).ToArray());
+        Assert.IsTrue(editor.Undo());
+        Assert.IsFalse(editor.Current.Annotations[0].IsFlattened);
+        Assert.IsTrue(editor.Undo());
+        CollectionAssert.AreEqual(new[] { first.Id, second.Id, third.Id, fourth.Id },
+            editor.Current.OrderedAnnotations.Select(item => item.Id).ToArray());
+        Assert.IsTrue(editor.Redo());
+        Assert.IsTrue(editor.Redo());
+
+        using var temporary = new TemporaryLibrary();
+        await temporary.Library.SaveAsync(editor.Current);
+        ShnappDocument reopened = (await temporary.Library.OpenAsync(editor.Current.Id))!;
+        CollectionAssert.AreEqual(new[] { third.Id, first.Id, second.Id, fourth.Id },
+            reopened.OrderedAnnotations.Select(item => item.Id).ToArray());
+        Assert.AreEqual(1, reopened.Annotations[2].FlattenOrder);
+        Assert.AreEqual(2, reopened.Annotations[0].FlattenOrder);
+    }
+
+    [TestMethod]
     public void NullArgumentsAndEmptyIdentifiersAreRejected()
     {
         Assert.ThrowsExactly<ArgumentNullException>(() => _ = new DocumentEditor(null!));

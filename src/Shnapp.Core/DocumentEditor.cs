@@ -26,6 +26,11 @@ public sealed class DocumentEditor(ShnappDocument document)
     /// <summary>Gets whether an undone snapshot can be restored.</summary>
     public bool CanRedo => _redo.Count > 0;
 
+    /// <summary>Gets pixel-backed elements still reachable through undo or redo.</summary>
+    public IEnumerable<Annotation> HistoricalPixelElements() =>
+        _undo.Concat(_redo).SelectMany(snapshot => snapshot.Annotations)
+            .Where(annotation => annotation.IsFlattened || annotation.Kind == AnnotationKind.Image);
+
     /// <summary>Applies an existing annotation's crop mask to a moving or resizing preview.</summary>
     /// <remarks>Does not change the document or its undo history.</remarks>
     public Annotation PreviewAnnotation(Annotation annotation)
@@ -98,6 +103,10 @@ public sealed class DocumentEditor(ShnappDocument document)
         }
 
         Annotation previous = Current.Annotations[index];
+        if (previous.IsFlattened)
+        {
+            return;
+        }
         annotation = CarryVisibilityWithGeometry(previous, annotation);
         if (annotation.Kind == AnnotationKind.Step &&
             (annotation.Start != previous.Start || annotation.StepDiameter != previous.StepDiameter) &&
@@ -148,7 +157,7 @@ public sealed class DocumentEditor(ShnappDocument document)
     {
         ArgumentOutOfRangeException.ThrowIfEqual(id, Guid.Empty);
         int index = FindAnnotation(id);
-        if (index >= 0)
+        if (index >= 0 && !Current.Annotations[index].IsFlattened)
         {
             ShnappDocument next = Current with
             {
@@ -156,6 +165,42 @@ public sealed class DocumentEditor(ShnappDocument document)
             };
             Commit(TrimCanvasToContent(next));
         }
+    }
+
+    /// <summary>Replaces one editable element's drawing with fixed source-pixel PNG data.</summary>
+    /// <returns>Whether the element was flattened.</returns>
+    public bool FlattenAnnotation(Guid id, string pngBase64, ImageRect rasterizedBounds)
+    {
+        ArgumentOutOfRangeException.ThrowIfEqual(id, Guid.Empty);
+        ArgumentNullException.ThrowIfNull(pngBase64);
+        int index = FindAnnotation(id);
+        if (index < 0 || Current.Annotations[index].IsFlattened)
+        {
+            return false;
+        }
+
+        int latestFlattenOrder = Current.Annotations.Where(annotation => annotation.IsFlattened)
+            .Select(annotation => annotation.FlattenOrder).DefaultIfEmpty().Max();
+        if (latestFlattenOrder == int.MaxValue)
+        {
+            throw new ArgumentException("The flattened background has reached its layer limit.", nameof(id));
+        }
+
+        Annotation flattened = Current.Annotations[index] with
+        {
+            IsFlattened = true,
+            RasterizedBounds = rasterizedBounds,
+            ImagePngBase64 = pngBase64,
+            FlattenOrder = latestFlattenOrder + 1,
+        };
+        DocumentValidation.ValidateAnnotation(flattened, Current);
+        ShnappDocument next = Current with
+        {
+            Annotations = Current.Annotations.SetItem(index, flattened),
+        };
+        DocumentValidation.Validate(next);
+        Commit(next);
+        return true;
     }
 
     /// <summary>Duplicates an annotation just above its source in drawing order.</summary>
@@ -177,7 +222,7 @@ public sealed class DocumentEditor(ShnappDocument document)
         }
 
         Annotation source = Current.Annotations[index];
-        if (source.HiddenByCrop)
+        if (source.HiddenByCrop || source.IsFlattened)
         {
             return null;
         }
@@ -215,7 +260,7 @@ public sealed class DocumentEditor(ShnappDocument document)
     public void MoveAnnotationToFront(Guid id)
     {
         ArgumentOutOfRangeException.ThrowIfEqual(id, Guid.Empty);
-        List<Annotation> layers = Current.OrderedAnnotations.ToList();
+        List<Annotation> layers = Current.OrderedAnnotations.Where(annotation => !annotation.IsFlattened).ToList();
         int index = layers.FindIndex(annotation => annotation.Id == id);
         if (index < 0 || index == layers.Count - 1)
         {
@@ -232,7 +277,7 @@ public sealed class DocumentEditor(ShnappDocument document)
     public void MoveAnnotationToBack(Guid id)
     {
         ArgumentOutOfRangeException.ThrowIfEqual(id, Guid.Empty);
-        List<Annotation> layers = Current.OrderedAnnotations.ToList();
+        List<Annotation> layers = Current.OrderedAnnotations.Where(annotation => !annotation.IsFlattened).ToList();
         int index = layers.FindIndex(annotation => annotation.Id == id);
         if (index <= 0)
         {
@@ -331,6 +376,12 @@ public sealed class DocumentEditor(ShnappDocument document)
                 number = 0;
             }
 
+            if (annotation.IsFlattened)
+            {
+                number = annotation.StepNumber;
+                continue;
+            }
+
             if (annotation.StepNumber != ++number)
             {
                 builder ??= annotations.ToBuilder();
@@ -354,6 +405,10 @@ public sealed class DocumentEditor(ShnappDocument document)
         for (int index = 0; index < builder.Count; index++)
         {
             Annotation annotation = builder[index];
+            if (annotation.IsFlattened)
+            {
+                continue;
+            }
             int rank = rankById[annotation.Id];
             if (annotation.LayerOrder != rank)
             {
@@ -393,7 +448,8 @@ public sealed class DocumentEditor(ShnappDocument document)
     private static ShnappDocument ExpandCanvasForContent(ShnappDocument document, Annotation annotation,
         Guid? updatedId = null)
     {
-        ImageRect content = annotation.Kind == AnnotationKind.Step && !annotation.StepExpandsCanvas
+        ImageRect content = annotation.Kind == AnnotationKind.Step && !annotation.StepExpandsCanvas &&
+            !annotation.IsFlattened
             ? annotation.Bounds
             : ContentBounds(annotation);
         ImageRect canvas = UnionPixelBounds(document.CanvasBounds, content);
@@ -486,7 +542,7 @@ public sealed class DocumentEditor(ShnappDocument document)
             }
 
             ImageRect canvasContent = remainder;
-            if (crop is null && annotation.Kind == AnnotationKind.Step &&
+            if (crop is null && annotation.Kind == AnnotationKind.Step && !annotation.IsFlattened &&
                 !annotation.StepExpandsCanvas && original.Contains(annotation.Start))
             {
                 canvasContent = Intersection(remainder, original) ??
@@ -539,6 +595,11 @@ public sealed class DocumentEditor(ShnappDocument document)
 
     private static ImageRect ContentBounds(Annotation annotation)
     {
+        if (annotation.IsFlattened)
+        {
+            return annotation.RasterizedBounds!.Value;
+        }
+
         if (annotation.Kind == AnnotationKind.Step)
         {
             // The renderer draws a two-pixel white ring around the filled dot.

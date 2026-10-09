@@ -244,10 +244,22 @@ public sealed record Annotation
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public TextTransformMode TextTransform { get; init; }
 
-    /// <summary>Gets the pasted PNG encoded in base64 for an image annotation.</summary>
+    /// <summary>Gets pasted or flattened PNG pixels encoded in base64.</summary>
     /// <remarks>The payload lives in the editable document so it survives undo, save, and reopening.</remarks>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ImagePngBase64 { get; init; }
+
+    /// <summary>Gets whether this element has been rasterized and can no longer be edited.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsFlattened { get; init; }
+
+    /// <summary>Gets the source-pixel bounds of a flattened element's PNG.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImageRect? RasterizedBounds { get; init; }
+
+    /// <summary>Orders frozen pixels in the background by the time each element was flattened.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int FlattenOrder { get; init; }
 
     /// <summary>Limits an older annotation to the visible area kept by a crop.</summary>
     /// <remarks>Used when a later pasted image widens the canvas without restoring cropped marks.</remarks>
@@ -346,9 +358,12 @@ public sealed record ShnappDocument
     /// <summary>Gets annotations in editing order, which also determines numbered-step labels.</summary>
     public ImmutableArray<Annotation> Annotations { get; init; } = [];
 
-    /// <summary>Gets annotations from back to front; equal ranks retain array order.</summary>
+    /// <summary>Gets frozen background pixels, then editable annotations, from back to front.</summary>
     [JsonIgnore]
-    public IEnumerable<Annotation> OrderedAnnotations => Annotations.OrderBy(annotation => annotation.LayerOrder);
+    public IEnumerable<Annotation> OrderedAnnotations => Annotations
+        .OrderBy(annotation => annotation.IsFlattened ? 0 : 1)
+        .ThenBy(annotation => annotation.IsFlattened ? annotation.FlattenOrder : annotation.LayerOrder)
+        .ThenBy(annotation => annotation.LayerOrder);
 
     /// <summary>Gets the unmodified original image bounds in source coordinates.</summary>
     [JsonIgnore]

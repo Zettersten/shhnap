@@ -234,7 +234,10 @@ internal sealed partial class AppController
         }
         finally
         {
-            if (_page.Document is { } visible) { Renderer.RetainPastedImages(visible); }
+            if (_page.Document is { } visible)
+            {
+                Renderer.RetainPastedImages(visible, _page.HistoricalPixelElements);
+            }
             else { Renderer.ClearPastedImages(); }
         }
     }

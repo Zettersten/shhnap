@@ -1,5 +1,6 @@
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml.Controls;
+using Shnapp.App.Editor;
 
 namespace Shnapp.App;
 
@@ -8,21 +9,29 @@ public sealed class EditorCursorHost : Grid
 {
     private const uint PanOpenCursorResourceId = 101;
     private const uint PanClosedCursorResourceId = 102;
+    private const uint ShapeCursorResourceId = 103;
+    private const uint LineCursorResourceId = 104;
+    private const uint StepCursorResourceId = 105;
+    private const uint PrivacyCursorResourceId = 106;
     private readonly InputCursor _crosshair = InputSystemCursor.Create(InputSystemCursorShape.Cross);
+    private readonly InputCursor _text = InputSystemCursor.Create(InputSystemCursorShape.IBeam);
     private readonly InputCursor _move = InputSystemCursor.Create(InputSystemCursorShape.SizeAll);
-    private readonly InputCursor _panOpen = CreatePanCursor(PanOpenCursorResourceId, InputSystemCursorShape.Hand);
-    private readonly InputCursor _panClosed = CreatePanCursor(PanClosedCursorResourceId, InputSystemCursorShape.SizeAll);
+    private readonly InputCursor _panOpen = CreateResourceCursor(PanOpenCursorResourceId, InputSystemCursorShape.Hand);
+    private readonly InputCursor _panClosed = CreateResourceCursor(PanClosedCursorResourceId, InputSystemCursorShape.SizeAll);
+    private readonly InputCursor _shape = CreateResourceCursor(ShapeCursorResourceId, InputSystemCursorShape.Cross);
+    private readonly InputCursor _line = CreateResourceCursor(LineCursorResourceId, InputSystemCursorShape.Cross);
+    private readonly InputCursor _step = CreateResourceCursor(StepCursorResourceId, InputSystemCursorShape.Pin);
+    private readonly InputCursor _privacy = CreateResourceCursor(PrivacyCursorResourceId, InputSystemCursorShape.Cross);
     private readonly Dictionary<InputSystemCursorShape, InputCursor> _sizingCursors = [];
-    private bool _cropActive;
-    private bool _canMoveCrop;
+    private EditorTool _tool;
     private bool _panActive;
     private bool _panDragging;
     private InputSystemCursorShape? _selectionShape;
 
-    private static InputCursor CreatePanCursor(uint resourceId, InputSystemCursorShape fallback)
+
+    private static InputCursor CreateResourceCursor(uint resourceId, InputSystemCursorShape fallback)
     {
-        // The native resources contain an open palm and a closed grabbing hand.
-        // Keep a system cursor fallback for builds without the resource.
+        // Use a system cursor when a native cursor resource is unavailable.
         try
         {
             return InputDesktopResourceCursor.CreateFromModule(Environment.ProcessPath!, resourceId);
@@ -33,11 +42,11 @@ public sealed class EditorCursorHost : Grid
         }
     }
 
-    /// <summary>Shows a crosshair while drawing crops and a move cursor over a crop.</summary>
-    public void SetCropCursor(bool cropActive, bool canMove)
+    /// <summary>Shows a cursor that identifies the active placement tool.</summary>
+    internal void SetToolCursor(EditorTool tool)
     {
-        _cropActive = cropActive;
-        _canMoveCrop = canMove;
+        _tool = tool;
+        _selectionShape = null;
         UpdateCursor();
     }
 
@@ -64,8 +73,17 @@ public sealed class EditorCursorHost : Grid
     private void UpdateCursor()
     {
         InputCursor? cursor = _panActive ? _panDragging ? _panClosed : _panOpen
+            : _tool == EditorTool.Crop ? _crosshair
             : _selectionShape is InputSystemCursorShape shape ? GetSizingCursor(shape)
-            : _cropActive ? _canMoveCrop ? _move : _crosshair : null;
+            : _tool switch
+            {
+                EditorTool.Text => _text,
+                EditorTool.Step => _step,
+                EditorTool.Line or EditorTool.Arrow => _line,
+                EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle => _shape,
+                EditorTool.Redaction => _privacy,
+                _ => null,
+            };
         if (!ReferenceEquals(ProtectedCursor, cursor))
         {
             ProtectedCursor = cursor;
