@@ -66,6 +66,8 @@
 .download-page .dl-availability-message { margin-bottom: 2rem; padding: 1.15rem 1.4rem; border-radius: 12px; background: #e5efff; color: #193968; }
 .download-page .dl-availability-message strong { display: block; margin-bottom: .2rem; }
 .download-page .dl-availability-message p { margin: 0; color: #305478; }
+.download-page .dl-signing-note { margin: 0 0 1.5rem; padding: 1rem 1.25rem; border: 1px solid #eccf8d; border-radius: 12px; background: #fff5db; color: #634713; font-size: .94rem; line-height: 1.55; }
+.download-page .dl-signing-note strong { color: #493008; }
 .download-page .dl-build-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1rem, 2vw, 1.5rem); }
 .download-page .dl-build-card { display: flex; flex-direction: column; min-width: 0; min-height: 350px; padding: clamp(1.5rem, 2.7vw, 2.5rem); border-radius: 18px; background: #fff; box-shadow: 0 18px 45px rgba(30, 49, 89, .08); }
 .download-page .dl-build-symbol { display: grid; place-items: center; width: 56px; height: 56px; margin-bottom: 1.8rem; border-radius: 14px; background: #eaf3ff; color: #0878eb; }

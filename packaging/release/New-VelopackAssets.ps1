@@ -4,8 +4,9 @@ param(
     [Parameter(Mandatory = $true)][string] $VpkPath,
     [Parameter(Mandatory = $true)][string] $WorkDirectory,
     [Parameter(Mandatory = $true)][string] $OutputDirectory,
-    [Parameter(Mandatory = $true)][string] $SignToolPath,
-    [Parameter(Mandatory = $true)][string] $CertificateThumbprint
+    [string] $SignToolPath,
+    [string] $CertificateThumbprint,
+    [switch] $Unsigned
 )
 
 Set-StrictMode -Version Latest
@@ -17,8 +18,11 @@ if ($ReleaseTag -cnotmatch '^v([1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')
 if (-not (Test-Path -LiteralPath $VpkPath -PathType Leaf)) {
     throw "Velopack CLI not found: $VpkPath"
 }
-if (-not (Test-Path -LiteralPath $SignToolPath -PathType Leaf) -or
-    $CertificateThumbprint -cnotmatch '^[0-9A-Fa-f]{40}$') {
+if ($Unsigned -and $ReleaseTag -cne 'v1.0.12') {
+    throw 'Unsigned Velopack packaging is allowed only for v1.0.12.'
+}
+if (-not $Unsigned -and (-not (Test-Path -LiteralPath $SignToolPath -PathType Leaf) -or
+    $CertificateThumbprint -cnotmatch '^[0-9A-Fa-f]{40}$')) {
     throw 'A SignTool executable and code-signing certificate are required for Velopack packaging.'
 }
 
@@ -27,6 +31,11 @@ $version = $ReleaseTag.Substring(1)
 $architecture = $RuntimeIdentifier.Substring(4)
 $platform = if ($architecture -eq 'arm64') { 'ARM64' } else { 'x64' }
 $packId = "ErikZettersten.Shnapp.$architecture"
+$generatedSetupName = "$packId-$RuntimeIdentifier-Setup.exe"
+$setupName = if ([version]$version -lt [version]'1.0.12') {
+    $generatedSetupName
+}
+else { "Shnapp-$ReleaseTag-$architecture.exe" }
 $publishDirectory = Join-Path $WorkDirectory 'publish'
 $velopackDirectory = Join-Path $WorkDirectory 'velopack'
 $output = [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -66,19 +75,23 @@ try {
     ./packaging/release/Add-ThirdPartyNotices.ps1 `
         -DepsPath $depsPath -OutputDirectory $publishDirectory
 
-    $signParams = "/sha1 $CertificateThumbprint /fd SHA256 /tr http://timestamp.digicert.com /td SHA256"
+    $signingArguments = @()
+    if (-not $Unsigned) {
+        $signParams = "/sha1 $CertificateThumbprint /fd SHA256 /tr http://timestamp.digicert.com /td SHA256"
+        $signingArguments = @('--signParams', $signParams)
+    }
     & $VpkPath pack --packId $packId --packVersion $version `
         --packDir $publishDirectory --mainExe Shnapp.exe `
         --runtime "win11-$architecture" --channel $RuntimeIdentifier `
         --outputDir $velopackDirectory --packTitle Shnapp `
         --packAuthors 'Erik Zettersten' --icon 'src/Shnapp.App/Assets/AppIcon.ico' `
-        --instLicense LICENSE --noPortable --signParams $signParams
+        --instLicense LICENSE --noPortable @signingArguments
     if ($LASTEXITCODE -ne 0) { throw 'Velopack pack failed.' }
 
     $expected = @(
         "assets.$RuntimeIdentifier.json",
         "$packId-$version-$RuntimeIdentifier-full.nupkg",
-        "$packId-$RuntimeIdentifier-Setup.exe",
+        $generatedSetupName,
         "RELEASES-$RuntimeIdentifier",
         "releases.$RuntimeIdentifier.json"
     )
@@ -91,13 +104,25 @@ try {
         if ((Get-Item -LiteralPath $source).Length -eq 0) {
             throw "Velopack produced an empty file: $name"
         }
-        Copy-Item -LiteralPath $source -Destination (Join-Path $output $name)
+        $destinationName = if ($name -ceq $generatedSetupName) { $setupName } else { $name }
+        Copy-Item -LiteralPath $source -Destination (Join-Path $output $destinationName)
     }
-    $setupName = "$packId-$RuntimeIdentifier-Setup.exe"
+    $assetListPath = Join-Path $output "assets.$RuntimeIdentifier.json"
+    $assetList = @(Get-Content -LiteralPath $assetListPath -Raw | ConvertFrom-Json)
+    $installers = @($assetList | Where-Object { $_.Type -ceq 'Installer' })
+    if ($installers.Count -ne 1 -or $installers[0].RelativeFileName -cne $generatedSetupName) {
+        throw 'Velopack asset list does not identify the generated Setup executable.'
+    }
+    $installers[0].RelativeFileName = $setupName
+    [System.IO.File]::WriteAllText($assetListPath,
+        ((ConvertTo-Json -InputObject $assetList -Depth 16) + [char]10),
+        [System.Text.UTF8Encoding]::new($false))
     $setupPath = Join-Path $output $setupName
-    & (Join-Path $PSScriptRoot 'Sign-ReleaseExecutable.ps1') `
-        -Path $setupPath -SignToolPath $SignToolPath `
-        -CertificateThumbprint $CertificateThumbprint -VerifyOnly
+    if (-not $Unsigned) {
+        & (Join-Path $PSScriptRoot 'Sign-ReleaseExecutable.ps1') `
+            -Path $setupPath -SignToolPath $SignToolPath `
+            -CertificateThumbprint $CertificateThumbprint -VerifyOnly
+    }
     $packagePath = Join-Path $output "$packId-$version-$RuntimeIdentifier-full.nupkg"
     $packageArchive = [System.IO.Compression.ZipFile]::OpenRead($packagePath)
     try {
@@ -111,9 +136,11 @@ try {
     if ('lib/app/Shnapp.exe' -cnotin $packageExecutables) {
         throw 'The Velopack full package is missing Shnapp.exe.'
     }
-    & (Join-Path $PSScriptRoot 'Assert-ReleaseArchiveSignatures.ps1') `
-        -ArchivePath $packagePath -EntryPaths $packageExecutables `
-        -SignToolPath $SignToolPath -CertificateThumbprint $CertificateThumbprint
+    if (-not $Unsigned) {
+        & (Join-Path $PSScriptRoot 'Assert-ReleaseArchiveSignatures.ps1') `
+            -ArchivePath $packagePath -EntryPaths $packageExecutables `
+            -SignToolPath $SignToolPath -CertificateThumbprint $CertificateThumbprint
+    }
     $hash = (Get-FileHash -LiteralPath $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
     [System.IO.File]::WriteAllText("$setupPath.sha256", "$hash  $setupName`n",
         [System.Text.Encoding]::ASCII)

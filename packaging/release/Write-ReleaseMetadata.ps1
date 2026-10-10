@@ -49,16 +49,19 @@ if (-not $DraftPreflight) {
 }
 
 $version = $ReleaseTag.Substring(1)
+$legacySetup = [version]$version -lt [version]'1.0.12'
 $expectedNames = @(
     foreach ($architecture in @('x64', 'arm64')) {
         $rid = "win-$architecture"
         $packId = "ErikZettersten.Shnapp.$architecture"
+        $installerName = if ($legacySetup) { "$packId-$rid-Setup.exe" }
+            else { "Shnapp-$ReleaseTag-$architecture.exe" }
         "Shnapp-$rid.zip"
         "Shnapp-$rid.zip.sha256"
         "assets.$rid.json"
         "$packId-$version-$rid-full.nupkg"
-        "$packId-$rid-Setup.exe"
-        "$packId-$rid-Setup.exe.sha256"
+        $installerName
+        "$installerName.sha256"
         "RELEASES-$rid"
         "releases.$rid.json"
     }
@@ -103,7 +106,8 @@ foreach ($architecture in @('x64', 'arm64')) {
     $rid = "win-$architecture"
     $packId = "ErikZettersten.Shnapp.$architecture"
     $archiveName = "Shnapp-$rid.zip"
-    $installerName = "$packId-$rid-Setup.exe"
+    $installerName = if ($legacySetup) { "$packId-$rid-Setup.exe" }
+        else { "Shnapp-$ReleaseTag-$architecture.exe" }
     foreach ($name in @($archiveName, $installerName)) {
         $checksumName = "$name.sha256"
         $checksumText = [System.IO.File]::ReadAllText((Join-Path $assetsPath $checksumName))

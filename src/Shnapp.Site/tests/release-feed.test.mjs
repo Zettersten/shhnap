@@ -57,6 +57,20 @@ test('prefers verified installers in v2 while retaining portable ZIP assets', ()
   const badChecksum = structuredClone(installerFeed);
   badChecksum.installers.arm64.sha256 = '';
   assert.equal(parseReleaseFeed(badChecksum), null);
+
+  const renamedInstallerFeed = structuredClone(installerFeed);
+  renamedInstallerFeed.version = '1.0.12';
+  renamedInstallerFeed.tag = 'v1.0.12';
+  renamedInstallerFeed.releaseUrl = 'https://github.com/Zettersten/shhnap/releases/tag/v1.0.12';
+  for (const arch of ['x64', 'arm64']) {
+    renamedInstallerFeed.downloads[arch].url = `https://github.com/Zettersten/shhnap/releases/download/v1.0.12/Shnapp-win-${arch}.zip`;
+    renamedInstallerFeed.installers[arch].url = `https://github.com/Zettersten/shhnap/releases/download/v1.0.12/Shnapp-v1.0.12-${arch}.exe`;
+  }
+  assert.deepEqual(parseReleaseFeed(renamedInstallerFeed), renamedInstallerFeed);
+
+  const legacyNameOnNewVersion = structuredClone(renamedInstallerFeed);
+  legacyNameOnNewVersion.installers.x64.url = installerFeed.installers.x64.url.replaceAll('v1.0.5', 'v1.0.12');
+  assert.equal(parseReleaseFeed(legacyNameOnNewVersion), null);
 });
 
 test('rejects a feed that could redirect downloads or show a version without valid checksums', () => {

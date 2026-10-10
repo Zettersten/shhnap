@@ -53,6 +53,7 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
           <p data-zip-only>Both portable ZIP packages include the app and its runtime. Extract the whole archive and keep the <code>versions</code> folder and <code>current-version.txt</code> beside the root <code>Shnapp.exe</code> launcher.</p>
           <p data-installer-only hidden>Run the setup file for your PC to install Shnapp. Prefer a portable copy? The ZIP package is available beneath each installer.</p>
         </div>
+        {downloadsAvailable && <p class="dl-signing-note" data-unsigned-release><strong>v1.0.12 is unsigned.</strong> If you receive that version, Windows may show an Unknown publisher or SmartScreen warning. Check its SHA-256 checksum before running it.</p>}
         {!downloadsAvailable && (
           <div class="dl-availability-message" role="status">
             <strong>Public downloads are being prepared.</strong>
@@ -162,6 +163,8 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
       const hasInstaller = feed.schemaVersion === 2;
       document.querySelectorAll<HTMLElement>('[data-zip-only]').forEach((element) => { element.hidden = hasInstaller; });
       document.querySelectorAll<HTMLElement>('[data-installer-only]').forEach((element) => { element.hidden = !hasInstaller; });
+      const signingNote = document.querySelector<HTMLElement>('[data-unsigned-release]');
+      if (signingNote) signingNote.hidden = feed.tag !== 'v1.0.12';
 
       const status = document.querySelector<HTMLElement>('[data-release-status-copy]');
       if (status) status.textContent = `Shnapp ${feed.tag} available for Windows 11`;
@@ -195,7 +198,7 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
           checksum.textContent = hasInstaller ? 'Installer SHA-256' : 'SHA-256 checksum file';
           checksum.setAttribute('aria-label', `SHA-256 checksum file for Windows ${architecture === 'x64' ? 'x64' : 'ARM64'} ${hasInstaller ? 'installer' : 'ZIP'}`);
         }
-        if (fileName) fileName.textContent = hasInstaller ? `ErikZettersten.Shnapp.${architecture}-win-${architecture}-Setup.exe` : `Shnapp-win-${architecture}.zip`;
+        if (fileName) fileName.textContent = download.url.split('/').at(-1) ?? '';
         if (label) label.textContent = hasInstaller ? 'Download installer' : 'Download ZIP';
         if (portable) {
           portable.href = feed.downloads[architecture].url;
