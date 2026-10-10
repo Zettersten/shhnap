@@ -22,7 +22,10 @@ $assetsPath = (Resolve-Path -LiteralPath $AssetsDirectory).Path
 $releaseText = [System.IO.File]::ReadAllText($releaseJson)
 $release = $releaseText | ConvertFrom-Json
 $releaseUrl = "https://github.com/$Repository/releases/tag/$ReleaseTag"
-if ($release.tagName -cne $ReleaseTag -or $release.url -cne $releaseUrl -or
+$draftUrlPattern = '^' + [regex]::Escape("https://github.com/$Repository/releases/tag/") + 'untagged-[0-9a-f]+$'
+$validReleaseUrl = $release.url -ceq $releaseUrl -or
+    ($DraftPreflight -and $release.url -cmatch $draftUrlPattern)
+if ($release.tagName -cne $ReleaseTag -or -not $validReleaseUrl -or
     $release.isDraft -cne [bool]$DraftPreflight -or $release.isPrerelease -cne $false) {
     throw 'Release metadata must describe the requested stable release and publication state.'
 }
