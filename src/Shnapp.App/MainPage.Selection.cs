@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Numerics;
 using Microsoft.Graphics.Canvas;
 using Microsoft.UI;
@@ -507,11 +508,26 @@ public sealed partial class MainPage
 
     private bool NudgeSelected(int dx, int dy)
     {
-        if (_editor is null || SelectedAnnotation() is not { } selected)
+        if (_editor is null || SelectedAnnotations() is not { Length: > 0 } selection)
         {
             return false;
         }
 
+        if (selection.Length > 1)
+        {
+            try
+            {
+                _editor.MoveAnnotations(selection.Select(annotation => annotation.Id).ToArray(), dx, dy);
+            }
+            catch (ArgumentException exception)
+            {
+                ShowAnnotationEditError(exception);
+            }
+
+            return true;
+        }
+
+        Annotation selected = selection[0];
         double offsetX = dx;
         double offsetY = dy;
         if (offsetX != 0 || offsetY != 0)
@@ -552,9 +568,13 @@ public sealed partial class MainPage
             return;
         }
 
+        HashSet<Guid> movingIds = _groupMoving.Length > 1
+            ? _groupMoving.Select(annotation => annotation.Id).ToHashSet()
+            : [_moving.Id];
         ShnappDocument withoutSelection = _editor.Current with
         {
-            Annotations = _editor.Current.Annotations.Remove(_moving),
+            Annotations = _editor.Current.Annotations
+                .Where(annotation => !movingIds.Contains(annotation.Id)).ToImmutableArray(),
         };
         _dragBase = _controller.Renderer.Flatten(_original, withoutSelection, _editor.Current.Viewport);
     }

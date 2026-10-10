@@ -109,6 +109,60 @@ public sealed class DocumentEditorTests
     }
 
     [TestMethod]
+    public void FlattenAnnotationsFreezesTheGroupInDrawingOrderWithOneUndoStep()
+    {
+        Annotation first = TestDocuments.Annotation(AnnotationKind.Step);
+        Annotation second = TestDocuments.Annotation(AnnotationKind.Rectangle);
+        Annotation third = TestDocuments.Annotation(AnnotationKind.Text) with { Text = "Keep editing" };
+        ShnappDocument original = TestDocuments.Create() with
+        {
+            Annotations = [first, second, third],
+        };
+        var editor = new DocumentEditor(original);
+        ShnappDocument initial = editor.Current;
+        int changes = 0;
+        editor.Changed += (_, _) => changes++;
+
+        int flattened = editor.FlattenAnnotations(new Dictionary<Guid, (string, ImageRect)>
+        {
+            [second.Id] = (TestDocuments.OnePixelPngBase64, new ImageRect(20, 20, 1, 1)),
+            [first.Id] = (TestDocuments.OnePixelPngBase64, new ImageRect(10, 20, 1, 1)),
+        });
+
+        Assert.AreEqual(2, flattened);
+        Assert.AreEqual(1, changes);
+        Assert.IsTrue(editor.Current.Annotations[0].IsFlattened);
+        Assert.IsTrue(editor.Current.Annotations[1].IsFlattened);
+        Assert.IsFalse(editor.Current.Annotations[2].IsFlattened);
+        Assert.AreEqual(1, editor.Current.Annotations[0].FlattenOrder);
+        Assert.AreEqual(2, editor.Current.Annotations[1].FlattenOrder);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreSame(initial, editor.Current);
+        Assert.IsFalse(editor.CanUndo);
+        Assert.IsTrue(editor.Redo());
+        Assert.AreEqual(2, editor.Current.Annotations.Count(annotation => annotation.IsFlattened));
+    }
+
+    [TestMethod]
+    public void InvalidFlattenBatchLeavesAllElementsAndHistoryUnchanged()
+    {
+        Annotation first = TestDocuments.Annotation();
+        Annotation second = TestDocuments.Annotation(AnnotationKind.Ellipse);
+        ShnappDocument original = TestDocuments.Create() with { Annotations = [first, second] };
+        var editor = new DocumentEditor(original);
+
+        Assert.Throws<ArgumentException>(() => editor.FlattenAnnotations(
+            new Dictionary<Guid, (string, ImageRect)>
+            {
+                [first.Id] = (TestDocuments.OnePixelPngBase64, new ImageRect(10, 20, 1, 1)),
+                [second.Id] = ("not a PNG", new ImageRect(20, 20, 1, 1)),
+            }));
+
+        Assert.AreSame(original, editor.Current);
+        Assert.IsFalse(editor.CanUndo);
+    }
+
+    [TestMethod]
     public async Task FlattenedStepKeepsItsPixelsAndNumberAfterEarlierStepChangesAndSave()
     {
         Annotation first = TestDocuments.Annotation(AnnotationKind.Step) with
@@ -333,6 +387,202 @@ public sealed class DocumentEditorTests
         Assert.AreEqual(new ImageRect(0, 0, 652, 492), editor.Current.Viewport);
         Assert.IsTrue(editor.Undo());
         Assert.AreEqual(new ImageRect(0, 0, 640, 480), editor.Current.CanvasBounds);
+    }
+
+    [TestMethod]
+    public void MoveAnnotationsExpandsTheWholeCanvasAndCanBeUndoneTogether()
+    {
+        Annotation left = TestDocuments.Annotation() with
+        {
+            Start = new ImagePoint(10, 10),
+            End = new ImagePoint(50, 50),
+        };
+        Annotation right = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(625, 465),
+            End = new ImagePoint(640, 480),
+        };
+        ShnappDocument original = TestDocuments.Create() with { Annotations = [left, right] };
+        var editor = new DocumentEditor(original);
+        int changes = 0;
+        editor.Changed += (_, _) => changes++;
+
+        editor.MoveAnnotations([left.Id, right.Id], 20, 30);
+
+        Assert.AreEqual(1, changes);
+        Assert.AreEqual(new ImagePoint(30, 40), editor.Current.Annotations[0].Start);
+        Assert.AreEqual(new ImagePoint(645, 495), editor.Current.Annotations[1].Start);
+        Assert.IsTrue(editor.Current.CanvasBounds.Right >= 660);
+        Assert.IsTrue(editor.Current.CanvasBounds.Bottom >= 510);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreSame(original, editor.Current);
+        Assert.IsFalse(editor.CanUndo);
+        Assert.IsTrue(editor.Redo());
+        Assert.AreEqual(new ImagePoint(645, 495), editor.Current.Annotations[1].Start);
+
+        Assert.IsTrue(editor.Undo());
+        editor.MoveAnnotations([left.Id, right.Id], -30, -40);
+        Assert.IsTrue(editor.Current.CanvasBounds.X < 0);
+        Assert.IsTrue(editor.Current.CanvasBounds.Y < 0);
+    }
+
+    [TestMethod]
+    public void MoveAnnotationsCarriesEachCropMaskAndLeavesOtherMarksInOldCrop()
+    {
+        ImageRect originalCrop = new(100, 100, 100, 100);
+        Annotation shape = TestDocuments.Annotation() with
+        {
+            Start = new ImagePoint(120, 120),
+            End = new ImagePoint(150, 150),
+            VisibilityClip = new ImageRect(125, 125, 20, 20),
+        };
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(170, 170),
+            End = new ImagePoint(190, 190),
+        };
+        Annotation unselected = TestDocuments.Annotation(AnnotationKind.Ellipse) with
+        {
+            Start = new ImagePoint(110, 110),
+            End = new ImagePoint(130, 130),
+        };
+        var editor = new DocumentEditor(TestDocuments.Create() with
+        {
+            Crop = originalCrop,
+            Annotations = [shape, image, unselected],
+        });
+
+        editor.MoveAnnotations([shape.Id, image.Id], 500, 300);
+
+        Assert.AreEqual(new ImageRect(625, 425, 20, 20), editor.Current.Annotations[0].VisibilityClip);
+        Assert.AreEqual(new ImageRect(670, 470, 20, 20), editor.Current.Annotations[1].VisibilityClip);
+        Assert.IsTrue(editor.Current.Annotations[2].VisibilityClip is ImageRect otherClip &&
+            otherClip.X >= originalCrop.X && otherClip.Right <= originalCrop.Right);
+        Assert.AreEqual(originalCrop, editor.Current.BaseImageCrop);
+        Assert.IsTrue(editor.Current.CanvasBounds.Right >= 690);
+    }
+
+    [TestMethod]
+    public void InvalidGroupMoveDoesNotPartiallyChangeTheDocument()
+    {
+        Annotation first = TestDocuments.Annotation();
+        Annotation second = TestDocuments.Annotation(AnnotationKind.Image);
+        ShnappDocument original = TestDocuments.Create() with { Annotations = [first, second] };
+        var editor = new DocumentEditor(original);
+
+        Assert.Throws<ArgumentException>(() =>
+            editor.MoveAnnotations([first.Id, second.Id], 20_000, 0));
+        Assert.AreSame(original, editor.Current);
+        Assert.IsFalse(editor.CanUndo);
+        Assert.Throws<ArgumentException>(() =>
+            editor.MoveAnnotations([first.Id, second.Id], double.NaN, 0));
+        Assert.AreSame(original, editor.Current);
+    }
+
+    [TestMethod]
+    public void GroupEditsSkipHiddenAndFrozenElements()
+    {
+        Annotation hidden = TestDocuments.Annotation() with { HiddenByCrop = true };
+        Annotation frozen = TestDocuments.Annotation() with
+        {
+            IsFlattened = true,
+            ImagePngBase64 = TestDocuments.OnePixelPngBase64,
+            RasterizedBounds = new ImageRect(0, 0, 1, 1),
+            FlattenOrder = 1,
+        };
+        ShnappDocument original = TestDocuments.Create() with { Annotations = [hidden, frozen] };
+        var editor = new DocumentEditor(original);
+
+        editor.MoveAnnotations([hidden.Id, frozen.Id], 20, 20);
+        editor.RemoveAnnotations([hidden.Id, frozen.Id]);
+        Assert.AreEqual(0, editor.FlattenAnnotations(new Dictionary<Guid, (string, ImageRect)>
+        {
+            [hidden.Id] = (TestDocuments.OnePixelPngBase64, new ImageRect(10, 20, 1, 1)),
+            [frozen.Id] = (TestDocuments.OnePixelPngBase64, new ImageRect(0, 0, 1, 1)),
+        }));
+        Assert.AreEqual(0, editor.CloneAnnotations(new Dictionary<Guid, Guid>
+        {
+            [hidden.Id] = Guid.NewGuid(),
+            [frozen.Id] = Guid.NewGuid(),
+        }).Count);
+
+        Assert.AreSame(original, editor.Current);
+        Assert.IsFalse(editor.CanUndo);
+    }
+
+    [TestMethod]
+    public void RemovingMultipleAnnotationsRenumbersStepsWithOneUndoStep()
+    {
+        Annotation first = TestDocuments.Annotation(AnnotationKind.Step);
+        Annotation second = TestDocuments.Annotation(AnnotationKind.Step);
+        Annotation third = TestDocuments.Annotation(AnnotationKind.Step);
+        Annotation frozen = TestDocuments.Annotation() with
+        {
+            IsFlattened = true,
+            ImagePngBase64 = TestDocuments.OnePixelPngBase64,
+            RasterizedBounds = new ImageRect(0, 0, 1, 1),
+            FlattenOrder = 1,
+        };
+        ShnappDocument original = TestDocuments.Create() with
+        {
+            Annotations = [first, second, third, frozen],
+        };
+        var editor = new DocumentEditor(original);
+        ShnappDocument initial = editor.Current;
+        int changes = 0;
+        editor.Changed += (_, _) => changes++;
+
+        editor.RemoveAnnotations([first.Id, second.Id, frozen.Id]);
+
+        Assert.AreEqual(1, changes);
+        CollectionAssert.AreEqual(new[] { third.Id, frozen.Id },
+            editor.Current.Annotations.Select(annotation => annotation.Id).ToArray());
+        Assert.AreEqual(1, editor.Current.Annotations[0].StepNumber);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreSame(initial, editor.Current);
+        Assert.IsFalse(editor.CanUndo);
+    }
+
+    [TestMethod]
+    public void CloneAnnotationsPreservesGroupSpacingAndImagePixelsInOneUndoStep()
+    {
+        Annotation shape = TestDocuments.Annotation() with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(130, 130),
+        };
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(630, 470),
+            End = new ImagePoint(640, 480),
+            VisibilityClip = new ImageRect(631, 471, 8, 8),
+        };
+        ShnappDocument original = TestDocuments.Create() with { Annotations = [shape, image] };
+        var editor = new DocumentEditor(original);
+        Guid shapeCloneId = Guid.NewGuid();
+        Guid imageCloneId = Guid.NewGuid();
+        int changes = 0;
+        editor.Changed += (_, _) => changes++;
+
+        IReadOnlyList<Annotation> clones = editor.CloneAnnotations(new Dictionary<Guid, Guid>
+        {
+            [image.Id] = imageCloneId,
+            [shape.Id] = shapeCloneId,
+        });
+
+        Assert.AreEqual(1, changes);
+        CollectionAssert.AreEqual(new[] { shapeCloneId, imageCloneId },
+            clones.Select(annotation => annotation.Id).ToArray());
+        CollectionAssert.AreEqual(new[] { shape.Id, shapeCloneId, image.Id, imageCloneId },
+            editor.Current.Annotations.Select(annotation => annotation.Id).ToArray());
+        Assert.AreEqual(new ImagePoint(112, 112), clones[0].Start);
+        Assert.AreEqual(new ImagePoint(642, 482), clones[1].Start);
+        Assert.AreSame(image.ImagePngBase64, clones[1].ImagePngBase64);
+        Assert.AreEqual(new ImageRect(643, 483, 8, 8), clones[1].VisibilityClip);
+        Assert.AreEqual(new ImageRect(0, 0, 652, 492), editor.Current.CanvasBounds);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreSame(original, editor.Current);
+        Assert.IsFalse(editor.CanUndo);
     }
 
     [TestMethod]
