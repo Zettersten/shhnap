@@ -70,11 +70,11 @@ export const catalogChannels: CatalogChannel[] = [
   {
     id: 'chocolatey',
     name: 'Chocolatey',
-    state: 'awaiting-listing',
-    listingUrl: null,
+    state: 'live',
+    listingUrl: 'https://community.chocolatey.org/packages/shnapp',
     installCommand: 'choco install shnapp',
     updateCommand: 'choco upgrade shnapp',
-    description: 'Pending Chocolatey Community approval.',
+    description: 'A Chocolatey Community package; approved versions may lag GitHub releases.',
   },
   {
     id: 'microsoft-store',
