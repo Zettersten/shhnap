@@ -53,7 +53,7 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
           <p data-zip-only>Both portable ZIP packages include the app and its runtime. Extract the whole archive and keep the <code>versions</code> folder and <code>current-version.txt</code> beside the root <code>Shnapp.exe</code> launcher.</p>
           <p data-installer-only hidden>Run the setup file for your PC to install Shnapp. Prefer a portable copy? The ZIP package is available beneath each installer.</p>
         </div>
-        {downloadsAvailable && <p class="dl-signing-note" data-unsigned-release><strong>v1.0.12 is unsigned.</strong> If you receive that version, Windows may show an Unknown publisher or SmartScreen warning. Check its SHA-256 checksum before running it.</p>}
+        {downloadsAvailable && <p class="dl-signing-note" data-unsigned-release><strong data-unsigned-version>v1.0.12 is unsigned.</strong> Windows may show an Unknown publisher or SmartScreen warning. Check the SHA-256 checksum before running the download.</p>}
         {!downloadsAvailable && (
           <div class="dl-availability-message" role="status">
             <strong>Public downloads are being prepared.</strong>
@@ -164,7 +164,12 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
       document.querySelectorAll<HTMLElement>('[data-zip-only]').forEach((element) => { element.hidden = hasInstaller; });
       document.querySelectorAll<HTMLElement>('[data-installer-only]').forEach((element) => { element.hidden = !hasInstaller; });
       const signingNote = document.querySelector<HTMLElement>('[data-unsigned-release]');
-      if (signingNote) signingNote.hidden = feed.tag !== 'v1.0.12';
+      if (signingNote) {
+        const isUnsignedRelease = feed.tag === 'v1.0.12' || feed.tag === 'v1.0.13';
+        signingNote.hidden = !isUnsignedRelease;
+        const unsignedVersion = signingNote.querySelector<HTMLElement>('[data-unsigned-version]');
+        if (unsignedVersion && isUnsignedRelease) unsignedVersion.textContent = `${feed.tag} is unsigned.`;
+      }
 
       const status = document.querySelector<HTMLElement>('[data-release-status-copy]');
       if (status) status.textContent = `Shnapp ${feed.tag} available for Windows 11`;

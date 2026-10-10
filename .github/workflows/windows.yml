@@ -92,7 +92,7 @@ jobs:
       RELEASE_TAG: ${{ github.ref_name }}
       TARGET_RID: ${{ matrix.rid }}
       TARGET_PLATFORM: ${{ matrix.platform }}
-      UNSIGNED_RELEASE: ${{ github.ref_name == 'v1.0.12' }}
+      UNSIGNED_RELEASE: ${{ github.ref_name == 'v1.0.12' || github.ref_name == 'v1.0.13' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -107,7 +107,7 @@ jobs:
             throw 'Public release tags must look like v1.0.0; prerelease tags are not supported by this workflow.'
           }
       - name: Require trusted code signing
-        if: github.ref_name != 'v1.0.12'
+        if: env.UNSIGNED_RELEASE != 'true'
         shell: pwsh
         env:
           RELEASE_SIGNING_PFX_BASE64: ${{ secrets.RELEASE_SIGNING_PFX_BASE64 }}
@@ -256,9 +256,9 @@ jobs:
             awk '/^## / { exit } { print }' "$RUNNER_TEMP/installation-notes.md"
             sed "s/^## What's Changed$/## New in $RELEASE_TAG/" "$RUNNER_TEMP/generated-changes.md"
             printf '\n'
-            if [[ "$RELEASE_TAG" == 'v1.0.12' ]]; then
+            if [[ "$RELEASE_TAG" == 'v1.0.12' || "$RELEASE_TAG" == 'v1.0.13' ]]; then
               printf '## Unsigned release\n\n'
-              printf 'The v1.0.12 portable ZIPs and Velopack installers are unsigned because a trusted code-signing certificate is not available yet. Windows may show an Unknown publisher or SmartScreen warning. Verify the SHA-256 checksum before running a download.\n\n'
+              printf 'The %s portable ZIPs and Velopack installers are unsigned because a trusted code-signing certificate is not available yet. Windows may show an Unknown publisher or SmartScreen warning. Verify the SHA-256 checksum before running a download.\n\n' "$RELEASE_TAG"
             fi
             awk '/^## / { started = 1 } started { print }' "$RUNNER_TEMP/installation-notes.md"
           } > "$RUNNER_TEMP/release-notes.md"
