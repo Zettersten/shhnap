@@ -50,7 +50,7 @@ try {
     )
     $release = [ordered]@{
         tagName = $tag
-        url = "https://github.com/$repositoryName/releases/tag/$tag"
+        url = "https://github.com/$repositoryName/releases/tag/untagged-5d3ab9754bd2bcc662cd"
         isDraft = $true
         isPrerelease = $false
         publishedAt = $null
@@ -76,6 +76,16 @@ try {
         (Get-FileHash -LiteralPath (Join-Path $assets $names[0]) -Algorithm SHA256).Hash.ToLowerInvariant()
     $release.isDraft = $false
     $release.publishedAt = '2026-10-04T00:00:00Z'
+    $release | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $releasePath
+    $rejected = $false
+    try {
+        & $writer -ReleaseTag $tag -Repository $repositoryName -ReleaseJsonPath $releasePath `
+            -AssetsDirectory $assets -OutputPath $feedPath
+    }
+    catch { $rejected = $true }
+    if (-not $rejected) { throw 'Public release metadata accepted a draft URL.' }
+
+    $release.url = "https://github.com/$repositoryName/releases/tag/$tag"
     $release | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $releasePath
     & $writer -ReleaseTag $tag -Repository $repositoryName -ReleaseJsonPath $releasePath `
         -AssetsDirectory $assets -OutputPath $feedPath
