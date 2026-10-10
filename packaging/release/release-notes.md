@@ -13,7 +13,7 @@ Shnapp lives in the Windows tray until you need a screenshot. Capture a region, 
 
 Velopack and portable installs store the editable library and preferences in `%LOCALAPPDATA%\Shnapp` for your Windows user. Unpublished Microsoft Store package candidates use a package-specific local cache and copy an existing default library on first launch. They leave the original library in place. Back up an editable library before uninstalling a Store test build, because Windows removes that package's local data on uninstall. Capture and editing need no account or internet connection. For sensitive details, use opaque Cover and share the exported PNG; the editable original remains in your local library. See the [privacy page](https://shhnap.com/privacy/).
 
-Velopack-installed copies can check for a new stable release and apply it from Settings → About & Updates. Direct ZIP copies retain their existing verified ZIP updater, and Scoop installations update through Scoop. An existing ZIP copy does not become a Velopack install automatically; use the installer to switch channels.
+Velopack-installed copies can check for a new stable release and apply it from Settings → About & Updates. Direct ZIP copies retain their existing verified ZIP updater. Scoop and Chocolatey installations update through their package managers after each new version reaches their catalogs. An existing ZIP copy does not become a Velopack install automatically; use the installer to switch channels.
 
 ## Install
 
@@ -23,7 +23,7 @@ Velopack-installed copies can check for a new stable release and apply it from S
 
 Portable ZIPs remain available for existing direct installs and package managers: [x64](https://github.com/Zettersten/shhnap/releases/download/__RELEASE_TAG__/Shnapp-win-x64.zip) or [ARM64](https://github.com/Zettersten/shhnap/releases/download/__RELEASE_TAG__/Shnapp-win-arm64.zip). Extract the entire ZIP and run its root `Shnapp.exe`; keep `versions` and `current-version.txt` beside it. Both distributions include Shnapp's `LICENSE` and bundled components' notices.
 
-WinGet's first listing is pending, Chocolatey has not approved Shnapp, and the Microsoft Store release is not ready. Check the [download page](https://shhnap.com/download/) for current channel availability.
+The [Chocolatey Community Repository](https://community.chocolatey.org/packages/shnapp) offers `choco install shnapp` and `choco upgrade shnapp`. Its approved package may be older than this GitHub release until Chocolatey reviews an update. WinGet's first listing is pending, and the Microsoft Store release is not ready. Check the [download page](https://shhnap.com/download/) for current channel availability.
 
 The ARM64 packages were cross-published on x64 CI and have **not** been run on ARM64 hardware yet.
 

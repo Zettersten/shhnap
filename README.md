@@ -76,7 +76,13 @@ scoop bucket add shnapp https://github.com/Zettersten/scoop-bucket
 scoop install shnapp/shnapp
 ```
 
-Velopack-installed copies can check stable GitHub releases and prepare an update, then apply it when Shnapp restarts. **Settings → About & Updates** shows the status and offers a restart when an update is ready. Direct ZIP copies keep their existing updater: they check stable releases at most once a day, verify the matching ZIP, and switch to the staged version on the next restart. An existing ZIP copy does not become a Velopack install automatically; run the installer if you want that channel. Copies from before the launcher-enabled ZIP release need one manual ZIP replacement to gain ZIP updates. Scoop copies update through Scoop. WinGet's first listing is pending, Chocolatey has not approved Shnapp, and the Microsoft Store release is not ready; use the [download page](https://shhnap.com/download/) to check current channel availability. Your library and preferences remain under `%LOCALAPPDATA%\Shnapp`.
+Shnapp is also available from the [Chocolatey Community Repository](https://community.chocolatey.org/packages/shnapp):
+
+```powershell
+choco install shnapp
+```
+
+Velopack-installed copies can check stable GitHub releases and prepare an update, then apply it when Shnapp restarts. **Settings → About & Updates** shows the status and offers a restart when an update is ready. Direct ZIP copies keep their existing updater: they check stable releases at most once a day, verify the matching ZIP, and switch to the staged version on the next restart. An existing ZIP copy does not become a Velopack install automatically; run the installer if you want that channel. Copies from before the launcher-enabled ZIP release need one manual ZIP replacement to gain ZIP updates. Scoop copies update through Scoop; Chocolatey copies use `choco upgrade shnapp` after a new package version is approved. The approved Chocolatey version may lag the latest GitHub release while updates are reviewed. WinGet's first listing is pending, and the Microsoft Store release is not ready; use the [download page](https://shhnap.com/download/) to check current channel availability. Your library and preferences remain under `%LOCALAPPDATA%\Shnapp`.
 
 ### Build from source
 

@@ -595,4 +595,15 @@ jobs:
     secrets:
       WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
 
-  # Chocolatey is dispatched separately after the first package is approved.
+  chocolatey-release:
+    name: Submit Chocolatey package
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.operation == 'publish-github-release' &&
+      needs.publish-release.result == 'success'
+    needs: publish-release
+    uses: ./.github/workflows/chocolatey.yml
+    with:
+      release_tag: ${{ inputs.release_tag }}
+    secrets:
+      CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
