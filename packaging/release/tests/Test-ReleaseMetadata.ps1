@@ -8,6 +8,7 @@ $assets = Join-Path $scratch 'assets'
 $releasePath = Join-Path $scratch 'release.json'
 $feedPath = Join-Path $scratch 'latest.json'
 $tag = 'v1.2.3'
+$draftSlug = 'untagged-5d3ab9754bd2bcc662cd'
 $repositoryName = 'Zettersten/shhnap'
 [void][System.IO.Directory]::CreateDirectory($assets)
 
@@ -42,7 +43,7 @@ try {
             $item = Get-Item -LiteralPath (Join-Path $assets $name)
             @{
                 name = $name
-                url = "https://github.com/$repositoryName/releases/download/$tag/$name"
+                url = "https://github.com/$repositoryName/releases/download/$draftSlug/$name"
                 digest = 'sha256:' + (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
                 size = $item.Length
             }
@@ -50,7 +51,7 @@ try {
     )
     $release = [ordered]@{
         tagName = $tag
-        url = "https://github.com/$repositoryName/releases/tag/untagged-5d3ab9754bd2bcc662cd"
+        url = "https://github.com/$repositoryName/releases/tag/$draftSlug"
         isDraft = $true
         isPrerelease = $false
         publishedAt = $null
@@ -86,6 +87,18 @@ try {
     if (-not $rejected) { throw 'Public release metadata accepted a draft URL.' }
 
     $release.url = "https://github.com/$repositoryName/releases/tag/$tag"
+    $release | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $releasePath
+    $rejected = $false
+    try {
+        & $writer -ReleaseTag $tag -Repository $repositoryName -ReleaseJsonPath $releasePath `
+            -AssetsDirectory $assets -OutputPath $feedPath
+    }
+    catch { $rejected = $true }
+    if (-not $rejected) { throw 'Public release metadata accepted draft asset URLs.' }
+
+    foreach ($asset in $releaseAssets) {
+        $asset.url = "https://github.com/$repositoryName/releases/download/$tag/$($asset.name)"
+    }
     $release | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $releasePath
     & $writer -ReleaseTag $tag -Repository $repositoryName -ReleaseJsonPath $releasePath `
         -AssetsDirectory $assets -OutputPath $feedPath

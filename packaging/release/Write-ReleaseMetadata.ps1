@@ -29,6 +29,10 @@ if ($release.tagName -cne $ReleaseTag -or -not $validReleaseUrl -or
     $release.isDraft -cne [bool]$DraftPreflight -or $release.isPrerelease -cne $false) {
     throw 'Release metadata must describe the requested stable release and publication state.'
 }
+$assetUrlTag = if ($DraftPreflight -and $release.url -cmatch $draftUrlPattern) {
+    $release.url.Split('/')[-1]
+}
+else { $ReleaseTag }
 if ($release.body -isnot [string] -or [string]::IsNullOrWhiteSpace($release.body)) {
     throw 'The public release must have notes.'
 }
@@ -81,7 +85,7 @@ foreach ($asset in $assets) {
     if ($name -cnotin $expectedNames -or $hashes.ContainsKey($name)) {
         throw "Unexpected or duplicate release asset: $name"
     }
-    $expectedUrl = "https://github.com/$Repository/releases/download/$ReleaseTag/$name"
+    $expectedUrl = "https://github.com/$Repository/releases/download/$assetUrlTag/$name"
     if ($asset.url -cne $expectedUrl) {
         throw "Release asset has an unexpected URL: $name"
     }
