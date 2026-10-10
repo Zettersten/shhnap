@@ -18,8 +18,8 @@ if ($ReleaseTag -cnotmatch '^v([1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')
 if (-not (Test-Path -LiteralPath $VpkPath -PathType Leaf)) {
     throw "Velopack CLI not found: $VpkPath"
 }
-if ($Unsigned -and $ReleaseTag -cne 'v1.0.12') {
-    throw 'Unsigned Velopack packaging is allowed only for v1.0.12.'
+if ($Unsigned -and $ReleaseTag -cnotin @('v1.0.12', 'v1.0.13')) {
+    throw 'Unsigned Velopack packaging is allowed only for v1.0.12 and v1.0.13.'
 }
 if (-not $Unsigned -and (-not (Test-Path -LiteralPath $SignToolPath -PathType Leaf) -or
     $CertificateThumbprint -cnotmatch '^[0-9A-Fa-f]{40}$')) {

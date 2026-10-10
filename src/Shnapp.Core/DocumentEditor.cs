@@ -150,6 +150,70 @@ public sealed class DocumentEditor(ShnappDocument document)
         Commit(next);
     }
 
+    /// <summary>Moves visible, editable annotations together as one undoable edit.</summary>
+    /// <remarks>Moving beyond a crop keeps every moved element's own visibility mask and
+    /// expands the transparent canvas without revealing older, unselected marks.</remarks>
+    public void MoveAnnotations(IReadOnlyCollection<Guid> ids, double dx, double dy)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        if (!double.IsFinite(dx) || !double.IsFinite(dy))
+        {
+            throw new ArgumentException("A movement offset must be finite.", nameof(dx));
+        }
+
+        HashSet<Guid> selected = ValidateIds(ids);
+        if (selected.Count == 0 || dx == 0 && dy == 0)
+        {
+            return;
+        }
+
+        var replacements = new Dictionary<Guid, Annotation>();
+        foreach (Annotation source in Current.Annotations)
+        {
+            if (!selected.Contains(source.Id) || source.IsFlattened || source.HiddenByCrop)
+            {
+                continue;
+            }
+
+            // A crop also masks marks that have no explicit clip yet. Carry that
+            // visible part with the group when the destination widens the viewport.
+            Annotation visibleSource = Current.Crop is ImageRect viewport &&
+                source.VisibilityClip is null
+                    ? source with { VisibilityClip = viewport }
+                    : source;
+            Annotation moved = CarryVisibilityWithGeometry(visibleSource,
+                ShiftGeometry(source, dx, dy));
+            if (moved.Kind == AnnotationKind.Step &&
+                (!Contains(Current.Viewport, ContentBounds(moved)) ||
+                 !Contains(Current.OriginalBounds, ContentBounds(moved))))
+            {
+                moved = moved with { StepExpandsCanvas = true };
+            }
+            replacements.Add(source.Id, moved);
+        }
+
+        if (replacements.Count == 0)
+        {
+            return;
+        }
+
+        ShnappDocument next = ExpandCanvasForContents(Current, [..replacements.Values],
+            replacements.Keys.ToHashSet());
+        var builder = next.Annotations.ToBuilder();
+        for (int index = 0; index < builder.Count; index++)
+        {
+            if (replacements.TryGetValue(builder[index].Id, out Annotation? moved))
+            {
+                DocumentValidation.ValidateAnnotation(moved, next);
+                builder[index] = moved;
+            }
+        }
+
+        next = TrimCanvasToContent(next with { Annotations = RenumberSteps(builder.ToImmutable()) });
+        DocumentValidation.Validate(next);
+        Commit(next);
+    }
+
     /// <summary>Removes an annotation and renumbers remaining steps; an unknown identifier is a no-op.</summary>
     /// <param name="id">The nonempty identifier of the annotation to remove.</param>
     /// <exception cref="ArgumentException">The identifier is empty.</exception>
@@ -165,6 +229,32 @@ public sealed class DocumentEditor(ShnappDocument document)
             };
             Commit(TrimCanvasToContent(next));
         }
+    }
+
+    /// <summary>Removes visible, editable annotations as one undoable edit.</summary>
+    public void RemoveAnnotations(IReadOnlyCollection<Guid> ids)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        HashSet<Guid> selected = ValidateIds(ids);
+        if (selected.Count == 0)
+        {
+            return;
+        }
+
+        ImmutableArray<Annotation> remaining = Current.Annotations
+            .Where(annotation => !selected.Contains(annotation.Id) ||
+                annotation.IsFlattened || annotation.HiddenByCrop).ToImmutableArray();
+        if (remaining.Length == Current.Annotations.Length)
+        {
+            return;
+        }
+
+        ShnappDocument next = TrimCanvasToContent(Current with
+        {
+            Annotations = RenumberSteps(remaining),
+        });
+        DocumentValidation.Validate(next);
+        Commit(next);
     }
 
     /// <summary>Replaces one editable element's drawing with fixed source-pixel PNG data.</summary>
@@ -201,6 +291,61 @@ public sealed class DocumentEditor(ShnappDocument document)
         DocumentValidation.Validate(next);
         Commit(next);
         return true;
+    }
+
+    /// <summary>Freezes multiple visible elements into the background in one undoable edit.</summary>
+    /// <returns>The number of elements flattened.</returns>
+    public int FlattenAnnotations(
+        IReadOnlyDictionary<Guid, (string PngBase64, ImageRect RasterizedBounds)> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        HashSet<Guid> requested = ValidateIds(items.Keys);
+        foreach (var value in items.Values)
+        {
+            ArgumentNullException.ThrowIfNull(value.PngBase64);
+        }
+
+        int order = Current.Annotations.Where(annotation => annotation.IsFlattened)
+            .Select(annotation => annotation.FlattenOrder).DefaultIfEmpty().Max();
+        Annotation[] sources = Current.OrderedAnnotations
+            .Where(annotation => requested.Contains(annotation.Id) &&
+                !annotation.IsFlattened && !annotation.HiddenByCrop).ToArray();
+        if (sources.Length == 0)
+        {
+            return 0;
+        }
+        if (sources.Length > int.MaxValue - order)
+        {
+            throw new ArgumentException("The flattened background has reached its layer limit.", nameof(items));
+        }
+
+        var replacements = new Dictionary<Guid, Annotation>(sources.Length);
+        foreach (Annotation source in sources)
+        {
+            var (pngBase64, rasterizedBounds) = items[source.Id];
+            replacements.Add(source.Id, source with
+            {
+                IsFlattened = true,
+                RasterizedBounds = rasterizedBounds,
+                ImagePngBase64 = pngBase64,
+                FlattenOrder = ++order,
+            });
+        }
+
+        var builder = Current.Annotations.ToBuilder();
+        for (int index = 0; index < builder.Count; index++)
+        {
+            if (replacements.TryGetValue(builder[index].Id, out Annotation? frozen))
+            {
+                DocumentValidation.ValidateAnnotation(frozen, Current);
+                builder[index] = frozen;
+            }
+        }
+
+        ShnappDocument next = Current with { Annotations = builder.ToImmutable() };
+        DocumentValidation.Validate(next);
+        Commit(next);
+        return replacements.Count;
     }
 
     /// <summary>Duplicates an annotation just above its source in drawing order.</summary>
@@ -254,6 +399,56 @@ public sealed class DocumentEditor(ShnappDocument document)
         DocumentValidation.ValidateAnnotation(clone, next);
         Commit(next with { Annotations = RenumberSteps(next.Annotations.Insert(index + 1, clone)) });
         return Current.Annotations[index + 1];
+    }
+
+    /// <summary>Clones visible, editable annotations with a shared offset as one undoable edit.</summary>
+    /// <returns>The new annotations in document order.</returns>
+    public IReadOnlyList<Annotation> CloneAnnotations(IReadOnlyDictionary<Guid, Guid> cloneIds)
+    {
+        ArgumentNullException.ThrowIfNull(cloneIds);
+        ValidateIds(cloneIds.Keys);
+        var proposedIds = new HashSet<Guid>();
+        foreach (Guid cloneId in cloneIds.Values)
+        {
+            if (cloneId == Guid.Empty || !proposedIds.Add(cloneId) || FindAnnotation(cloneId) >= 0)
+            {
+                throw new ArgumentException("Clones need unique, nonempty identifiers.", nameof(cloneIds));
+            }
+        }
+
+        var clones = new Dictionary<Guid, Annotation>();
+        foreach (Annotation source in Current.Annotations)
+        {
+            if (cloneIds.TryGetValue(source.Id, out Guid cloneId) &&
+                !source.IsFlattened && !source.HiddenByCrop)
+            {
+                clones.Add(source.Id, ShiftClone(source, cloneId, 12, 12));
+            }
+        }
+
+        if (clones.Count == 0)
+        {
+            return [];
+        }
+
+        ShnappDocument next = ExpandCanvasForContents(Current, [..clones.Values], null);
+        var builder = ImmutableArray.CreateBuilder<Annotation>(next.Annotations.Length + clones.Count);
+        var result = new List<Annotation>(clones.Count);
+        foreach (Annotation source in next.Annotations)
+        {
+            builder.Add(source);
+            if (clones.TryGetValue(source.Id, out Annotation? clone))
+            {
+                DocumentValidation.ValidateAnnotation(clone, next);
+                builder.Add(clone);
+                result.Add(clone);
+            }
+        }
+
+        next = next with { Annotations = RenumberSteps(builder.ToImmutable()) };
+        DocumentValidation.Validate(next);
+        Commit(next);
+        return result;
     }
 
     /// <summary>Moves an annotation above every other mark. Missing and topmost IDs are no-ops.</summary>
@@ -433,6 +628,24 @@ public sealed class DocumentEditor(ShnappDocument document)
         };
     }
 
+    private static Annotation ShiftGeometry(Annotation source, double dx, double dy) => source with
+    {
+        Start = new ImagePoint(source.Start.X + dx, source.Start.Y + dy),
+        End = new ImagePoint(source.End.X + dx, source.End.Y + dy),
+    };
+
+    private static HashSet<Guid> ValidateIds(IEnumerable<Guid> ids)
+    {
+        var selected = new HashSet<Guid>();
+        foreach (Guid id in ids)
+        {
+            ArgumentOutOfRangeException.ThrowIfEqual(id, Guid.Empty);
+            selected.Add(id);
+        }
+
+        return selected;
+    }
+
     private static double CloneOffset(double near, double far, double visibleNear, double visibleFar)
     {
         double forward = Math.Max(0, visibleFar - far);
@@ -446,30 +659,38 @@ public sealed class DocumentEditor(ShnappDocument document)
     }
 
     private static ShnappDocument ExpandCanvasForContent(ShnappDocument document, Annotation annotation,
-        Guid? updatedId = null)
+        Guid? updatedId = null) => ExpandCanvasForContents(document, [annotation],
+            updatedId is Guid id ? new HashSet<Guid> { id } : null);
+
+    private static ShnappDocument ExpandCanvasForContents(ShnappDocument document,
+        IReadOnlyList<Annotation> contents, IReadOnlySet<Guid>? updatedIds)
     {
-        ImageRect content = annotation.Kind == AnnotationKind.Step && !annotation.StepExpandsCanvas &&
-            !annotation.IsFlattened
-            ? annotation.Bounds
-            : ContentBounds(annotation);
-        ImageRect canvas = UnionPixelBounds(document.CanvasBounds, content);
-        if (annotation.VisibilityClip is ImageRect clip)
-        {
-            canvas = UnionPixelBounds(canvas, clip);
-        }
+        ImageRect canvas = document.CanvasBounds;
         ImageRect? crop = document.Crop;
         ImageRect? baseImageCrop = document.BaseImageCrop;
         ImmutableArray<Annotation> annotations = document.Annotations;
-        if (crop is ImageRect visible && !Contains(visible, content))
+        foreach (Annotation annotation in contents)
         {
-            if (!document.HideOriginalImage)
+            ImageRect content = annotation.Kind == AnnotationKind.Step && !annotation.StepExpandsCanvas &&
+                !annotation.IsFlattened
+                ? annotation.Bounds
+                : ContentBounds(annotation);
+            canvas = UnionPixelBounds(canvas, content);
+            if (annotation.VisibilityClip is ImageRect clip)
             {
-                baseImageCrop ??= visible;
+                canvas = UnionPixelBounds(canvas, clip);
             }
-            // The older layers were visible only inside the current crop. Keep that
-            // mask when new content widens the viewport; the new or moved mark stays visible.
-            annotations = ClipExistingAnnotations(annotations, visible, updatedId);
-            crop = UnionPixelBounds(visible, content);
+            if (crop is ImageRect visible && !Contains(visible, content))
+            {
+                if (!document.HideOriginalImage)
+                {
+                    baseImageCrop ??= visible;
+                }
+                // Older layers retain their previous crop while every moved element
+                // keeps its own translated visibility mask.
+                annotations = ClipExistingAnnotations(annotations, visible, updatedIds);
+                crop = UnionPixelBounds(visible, content);
+            }
         }
 
         if (canvas == document.CanvasBounds && crop == document.Crop &&
@@ -662,13 +883,13 @@ public sealed class DocumentEditor(ShnappDocument document)
     }
 
     private static ImmutableArray<Annotation> ClipExistingAnnotations(
-        ImmutableArray<Annotation> annotations, ImageRect visible, Guid? updatedId)
+        ImmutableArray<Annotation> annotations, ImageRect visible, IReadOnlySet<Guid>? updatedIds)
     {
         ImmutableArray<Annotation>.Builder? builder = null;
         for (int index = 0; index < annotations.Length; index++)
         {
             Annotation existing = annotations[index];
-            if (existing.Id == updatedId || existing.HiddenByCrop)
+            if (updatedIds?.Contains(existing.Id) is true || existing.HiddenByCrop)
             {
                 continue;
             }

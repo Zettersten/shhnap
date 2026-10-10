@@ -95,7 +95,7 @@ public sealed partial class MainPage
                 _pendingContentAnchor = null;
             }
 
-            _selectedId = annotation.Id;
+            SelectOnlyAnnotation(annotation.Id);
             UpdateInspector();
             DrawingCanvas.Invalidate();
             DrawingCanvas.Focus(FocusState.Programmatic);

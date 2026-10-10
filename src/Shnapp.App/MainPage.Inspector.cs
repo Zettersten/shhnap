@@ -219,7 +219,9 @@ public sealed partial class MainPage
         }
 
         Annotation? selected = InspectorAnnotation();
-        EditorTool tool = selected is null ? _tool : ToolFor(selected);
+        bool groupSelected = HasMultipleSelectedAnnotations;
+        EditorTool tool = groupSelected ? EditorTool.Select
+            : selected is null ? _tool : ToolFor(selected);
         EditorTool displayedShape = DisplayShapeTool(selected, tool);
         ToolStyle style = StyleFor(selected, tool);
         bool text = tool == EditorTool.Text;
@@ -247,7 +249,8 @@ public sealed partial class MainPage
             EditorTool.Crop => "\uE7A8",
             _ => "\uE8B0",
         };
-        InspectorTitle.Text = editingText ? "Editing text" : redaction
+        InspectorTitle.Text = groupSelected ? $"{_selectedIds.Count} elements selected"
+            : editingText ? "Editing text" : redaction
             ? selected is null ? RedactionModeLabel(style.RedactionMode) : $"Selected {RedactionModeLabel(style.RedactionMode).ToLowerInvariant()}"
             : selected is null ? tool.ToString() : line ? "Selected line" : shape
                 ? $"Selected {displayedShape.ToString().ToLowerInvariant()}"
@@ -272,11 +275,12 @@ public sealed partial class MainPage
         if (select)
         {
             bool imageSelected = selected?.Kind == AnnotationKind.Image;
-            SelectGuideFirstLabel.Text = imageSelected ? "Move" : "Click";
-            SelectGuideFirstText.Text = imageSelected ? "Drag the image" : "Choose an element";
-            SelectGuideSecondLabel.Text = imageSelected ? "Resize" : "Drag";
-            SelectGuideSecondText.Text = imageSelected
-                ? "Drag a corner handle" : "Move it or resize with handles";
+            SelectGuideFirstLabel.Text = groupSelected || imageSelected ? "Move" : "Click";
+            SelectGuideFirstText.Text = groupSelected ? "Drag any selected element"
+                : imageSelected ? "Drag the image" : "Choose an element";
+            SelectGuideSecondLabel.Text = groupSelected ? "Actions" : imageSelected ? "Resize" : "Drag";
+            SelectGuideSecondText.Text = groupSelected ? "Right-click for group actions"
+                : imageSelected ? "Drag a corner handle" : "Move it or resize with handles";
         }
 
         RedactionModeRow.Visibility = Visible(redaction);

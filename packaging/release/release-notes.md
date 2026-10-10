@@ -7,6 +7,8 @@ Shnapp lives in the Windows tray until you need a screenshot. Capture a region, 
 - Capture with `Ctrl+Shift+2` (region), `Ctrl+Shift+4` (window), or `Ctrl+Shift+3` (display), or start from the tray.
 - Add text, numbered or lettered steps, lines and arrows, shapes, pasted images, and Cover, Blur, or Pixelate regions. Each placement tool has a cursor that identifies its mode.
 - Crop with a steady crosshair and live size readout. Press `Esc` to cancel crop mode. Right-click a placed element, including a pasted or gallery image, and choose **Flatten** to fix its rasterized appearance in place; Undo restores the editable element.
+- Select several editable elements with `Ctrl+click`, or select all visible elements with `Ctrl+A`. A group outline shows the selection. Drag or use the arrow keys to move the group; hold Shift while dragging to constrain movement to one axis, or with an arrow key to move ten pixels. Dragging past the canvas extends it. Press `Esc` to clear the selection.
+- Right-click a selected group to clone, delete, or flatten its elements together. `Ctrl+D` duplicates the group and `Delete` removes it. Undo restores the group after a bulk action.
 - Zoom, pan, and adjust editable marks later.
 - Copy the finished image, save a PNG, or use the Windows share sheet. Search, sort, and reopen captures in the local library.
 - Keep the app ready in the tray and optionally enable launch at sign-in.

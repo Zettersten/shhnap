@@ -129,7 +129,7 @@ public sealed partial class MainPage
             CommitText();
             SetTool(EditorTool.Select);
             editor.AddAnnotation(annotation);
-            _selectedId = annotation.Id;
+            SelectOnlyAnnotation(annotation.Id);
             UpdateInspector();
             DrawingCanvas.Invalidate();
             DrawingCanvas.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);

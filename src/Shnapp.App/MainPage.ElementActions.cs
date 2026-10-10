@@ -34,24 +34,42 @@ public sealed partial class MainPage
             return;
         }
 
-        SetTool(EditorTool.Select);
+        Guid hitBeforeToolSwitch = hit.Id;
+        Guid[] selectedBeforeToolSwitch = SelectedAnnotations()
+            .Select(annotation => annotation.Id).ToArray();
+        if (_tool != EditorTool.Select)
+        {
+            SetTool(EditorTool.Select);
+        }
         // Switching tools commits in-progress text and can remove an empty text mark.
         // Recheck the committed document before selecting the hit element.
         hit = _editor.Current.OrderedAnnotations.Reverse()
             .FirstOrDefault(annotation => HitAnnotation(annotation, position));
         if (hit is null)
         {
-            _selectedId = null;
+            ClearAnnotationSelection();
             UpdateInspector();
+            ViewModel.Status = FooterToolHint();
             DrawingCanvas.Invalidate();
             return;
         }
 
-        _selectedId = hit.Id;
+        if (hit.Id == hitBeforeToolSwitch && selectedBeforeToolSwitch.Length > 1 &&
+            selectedBeforeToolSwitch.Contains(hit.Id))
+        {
+            SetSelectedAnnotations(selectedBeforeToolSwitch);
+        }
+        else if (!IsAnnotationSelected(hit.Id))
+        {
+            SelectOnlyAnnotation(hit.Id);
+        }
         OpenInspectorForSelection();
         UpdateInspector();
+        ViewModel.Status = FooterToolHint();
         DrawingCanvas.Invalidate();
 
+        int selectedCount = SelectedAnnotations().Length;
+        bool multiple = selectedCount > 1;
         Annotation[] layers = _editor.Current.OrderedAnnotations
             .Where(annotation => !annotation.IsFlattened).ToArray();
         int index = Array.FindIndex(layers, annotation => annotation.Id == hit.Id);
@@ -60,27 +78,33 @@ public sealed partial class MainPage
             return;
         }
         var menu = new MenuFlyout();
-        MenuFlyoutItem clone = ElementMenuItem("Clone", "Ctrl+D", "CloneElement", "\uE8C8");
+        MenuFlyoutItem clone = ElementMenuItem(multiple ? $"Clone {selectedCount} elements" : "Clone",
+            "Ctrl+D", "CloneElement", "\uE8C8");
         clone.Click += async (_, _) => await CloneSelectedAnnotationAsync();
         menu.Items.Add(clone);
 
-        MenuFlyoutItem delete = ElementMenuItem("Delete", "Del", "DeleteElement", "\uE74D");
+        MenuFlyoutItem delete = ElementMenuItem(multiple ? $"Delete {selectedCount} elements" : "Delete",
+            "Del", "DeleteElement", "\uE74D");
         delete.Click += (_, _) => DeleteSelectedAnnotation();
         menu.Items.Add(delete);
-        MenuFlyoutItem flatten = ElementMenuItem("Flatten", "", "FlattenElement", "\uE8B9");
+        MenuFlyoutItem flatten = ElementMenuItem(multiple ? $"Flatten {selectedCount} elements" : "Flatten",
+            "", "FlattenElement", "\uE8B9");
         flatten.Click += async (_, _) => await FlattenSelectedAnnotationAsync();
         menu.Items.Add(flatten);
-        menu.Items.Add(new MenuFlyoutSeparator());
+        if (!multiple)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
 
-        MenuFlyoutItem front = ElementMenuItem("Move to front", "Ctrl+]", "MoveElementToFront", "\uE74A");
-        front.IsEnabled = index < layers.Length - 1;
-        front.Click += (_, _) => MoveSelectedAnnotationToFront();
-        menu.Items.Add(front);
+            MenuFlyoutItem front = ElementMenuItem("Move to front", "Ctrl+]", "MoveElementToFront", "\uE74A");
+            front.IsEnabled = index < layers.Length - 1;
+            front.Click += (_, _) => MoveSelectedAnnotationToFront();
+            menu.Items.Add(front);
 
-        MenuFlyoutItem back = ElementMenuItem("Move to back", "Ctrl+[", "MoveElementToBack", "\uE74B");
-        back.IsEnabled = index > 0;
-        back.Click += (_, _) => MoveSelectedAnnotationToBack();
-        menu.Items.Add(back);
+            MenuFlyoutItem back = ElementMenuItem("Move to back", "Ctrl+[", "MoveElementToBack", "\uE74B");
+            back.IsEnabled = index > 0;
+            back.Click += (_, _) => MoveSelectedAnnotationToBack();
+            menu.Items.Add(back);
+        }
 
         menu.ShowAt(DrawingCanvas, new FlyoutShowOptions { Position = args.GetPosition(DrawingCanvas) });
         args.Handled = true;
@@ -101,7 +125,7 @@ public sealed partial class MainPage
     // Called from Page_KeyDown after its text-input guard. OEM 4/6 are the bracket keys.
     private bool HandleElementActionKeyDown(KeyRoutedEventArgs args)
     {
-        if (_editor is null || _selectedId is null)
+        if (_editor is null || SelectedAnnotations().Length == 0)
         {
             return false;
         }
@@ -117,11 +141,13 @@ public sealed partial class MainPage
         {
             _ = CloneSelectedAnnotationAsync();
         }
-        else if (control && !alt && !shift && args.Key == (VirtualKey)0xDD)
+        else if (control && !alt && !shift && !HasMultipleSelectedAnnotations &&
+            args.Key == (VirtualKey)0xDD)
         {
             MoveSelectedAnnotationToFront();
         }
-        else if (control && !alt && !shift && args.Key == (VirtualKey)0xDB)
+        else if (control && !alt && !shift && !HasMultipleSelectedAnnotations &&
+            args.Key == (VirtualKey)0xDB)
         {
             MoveSelectedAnnotationToBack();
         }
@@ -138,45 +164,85 @@ public sealed partial class MainPage
         (InputKeyboardSource.GetKeyStateForCurrentThread(key) &
             global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
 
+    private bool SelectionMatches(DocumentEditor editor, ShnappDocument document,
+        IReadOnlyList<Annotation> sources) =>
+        ReferenceEquals(_editor, editor) && ReferenceEquals(editor.Current, document) &&
+        sources.Select(annotation => annotation.Id)
+            .SequenceEqual(SelectedAnnotations().Select(annotation => annotation.Id));
+
     private async Task CloneSelectedAnnotationAsync()
     {
-        if (_cloneInProgress || _editor is null || _selectedId is not Guid id)
+        if (_cloneInProgress || _editor is null || _controller is null)
         {
             return;
         }
 
         DocumentEditor editor = _editor;
-        Annotation? source = editor.Current.Annotations.FirstOrDefault(annotation => annotation.Id == id);
-        if (source is null)
-        {
-            return;
-        }
-
         _cloneInProgress = true;
-        Guid cloneId = Guid.NewGuid();
+        var cloneIds = new Dictionary<Guid, Guid>();
+        Annotation[] sources = [];
         try
         {
-            if (source.Kind == AnnotationKind.Image)
+            CommitText();
+            CancelInteraction();
+            if (!ReferenceEquals(_editor, editor))
             {
-                await _controller!.Renderer.PreloadImageAsync(source with { Id = cloneId });
-                if (!ReferenceEquals(_editor, editor) ||
-                    !editor.Current.Annotations.Any(annotation => annotation.Id == id))
+                return;
+            }
+
+            sources = SelectedAnnotations();
+            if (sources.Length == 0)
+            {
+                return;
+            }
+
+            ShnappDocument document = editor.Current;
+            foreach (Annotation source in sources)
+            {
+                Guid cloneId = Guid.NewGuid();
+                cloneIds.Add(source.Id, cloneId);
+                if (source.Kind != AnnotationKind.Image)
+                {
+                    continue;
+                }
+
+                await _controller.Renderer.PreloadImageAsync(source with { Id = cloneId });
+                if (!SelectionMatches(editor, document, sources))
                 {
                     return;
                 }
             }
 
-            CommitText();
-            CancelInteraction();
-            Annotation? clone = editor.CloneAnnotation(id, cloneId);
-            if (clone is null)
+            if (!SelectionMatches(editor, document, sources))
+            {
+                return;
+            }
+
+            IReadOnlyList<Annotation> clones;
+            if (sources.Length == 1)
+            {
+                Annotation? clone = editor.CloneAnnotation(sources[0].Id, cloneIds[sources[0].Id]);
+                if (clone is null)
+                {
+                    return;
+                }
+
+                clones = [clone];
+            }
+            else
+            {
+                clones = editor.CloneAnnotations(cloneIds);
+            }
+
+            if (clones.Count == 0)
             {
                 return;
             }
 
             SetTool(EditorTool.Select);
-            _selectedId = clone.Id;
+            SetSelectedAnnotations(clones.Select(annotation => annotation.Id));
             UpdateInspector();
+            ViewModel.Status = FooterToolHint();
             DrawingCanvas.Invalidate();
             DrawingCanvas.Focus(FocusState.Programmatic);
         }
@@ -184,16 +250,22 @@ public sealed partial class MainPage
         {
             if (ReferenceEquals(_editor, editor))
             {
-                ShowMessage("Couldn't clone element", exception is ArgumentException or InvalidDataException
-                    ? exception.Message : "Shnapp could not duplicate this element.", InfoBarSeverity.Warning);
+                bool multiple = sources.Length > 1;
+                ShowMessage(multiple ? "Couldn't clone elements" : "Couldn't clone element",
+                    exception is ArgumentException or InvalidDataException ? exception.Message
+                        : multiple ? "Shnapp could not duplicate the selected elements."
+                        : "Shnapp could not duplicate this element.", InfoBarSeverity.Warning);
             }
         }
         finally
         {
-            if (source.Kind == AnnotationKind.Image &&
-                !editor.Current.Annotations.Any(annotation => annotation.Id == cloneId))
+            foreach (Annotation source in sources.Where(annotation => annotation.Kind == AnnotationKind.Image))
             {
-                _controller?.Renderer.DiscardPastedImage(cloneId);
+                if (cloneIds.TryGetValue(source.Id, out Guid cloneId) &&
+                    !editor.Current.Annotations.Any(annotation => annotation.Id == cloneId))
+                {
+                    _controller?.Renderer.DiscardPastedImage(cloneId);
+                }
             }
 
             _cloneInProgress = false;
@@ -202,24 +274,38 @@ public sealed partial class MainPage
 
     private void DeleteSelectedAnnotation()
     {
-        if (_editor is null || _selectedId is not Guid id)
+        if (_editor is null)
         {
             return;
         }
 
         CommitText();
         CancelInteraction();
-        _selectedId = null;
-        _editor.RemoveAnnotation(id);
+        Annotation[] selected = SelectedAnnotations();
+        if (selected.Length == 0)
+        {
+            return;
+        }
+
+        if (selected.Length == 1)
+        {
+            _editor.RemoveAnnotation(selected[0].Id);
+        }
+        else
+        {
+            _editor.RemoveAnnotations(selected.Select(annotation => annotation.Id).ToArray());
+        }
+
+        ClearAnnotationSelection();
         UpdateInspector();
+        ViewModel.Status = FooterToolHint();
         DrawingCanvas.Invalidate();
         DrawingCanvas.Focus(FocusState.Programmatic);
     }
 
     private async Task FlattenSelectedAnnotationAsync()
     {
-        if (_flattenInProgress || _editor is null || _original is null || _controller is null ||
-            _selectedId is not Guid id)
+        if (_flattenInProgress || _editor is null || _original is null || _controller is null)
         {
             return;
         }
@@ -227,42 +313,80 @@ public sealed partial class MainPage
         DocumentEditor editor = _editor;
         CanvasBitmap original = _original;
         ShnappRenderer renderer = _controller.Renderer;
-        Annotation? source = editor.Current.Annotations.FirstOrDefault(annotation => annotation.Id == id);
-        if (source is null || source.IsFlattened)
-        {
-            return;
-        }
-
         _flattenInProgress = true;
-        string? payload = null;
+        var payloads = new Dictionary<Guid, (string PngBase64, ImageRect RasterizedBounds)>();
+        Annotation[] sources = [];
         try
         {
             CommitText();
             CancelInteraction();
-            (payload, ImageRect bounds) = await renderer.RasterizeElementAsync(original, editor.Current, source);
-            if (!ReferenceEquals(_editor, editor) ||
-                !editor.Current.Annotations.Any(annotation => annotation.Id == id && annotation == source))
+            if (!ReferenceEquals(_editor, editor))
             {
                 return;
             }
 
-            Annotation frozen = source with
-            {
-                IsFlattened = true,
-                RasterizedBounds = bounds,
-                ImagePngBase64 = payload,
-            };
-            await renderer.PreloadImageAsync(frozen);
-            if (!ReferenceEquals(_editor, editor) ||
-                !editor.Current.Annotations.Any(annotation => annotation.Id == id && annotation == source))
+            sources = SelectedAnnotations();
+            if (sources.Length == 0)
             {
                 return;
             }
 
-            if (editor.FlattenAnnotation(id, payload!, bounds))
+            ShnappDocument document = editor.Current;
+            // Later blur and pixelate elements must sample earlier selected elements
+            // after they are frozen, while the actual editor still commits once.
+            ShnappDocument rasterDocument = document;
+            int flattenOrder = document.Annotations.Where(annotation => annotation.IsFlattened)
+                .Select(annotation => annotation.FlattenOrder).DefaultIfEmpty().Max();
+            if (sources.Length > int.MaxValue - flattenOrder)
             {
-                _selectedId = null;
+                throw new ArgumentException("The flattened background has reached its layer limit.");
+            }
+
+            foreach (Annotation source in sources)
+            {
+                (string payload, ImageRect bounds) =
+                    await renderer.RasterizeElementAsync(original, rasterDocument, source);
+                payloads.Add(source.Id, (payload, bounds));
+                if (!SelectionMatches(editor, document, sources))
+                {
+                    return;
+                }
+
+                Annotation frozen = source with
+                {
+                    IsFlattened = true,
+                    RasterizedBounds = bounds,
+                    ImagePngBase64 = payload,
+                    FlattenOrder = ++flattenOrder,
+                };
+                await renderer.PreloadImageAsync(frozen);
+                if (!SelectionMatches(editor, document, sources))
+                {
+                    return;
+                }
+
+                int index = document.Annotations.IndexOf(source);
+                rasterDocument = rasterDocument with
+                {
+                    Annotations = rasterDocument.Annotations.SetItem(index, frozen),
+                };
+            }
+
+            if (!SelectionMatches(editor, document, sources))
+            {
+                return;
+            }
+
+            bool flattened = sources.Length == 1
+                ? editor.FlattenAnnotation(sources[0].Id,
+                    payloads[sources[0].Id].PngBase64,
+                    payloads[sources[0].Id].RasterizedBounds)
+                : editor.FlattenAnnotations(payloads) > 0;
+            if (flattened)
+            {
+                ClearAnnotationSelection();
                 UpdateInspector();
+                ViewModel.Status = FooterToolHint();
                 DrawingCanvas.Invalidate();
                 DrawingCanvas.Focus(FocusState.Programmatic);
             }
@@ -271,17 +395,22 @@ public sealed partial class MainPage
         {
             if (ReferenceEquals(_editor, editor))
             {
-                ShowMessage("Couldn't flatten element", exception is ArgumentException or InvalidDataException
-                    ? exception.Message : "Shnapp could not flatten this element.", InfoBarSeverity.Warning);
+                bool multiple = sources.Length > 1;
+                ShowMessage(multiple ? "Couldn't flatten elements" : "Couldn't flatten element",
+                    exception is ArgumentException or InvalidDataException ? exception.Message
+                        : multiple ? "Shnapp could not flatten the selected elements."
+                        : "Shnapp could not flatten this element.", InfoBarSeverity.Warning);
             }
         }
         finally
         {
-            if (payload is not null &&
-                !editor.Current.Annotations.Any(annotation => annotation.Id == id &&
-                    annotation.IsFlattened && ReferenceEquals(annotation.ImagePngBase64, payload)))
+            foreach (var (id, payload) in payloads)
             {
-                renderer.DiscardPastedImagePayload(id, payload);
+                if (!editor.Current.Annotations.Any(annotation => annotation.Id == id &&
+                    annotation.IsFlattened && ReferenceEquals(annotation.ImagePngBase64, payload.PngBase64)))
+                {
+                    renderer.DiscardPastedImagePayload(id, payload.PngBase64);
+                }
             }
 
             _flattenInProgress = false;
@@ -290,27 +419,29 @@ public sealed partial class MainPage
 
     private void MoveSelectedAnnotationToFront()
     {
-        if (_editor is null || _selectedId is not Guid id)
+        Annotation[] selected = SelectedAnnotations();
+        if (_editor is null || selected.Length != 1)
         {
             return;
         }
 
         CommitText();
         CancelInteraction();
-        _editor.MoveAnnotationToFront(id);
+        _editor.MoveAnnotationToFront(selected[0].Id);
         DrawingCanvas.Focus(FocusState.Programmatic);
     }
 
     private void MoveSelectedAnnotationToBack()
     {
-        if (_editor is null || _selectedId is not Guid id)
+        Annotation[] selected = SelectedAnnotations();
+        if (_editor is null || selected.Length != 1)
         {
             return;
         }
 
         CommitText();
         CancelInteraction();
-        _editor.MoveAnnotationToBack(id);
+        _editor.MoveAnnotationToBack(selected[0].Id);
         DrawingCanvas.Focus(FocusState.Programmatic);
     }
 }
