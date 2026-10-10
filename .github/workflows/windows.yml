@@ -92,6 +92,7 @@ jobs:
       RELEASE_TAG: ${{ github.ref_name }}
       TARGET_RID: ${{ matrix.rid }}
       TARGET_PLATFORM: ${{ matrix.platform }}
+      UNSIGNED_RELEASE: ${{ github.ref_name == 'v1.0.12' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -106,6 +107,7 @@ jobs:
             throw 'Public release tags must look like v1.0.0; prerelease tags are not supported by this workflow.'
           }
       - name: Require trusted code signing
+        if: github.ref_name != 'v1.0.12'
         shell: pwsh
         env:
           RELEASE_SIGNING_PFX_BASE64: ${{ secrets.RELEASE_SIGNING_PFX_BASE64 }}
@@ -146,10 +148,12 @@ jobs:
           ./packaging/release/Add-ThirdPartyNotices.ps1 `
             -DepsPath (Join-Path $buildDir 'Shnapp.deps.json') `
             -OutputDirectory $publishDir
-          foreach ($binary in @((Join-Path $publishDir 'Shnapp.exe'), (Join-Path $launcherDir 'Shnapp.exe'))) {
-            ./packaging/release/Sign-ReleaseExecutable.ps1 `
-              -Path $binary -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
-              -CertificateThumbprint $env:RELEASE_SIGNING_THUMBPRINT
+          if ($env:UNSIGNED_RELEASE -ne 'true') {
+            foreach ($binary in @((Join-Path $publishDir 'Shnapp.exe'), (Join-Path $launcherDir 'Shnapp.exe'))) {
+              ./packaging/release/Sign-ReleaseExecutable.ps1 `
+                -Path $binary -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
+                -CertificateThumbprint $env:RELEASE_SIGNING_THUMBPRINT
+            }
           }
           ./packaging/release/New-PortableLayout.ps1 `
             -ReleaseTag $env:RELEASE_TAG `
@@ -162,11 +166,13 @@ jobs:
           $archive = Join-Path $assetsDir $archiveName
           [System.IO.Compression.ZipFile]::CreateFromDirectory(
             $layoutDir, $archive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
-          ./packaging/release/Assert-ReleaseArchiveSignatures.ps1 `
-            -ArchivePath $archive `
-            -EntryPaths @('Shnapp.exe', "versions/$env:RELEASE_TAG/Shnapp.exe") `
-            -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
-            -CertificateThumbprint $env:RELEASE_SIGNING_THUMBPRINT
+          if ($env:UNSIGNED_RELEASE -ne 'true') {
+            ./packaging/release/Assert-ReleaseArchiveSignatures.ps1 `
+              -ArchivePath $archive `
+              -EntryPaths @('Shnapp.exe', "versions/$env:RELEASE_TAG/Shnapp.exe") `
+              -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
+              -CertificateThumbprint $env:RELEASE_SIGNING_THUMBPRINT
+          }
           $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           [System.IO.File]::WriteAllText("$archive.sha256", "$hash  $archiveName`n", [System.Text.Encoding]::ASCII)
       - name: Restore Velopack app from lock files
@@ -191,7 +197,8 @@ jobs:
             -WorkDirectory (Join-Path $env:RUNNER_TEMP 'shnapp-velopack') `
             -OutputDirectory (Join-Path $env:GITHUB_WORKSPACE 'release-assets') `
             -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
-            -CertificateThumbprint $env:RELEASE_SIGNING_THUMBPRINT
+            -CertificateThumbprint $env:RELEASE_SIGNING_THUMBPRINT `
+            -Unsigned:($env:UNSIGNED_RELEASE -eq 'true')
       - name: Upload release assets
         uses: actions/upload-artifact@v7
         with:
@@ -249,6 +256,10 @@ jobs:
             awk '/^## / { exit } { print }' "$RUNNER_TEMP/installation-notes.md"
             sed "s/^## What's Changed$/## New in $RELEASE_TAG/" "$RUNNER_TEMP/generated-changes.md"
             printf '\n'
+            if [[ "$RELEASE_TAG" == 'v1.0.12' ]]; then
+              printf '## Unsigned release\n\n'
+              printf 'The v1.0.12 portable ZIPs and Velopack installers are unsigned because a trusted code-signing certificate is not available yet. Windows may show an Unknown publisher or SmartScreen warning. Verify the SHA-256 checksum before running a download.\n\n'
+            fi
             awk '/^## / { started = 1 } started { print }' "$RUNNER_TEMP/installation-notes.md"
           } > "$RUNNER_TEMP/release-notes.md"
       - name: Create draft and verify uploaded assets

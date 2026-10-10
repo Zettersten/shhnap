@@ -65,7 +65,10 @@ function Get-StableVersion {
         }
         foreach ($architecture in @('x64', 'arm64')) {
             $installer = $Metadata.installers.$architecture
-            $fileName = "ErikZettersten.Shnapp.$architecture-win-$architecture-Setup.exe"
+            $fileName = if ([version]$Metadata.version -lt [version]'1.0.12') {
+                "ErikZettersten.Shnapp.$architecture-win-$architecture-Setup.exe"
+            }
+            else { "Shnapp-$($Metadata.tag)-$architecture.exe" }
             $expectedUrl = "https://github.com/$Repository/releases/download/$($Metadata.tag)/$fileName"
             if ($installer.url -cne $expectedUrl -or $installer.sha256 -cnotmatch '^[0-9a-f]{64}$') {
                 throw "Release metadata has an invalid $architecture installer."

@@ -43,8 +43,12 @@ export function parseReleaseFeed(value: unknown): ReleaseFeed | null {
     if (value.schemaVersion === 2) {
       if (!isObject(value.installers)) return null;
       const installer = value.installers[arch];
+      const installerBaseUrl = `https://github.com/Zettersten/shhnap/releases/download/${value.tag}/`;
+      const installerName = /^v1\.0\.(?:[0-9]|1[01])$/.test(value.tag)
+        ? `ErikZettersten.Shnapp.${arch}-win-${arch}-Setup.exe`
+        : `Shnapp-${value.tag}-${arch}.exe`;
       if (!isObject(installer) ||
-          installer.url !== `https://github.com/Zettersten/shhnap/releases/download/${value.tag}/ErikZettersten.Shnapp.${arch}-win-${arch}-Setup.exe` ||
+          installer.url !== `${installerBaseUrl}${installerName}` ||
           typeof installer.sha256 !== 'string' || !/^[a-f\d]{64}$/i.test(installer.sha256)) {
         return null;
       }

@@ -20,8 +20,8 @@ try {
             "Shnapp-$rid.zip.sha256"
             "assets.$rid.json"
             "$packId-1.2.3-$rid-full.nupkg"
-            "$packId-$rid-Setup.exe"
-            "$packId-$rid-Setup.exe.sha256"
+            "Shnapp-$tag-$architecture.exe"
+            "Shnapp-$tag-$architecture.exe.sha256"
             "RELEASES-$rid"
             "releases.$rid.json"
         }
@@ -32,7 +32,7 @@ try {
     foreach ($architecture in @('x64', 'arm64')) {
         $rid = "win-$architecture"
         $packId = "ErikZettersten.Shnapp.$architecture"
-        foreach ($name in @("Shnapp-$rid.zip", "$packId-$rid-Setup.exe")) {
+        foreach ($name in @("Shnapp-$rid.zip", "Shnapp-$tag-$architecture.exe")) {
             $hash = (Get-FileHash -LiteralPath (Join-Path $assets $name) -Algorithm SHA256).Hash.ToLowerInvariant()
             [System.IO.File]::WriteAllText((Join-Path $assets "$name.sha256"), "$hash  $name`n")
         }

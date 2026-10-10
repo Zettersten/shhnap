@@ -4,16 +4,24 @@ set -euo pipefail
 assets_dir="${1:?Pass the directory containing release assets.}"
 expected_tag="${2:?Pass the stable release tag.}"
 test -d "$assets_dir"
+[[ "$expected_tag" =~ ^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
 
 version="${expected_tag#v}"
+legacy_setup=false
+if [[ "$version" != '1.0.12' &&
+      "$(printf '%s\n' "$version" '1.0.12' | sort -V | head -n 1)" == "$version" ]]; then
+  legacy_setup=true
+fi
 expected="$({
   for arch in x64 arm64; do
     rid="win-$arch"
     pack_id="ErikZettersten.Shnapp.$arch"
+    setup="Shnapp-$expected_tag-$arch.exe"
+    if $legacy_setup; then setup="$pack_id-$rid-Setup.exe"; fi
     printf '%s\n' \
       "Shnapp-$rid.zip" "Shnapp-$rid.zip.sha256" \
       "assets.$rid.json" "$pack_id-$version-$rid-full.nupkg" \
-      "$pack_id-$rid-Setup.exe" "$pack_id-$rid-Setup.exe.sha256" \
+      "$setup" "$setup.sha256" \
       "RELEASES-$rid" "releases.$rid.json"
   done
 } | LC_ALL=C sort)"
@@ -86,7 +94,8 @@ fi
       fi
     done <<<"$listing"
 
-    setup="$pack_id-$rid-Setup.exe"
+    setup="Shnapp-$expected_tag-$arch.exe"
+    if $legacy_setup; then setup="$pack_id-$rid-Setup.exe"; fi
     package="$pack_id-$version-$rid-full.nupkg"
     test -s "$setup"
     test -s "$package"

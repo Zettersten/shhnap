@@ -17,9 +17,9 @@ Velopack-installed copies can check for a new stable release and apply it from S
 
 ## Install
 
-1. Download the Velopack installer for your Windows 11 processor: [x64](https://github.com/Zettersten/shhnap/releases/download/__RELEASE_TAG__/ErikZettersten.Shnapp.x64-win-x64-Setup.exe) or [ARM64](https://github.com/Zettersten/shhnap/releases/download/__RELEASE_TAG__/ErikZettersten.Shnapp.arm64-win-arm64-Setup.exe).
+1. Download the Velopack installer for your Windows 11 processor: [x64](https://github.com/Zettersten/shhnap/releases/download/__RELEASE_TAG__/Shnapp-__RELEASE_TAG__-x64.exe) or [ARM64](https://github.com/Zettersten/shhnap/releases/download/__RELEASE_TAG__/Shnapp-__RELEASE_TAG__-arm64.exe).
 2. Run the installer, then launch Shnapp from the Start menu. The installer bundles the .NET and Windows App SDK runtime dependencies. Settings → About & Updates can check for later installer updates.
-3. To verify the installer, compare its PowerShell `Get-FileHash -Algorithm SHA256` value with the adjacent [x64 checksum](https://github.com/Zettersten/shhnap/releases/download/__RELEASE_TAG__/ErikZettersten.Shnapp.x64-win-x64-Setup.exe.sha256) or [ARM64 checksum](https://github.com/Zettersten/shhnap/releases/download/__RELEASE_TAG__/ErikZettersten.Shnapp.arm64-win-arm64-Setup.exe.sha256).
+3. To verify the installer, compare its PowerShell `Get-FileHash -Algorithm SHA256` value with the adjacent [x64 checksum](https://github.com/Zettersten/shhnap/releases/download/__RELEASE_TAG__/Shnapp-__RELEASE_TAG__-x64.exe.sha256) or [ARM64 checksum](https://github.com/Zettersten/shhnap/releases/download/__RELEASE_TAG__/Shnapp-__RELEASE_TAG__-arm64.exe.sha256).
 
 Portable ZIPs remain available for existing direct installs and package managers: [x64](https://github.com/Zettersten/shhnap/releases/download/__RELEASE_TAG__/Shnapp-win-x64.zip) or [ARM64](https://github.com/Zettersten/shhnap/releases/download/__RELEASE_TAG__/Shnapp-win-arm64.zip). Extract the entire ZIP and run its root `Shnapp.exe`; keep `versions` and `current-version.txt` beside it. Both distributions include Shnapp's `LICENSE` and bundled components' notices.
 
