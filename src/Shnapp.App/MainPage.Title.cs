@@ -21,6 +21,7 @@ public sealed partial class MainPage
         DocumentTitleEditor.Text = _editor.Current.Title;
         DocumentTitleButton.Visibility = Visibility.Collapsed;
         DocumentTitleEditor.Visibility = Visibility.Visible;
+        TitleRenameStateChanged?.Invoke(this, EventArgs.Empty);
         DocumentTitleEditor.Focus(FocusState.Programmatic);
         DocumentTitleEditor.SelectAll();
     }
@@ -103,6 +104,7 @@ public sealed partial class MainPage
         {
             DocumentTitleEditor.Visibility = Visibility.Collapsed;
             DocumentTitleButton.Visibility = Visibility.Visible;
+            TitleRenameStateChanged?.Invoke(this, EventArgs.Empty);
         }
         finally
         {

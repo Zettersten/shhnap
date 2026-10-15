@@ -145,8 +145,8 @@ function Image-Point {
     # Match MainPage.CanvasViewingArea: chrome overlays the full-size canvas,
     # while fit-to-window keeps the image clear of the controls.
     $sideInset = 24 * $dpi
-    $topInset = 156 * $dpi
-    $bottomInset = 56 * $dpi
+    $topInset = 108 * $dpi
+    $bottomInset = 50 * $dpi
     $viewWidth = $element.width - 2 * $sideInset
     $viewHeight = $element.height - $topInset - $bottomInset
     $scale = [Math]::Min($dpi, [Math]::Min(

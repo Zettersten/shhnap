@@ -1048,7 +1048,7 @@ public sealed partial class MainPage : Page
     private void EditorHost_SizeChanged(object sender, SizeChangedEventArgs args)
     {
         bool narrow = args.NewSize.Width < 860;
-        InspectorPanel.Margin = new Thickness(12, narrow ? 168 : 108, 12, 64);
+        InspectorPanel.Margin = new Thickness(12, narrow ? 120 : 60, 12, 56);
         if (_narrowInspector == narrow)
         {
             return;
@@ -2005,7 +2005,7 @@ public sealed partial class MainPage : Page
         UpdateAvailableButton.Label = restartRequired ? "Update ready to restart"
             : available ? "Update available"
             : checkFailed ? "Updates unavailable" : "Update Shnapp";
-        UpdateAttentionDot.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        ((MainWindow)App.Window).SetUpdateAttention(available);
         UpdateOverflowAccessibility();
 
         if (!available && MessageBar.IsOpen &&

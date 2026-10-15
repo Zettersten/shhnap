@@ -16,6 +16,7 @@ public sealed partial class MainWindow : Window
     internal SettingsPage? Settings { get; private set; }
     private UIElement? _focusBeforeSettings;
     private int _settingsTransitionVersion;
+    private bool _updateAvailable;
 
     internal void ShowSettings(SettingsPage page)
     {
@@ -111,6 +112,13 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    internal void SetUpdateAttention(bool available)
+    {
+        _updateAvailable = available;
+        UpdateAttentionDot.Visibility = available && Settings is null
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void PageStateChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName is nameof(Page.ViewModel.HasDocument) or nameof(Page.ViewModel.Title)
@@ -123,7 +131,10 @@ public sealed partial class MainWindow : Window
     private void UpdateTitleBarState()
     {
         bool editing = Page.ViewModel.HasDocument && Settings is null;
-        EditorTitleActions.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
+        ChromeNavigationHost.Visibility = Settings is null ? Visibility.Visible : Visibility.Collapsed;
+        ChromeCommandsHost.Visibility = Settings is null ? Visibility.Visible : Visibility.Collapsed;
+        UpdateAttentionDot.Visibility = _updateAvailable && Settings is null
+            ? Visibility.Visible : Visibility.Collapsed;
         TitleUndoButton.IsEnabled = editing && Page.ViewModel.CanUndo;
         TitleRedoButton.IsEnabled = editing && Page.ViewModel.CanRedo;
         WindowDocumentTitle.Text = Settings is not null ? "Settings" :
@@ -133,9 +144,27 @@ public sealed partial class MainWindow : Window
         AppTitleBar.RecomputeDragRegions();
     }
 
-    private void UpdateTitleTextVisibility() =>
-        WindowDocumentTitle.Visibility = Page.ViewModel.HasDocument && Settings is null &&
-            AppTitleBar.ActualWidth < 900 ? Visibility.Collapsed : Visibility.Visible;
+    private void UpdateTitleTextVisibility()
+    {
+        bool editing = Page.ViewModel.HasDocument && Settings is null;
+        EditorTitleActions.Visibility = editing && AppTitleBar.ActualWidth >= 780
+            ? Visibility.Visible : Visibility.Collapsed;
+        // Reserve the same gap on either side of the centered title. Long
+        // document names trim before they can cover the last command.
+        double titleRoom = (AppTitleBar.ActualWidth / 2 - TitleLeftControls.ActualWidth - 12) * 2 - 16;
+        WindowDocumentTitle.MaxWidth = Math.Min(220, Math.Max(0, titleRoom));
+        bool showTitle = Settings is not null ||
+            (AppTitleBar.ActualWidth >= 1000 && titleRoom >= 80);
+        WindowDocumentTitleButton.Visibility = showTitle && !Page.IsTitleRenameActive
+            ? Visibility.Visible : Visibility.Collapsed;
+        WindowDocumentTitleButton.IsHitTestVisible = editing && showTitle;
+        TitleEditorHost.Margin = new Thickness(0, showTitle ? 8 : 56, 0, 0);
+        TitleEditorHost.Visibility = Page.IsTitleRenameActive ? Visibility.Visible : Visibility.Collapsed;
+        Page.SetAnnotationToolbarObscured(editing && Page.IsTitleRenameActive && !showTitle);
+        AppTitleBar.RecomputeDragRegions();
+    }
+
+    private void WindowDocumentTitle_Click(object sender, RoutedEventArgs args) => Page.StartTitleRenameFromChrome();
 
     private void TitleEdit_Click(object sender, RoutedEventArgs args) => Page.FocusEditorFromChrome();
     private void TitleUndo_Click(object sender, RoutedEventArgs args) => Page.UndoFromChrome();
@@ -162,9 +191,12 @@ public sealed partial class MainWindow : Window
             }
         };
         Page = new MainPage();
+        Page.AttachTitleChrome(ChromeCommandsHost, ChromeNavigationHost, TitleEditorHost);
         RootFrame.Content = Page;
         Page.ViewModel.PropertyChanged += PageStateChanged;
+        Page.TitleRenameStateChanged += (_, _) => UpdateTitleTextVisibility();
         AppTitleBar.SizeChanged += (_, _) => UpdateTitleTextVisibility();
+        TitleLeftControls.SizeChanged += (_, _) => UpdateTitleTextVisibility();
         UpdateTitleBarState();
         RectInt32 work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
         double scale = Math.Max(1, Windows.NativeMethods.GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0);

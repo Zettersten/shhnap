@@ -21,41 +21,60 @@
 
         <TitleBar x:Name="AppTitleBar" Height="48"
             VerticalAlignment="Top" Background="{ThemeResource ShnappImageChromeBrush}">
-            <TitleBar.IconSource>
-                <ImageIconSource ImageSource="Assets/AppIcon.ico" />
-            </TitleBar.IconSource>
             <TitleBar.LeftHeader>
-                <CommandBar x:Name="EditorTitleActions" Height="40" Background="Transparent"
-                    DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" Visibility="Collapsed">
-                    <AppBarButton Label="Edit" Click="TitleEdit_Click"
-                        ToolTipService.ToolTip="Edit annotations" AutomationProperties.Name="Edit annotations">
-                        <AppBarButton.Icon><FontIcon Glyph="&#xE70F;" FontSize="16" /></AppBarButton.Icon>
-                    </AppBarButton>
-                    <AppBarButton x:Name="TitleUndoButton" Label="Undo" Click="TitleUndo_Click"
-                        ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.Name="Undo">
-                        <AppBarButton.Icon><FontIcon Glyph="&#xE7A7;" FontSize="16" /></AppBarButton.Icon>
-                    </AppBarButton>
-                    <AppBarButton x:Name="TitleRedoButton" Label="Redo" Click="TitleRedo_Click"
-                        ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.Name="Redo">
-                        <AppBarButton.Icon><FontIcon Glyph="&#xE7A6;" FontSize="16" /></AppBarButton.Icon>
-                    </AppBarButton>
-                    <AppBarButton Label="Copy" Click="TitleCopy_Click"
-                        ToolTipService.ToolTip="Copy image · Ctrl+C" AutomationProperties.Name="Copy image">
-                        <AppBarButton.Icon><FontIcon Glyph="&#xE8C8;" FontSize="16" /></AppBarButton.Icon>
-                    </AppBarButton>
-                    <AppBarButton Label="Save" Click="TitleSave_Click"
-                        ToolTipService.ToolTip="Save PNG · Ctrl+S" AutomationProperties.Name="Save PNG">
-                        <AppBarButton.Icon><FontIcon Glyph="&#xE74E;" FontSize="16" /></AppBarButton.Icon>
-                    </AppBarButton>
-                </CommandBar>
+                <StackPanel x:Name="TitleLeftControls" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Image Source="Assets/AppIcon.ico" Width="20" Height="20" Margin="4,0,8,0"
+                        AutomationProperties.Name="Shnapp" />
+                    <StackPanel x:Name="ChromeNavigationHost" Orientation="Horizontal" Spacing="2"
+                        VerticalAlignment="Center" />
+                    <StackPanel x:Name="EditorTitleActions" Orientation="Horizontal" Spacing="2"
+                        VerticalAlignment="Center" Visibility="Collapsed">
+                        <Button Width="58" Height="32" Padding="0" Click="TitleEdit_Click" CornerRadius="7"
+                            ToolTipService.ToolTip="Edit annotations" AutomationProperties.Name="Edit annotations">
+                            <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE70F;" FontSize="16" />
+                                <TextBlock Text="Edit" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <AppBarButton x:Name="TitleUndoButton" Width="32" Height="32" MinWidth="0" Label="Undo" LabelPosition="Collapsed" Click="TitleUndo_Click"
+                            ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.Name="Undo">
+                            <AppBarButton.Icon><FontIcon Glyph="&#xE7A7;" FontSize="16" /></AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarButton x:Name="TitleRedoButton" Width="32" Height="32" MinWidth="0" Label="Redo" LabelPosition="Collapsed" Click="TitleRedo_Click"
+                            ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.Name="Redo">
+                            <AppBarButton.Icon><FontIcon Glyph="&#xE7A6;" FontSize="16" /></AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarButton Width="32" Height="32" MinWidth="0" Label="Copy" LabelPosition="Collapsed" Click="TitleCopy_Click"
+                            ToolTipService.ToolTip="Copy image · Ctrl+C" AutomationProperties.Name="Copy image">
+                            <AppBarButton.Icon><FontIcon Glyph="&#xE8C8;" FontSize="16" /></AppBarButton.Icon>
+                        </AppBarButton>
+                        <AppBarButton Width="32" Height="32" MinWidth="0" Label="Save" LabelPosition="Collapsed" Click="TitleSave_Click"
+                            ToolTipService.ToolTip="Save PNG · Ctrl+S" AutomationProperties.Name="Save PNG">
+                            <AppBarButton.Icon><FontIcon Glyph="&#xE74E;" FontSize="16" /></AppBarButton.Icon>
+                        </AppBarButton>
+                    </StackPanel>
+                    <Grid VerticalAlignment="Center">
+                        <ContentControl x:Name="ChromeCommandsHost" VerticalAlignment="Center" />
+                        <Ellipse x:Name="UpdateAttentionDot" Width="8" Height="8"
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,1,9,0"
+                            Fill="#D6294D" Stroke="{ThemeResource ShnappChromeBrush}"
+                            StrokeThickness="1" Visibility="Collapsed" IsHitTestVisible="False"
+                            AutomationProperties.AccessibilityView="Raw" />
+                    </Grid>
+                </StackPanel>
             </TitleBar.LeftHeader>
         </TitleBar>
-        <Grid Height="48" VerticalAlignment="Top" IsHitTestVisible="False">
-            <TextBlock x:Name="WindowDocumentTitle" Text="Shnapp" FontSize="13"
-                FontWeight="SemiBold" MaxWidth="260" TextTrimming="CharacterEllipsis"
-                HorizontalAlignment="Center" VerticalAlignment="Center"
-                Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                AutomationProperties.Name="Window title" />
+        <Grid Height="48" VerticalAlignment="Top">
+            <Button x:Name="WindowDocumentTitleButton" IsHitTestVisible="False" Click="WindowDocumentTitle_Click"
+                Background="Transparent" BorderThickness="0" Padding="8,0" Height="32"
+                HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="7"
+                ToolTipService.ToolTip="Rename shnapp" AutomationProperties.Name="Rename shnapp">
+                <TextBlock x:Name="WindowDocumentTitle" Text="Shnapp" FontSize="13"
+                    FontWeight="SemiBold" MaxWidth="220" TextTrimming="CharacterEllipsis"
+                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+            </Button>
         </Grid>
+        <Grid x:Name="TitleEditorHost" HorizontalAlignment="Center" VerticalAlignment="Top"
+            Margin="0,8,0,0" />
     </Grid>
 </Window>
