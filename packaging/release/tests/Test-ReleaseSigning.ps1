@@ -88,6 +88,10 @@ $entryDirectory = Join-Path $input 'lib/app'
 $executable = Join-Path $entryDirectory 'Shnapp.exe'
 $archive = Join-Path $scratch 'signed.zip'
 $unsignedArchive = Join-Path $scratch 'unsigned.zip'
+$trustedVendorArchive = Join-Path $scratch 'trusted-vendor.zip'
+$wrongOwnedArchive = Join-Path $scratch 'wrong-owned.zip'
+$unsignedVendorArchive = Join-Path $scratch 'unsigned-vendor.zip'
+$unsignedOwnedArchive = Join-Path $scratch 'unsigned-owned.zip'
 $verifier = Join-Path $PSScriptRoot '../Assert-ReleaseArchiveSignatures.ps1'
 try {
     Copy-Item -LiteralPath $signTool.FullName -Destination $executable
@@ -103,9 +107,37 @@ try {
         & $verifier -ArchivePath $unsignedArchive -EntryPaths @('lib/app/Shnapp.exe') `
             -SignToolPath $signTool.FullName -ExpectedPublisher $publisher -ExpectedProfileEku $profileEku
     } 'An unsigned archive executable was accepted.'
+
+    Copy-Item -LiteralPath $signTool.FullName -Destination (Join-Path $entryDirectory 'TrustedVendor.dll')
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($input, $trustedVendorArchive)
+    & $verifier -ArchivePath $trustedVendorArchive -EntryPaths @('lib/app/TrustedVendor.dll') `
+        -SignToolPath $signTool.FullName -ExpectedPublisher $publisher -ExpectedProfileEku $profileEku
+
+    Copy-Item -LiteralPath $signTool.FullName -Destination (Join-Path $entryDirectory 'Shnapp.Other.dll')
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($input, $wrongOwnedArchive)
+    Assert-Rejected {
+        & $verifier -ArchivePath $wrongOwnedArchive -EntryPaths @('lib/app/Shnapp.Other.dll') `
+            -SignToolPath $signTool.FullName -ExpectedPublisher $publisher -ExpectedProfileEku $profileEku
+    } 'A Shnapp DLL signed by another publisher was accepted.'
+
+    Add-Type -TypeDefinition 'namespace ShnappSigningTest { public class UnsignedVendor { } }' `
+        -OutputAssembly (Join-Path $entryDirectory 'UnsignedVendor.dll') -OutputType Library
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($input, $unsignedVendorArchive)
+    Assert-Rejected {
+        & $verifier -ArchivePath $unsignedVendorArchive -EntryPaths @('lib/app/UnsignedVendor.dll') `
+            -SignToolPath $signTool.FullName -ExpectedPublisher $publisher -ExpectedProfileEku $profileEku
+    } 'An unsigned vendor DLL was accepted.'
+
+    Add-Type -TypeDefinition 'namespace ShnappSigningTest { public class OwnedLibrary { } }' `
+        -OutputAssembly (Join-Path $entryDirectory 'Shnapp.Core.dll') -OutputType Library
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($input, $unsignedOwnedArchive)
+    Assert-Rejected {
+        & $verifier -ArchivePath $unsignedOwnedArchive -EntryPaths @('lib/app/Shnapp.Core.dll') `
+            -SignToolPath $signTool.FullName -ExpectedPublisher $publisher -ExpectedProfileEku $profileEku
+    } 'An unsigned Shnapp DLL was accepted.'
     # Native command failures are expected in the negative tests.
     $global:LASTEXITCODE = 0
-    Write-Host 'Release signing checks accepted the expected profile and rejected other and unsigned signers.'
+    Write-Host 'Release signing checks accepted the expected profile and trusted vendor DLL, and rejected other and unsigned signers.'
 }
 finally {
     $temporaryRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())

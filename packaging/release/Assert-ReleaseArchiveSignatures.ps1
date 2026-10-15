@@ -23,18 +23,32 @@ try {
     $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $ArchivePath).Path)
     for ($index = 0; $index -lt $EntryPaths.Count; $index++) {
         $entryPath = $EntryPaths[$index]
-        if ($entryPath -cnotmatch '^(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.exe$') {
-            throw "Invalid executable path in release archive: $entryPath"
+        if ($entryPath -cnotmatch '^(?:[A-Za-z0-9_. -]+/)*[A-Za-z0-9_. -]+\.(?:exe|dll)$' -or
+            @($entryPath.Split('/') | Where-Object { $_ -cin @('.', '..') }).Count -ne 0) {
+            throw "Invalid executable or DLL path in release archive: $entryPath"
         }
         $entry = $archive.GetEntry($entryPath)
         if ($null -eq $entry -or $entry.Length -eq 0) {
-            throw "Release archive is missing executable $entryPath."
+            throw "Release archive is missing executable or DLL $entryPath."
         }
-        $extracted = Join-Path $scratch "$index.exe"
+        $extension = [System.IO.Path]::GetExtension($entryPath)
+        $extracted = Join-Path $scratch "$index$extension"
         [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $extracted)
-        & (Join-Path $PSScriptRoot 'Sign-ReleaseExecutable.ps1') `
-            -Path $extracted -SignToolPath $SignToolPath `
-            -ExpectedPublisher $ExpectedPublisher -ExpectedProfileEku $ExpectedProfileEku -VerifyOnly
+        $ownedDll = $extension -ceq '.dll' -and
+            [System.IO.Path]::GetFileName($entryPath) -imatch '^Shnapp.*\.dll$'
+        if ($extension -ceq '.exe' -or $ownedDll) {
+            & (Join-Path $PSScriptRoot 'Sign-ReleaseExecutable.ps1') `
+                -Path $extracted -SignToolPath $SignToolPath `
+                -ExpectedPublisher $ExpectedPublisher -ExpectedProfileEku $ExpectedProfileEku -VerifyOnly
+        }
+        else {
+            $signature = Get-AuthenticodeSignature -LiteralPath $extracted
+            if ($signature.Status -ne 'Valid' -or
+                $null -eq $signature.SignerCertificate -or
+                $null -eq $signature.TimeStamperCertificate) {
+                throw "Release DLL is not trusted and time-stamped: $entryPath"
+            }
+        }
     }
 }
 finally {

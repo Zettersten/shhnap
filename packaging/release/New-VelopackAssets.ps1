@@ -129,19 +129,19 @@ try {
     $packagePath = Join-Path $output "$packId-$version-$RuntimeIdentifier-full.nupkg"
     $packageArchive = [System.IO.Compression.ZipFile]::OpenRead($packagePath)
     try {
-        $packageExecutables = @($packageArchive.Entries |
-            Where-Object { $_.FullName -match '\.exe$' } |
+        $packageBinaries = @($packageArchive.Entries |
+            Where-Object { $_.FullName -match '\.(?:exe|dll)$' } |
             ForEach-Object FullName)
     }
     finally {
         $packageArchive.Dispose()
     }
-    if ('lib/app/Shnapp.exe' -cnotin $packageExecutables) {
+    if ('lib/app/Shnapp.exe' -cnotin $packageBinaries) {
         throw 'The Velopack full package is missing Shnapp.exe.'
     }
     if (-not $Unsigned) {
         & (Join-Path $PSScriptRoot 'Assert-ReleaseArchiveSignatures.ps1') `
-            -ArchivePath $packagePath -EntryPaths $packageExecutables `
+            -ArchivePath $packagePath -EntryPaths $packageBinaries `
             -SignToolPath $SignToolPath -ExpectedPublisher $ExpectedPublisher `
             -ExpectedProfileEku $ExpectedProfileEku
     }

@@ -18,8 +18,8 @@ if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
     throw "Executable is missing: $Path"
 }
 $file = (Resolve-Path -LiteralPath $Path).Path
-if ([System.IO.Path]::GetExtension($file) -cne '.exe') {
-    throw "Release signing requires an EXE file: $file"
+if ([System.IO.Path]::GetExtension($file) -cnotin @('.exe', '.dll')) {
+    throw "Release signing requires an EXE or DLL file: $file"
 }
 
 if (-not $VerifyOnly) {
