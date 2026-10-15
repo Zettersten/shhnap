@@ -65,7 +65,7 @@ Back and Forward retrace the places you visited. You can also use `Alt+Left`, `A
 
 While editing, move to the canvas's left edge to reveal a small image-only gallery over your work, or open it with `Ctrl+Shift+G` or **Recent shnapps** in the menu. Hover to magnify nearby previews, use the arrows or scroll to browse, click a preview to open it, or drag one onto your canvas to add a copy as a movable image layer. Small cropped previews keep browsing quick.
 
-![The Shnapp library showing four locally saved fictional captures with preview thumbnails, dates, dimensions, and file sizes](src/Shnapp.Site/public/screenshots/library.png)
+![The Shnapp library showing three locally saved fictional captures with preview thumbnails, dates, dimensions, and file sizes](src/Shnapp.Site/public/screenshots/library.png)
 
 *Your shnapps stay on this PC, with previews that make the right capture easy to find.*
 
