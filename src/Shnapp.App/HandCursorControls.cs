@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
+using Windows.UI.ViewManagement;
 
 namespace Shnapp.App;
 
@@ -56,11 +57,16 @@ public sealed class HandCursorAppBarButton : AppBarButton
 
 internal static class ToolbarIconAppearance
 {
+    private static readonly AccessibilitySettings Accessibility = new();
+
     internal static void Apply(ContentControl button, bool active)
     {
         if (button.Content is IconElement icon)
         {
-            Brush brush = (Brush)Application.Current.Resources["ShnappToolbarActiveIconBrush"];
+            string themeKey = Accessibility.HighContrast ? "HighContrast" :
+                button.ActualTheme == ElementTheme.Light ? "Light" : "Default";
+            var theme = (ResourceDictionary)Application.Current.Resources.ThemeDictionaries[themeKey];
+            Brush brush = (Brush)theme["ShnappToolbarActiveIconBrush"];
             if (!ReferenceEquals(icon.Foreground, brush))
             {
                 icon.Foreground = brush;
