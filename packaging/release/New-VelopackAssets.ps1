@@ -5,7 +5,9 @@ param(
     [Parameter(Mandatory = $true)][string] $WorkDirectory,
     [Parameter(Mandatory = $true)][string] $OutputDirectory,
     [string] $SignToolPath,
-    [string] $CertificateThumbprint,
+    [string] $SigningMetadataPath,
+    [string] $ExpectedPublisher,
+    [string] $ExpectedProfileEku,
     [switch] $Unsigned
 )
 
@@ -22,8 +24,10 @@ if ($Unsigned -and $ReleaseTag -cnotin @('v1.0.12', 'v1.0.13')) {
     throw 'Unsigned Velopack packaging is allowed only for v1.0.12 and v1.0.13.'
 }
 if (-not $Unsigned -and (-not (Test-Path -LiteralPath $SignToolPath -PathType Leaf) -or
-    $CertificateThumbprint -cnotmatch '^[0-9A-Fa-f]{40}$')) {
-    throw 'A SignTool executable and code-signing certificate are required for Velopack packaging.'
+    -not (Test-Path -LiteralPath $SigningMetadataPath -PathType Leaf) -or
+    [string]::IsNullOrWhiteSpace($ExpectedPublisher) -or
+    $ExpectedProfileEku -cnotmatch '^1\.3\.6\.1\.4\.1\.311\.97\.(?!1\.0$)[0-9]+(?:\.[0-9]+)+$')) {
+    throw 'Artifact Signing metadata, SignTool, expected publisher, and profile EKU are required for Velopack packaging.'
 }
 
 $repository = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
@@ -77,8 +81,7 @@ try {
 
     $signingArguments = @()
     if (-not $Unsigned) {
-        $signParams = "/sha1 $CertificateThumbprint /fd SHA256 /tr http://timestamp.digicert.com /td SHA256"
-        $signingArguments = @('--signParams', $signParams)
+        $signingArguments = @('--azureTrustedSignFile', (Resolve-Path -LiteralPath $SigningMetadataPath).Path)
     }
     & $VpkPath pack --packId $packId --packVersion $version `
         --packDir $publishDirectory --mainExe Shnapp.exe `
@@ -121,7 +124,7 @@ try {
     if (-not $Unsigned) {
         & (Join-Path $PSScriptRoot 'Sign-ReleaseExecutable.ps1') `
             -Path $setupPath -SignToolPath $SignToolPath `
-            -CertificateThumbprint $CertificateThumbprint -VerifyOnly
+            -ExpectedPublisher $ExpectedPublisher -ExpectedProfileEku $ExpectedProfileEku -VerifyOnly
     }
     $packagePath = Join-Path $output "$packId-$version-$RuntimeIdentifier-full.nupkg"
     $packageArchive = [System.IO.Compression.ZipFile]::OpenRead($packagePath)
@@ -139,7 +142,8 @@ try {
     if (-not $Unsigned) {
         & (Join-Path $PSScriptRoot 'Assert-ReleaseArchiveSignatures.ps1') `
             -ArchivePath $packagePath -EntryPaths $packageExecutables `
-            -SignToolPath $SignToolPath -CertificateThumbprint $CertificateThumbprint
+            -SignToolPath $SignToolPath -ExpectedPublisher $ExpectedPublisher `
+            -ExpectedProfileEku $ExpectedProfileEku
     }
     $hash = (Get-FileHash -LiteralPath $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
     [System.IO.File]::WriteAllText("$setupPath.sha256", "$hash  $setupName`n",

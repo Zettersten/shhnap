@@ -79,6 +79,9 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: [verify, release-script-tests]
     runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
     environment: release-signing
     strategy:
       fail-fast: false
@@ -106,12 +109,27 @@ jobs:
           if ($env:RELEASE_TAG -notmatch '^v([1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
             throw 'Public release tags must look like v1.0.0; prerelease tags are not supported by this workflow.'
           }
-      - name: Require trusted code signing
+      - name: Install Artifact Signing client runtime
+        if: env.UNSIGNED_RELEASE != 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+      - name: Authenticate for Artifact Signing
+        if: env.UNSIGNED_RELEASE != 'true'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Initialize Artifact Signing
         if: env.UNSIGNED_RELEASE != 'true'
         shell: pwsh
         env:
-          RELEASE_SIGNING_PFX_BASE64: ${{ secrets.RELEASE_SIGNING_PFX_BASE64 }}
-          RELEASE_SIGNING_PFX_PASSWORD: ${{ secrets.RELEASE_SIGNING_PFX_PASSWORD }}
+          ARTIFACT_SIGNING_ENDPOINT: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ vars.ARTIFACT_SIGNING_ACCOUNT_NAME }}
+          ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ vars.ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+          ARTIFACT_SIGNING_EXPECTED_PUBLISHER: ${{ vars.ARTIFACT_SIGNING_EXPECTED_PUBLISHER }}
+          ARTIFACT_SIGNING_PROFILE_EKU: ${{ vars.ARTIFACT_SIGNING_PROFILE_EKU }}
         run: ./packaging/release/Initialize-ReleaseSigning.ps1
       - name: Restore target architecture from lock files
         shell: pwsh
@@ -152,7 +170,10 @@ jobs:
             foreach ($binary in @((Join-Path $publishDir 'Shnapp.exe'), (Join-Path $launcherDir 'Shnapp.exe'))) {
               ./packaging/release/Sign-ReleaseExecutable.ps1 `
                 -Path $binary -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
-                -CertificateThumbprint $env:RELEASE_SIGNING_THUMBPRINT
+                -DlibPath $env:RELEASE_SIGNING_DLIB_PATH `
+                -MetadataPath $env:RELEASE_SIGNING_METADATA_PATH `
+                -ExpectedPublisher $env:RELEASE_SIGNING_EXPECTED_PUBLISHER `
+                -ExpectedProfileEku $env:RELEASE_SIGNING_PROFILE_EKU
             }
           }
           ./packaging/release/New-PortableLayout.ps1 `
@@ -171,7 +192,8 @@ jobs:
               -ArchivePath $archive `
               -EntryPaths @('Shnapp.exe', "versions/$env:RELEASE_TAG/Shnapp.exe") `
               -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
-              -CertificateThumbprint $env:RELEASE_SIGNING_THUMBPRINT
+              -ExpectedPublisher $env:RELEASE_SIGNING_EXPECTED_PUBLISHER `
+              -ExpectedProfileEku $env:RELEASE_SIGNING_PROFILE_EKU
           }
           $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           [System.IO.File]::WriteAllText("$archive.sha256", "$hash  $archiveName`n", [System.Text.Encoding]::ASCII)
@@ -197,7 +219,9 @@ jobs:
             -WorkDirectory (Join-Path $env:RUNNER_TEMP 'shnapp-velopack') `
             -OutputDirectory (Join-Path $env:GITHUB_WORKSPACE 'release-assets') `
             -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
-            -CertificateThumbprint $env:RELEASE_SIGNING_THUMBPRINT `
+            -SigningMetadataPath $env:RELEASE_SIGNING_METADATA_PATH `
+            -ExpectedPublisher $env:RELEASE_SIGNING_EXPECTED_PUBLISHER `
+            -ExpectedProfileEku $env:RELEASE_SIGNING_PROFILE_EKU `
             -Unsigned:($env:UNSIGNED_RELEASE -eq 'true')
       - name: Upload release assets
         uses: actions/upload-artifact@v7

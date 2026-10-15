@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory = $true)][string] $ArchivePath,
     [Parameter(Mandatory = $true)][string[]] $EntryPaths,
     [Parameter(Mandatory = $true)][string] $SignToolPath,
-    [Parameter(Mandatory = $true)][string] $CertificateThumbprint
+    [Parameter(Mandatory = $true)][string] $ExpectedPublisher,
+    [Parameter(Mandatory = $true)][string] $ExpectedProfileEku
 )
 
 Set-StrictMode -Version Latest
@@ -33,7 +34,7 @@ try {
         [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $extracted)
         & (Join-Path $PSScriptRoot 'Sign-ReleaseExecutable.ps1') `
             -Path $extracted -SignToolPath $SignToolPath `
-            -CertificateThumbprint $CertificateThumbprint -VerifyOnly
+            -ExpectedPublisher $ExpectedPublisher -ExpectedProfileEku $ExpectedProfileEku -VerifyOnly
     }
 }
 finally {
