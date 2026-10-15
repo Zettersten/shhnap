@@ -35,17 +35,26 @@
                             IsChecked="False" ToolTipService.ToolTip="Show or hide editing tools"
                             AutomationProperties.Name="Editing tools" AutomationProperties.AutomationId="TitleEdit">
                             <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
-                                <FontIcon Glyph="&#xE70F;" FontSize="16" />
-                                <TextBlock Text="Edit" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <FontIcon Glyph="&#xE70F;" FontSize="16" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="Edit" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                             </StackPanel>
+                            <ToggleButton.Resources>
+                                <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="ShnappToolbarBrush" />
+                                <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="ShnappToolbarBrush" />
+                                <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="ShnappToolbarBrush" />
+                                <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent" />
+                                <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
+                            </ToggleButton.Resources>
                         </ToggleButton>
                         <StackPanel x:Name="TitleHistoryActions" Orientation="Horizontal" Spacing="6">
                             <AppBarButton x:Name="TitleUndoButton" Width="32" Height="32" MinWidth="0" Padding="0" Label="Undo" LabelPosition="Collapsed" Click="TitleUndo_Click"
-                                ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.Name="Undo">
+                                ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.Name="Undo" AutomationProperties.AutomationId="UndoEdit">
                                 <AppBarButton.Icon><FontIcon Glyph="&#xE7A7;" FontSize="16" /></AppBarButton.Icon>
                             </AppBarButton>
                             <AppBarButton x:Name="TitleRedoButton" Width="32" Height="32" MinWidth="0" Padding="0" Label="Redo" LabelPosition="Collapsed" Click="TitleRedo_Click"
-                                ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.Name="Redo">
+                                ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.Name="Redo" AutomationProperties.AutomationId="RedoEdit">
                                 <AppBarButton.Icon><FontIcon Glyph="&#xE7A6;" FontSize="16" /></AppBarButton.Icon>
                             </AppBarButton>
                         </StackPanel>
@@ -64,8 +73,8 @@
                 <SplitButton x:Name="TitleSaveActions" Width="88" Height="32" MinWidth="0"
                     Padding="8,0" CornerRadius="7" Content="Save" FontSize="12" FontWeight="SemiBold"
                     Click="TitleSave_Click" Visibility="Collapsed" Margin="0,0,10,0"
-                    Background="{ThemeResource AccentFillColorDefaultBrush}"
-                    Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                    Background="{ThemeResource ShnappBlueBrush}"
+                    Foreground="{ThemeResource ShnappOnBlueBrush}"
                     ToolTipService.ToolTip="Save PNG or open more save actions"
                     AutomationProperties.Name="Save actions" AutomationProperties.AutomationId="TitleSaveActions">
                     <SplitButton.Flyout>
