@@ -101,7 +101,6 @@ public sealed partial class MainPage : Page
             UpdateShapeButtonAppearance();
             DrawingCanvas.Invalidate();
             LayoutLibraryEmptyScene();
-            NewShnappSparkleHost.Refresh();
             LibraryEmptySparkleHost.Refresh();
         };
         Loaded += MainPage_Loaded;
@@ -442,7 +441,6 @@ public sealed partial class MainPage : Page
 
     private void Canvas_SizeChanged(object sender, SizeChangedEventArgs args)
     {
-        InspectorPanel.MaxHeight = Math.Min(560, Math.Max(0, CanvasViewingArea().Height - 20));
         CommitText();
         UpdateTransform();
         DrawingCanvas.Invalidate();
@@ -1048,7 +1046,7 @@ public sealed partial class MainPage : Page
     private void EditorHost_SizeChanged(object sender, SizeChangedEventArgs args)
     {
         bool narrow = args.NewSize.Width < 860;
-        InspectorPanel.Margin = new Thickness(12, narrow ? 120 : 60, 12, 56);
+        UpdateInspectorPanelPlacement(narrow);
         if (_narrowInspector == narrow)
         {
             return;

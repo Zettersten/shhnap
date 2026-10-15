@@ -10,7 +10,6 @@
     Background="{ThemeResource ShnappCanvasBrush}">
     <Page.Resources>
         <ResourceDictionary>
-            <Style x:Key="CaptureSplitButtonStyle" TargetType="SplitButton" />
             <Style x:Key="QuietOverflowButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
@@ -214,165 +213,16 @@
                     </Grid>
                 </StackPanel>
             </CommandBar.Content>
-            <AppBarElementContainer Height="40" Padding="0" Margin="0,0,8,0" Background="Transparent" BorderThickness="0">
-                <Grid Width="68" Height="40" VerticalAlignment="Center">
-                <local:HandCursorRegion x:Name="NewShnappCaptureShell" Width="68" Height="34" VerticalAlignment="Center" Background="Transparent">
-                <Border Width="68" Height="34" CornerRadius="8" VerticalAlignment="Center"
-                    Background="{ThemeResource CaptureButtonShadowBrush}" IsHitTestVisible="False">
-                    <Border.RenderTransform><TranslateTransform Y="2" /></Border.RenderTransform>
-                </Border>
-                <local:HandCursorSplitButton x:Name="NewShnappButton" Width="68" Height="34" MinWidth="0" CornerRadius="8"
-                    VerticalAlignment="Center"
-                    Style="{StaticResource CaptureSplitButtonStyle}"
-                    Click="NewShnappButton_Click"
-                    ToolTipService.ToolTip="Capture a region · Ctrl+Shift+2"
-                    Background="{ThemeResource NewShnappSplitFill}" Foreground="{ThemeResource NewShnappSplitText}"
-                    AutomationProperties.Name="Capture" AutomationProperties.HelpText="Capture a region. Use the arrow for other capture options."
-                    AutomationProperties.AutomationId="NewShnapp">
-                    <SplitButton.Shadow><ThemeShadow /></SplitButton.Shadow>
-                    <SplitButton.Resources>
-                        <ResourceDictionary>
-                            <x:Double x:Key="SplitButtonSecondaryButtonSize">34</x:Double>
-                            <ResourceDictionary.ThemeDictionaries>
-                                <ResourceDictionary x:Key="Light">
-                                    <LinearGradientBrush x:Key="SplitButtonBackground" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#C138E3" Offset="0" />
-                                        <GradientStop Color="#7510AD" Offset="0.13" />
-                                        <GradientStop Color="#4B0585" Offset="0.36" />
-                                        <GradientStop Color="#430075" Offset="0.58" />
-                                        <GradientStop Color="#59078F" Offset="1" />
-                                    </LinearGradientBrush>
-                                    <LinearGradientBrush x:Key="SplitButtonBackgroundPointerOver" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#D25AEC" Offset="0" />
-                                        <GradientStop Color="#8B24C1" Offset="0.13" />
-                                        <GradientStop Color="#5C1499" Offset="0.36" />
-                                        <GradientStop Color="#531085" Offset="0.58" />
-                                        <GradientStop Color="#7020A8" Offset="1" />
-                                    </LinearGradientBrush>
-                                    <LinearGradientBrush x:Key="SplitButtonBackgroundPressed" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#9329B4" Offset="0" />
-                                        <GradientStop Color="#61118F" Offset="0.13" />
-                                        <GradientStop Color="#3A006E" Offset="0.36" />
-                                        <GradientStop Color="#31005F" Offset="0.58" />
-                                        <GradientStop Color="#4A087B" Offset="1" />
-                                    </LinearGradientBrush>
-                                    <SolidColorBrush x:Key="SplitButtonForegroundPointerOver" Color="White" />
-                                    <SolidColorBrush x:Key="SplitButtonForegroundPressed" Color="White" />
-                                    <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="White" />
-                                    <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="White" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#A0210B54" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="Transparent" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="Transparent" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="Transparent" />
-                                </ResourceDictionary>
-                                <ResourceDictionary x:Key="Default">
-                                    <LinearGradientBrush x:Key="SplitButtonBackground" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#C138E3" Offset="0" />
-                                        <GradientStop Color="#7510AD" Offset="0.13" />
-                                        <GradientStop Color="#4B0585" Offset="0.36" />
-                                        <GradientStop Color="#430075" Offset="0.58" />
-                                        <GradientStop Color="#59078F" Offset="1" />
-                                    </LinearGradientBrush>
-                                    <LinearGradientBrush x:Key="SplitButtonBackgroundPointerOver" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#D25AEC" Offset="0" />
-                                        <GradientStop Color="#8B24C1" Offset="0.13" />
-                                        <GradientStop Color="#5C1499" Offset="0.36" />
-                                        <GradientStop Color="#531085" Offset="0.58" />
-                                        <GradientStop Color="#7020A8" Offset="1" />
-                                    </LinearGradientBrush>
-                                    <LinearGradientBrush x:Key="SplitButtonBackgroundPressed" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#9329B4" Offset="0" />
-                                        <GradientStop Color="#61118F" Offset="0.13" />
-                                        <GradientStop Color="#3A006E" Offset="0.36" />
-                                        <GradientStop Color="#31005F" Offset="0.58" />
-                                        <GradientStop Color="#4A087B" Offset="1" />
-                                    </LinearGradientBrush>
-                                    <SolidColorBrush x:Key="SplitButtonForegroundPointerOver" Color="White" />
-                                    <SolidColorBrush x:Key="SplitButtonForegroundPressed" Color="White" />
-                                    <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="White" />
-                                    <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="White" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="#A0210B54" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="Transparent" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="Transparent" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="Transparent" />
-                                </ResourceDictionary>
-                                <ResourceDictionary x:Key="HighContrast">
-                                    <SolidColorBrush x:Key="SplitButtonBackground" Color="{ThemeResource SystemColorHighlightColor}" />
-                                    <SolidColorBrush x:Key="SplitButtonBackgroundPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
-                                    <SolidColorBrush x:Key="SplitButtonBackgroundPressed" Color="{ThemeResource SystemColorHighlightColor}" />
-                                    <SolidColorBrush x:Key="SplitButtonForegroundPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
-                                    <SolidColorBrush x:Key="SplitButtonForegroundPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
-                                    <SolidColorBrush x:Key="SplitButtonForegroundSecondary" Color="{ThemeResource SystemColorHighlightTextColor}" />
-                                    <SolidColorBrush x:Key="SplitButtonForegroundSecondaryPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushDivider" Color="{ThemeResource SystemColorHighlightTextColor}" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrush" Color="Transparent" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPointerOver" Color="Transparent" />
-                                    <SolidColorBrush x:Key="SplitButtonBorderBrushPressed" Color="Transparent" />
-                                </ResourceDictionary>
-                            </ResourceDictionary.ThemeDictionaries>
-                        </ResourceDictionary>
-                    </SplitButton.Resources>
-                    <SplitButton.Flyout>
-                        <MenuFlyout>
-                            <MenuFlyoutItem Text="Window" Tag="Window" Click="Capture_Click">
-                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE78B;" FontSize="16" /></MenuFlyoutItem.Icon>
-                                <MenuFlyoutItem.KeyboardAccelerators>
-                                    <KeyboardAccelerator Key="Number4" Modifiers="Control,Shift" />
-                                </MenuFlyoutItem.KeyboardAccelerators>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem Text="Full screen" Tag="FullScreen" Click="Capture_Click">
-                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE740;" FontSize="16" /></MenuFlyoutItem.Icon>
-                                <MenuFlyoutItem.KeyboardAccelerators>
-                                    <KeyboardAccelerator Key="Number3" Modifiers="Control,Shift" />
-                                </MenuFlyoutItem.KeyboardAccelerators>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem Text="Free form (rectangle)" Tag="Region" Click="Capture_Click">
-                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7A8;" FontSize="16" /></MenuFlyoutItem.Icon>
-                                <MenuFlyoutItem.KeyboardAccelerators>
-                                    <KeyboardAccelerator Key="Number2" Modifiers="Control,Shift" />
-                                </MenuFlyoutItem.KeyboardAccelerators>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="CameraCaptureMenu" Text="Camera photo" Tag="Camera" Click="Capture_Click"
-                                IsEnabled="False" ToolTipService.ToolTip="Connect a camera to take a photo">
-                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE722;" FontSize="16" /></MenuFlyoutItem.Icon>
-                                <MenuFlyoutItem.KeyboardAccelerators>
-                                    <KeyboardAccelerator Key="Number5" Modifiers="Control,Shift" />
-                                </MenuFlyoutItem.KeyboardAccelerators>
-                            </MenuFlyoutItem>
-                        </MenuFlyout>
-                    </SplitButton.Flyout>
-                </local:HandCursorSplitButton>
-                    <local:CaptureSparkleHost x:Name="NewShnappSparkleHost" Width="34" Height="34"
-                        HorizontalAlignment="Left" VerticalAlignment="Center"
-                        Background="Transparent" IsHitTestVisible="False" />
-                    <Grid Width="34" Height="34" HorizontalAlignment="Left" VerticalAlignment="Center"
-                        IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw">
-                        <FontIcon Glyph="&#xE722;" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"
-                            Foreground="{ThemeResource NewShnappSplitText}" />
-                    </Grid>
-                    <local:HandCursorRegion x:Name="NewShnappArrowHitLayer" Width="34" Height="34" HorizontalAlignment="Right"
-                        Background="Transparent" Tapped="NewShnappDivider_Tapped"
-                        PointerEntered="NewShnappArrow_PointerEntered" PointerExited="NewShnappArrow_PointerExited"
-                        PointerPressed="NewShnappArrow_PointerPressed" PointerReleased="NewShnappArrow_PointerReleased"
-                        AutomationProperties.AccessibilityView="Raw">
-                        <Border x:Name="NewShnappArrowHoverOverlay" CornerRadius="0,8,8,0" IsHitTestVisible="False" />
-                    </local:HandCursorRegion>
-                </local:HandCursorRegion>
-                <Border x:Name="NewShnappRimNormal" Width="68" Height="34" CornerRadius="8" VerticalAlignment="Center"
-                    BorderThickness="1" BorderBrush="{ThemeResource CaptureButtonRimBrush}"
-                    IsHitTestVisible="False" />
-                <Border x:Name="NewShnappRimHover" Width="68" Height="34" CornerRadius="8" VerticalAlignment="Center"
-                    BorderThickness="1" BorderBrush="{ThemeResource CaptureButtonRimBrushPointerOver}"
-                    Visibility="Collapsed" IsHitTestVisible="False" />
-                <Border x:Name="NewShnappRimPressed" Width="68" Height="34" CornerRadius="8" VerticalAlignment="Center"
-                    BorderThickness="1" BorderBrush="{ThemeResource CaptureButtonRimBrushPressed}"
-                    Visibility="Collapsed" IsHitTestVisible="False" />
-                </Grid>
-            </AppBarElementContainer>
-            <AppBarElementContainer Height="40" VerticalAlignment="Center" Padding="0" Margin="0,0,8,0" Background="Transparent" BorderThickness="0">
+            <local:HandCursorAppBarButton x:Name="NewShnappButton" Width="32" Height="32" MinWidth="0"
+                Margin="0,0,6,0" Padding="0" CornerRadius="7" Label="Capture" LabelPosition="Collapsed"
+                Tag="Region" Click="Capture_Click" ToolTipService.ToolTip="Capture a region · Ctrl+Shift+2"
+                AutomationProperties.Name="Capture a region" AutomationProperties.AutomationId="NewShnapp"
+                AutomationProperties.HelpText="Use More for window, full-screen, and camera capture.">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE722;" FontSize="16" /></AppBarButton.Icon>
+            </local:HandCursorAppBarButton>
+            <AppBarElementContainer Height="40" VerticalAlignment="Center" Padding="0" Margin="0,0,6,0" Background="Transparent" BorderThickness="0">
                 <local:HandCursorToggleButton x:Name="LibraryNavButton" Width="32" Height="32" MinWidth="0" Padding="0"
-                    CornerRadius="8" VerticalAlignment="Center" BorderThickness="1"
-                    BorderBrush="{ThemeResource LibraryButtonOutlineBrush}"
+                    CornerRadius="7" VerticalAlignment="Center" BorderThickness="0" Background="Transparent"
                     IsChecked="{x:Bind ViewModel.IsLibrarySelected, Mode=OneWay}"
                     Click="LibraryNav_Click" AutomationProperties.Name="Library"
                     AutomationProperties.AutomationId="OpenLibrary"
@@ -381,51 +231,16 @@
                     <ToggleButton.Content>
                         <FontIcon Glyph="&#xE8B9;" FontSize="16" />
                     </ToggleButton.Content>
-                <ToggleButton.Resources>
-                    <ResourceDictionary>
-                        <ResourceDictionary.ThemeDictionaries>
-                            <ResourceDictionary x:Key="Light">
-                                <SolidColorBrush x:Key="ToggleButtonBackground" Color="#E9F2FE" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#DCEBFC" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="#C8DDF8" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#DCEBFF" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#C9E0FF" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#B8D4FA" />
-                                <SolidColorBrush x:Key="ToggleButtonForeground" Color="#0A4D95" />
-                                <SolidColorBrush x:Key="ToggleButtonForegroundPointerOver" Color="#073F7A" />
-                                <SolidColorBrush x:Key="ToggleButtonForegroundPressed" Color="#073F7A" />
-                                <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#0A4D95" />
-                                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="#073F7A" />
-                                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="#073F7A" />
-                            </ResourceDictionary>
-                            <ResourceDictionary x:Key="Default">
-                                <SolidColorBrush x:Key="ToggleButtonBackground" Color="#182C50" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#24406A" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="#1C365F" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#21457B" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#2B5590" />
-                                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#173663" />
-                                <SolidColorBrush x:Key="ToggleButtonForeground" Color="White" />
-                                <SolidColorBrush x:Key="ToggleButtonForegroundPointerOver" Color="White" />
-                                <SolidColorBrush x:Key="ToggleButtonForegroundPressed" Color="White" />
-                                <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White" />
-                                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White" />
-                                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White" />
-                            </ResourceDictionary>
-                            <ResourceDictionary x:Key="HighContrast">
-                                <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="SystemColorHighlightColorBrush" />
-                                <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="SystemColorHighlightColorBrush" />
-                                <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="SystemColorHighlightColorBrush" />
-                                <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="SystemColorHighlightTextColorBrush" />
-                            </ResourceDictionary>
-                        </ResourceDictionary.ThemeDictionaries>
-                    </ResourceDictionary>
-                </ToggleButton.Resources>
                 </local:HandCursorToggleButton>
             </AppBarElementContainer>
             <CommandBar.SecondaryCommands>
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Capture region" Icon="Camera"
+                    Tag="Region" Click="Capture_Click" AutomationProperties.AutomationId="CaptureRegion" />
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Capture window" Icon="Page"
+                    Tag="Window" Click="Capture_Click" AutomationProperties.AutomationId="CaptureWindow" />
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Capture full screen" Icon="FullScreen"
+                    Tag="FullScreen" Click="Capture_Click" AutomationProperties.AutomationId="CaptureFullScreen" />
+                <AppBarSeparator />
                 <local:HandCursorAppBarButton x:Name="QuickCameraCapture" CornerRadius="8" Width="190"
                     Label="Take camera photo" Icon="Camera" Click="CameraCapture_Click" IsEnabled="False"
                     AutomationProperties.AutomationId="QuickCameraCapture"
@@ -555,8 +370,8 @@
                         </Border>
                     </Grid>
                     <Border x:Name="InspectorPanel" Visibility="Visible"
-                        Width="252" MaxHeight="560" Margin="12,60,12,56"
-                        HorizontalAlignment="Right" VerticalAlignment="Top"
+                        Width="252" Margin="12,60,12,50"
+                        HorizontalAlignment="Right" VerticalAlignment="Stretch"
                         Background="{ThemeResource ShnappImagePanelBrush}" CornerRadius="12"
                         BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}" BorderThickness="1"
                         Translation="0,0,20"
@@ -944,7 +759,7 @@
                             </StackPanel>
                         </ScrollViewer>
                     </Border>
-            <Grid x:Name="AnnotationToolbarHost" Margin="12,56,12,0" VerticalAlignment="Top">
+            <Grid x:Name="AnnotationToolbarHost" Visibility="Collapsed" Margin="12,56,12,0" VerticalAlignment="Top">
                 <Border HorizontalAlignment="Left" MaxWidth="900" Padding="4" CornerRadius="14"
                     Background="{ThemeResource ShnappImagePanelBrush}"
                     BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}" BorderThickness="1"
@@ -1377,10 +1192,11 @@
                     Style="{StaticResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     AutomationProperties.AutomationId="DocumentMetadata" />
-                <TextBlock Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
-                    Text="{x:Bind ViewModel.Status, Mode=OneWay}" FontSize="10" MaxLines="1"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
-                    AutomationProperties.LiveSetting="Polite" AutomationProperties.AutomationId="ShnappStatus" />
+                <TextBlock x:Name="ShnappStatus" Height="1" Opacity="0"
+                    Text="{x:Bind ViewModel.Status, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
+                    AutomationProperties.LiveSetting="Polite"
+                    AutomationProperties.AutomationId="ShnappStatus" />
                 <TextBlock Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}"
                     Text="{x:Bind ViewModel.Status, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
@@ -1389,19 +1205,22 @@
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center"
                 VerticalAlignment="Center" Spacing="2"
                 Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
-                <Button x:Name="FooterGalleryButton" Width="32" Height="32" Padding="0" CornerRadius="7" Click="ToggleGallery_Click"
+                <Button x:Name="FooterGalleryButton" Width="32" Height="32" Padding="0" CornerRadius="7"
+                    Background="Transparent" BorderThickness="0" Click="ToggleGallery_Click"
                     ToolTipService.ToolTip="Recent shnapps · Ctrl+Shift+G"
                     AutomationProperties.Name="Recent shnapps" AutomationProperties.AutomationId="FooterGallery">
                     <FontIcon Glyph="&#xE8B9;" FontSize="16" />
                 </Button>
                 <local:HandCursorToggleButton x:Name="InspectorToggle" Width="32" Height="32" Padding="0"
-                    CornerRadius="7" IsChecked="True" Click="InspectorToggle_Click"
+                    CornerRadius="7" Background="Transparent" BorderThickness="0"
+                    IsChecked="True" Click="InspectorToggle_Click"
                     ToolTipService.ToolTip="Show or hide tool options"
                     AutomationProperties.Name="Tool options" AutomationProperties.AutomationId="ToolOptions">
                     <FontIcon Glyph="&#xE8A0;" FontSize="16" />
                 </local:HandCursorToggleButton>
                 <Button x:Name="RecenterCanvasButton" Width="32" Height="32" Padding="0"
-                    Visibility="Collapsed" CornerRadius="7" Click="RecenterCanvas_Click"
+                    Visibility="Collapsed" CornerRadius="7" Background="Transparent" BorderThickness="0"
+                    Click="RecenterCanvas_Click"
                     ToolTipService.ToolTip="Re-center canvas"
                     AutomationProperties.Name="Re-center canvas" AutomationProperties.AutomationId="RecenterCanvas">
                     <PathIcon Width="16" Height="16"
@@ -1411,12 +1230,14 @@
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right"
                 VerticalAlignment="Center" Spacing="2"
                 Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
-                <Button x:Name="FooterFitButton" Width="32" Height="32" Padding="0" CornerRadius="7" Click="FooterFit_Click"
+                <Button x:Name="FooterFitButton" Width="32" Height="32" Padding="0" CornerRadius="7"
+                    Background="Transparent" BorderThickness="0" Click="FooterFit_Click"
                     ToolTipService.ToolTip="Fit image in window" AutomationProperties.Name="Fit image"
                     AutomationProperties.AutomationId="FooterFit">
                     <FontIcon Glyph="&#xE9A6;" FontSize="16" />
                 </Button>
-                <Button Width="32" Height="32" Padding="0" CornerRadius="7" Click="ZoomOut_Click"
+                <Button Width="32" Height="32" Padding="0" CornerRadius="7"
+                    Background="Transparent" BorderThickness="0" Click="ZoomOut_Click"
                     ToolTipService.ToolTip="Zoom out" AutomationProperties.Name="Zoom out"
                     AutomationProperties.AutomationId="ZoomOut">
                     <FontIcon Glyph="&#xE71F;" FontSize="16" />
@@ -1441,12 +1262,14 @@
                         </MenuFlyout>
                     </DropDownButton.Flyout>
                 </DropDownButton>
-                <Button Width="32" Height="32" Padding="0" CornerRadius="7" Click="ZoomIn_Click"
+                <Button Width="32" Height="32" Padding="0" CornerRadius="7"
+                    Background="Transparent" BorderThickness="0" Click="ZoomIn_Click"
                     ToolTipService.ToolTip="Zoom in" AutomationProperties.Name="Zoom in"
                     AutomationProperties.AutomationId="ZoomIn">
                     <FontIcon Glyph="&#xE8A3;" FontSize="16" />
                 </Button>
-                <Button x:Name="FooterFullscreenButton" Width="32" Height="32" Padding="0" CornerRadius="7" Click="Fullscreen_Click"
+                <Button x:Name="FooterFullscreenButton" Width="32" Height="32" Padding="0" CornerRadius="7"
+                    Background="Transparent" BorderThickness="0" Click="Fullscreen_Click"
                     ToolTipService.ToolTip="Toggle full screen" AutomationProperties.Name="Toggle full screen"
                     AutomationProperties.AutomationId="Fullscreen">
                     <FontIcon Glyph="&#xE740;" FontSize="16" />

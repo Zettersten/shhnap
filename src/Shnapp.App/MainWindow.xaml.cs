@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Windowing;
 using Windows.Graphics;
@@ -133,44 +134,37 @@ public sealed partial class MainWindow : Window
         bool editing = Page.ViewModel.HasDocument && Settings is null;
         ChromeNavigationHost.Visibility = Settings is null ? Visibility.Visible : Visibility.Collapsed;
         ChromeCommandsHost.Visibility = Settings is null ? Visibility.Visible : Visibility.Collapsed;
+        EditorTitleActions.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
+        TitleHistoryActions.Visibility = editing && AppTitleBar.ActualWidth >= 630
+            ? Visibility.Visible : Visibility.Collapsed;
+        TitleEditButton.IsChecked = editing && Page.EditingToolsVisible;
+        TitleSaveActions.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
         UpdateAttentionDot.Visibility = _updateAvailable && Settings is null
             ? Visibility.Visible : Visibility.Collapsed;
         TitleUndoButton.IsEnabled = editing && Page.ViewModel.CanUndo;
         TitleRedoButton.IsEnabled = editing && Page.ViewModel.CanRedo;
-        WindowDocumentTitle.Text = Settings is not null ? "Settings" :
+        Title = Settings is not null ? "Settings" :
             editing ? Page.ViewModel.Title : "Shnapp";
-        UpdateTitleTextVisibility();
-        Title = WindowDocumentTitle.Text;
+        UpdateTitleEditorVisibility();
         AppTitleBar.RecomputeDragRegions();
     }
 
-    private void UpdateTitleTextVisibility()
+    private void UpdateTitleEditorVisibility()
     {
         bool editing = Page.ViewModel.HasDocument && Settings is null;
-        EditorTitleActions.Visibility = editing && AppTitleBar.ActualWidth >= 780
-            ? Visibility.Visible : Visibility.Collapsed;
-        // Reserve the same gap on either side of the centered title. Long
-        // document names trim before they can cover the last command.
-        double titleRoom = (AppTitleBar.ActualWidth / 2 - TitleLeftControls.ActualWidth - 12) * 2 - 16;
-        WindowDocumentTitle.MaxWidth = Math.Min(220, Math.Max(0, titleRoom));
-        bool showTitle = Settings is not null ||
-            (AppTitleBar.ActualWidth >= 1000 && titleRoom >= 80);
-        WindowDocumentTitleButton.Visibility = showTitle && !Page.IsTitleRenameActive
-            ? Visibility.Visible : Visibility.Collapsed;
-        WindowDocumentTitleButton.IsHitTestVisible = editing && showTitle;
-        TitleEditorHost.Margin = new Thickness(0, showTitle ? 8 : 56, 0, 0);
         TitleEditorHost.Visibility = Page.IsTitleRenameActive ? Visibility.Visible : Visibility.Collapsed;
-        Page.SetAnnotationToolbarObscured(editing && Page.IsTitleRenameActive && !showTitle);
+        Page.SetAnnotationToolbarObscured(editing && Page.IsTitleRenameActive);
         AppTitleBar.RecomputeDragRegions();
     }
 
-    private void WindowDocumentTitle_Click(object sender, RoutedEventArgs args) => Page.StartTitleRenameFromChrome();
-
-    private void TitleEdit_Click(object sender, RoutedEventArgs args) => Page.FocusEditorFromChrome();
+    private void TitleEdit_Click(object sender, RoutedEventArgs args) =>
+        Page.SetEditingToolsVisible(TitleEditButton.IsChecked == true);
     private void TitleUndo_Click(object sender, RoutedEventArgs args) => Page.UndoFromChrome();
     private void TitleRedo_Click(object sender, RoutedEventArgs args) => Page.RedoFromChrome();
+    private void TitleSave_Click(SplitButton sender, SplitButtonClickEventArgs args) => Page.SaveFromChrome();
+    private void TitleSaveMenu_Click(object sender, RoutedEventArgs args) => Page.SaveFromChrome();
+    private void TitleSaveCopy_Click(object sender, RoutedEventArgs args) => Page.SaveCopyFromChrome();
     private void TitleCopy_Click(object sender, RoutedEventArgs args) => Page.CopyFromChrome();
-    private void TitleSave_Click(object sender, RoutedEventArgs args) => Page.SaveFromChrome();
 
     /// <summary>Creates the native shell and its document-first page.</summary>
     public MainWindow()
@@ -194,9 +188,8 @@ public sealed partial class MainWindow : Window
         Page.AttachTitleChrome(ChromeCommandsHost, ChromeNavigationHost, TitleEditorHost);
         RootFrame.Content = Page;
         Page.ViewModel.PropertyChanged += PageStateChanged;
-        Page.TitleRenameStateChanged += (_, _) => UpdateTitleTextVisibility();
-        AppTitleBar.SizeChanged += (_, _) => UpdateTitleTextVisibility();
-        TitleLeftControls.SizeChanged += (_, _) => UpdateTitleTextVisibility();
+        Page.TitleRenameStateChanged += (_, _) => UpdateTitleEditorVisibility();
+        AppTitleBar.SizeChanged += (_, _) => UpdateTitleBarState();
         UpdateTitleBarState();
         RectInt32 work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
         double scale = Math.Max(1, Windows.NativeMethods.GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0);

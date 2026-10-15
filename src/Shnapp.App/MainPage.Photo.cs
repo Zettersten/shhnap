@@ -21,7 +21,6 @@ public sealed partial class MainPage
 
     internal void SetCameraAvailable(bool available)
     {
-        CameraCaptureMenu.IsEnabled = available;
         LibraryEmptyCameraCaptureMenu.IsEnabled = available;
         QuickCameraCapture.IsEnabled = available;
         CameraPhotoTool.IsEnabled = available;

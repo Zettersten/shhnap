@@ -6,6 +6,8 @@ namespace Shnapp.App;
 public sealed partial class MainPage
 {
     internal event EventHandler? TitleRenameStateChanged;
+    private bool _editingToolsVisible;
+    private bool _annotationToolbarObscured;
 
     // Keep the existing page commands and their handlers while displaying them
     // in the single window title bar. The canvas remains the full page size.
@@ -23,13 +25,37 @@ public sealed partial class MainPage
         DocumentTitleEditor.Margin = new Thickness(0);
         titleEditorHost.Children.Add(DocumentTitleEditor);
 
-        // The old page headings are superseded by the centered window title.
+        // The title bar keeps only controls; document names remain available
+        // through the native window title and the rename action in More.
         PrimaryCommandBar.Content = null;
         commandsHost.Content = PrimaryCommandBar;
     }
 
-    internal void StartTitleRenameFromChrome() => DocumentTitleButton_Click(this, new RoutedEventArgs());
     internal bool IsTitleRenameActive => DocumentTitleEditor.Visibility == Visibility.Visible;
-    internal void SetAnnotationToolbarObscured(bool obscured) =>
-        AnnotationToolbarHost.Visibility = obscured ? Visibility.Collapsed : Visibility.Visible;
+    internal bool EditingToolsVisible => _editingToolsVisible;
+
+    internal void SetEditingToolsVisible(bool visible)
+    {
+        _editingToolsVisible = visible;
+        UpdateAnnotationToolbarVisibility();
+        CanvasHost.Focus(FocusState.Programmatic);
+    }
+
+    internal void SetAnnotationToolbarObscured(bool obscured)
+    {
+        _annotationToolbarObscured = obscured;
+        UpdateAnnotationToolbarVisibility();
+    }
+
+    private void UpdateAnnotationToolbarVisibility()
+    {
+        AnnotationToolbarHost.Visibility = _editingToolsVisible && !_annotationToolbarObscured
+            ? Visibility.Visible : Visibility.Collapsed;
+        UpdateInspectorPanelPlacement(EditorHost.ActualWidth < 860);
+    }
+
+    private void UpdateInspectorPanelPlacement(bool narrow) =>
+        InspectorPanel.Margin = new Thickness(12,
+            narrow && AnnotationToolbarHost.Visibility == Visibility.Visible ? 120 : 60,
+            12, 50);
 }
