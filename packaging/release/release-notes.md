@@ -4,8 +4,10 @@ Shnapp lives in the Windows tray until you need a screenshot. Capture a region, 
 
 ## What you can do
 
-- Capture with `Ctrl+Shift+2` (region), `Ctrl+Shift+4` (window), or `Ctrl+Shift+3` (display), or start from the tray.
-- Add text, numbered or lettered steps, lines and arrows, shapes, pasted images, and Cover, Blur, or Pixelate regions. Each placement tool has a cursor that identifies its mode.
+- Capture with `Ctrl+Shift+2` (region), `Ctrl+Shift+4` (window), or `Ctrl+Shift+3` (display), or start from the tray. Optionally assign Print Screen to a preferred capture mode in Settings.
+- Take a camera photo with `Ctrl+Shift+5`, choose a camera in Settings, then crop and position the photo as an editable layer.
+- Add rich text, numbered or lettered steps, callouts, lines and arrows, shapes, pasted images, magnified details, and Cover, Blur, or Pixelate regions. Each placement tool has a cursor that identifies its mode.
+- Format individual characters in text, and adjust a magnifier's zoom, size, border, and outline color.
 - Crop with a steady crosshair and live size readout. Press `Esc` to cancel crop mode. Right-click a placed element, including a pasted or gallery image, and choose **Flatten** to fix its rasterized appearance in place; Undo restores the editable element.
 - Select several editable elements with `Ctrl+click`, or select all visible elements with `Ctrl+A`. A group outline shows the selection. Drag or use the arrow keys to move the group; hold Shift while dragging to constrain movement to one axis, or with an arrow key to move ten pixels. Dragging past the canvas extends it. Press `Esc` to clear the selection.
 - Right-click a selected group to clone, delete, or flatten its elements together. `Ctrl+D` duplicates the group and `Delete` removes it. Undo restores the group after a bulk action.
@@ -16,6 +18,8 @@ Shnapp lives in the Windows tray until you need a screenshot. Capture a region, 
 Velopack and portable installs store the editable library and preferences in `%LOCALAPPDATA%\Shnapp` for your Windows user. Unpublished Microsoft Store package candidates use a package-specific local cache and copy an existing default library on first launch. They leave the original library in place. Back up an editable library before uninstalling a Store test build, because Windows removes that package's local data on uninstall. Capture and editing need no account or internet connection. For sensitive details, use opaque Cover and share the exported PNG; the editable original remains in your local library. See the [privacy page](https://shhnap.com/privacy/).
 
 Velopack-installed copies can check for a new stable release and apply it from Settings → About & Updates. Direct ZIP copies retain their existing verified ZIP updater. Scoop and Chocolatey installations update through their package managers after each new version reaches their catalogs. An existing ZIP copy does not become a Velopack install automatically; use the installer to switch channels.
+
+The Windows installer and Shnapp executables are signed by Nenvy LLC. The release checks their publisher, signing profile, and timestamp before the download is published.
 
 ## Install
 

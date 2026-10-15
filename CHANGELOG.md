@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.0 — Unreleased
+## 2.0.0
 
 ### Added
 
@@ -19,5 +19,4 @@
 - The font picker shows a larger preview and supports arrow-key browsing with live selection preview.
 - The library layout, navigation states, thumbnail-size icon, and Settings dialog have been refined.
 - The app chrome uses Windows Mica and acrylic materials where supported, with theme-aware fallbacks.
-
-The version is prepared in source; this entry does not indicate that a 2.0.0 download has been published.
+- Windows release executables and Velopack installers are signed by Nenvy LLC through Azure Artifact Signing.
