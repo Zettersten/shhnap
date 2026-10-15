@@ -905,6 +905,7 @@ public sealed partial class MainPage : Page
         }
 
         _draft = null;
+        _controller?.Renderer.ClearMagnifierPreviewSource();
         _lineTrace.Clear();
         _placementShiftHeld = false;
         _moving = null;
@@ -1454,6 +1455,7 @@ public sealed partial class MainPage : Page
 
     private void CancelInteraction()
     {
+        _controller?.Renderer.ClearMagnifierPreviewSource();
         _photoCropMode = false;
         _photoCropTargetId = null;
         _photoCropStart = null;
@@ -2050,6 +2052,7 @@ public sealed partial class MainPage : Page
         ClearAnnotationSelection();
         _flattened?.Dispose();
         _flattened = null;
+        _controller?.Renderer.ClearMagnifierPreviewSource();
         _original?.Dispose();
         _original = null;
         ViewModel.CanUndo = false;

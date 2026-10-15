@@ -19,6 +19,9 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
     private const float MaximumUnboundedTextExtent = 16_384;
     private readonly CanvasDevice _device = device ?? throw new ArgumentNullException(nameof(device));
     private readonly Dictionary<Guid, List<(string Payload, CanvasBitmap Bitmap)>> _pastedImages = [];
+    private CanvasBitmap? _magnifierPreviewOriginal;
+    private ShnappDocument? _magnifierPreviewDocument;
+    private CanvasRenderTarget? _magnifierPreviewSource;
 
     internal CanvasRenderTarget Flatten(CanvasBitmap original, ShnappDocument document,
         ImageRect? viewportOverride = null)
@@ -281,6 +284,38 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
             : Flatten(original, privacySource, document.OriginalBounds);
     }
 
+    private CanvasBitmap GetMagnifierPreviewSource(CanvasBitmap original,
+        ShnappDocument document)
+    {
+        if (_magnifierPreviewSource is not null &&
+            ReferenceEquals(_magnifierPreviewOriginal, original) &&
+            _magnifierPreviewDocument is { } previous &&
+            MagnifierPrivacySource.HasSamePixels(previous, document))
+        {
+            return _magnifierPreviewSource;
+        }
+
+        ClearMagnifierPreviewSource();
+        CanvasRenderTarget? source = CreateMagnifierSource(original, document);
+        if (source is null)
+        {
+            return original;
+        }
+
+        _magnifierPreviewOriginal = original;
+        _magnifierPreviewDocument = document;
+        _magnifierPreviewSource = source;
+        return source;
+    }
+
+    internal void ClearMagnifierPreviewSource()
+    {
+        _magnifierPreviewSource?.Dispose();
+        _magnifierPreviewSource = null;
+        _magnifierPreviewOriginal = null;
+        _magnifierPreviewDocument = null;
+    }
+
     private ImageRect ElementRasterBounds(Annotation annotation, ImageRect viewport)
     {
         ImageRect area = annotation.Kind switch
@@ -450,6 +485,7 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
 
     internal void ClearPastedImages()
     {
+        ClearMagnifierPreviewSource();
         foreach (var entries in _pastedImages.Values)
         {
             foreach (var entry in entries)

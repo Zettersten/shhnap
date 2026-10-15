@@ -163,6 +163,59 @@ public sealed class TechnicalToolsTests
         Assert.AreEqual(editableCover.VisibilityClip, source.Annotations[1].VisibilityClip);
     }
 
+    [TestMethod]
+    public void MagnifierPreviewPixelKeyIgnoresLensMotionButInvalidatesPrivacyChanges()
+    {
+        Annotation lens = TestDocuments.Annotation(AnnotationKind.Magnify);
+        Annotation cover = TestDocuments.Annotation(AnnotationKind.Rectangle) with
+        {
+            IsFlattened = true,
+            RasterizedBounds = new ImageRect(10, 20, 70, 80),
+            ImagePngBase64 = TestDocuments.OnePixelPngBase64,
+        };
+        Annotation redaction = TestDocuments.Annotation(AnnotationKind.Redaction);
+        Annotation secondRedaction = TestDocuments.Annotation(AnnotationKind.Redaction);
+        Annotation ordinaryShape = TestDocuments.Annotation();
+        ShnappDocument document = TestDocuments.Create() with
+        {
+            Annotations = [lens, cover, redaction, secondRedaction, ordinaryShape],
+        };
+
+        ShnappDocument movedLens = document with
+        {
+            Annotations = [lens with { Start = new ImagePoint(200, 200) },
+                cover, redaction, secondRedaction, ordinaryShape with { FillArgb = 0xFF0055AA }],
+            HasWindowShadow = true,
+        };
+        Assert.IsTrue(MagnifierPrivacySource.HasSamePixels(document, movedLens));
+        Assert.IsFalse(MagnifierPrivacySource.HasSamePixels(document, document with
+        {
+            Annotations = [lens, cover with { ImagePngBase64 = "changed" },
+                redaction, secondRedaction, ordinaryShape],
+        }));
+        Assert.IsFalse(MagnifierPrivacySource.HasSamePixels(document, document with
+        {
+            Annotations = [lens, cover, redaction with { HiddenByCrop = true },
+                secondRedaction, ordinaryShape],
+        }));
+        Assert.IsFalse(MagnifierPrivacySource.HasSamePixels(document, document with
+        {
+            Annotations = [lens, cover, secondRedaction, redaction, ordinaryShape],
+        }));
+        Assert.IsFalse(MagnifierPrivacySource.HasSamePixels(document, document with
+        {
+            Crop = new ImageRect(20, 20, 400, 300),
+        }));
+        Assert.IsFalse(MagnifierPrivacySource.HasSamePixels(document, document with
+        {
+            BaseImageCrop = new ImageRect(20, 20, 400, 300),
+        }));
+        Assert.IsFalse(MagnifierPrivacySource.HasSamePixels(document, document with
+        {
+            HideOriginalImage = true,
+        }));
+    }
+
     private static Annotation NewCallout(ImagePoint anchor, string text) => new()
     {
         Kind = AnnotationKind.Callout,

@@ -101,8 +101,8 @@ internal sealed partial class ShnappRenderer
     internal void DrawMagnifyAnnotation(CanvasDrawingSession drawing, CanvasBitmap original,
         Annotation annotation, ShnappDocument document)
     {
-        using CanvasRenderTarget? privacySource = CreateMagnifierSource(original, document);
-        DrawMagnifyFromSource(drawing, privacySource ?? original, annotation, document);
+        DrawMagnifyFromSource(drawing, GetMagnifierPreviewSource(original, document),
+            annotation, document);
     }
 
     /// <summary>Draws sampled pixels without recursively magnifying the lens itself.</summary>
