@@ -1048,6 +1048,7 @@ public sealed partial class MainPage : Page
     private void EditorHost_SizeChanged(object sender, SizeChangedEventArgs args)
     {
         bool narrow = args.NewSize.Width < 860;
+        InspectorPanel.Margin = new Thickness(12, narrow ? 168 : 108, 12, 64);
         if (_narrowInspector == narrow)
         {
             return;

@@ -142,11 +142,18 @@ function Image-Point {
     if ($document.hasWindowShadow) { $padding = 32; $extraHeight = 8 }
     $flatWidth = $document.pixelWidth + 2 * $padding
     $flatHeight = $document.pixelHeight + 2 * $padding + $extraHeight
+    # Match MainPage.CanvasViewingArea: chrome overlays the full-size canvas,
+    # while fit-to-window keeps the image clear of the controls.
+    $sideInset = 24 * $dpi
+    $topInset = 156 * $dpi
+    $bottomInset = 56 * $dpi
+    $viewWidth = $element.width - 2 * $sideInset
+    $viewHeight = $element.height - $topInset - $bottomInset
     $scale = [Math]::Min($dpi, [Math]::Min(
-        ($element.width - 64 * $dpi) / $flatWidth,
-        ($element.height - 104 * $dpi) / $flatHeight))
-    $left = $element.x + ($element.width - $flatWidth * $scale) / 2
-    $top = $element.y + 48 * $dpi + ($element.height - 48 * $dpi - $flatHeight * $scale) / 2
+        $viewWidth / $flatWidth,
+        $viewHeight / $flatHeight))
+    $left = $element.x + $sideInset + ($viewWidth - $flatWidth * $scale) / 2
+    $top = $element.y + $topInset + ($viewHeight - $flatHeight * $scale) / 2
     return "$([int]($left + ($X + $padding) * $scale)),$([int]($top + ($Y + $padding) * $scale))"
 }
 
