@@ -6,8 +6,18 @@ namespace Shnapp.App;
 /// <summary>Routes window chrome actions into the existing editor commands.</summary>
 public sealed partial class MainPage
 {
-    private void FooterBar_SizeChanged(object sender, SizeChangedEventArgs args) =>
-        FooterFitButton.Visibility = args.NewSize.Width < 650 ? Visibility.Collapsed : Visibility.Visible;
+    private void FooterBar_SizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        double width = args.NewSize.Width;
+        FooterFitButton.Visibility = width < 650 ? Visibility.Collapsed : Visibility.Visible;
+        FooterFullscreenButton.Visibility = width < 520 ? Visibility.Collapsed : Visibility.Visible;
+        FooterGalleryButton.Visibility = width < 430 ? Visibility.Collapsed : Visibility.Visible;
+
+        // Equal side columns keep the utilities centered at regular widths. At
+        // very narrow widths, reserve the zoom controls' actual width first.
+        FooterRightColumn.Width = width < 370
+            ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
+    }
 
     internal void FocusEditorFromChrome()
     {

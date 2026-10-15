@@ -1372,15 +1372,15 @@
                 </ScrollViewer>
             </Grid>
         </Grid>
-        <Grid Height="48" VerticalAlignment="Bottom" Canvas.ZIndex="10"
+        <Grid Height="42" VerticalAlignment="Bottom" Canvas.ZIndex="10"
             SizeChanged="FooterBar_SizeChanged"
-            Padding="16,4" ColumnSpacing="12" Background="{ThemeResource ShnappImageChromeBrush}">
+            Padding="12,3" ColumnSpacing="8" Background="{ThemeResource ShnappImageChromeBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="FooterRightColumn" Width="*" />
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="0">
+            <StackPanel Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="0">
                 <TextBlock x:Name="DocumentMetadataText" Text="{x:Bind ViewModel.DocumentMetadata, Mode=OneWay}"
                     Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
                     Style="{StaticResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
@@ -1396,21 +1396,21 @@
                     AutomationProperties.LiveSetting="Polite" AutomationProperties.AutomationId="LibraryStatus" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center"
-                VerticalAlignment="Center" Spacing="4"
+                VerticalAlignment="Center" Spacing="2"
                 Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
-                <Button Width="36" Height="36" Padding="0" CornerRadius="8" Click="ToggleGallery_Click"
+                <Button x:Name="FooterGalleryButton" Width="32" Height="32" Padding="0" CornerRadius="7" Click="ToggleGallery_Click"
                     ToolTipService.ToolTip="Recent shnapps · Ctrl+Shift+G"
                     AutomationProperties.Name="Recent shnapps" AutomationProperties.AutomationId="FooterGallery">
                     <FontIcon Glyph="&#xE8B9;" FontSize="16" />
                 </Button>
-                <local:HandCursorToggleButton x:Name="InspectorToggle" Width="36" Height="36" Padding="0"
-                    CornerRadius="8" IsChecked="True" Click="InspectorToggle_Click"
+                <local:HandCursorToggleButton x:Name="InspectorToggle" Width="32" Height="32" Padding="0"
+                    CornerRadius="7" IsChecked="True" Click="InspectorToggle_Click"
                     ToolTipService.ToolTip="Show or hide tool options"
                     AutomationProperties.Name="Tool options" AutomationProperties.AutomationId="ToolOptions">
                     <FontIcon Glyph="&#xE8A0;" FontSize="16" />
                 </local:HandCursorToggleButton>
-                <Button x:Name="RecenterCanvasButton" Width="36" Height="36" Padding="0"
-                    Visibility="Collapsed" CornerRadius="8" Click="RecenterCanvas_Click"
+                <Button x:Name="RecenterCanvasButton" Width="32" Height="32" Padding="0"
+                    Visibility="Collapsed" CornerRadius="7" Click="RecenterCanvas_Click"
                     ToolTipService.ToolTip="Re-center canvas"
                     AutomationProperties.Name="Re-center canvas" AutomationProperties.AutomationId="RecenterCanvas">
                     <PathIcon Width="16" Height="16"
@@ -1418,20 +1418,20 @@
                 </Button>
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right"
-                VerticalAlignment="Center" Spacing="4"
+                VerticalAlignment="Center" Spacing="2"
                 Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
-                <Button x:Name="FooterFitButton" Width="36" Height="36" Padding="0" CornerRadius="8" Click="FooterFit_Click"
+                <Button x:Name="FooterFitButton" Width="32" Height="32" Padding="0" CornerRadius="7" Click="FooterFit_Click"
                     ToolTipService.ToolTip="Fit image in window" AutomationProperties.Name="Fit image"
                     AutomationProperties.AutomationId="FooterFit">
                     <FontIcon Glyph="&#xE9A6;" FontSize="16" />
                 </Button>
-                <Button Width="36" Height="36" Padding="0" CornerRadius="8" Click="ZoomOut_Click"
+                <Button Width="32" Height="32" Padding="0" CornerRadius="7" Click="ZoomOut_Click"
                     ToolTipService.ToolTip="Zoom out" AutomationProperties.Name="Zoom out"
                     AutomationProperties.AutomationId="ZoomOut">
                     <FontIcon Glyph="&#xE71F;" FontSize="16" />
                 </Button>
-                <DropDownButton CornerRadius="8" x:Name="ZoomPresetButton" Content="100%" Height="32" MinWidth="64"
-                    FontSize="12" Padding="8,0" ToolTipService.ToolTip="Canvas zoom"
+                <DropDownButton CornerRadius="7" x:Name="ZoomPresetButton" Content="100%" Height="30" MinWidth="56"
+                    FontSize="11" Padding="6,0" ToolTipService.ToolTip="Canvas zoom"
                     AutomationProperties.AutomationId="ZoomPresets"
                     AutomationProperties.HelpText="Canvas zoom. Choose a preset level.">
                     <DropDownButton.Flyout>
@@ -1450,12 +1450,12 @@
                         </MenuFlyout>
                     </DropDownButton.Flyout>
                 </DropDownButton>
-                <Button Width="36" Height="36" Padding="0" CornerRadius="8" Click="ZoomIn_Click"
+                <Button Width="32" Height="32" Padding="0" CornerRadius="7" Click="ZoomIn_Click"
                     ToolTipService.ToolTip="Zoom in" AutomationProperties.Name="Zoom in"
                     AutomationProperties.AutomationId="ZoomIn">
                     <FontIcon Glyph="&#xE8A3;" FontSize="16" />
                 </Button>
-                <Button Width="36" Height="36" Padding="0" CornerRadius="8" Click="Fullscreen_Click"
+                <Button x:Name="FooterFullscreenButton" Width="32" Height="32" Padding="0" CornerRadius="7" Click="Fullscreen_Click"
                     ToolTipService.ToolTip="Toggle full screen" AutomationProperties.Name="Toggle full screen"
                     AutomationProperties.AutomationId="Fullscreen">
                     <FontIcon Glyph="&#xE740;" FontSize="16" />
