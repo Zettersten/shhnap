@@ -97,8 +97,16 @@ internal sealed partial class ShnappRenderer
         drawing.DrawTextLayout(layout, (float)(box.X + 18), (float)(box.Y + 43), textColor);
     }
 
-    /// <summary>Draws only captured pixels into a movable lens, so it cannot recursively magnify itself.</summary>
+    /// <summary>Draws a lens preview using the same privacy-safe source as exported pixels.</summary>
     internal void DrawMagnifyAnnotation(CanvasDrawingSession drawing, CanvasBitmap original,
+        Annotation annotation, ShnappDocument document)
+    {
+        using CanvasRenderTarget? privacySource = CreateMagnifierSource(original, document);
+        DrawMagnifyFromSource(drawing, privacySource ?? original, annotation, document);
+    }
+
+    /// <summary>Draws sampled pixels without recursively magnifying the lens itself.</summary>
+    private void DrawMagnifyFromSource(CanvasDrawingSession drawing, CanvasBitmap source,
         Annotation annotation, ShnappDocument document)
     {
         ImageRect bounds = annotation.Bounds;
@@ -124,15 +132,15 @@ internal sealed partial class ShnappRenderer
             : document.BaseImageCrop ?? document.Crop ?? document.OriginalBounds;
         double left = Math.Max(0, Math.Max(visible.X, sourceX));
         double top = Math.Max(0, Math.Max(visible.Y, sourceY));
-        double right = Math.Min(original.Size.Width, Math.Min(visible.Right, sourceX + sourceWidth));
-        double bottom = Math.Min(original.Size.Height, Math.Min(visible.Bottom, sourceY + sourceHeight));
+        double right = Math.Min(source.Size.Width, Math.Min(visible.Right, sourceX + sourceWidth));
+        double bottom = Math.Min(source.Size.Height, Math.Min(visible.Bottom, sourceY + sourceHeight));
 
         using (drawing.CreateLayer(1, lens))
         {
             drawing.FillGeometry(lens, Color.FromArgb(255, 255, 255, 255));
             if (right > left && bottom > top)
             {
-                drawing.DrawImage(original,
+                drawing.DrawImage(source,
                     new Rect(bounds.X + (left - sourceX) * zoom,
                         bounds.Y + (top - sourceY) * zoom,
                         (right - left) * zoom, (bottom - top) * zoom),

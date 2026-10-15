@@ -1918,7 +1918,7 @@ public sealed partial class MainPage : Page
             return;
         }
         else if (args.Key is VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down &&
-            _dragStart is null && !_panning && !IsKeyHeld(VirtualKey.Menu) &&
+            _dragStart is null && _photoCropStart is null && !_panning && !IsKeyHeld(VirtualKey.Menu) &&
             (ReferenceEquals(FocusManager.GetFocusedElement(XamlRoot), CanvasHost) ||
              ReferenceEquals(FocusManager.GetFocusedElement(XamlRoot), DrawingCanvas)) &&
             (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control) &

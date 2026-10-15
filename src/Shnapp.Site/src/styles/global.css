@@ -93,11 +93,7 @@ p { line-height: 1.6; }
 .workflow-frame-head { display: flex; align-items: center; gap: .65rem; min-height: 52px; padding-inline: 1.45rem; color: #dceaff; font-size: .85rem; font-weight: 680; }
 .frame-light { width: 8px; height: 8px; border-radius: 50%; background: #62d5ff; box-shadow: 0 0 12px rgba(98,213,255,.6); }
 .frame-duration { margin-left: auto; color: #a9bbd3; font-size: .8rem; font-weight: 580; }
-.workflow-player { position: relative; background: #0a1320; }
-.workflow-player video, .workflow-fallback { display: block; width: 100%; height: auto; }
-.workflow-play { position: absolute; top: 50%; left: 50%; display: inline-flex; align-items: center; gap: .7rem; min-height: 60px; padding: .65rem 1.35rem .65rem .95rem; transform: translate(-50%,-50%); border: 1px solid rgba(255,255,255,.85); border-radius: 999px; background: rgba(255,255,255,.95); color: #102749; box-shadow: 0 15px 40px rgba(1,10,25,.28); cursor: pointer; font-size: .94rem; font-weight: 750; white-space: nowrap; }
-.workflow-play:hover { background: #d5f2ff; }
-.workflow-play svg { width: 34px; height: 34px; padding: 7px; border-radius: 50%; background: var(--blue); color: #fff; }
+.workflow-fallback { display: block; width: 100%; height: auto; }
 .workflow-caption { margin: 0; padding: .9rem 1.4rem 1rem; color: #b6c9df; font-size: .8rem; }
 .workflow-steps { display: grid; grid-template-columns: repeat(3,1fr); gap: 2rem; margin-top: 2.8rem; }
 .workflow-steps > div { display: grid; grid-template-columns: 42px 1fr; column-gap: .8rem; align-items: start; padding-top: 1.25rem; border-top: 1px solid #cad7e6; }
@@ -268,8 +264,6 @@ p { line-height: 1.6; }
   .fact-band p { font-size: .78rem; }
   .opening-copy h2, .capture-heading h2, .feature-copy h2, .faq-intro h2 { font-size: 2.6rem; }
   .workflow-frame-head { min-height: 44px; padding-inline: .9rem; font-size: .73rem; }
-  .workflow-play { min-height: 46px; padding: .45rem .9rem .45rem .55rem; font-size: .76rem; }
-  .workflow-play svg { width: 27px; height: 27px; padding: 5px; }
   .workflow-caption { padding: .7rem .9rem; font-size: .72rem; }
   .workflow-steps { grid-template-columns: 1fr; gap: .6rem; margin-top: 1.4rem; }
   .workflow-steps > div { grid-template-columns: 38px 1fr; padding-top: .8rem; }

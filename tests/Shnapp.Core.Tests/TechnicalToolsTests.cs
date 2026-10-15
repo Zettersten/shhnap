@@ -56,6 +56,46 @@ public sealed class TechnicalToolsTests
     }
 
     [TestMethod]
+    public void CroppedOutCalloutStaysHiddenAfterAnUnrelatedAnnotationEdit()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation callout = NewCallout(new ImagePoint(620, 175), "This note should stay cropped out.");
+        editor.AddAnnotation(callout);
+        editor.ApplyCrop(new ImageRect(100, 100, 200, 150));
+
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Rectangle) with
+        {
+            Start = new ImagePoint(120, 120),
+            End = new ImagePoint(150, 150),
+        });
+
+        Annotation afterEdit = Find(editor, callout.Id);
+        Assert.IsTrue(afterEdit.HiddenByCrop);
+        Assert.AreEqual(new ImageRect(100, 100, 200, 150), editor.Current.Viewport);
+    }
+
+    [TestMethod]
+    public void PartlyCroppedCalloutKeepsItsOriginalClipAfterAnUnrelatedEdit()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation callout = NewCallout(new ImagePoint(620, 175), "The anchor remains visible.");
+        editor.AddAnnotation(callout);
+        ImageRect crop = new(600, 100, 50, 150);
+        editor.ApplyCrop(crop);
+
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Rectangle) with
+        {
+            Start = new ImagePoint(610, 120),
+            End = new ImagePoint(630, 150),
+        });
+
+        Annotation afterEdit = Find(editor, callout.Id);
+        Assert.IsFalse(afterEdit.HiddenByCrop);
+        Assert.AreEqual(crop, afterEdit.VisibilityClip);
+        Assert.AreEqual(crop, editor.Current.Viewport);
+    }
+
+    [TestMethod]
     public void MagnifyRejectsTinyLensAndPersistsZoomAndShape()
     {
         var editor = new DocumentEditor(TestDocuments.Create());
@@ -81,6 +121,46 @@ public sealed class TechnicalToolsTests
         Annotation saved = restored.Annotations.Single();
         Assert.AreEqual(3.5, saved.MagnifyZoom);
         Assert.AreEqual(MagnifyShape.Rectangle, saved.MagnifyShape);
+    }
+
+    [TestMethod]
+    public void MagnifierSamplingRetainsFlattenedCoversAndEditableRedactions()
+    {
+        Annotation lens = TestDocuments.Annotation(AnnotationKind.Magnify) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(160, 160),
+            MagnifyZoom = 2,
+        };
+        Annotation flattenedCover = TestDocuments.Annotation(AnnotationKind.Rectangle) with
+        {
+            Start = new ImagePoint(110, 110),
+            End = new ImagePoint(111, 111),
+            IsFlattened = true,
+            RasterizedBounds = new ImageRect(110, 110, 1, 1),
+            ImagePngBase64 = TestDocuments.OnePixelPngBase64,
+            FlattenOrder = 1,
+        };
+        Annotation editableCover = TestDocuments.Annotation(AnnotationKind.Redaction) with
+        {
+            Start = new ImagePoint(120, 120),
+            End = new ImagePoint(150, 150),
+            VisibilityClip = new ImageRect(120, 120, 20, 20),
+        };
+        ShnappDocument document = TestDocuments.Create() with
+        {
+            HasWindowShadow = true,
+            Annotations = [lens, flattenedCover,
+                TestDocuments.Annotation(AnnotationKind.Rectangle), editableCover],
+        };
+
+        ShnappDocument? source = MagnifierPrivacySource.Create(document);
+
+        Assert.IsNotNull(source);
+        CollectionAssert.AreEqual(new[] { flattenedCover, editableCover }, source.Annotations.ToArray());
+        Assert.IsFalse(source.HasWindowShadow);
+        Assert.AreEqual(document.OriginalBounds, source.OriginalBounds);
+        Assert.AreEqual(editableCover.VisibilityClip, source.Annotations[1].VisibilityClip);
     }
 
     private static Annotation NewCallout(ImagePoint anchor, string text) => new()

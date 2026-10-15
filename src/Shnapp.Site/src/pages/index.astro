@@ -50,19 +50,9 @@ const captureModes = [
         <p>For a walkthrough, a visual note, or a quick explanation, Shnapp keeps the whole job in one place. Choose what to capture, add a mark, and get back to making.</p>
       </div>
       <div class="workflow-frame">
-        <div class="workflow-frame-head"><span class="frame-light" aria-hidden="true"></span><span>See Shnapp in action</span><span class="frame-duration">24 seconds</span></div>
-        {distribution.workflowVideoLive ? (
-          <div class="workflow-player">
-            <video data-workflow-video controls preload="none" poster="/demos/shnapp-workflow-poster.jpg" playsinline width="1280" height="688" aria-label="Shnapp demo showing capture, annotation, copy, and the local library">
-              <source src="/demos/shnapp-workflow.mp4" type="video/mp4" />
-              Your browser cannot play this video. The steps are described below.
-            </video>
-            <button class="workflow-play" type="button" data-video-start aria-label="Play the 24-second Shnapp demo"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9 5 10 7-10 7V5Z" fill="currentColor" /></svg><span>Play the demo</span></button>
-          </div>
-        ) : (
-          <img class="workflow-fallback" src="/screenshots/editor.png" alt="The Shnapp editor with an annotated sample capture" width="1920" height="1032" loading="lazy" />
-        )}
-        <p class="workflow-caption">A real Shnapp session using fictional sample content: capture, annotate, copy, and find it again.</p>
+        <div class="workflow-frame-head"><span class="frame-light" aria-hidden="true"></span><span>Shnapp v2 editor</span></div>
+        <img class="workflow-fallback" src="/screenshots/editor.png" alt="The Shnapp editor with an annotated fictional launch checklist" width="1920" height="1032" loading="lazy" />
+        <p class="workflow-caption">The Shnapp v2 editor with fictional sample content.</p>
       </div>
       <div class="workflow-steps" aria-label="The Shnapp workflow">
         <div><span>1</span><h3>Capture</h3><p>Pick a window, full screen, or a precise region.</p></div>
@@ -86,7 +76,7 @@ const captureModes = [
         <a class="arrow-link" href="/download/">{downloadsAvailable ? 'Get Shnapp' : 'See the preview'} <span aria-hidden="true">↗</span></a>
       </div>
       <figure class="feature-visual editor-visual">
-        <a href="/screenshots/editor.png" aria-label="Open a full-size screenshot of the Shnapp editor"><img src="/screenshots/editor.png" alt="Actual Shnapp editor showing a sample launch checklist with numbered steps and an opaque cover over a fictional access code" width="1920" height="1032" loading="lazy" /></a>
+        <a href="/screenshots/editor.png" aria-label="Open a full-size screenshot of the Shnapp editor"><img src="/screenshots/editor.png" alt="Actual Shnapp editor showing a fictional launch checklist with numbered steps and the selected step's font and color options" width="1920" height="1032" loading="lazy" /></a>
         <figcaption>Actual app screenshot with fictional sample content.</figcaption>
       </figure>
     </div>
@@ -171,19 +161,3 @@ const captureModes = [
     </div>
   </section>
 </SiteLayout>
-
-<script>
-  const video = document.querySelector<HTMLVideoElement>('[data-workflow-video]');
-  const start = document.querySelector<HTMLButtonElement>('[data-video-start]');
-  start?.addEventListener('click', async () => {
-    if (!video) return;
-    try {
-      await video.play();
-      start.hidden = true;
-    } catch {
-      start.textContent = 'Video unavailable. Read the steps below.';
-      start.disabled = true;
-    }
-  });
-  video?.addEventListener('play', () => { if (start) start.hidden = true; });
-</script>

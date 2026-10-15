@@ -113,7 +113,7 @@ public sealed partial class SettingsPage : Page
         {
             InstallationChannel.Store => "Microsoft Store controls automatic updates. Shnapp can install an available Store update when you choose Update now. Windows may close the app during installation.",
             InstallationChannel.DirectZip when PortableUpdateStager.FindCurrentInstallRoot() is null =>
-                "This older ZIP copy needs one manual download to enable automatic updates. Your library stays in your user folder.",
+                "This standalone copy needs one manual download to enable automatic updates. Your library stays in your user folder.",
             InstallationChannel.DirectZip => "Shnapp downloads a verified release in the background and uses it on the next restart. Your library stays in your user folder.",
             InstallationChannel.Velopack => "Velopack prepares verified updates in the background. Choose Restart to install update when one is ready. Your library stays in your user folder.",
             InstallationChannel.Chocolatey when !PackageManagerUpdateRunner.CanStartChocolatey() =>

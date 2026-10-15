@@ -56,6 +56,18 @@ jobs:
         run: dotnet restore src/Shnapp.App/Shnapp.App.csproj -p:Platform=x64 --locked-mode
       - name: Build Windows app
         run: dotnet build src/Shnapp.App/Shnapp.App.csproj -c Release -r win-x64 -p:Platform=x64 --no-restore
+      - name: Smoke-test portable WinUI startup
+        shell: pwsh
+        run: |
+          dotnet restore src/Shnapp.App/Shnapp.App.csproj --locked-mode `
+            -p:Platform=x64 -p:ShnappDistribution=PortableZip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $publishDir = Join-Path $env:RUNNER_TEMP 'shnapp-portable-smoke'
+          dotnet publish src/Shnapp.App/Shnapp.App.csproj -c Release -r win-x64 `
+            --no-restore --self-contained true --output $publishDir `
+            -p:Platform=x64 -p:ShnappDistribution=PortableZip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./packaging/release/Test-PortableStartup.ps1 -PayloadDirectory $publishDir
       - name: Test release signature verification
         shell: pwsh
         run: ./packaging/release/tests/Test-ReleaseSigning.ps1
@@ -134,7 +146,7 @@ jobs:
       - name: Restore target architecture from lock files
         shell: pwsh
         run: |
-          dotnet restore src/Shnapp.App/Shnapp.App.csproj --locked-mode "-p:Platform=$env:TARGET_PLATFORM" -p:ShnappDistribution=PortableSingleFile
+          dotnet restore src/Shnapp.App/Shnapp.App.csproj --locked-mode "-p:Platform=$env:TARGET_PLATFORM" -p:ShnappDistribution=PortableZip
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $launcherLock = Join-Path $env:GITHUB_WORKSPACE "src/Shnapp.Launcher/packages.$env:TARGET_RID.lock.json"
           dotnet restore src/Shnapp.Launcher/Shnapp.Launcher.csproj -r $env:TARGET_RID --locked-mode "-p:NuGetLockFilePath=$launcherLock"
@@ -147,9 +159,9 @@ jobs:
           $layoutDir = Join-Path $env:RUNNER_TEMP 'shnapp-layout'
           $assetsDir = Join-Path $env:GITHUB_WORKSPACE 'release-assets'
           $version = $env:RELEASE_TAG.Substring(1)
-          dotnet publish src/Shnapp.App/Shnapp.App.csproj -c Release -r $env:TARGET_RID --no-restore --self-contained true --output $publishDir "-p:Platform=$env:TARGET_PLATFORM" -p:ShnappDistribution=PortableSingleFile "-p:Version=$version" "-p:AssemblyVersion=$version.0" "-p:FileVersion=$version.0" "-p:InformationalVersion=$version"
+          dotnet publish src/Shnapp.App/Shnapp.App.csproj -c Release -r $env:TARGET_RID --no-restore --self-contained true --output $publishDir "-p:Platform=$env:TARGET_PLATFORM" -p:ShnappDistribution=PortableZip "-p:Version=$version" "-p:AssemblyVersion=$version.0" "-p:FileVersion=$version.0" "-p:InformationalVersion=$version"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $buildDir = (dotnet msbuild src/Shnapp.App/Shnapp.App.csproj -getProperty:TargetDir -p:Configuration=Release "-p:Platform=$env:TARGET_PLATFORM" "-p:RuntimeIdentifier=$env:TARGET_RID" -p:ShnappDistribution=PortableSingleFile).Trim()
+          $buildDir = (dotnet msbuild src/Shnapp.App/Shnapp.App.csproj -getProperty:TargetDir -p:Configuration=Release "-p:Platform=$env:TARGET_PLATFORM" "-p:RuntimeIdentifier=$env:TARGET_RID" -p:ShnappDistribution=PortableZip).Trim()
           if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $buildDir -PathType Container)) {
             throw 'Could not locate the app build output for bundled notices.'
           }
@@ -167,7 +179,12 @@ jobs:
             -DepsPath (Join-Path $buildDir 'Shnapp.deps.json') `
             -OutputDirectory $publishDir
           if ($env:UNSIGNED_RELEASE -ne 'true') {
-            foreach ($binary in @((Join-Path $publishDir 'Shnapp.exe'), (Join-Path $launcherDir 'Shnapp.exe'))) {
+            foreach ($binary in @(
+                (Join-Path $publishDir 'Shnapp.exe'),
+                (Join-Path $publishDir 'Shnapp.dll'),
+                (Join-Path $publishDir 'Shnapp.Core.dll'),
+                (Join-Path $publishDir 'Velopack.dll'),
+                (Join-Path $launcherDir 'Shnapp.exe'))) {
               ./packaging/release/Sign-ReleaseExecutable.ps1 `
                 -Path $binary -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
                 -DlibPath $env:RELEASE_SIGNING_DLIB_PATH `
@@ -180,17 +197,27 @@ jobs:
             -ReleaseTag $env:RELEASE_TAG `
             -PayloadDirectory $publishDir `
             -LauncherDirectory $launcherDir `
-            -OutputDirectory $layoutDir `
-            -SingleFile
+            -OutputDirectory $layoutDir
+          if ($env:TARGET_RID -eq 'win-x64') {
+            ./packaging/release/Test-PortableStartup.ps1 `
+              -PayloadDirectory (Join-Path $layoutDir "versions/$env:RELEASE_TAG")
+          }
           New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
           $archiveName = "Shnapp-$env:TARGET_RID.zip"
           $archive = Join-Path $assetsDir $archiveName
           [System.IO.Compression.ZipFile]::CreateFromDirectory(
             $layoutDir, $archive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
           if ($env:UNSIGNED_RELEASE -ne 'true') {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($archive)
+            try {
+              $binaries = @($zip.Entries |
+                Where-Object { $_.FullName -match '\.(?:exe|dll)$' } |
+                ForEach-Object FullName)
+            }
+            finally { $zip.Dispose() }
             ./packaging/release/Assert-ReleaseArchiveSignatures.ps1 `
               -ArchivePath $archive `
-              -EntryPaths @('Shnapp.exe', "versions/$env:RELEASE_TAG/Shnapp.exe") `
+              -EntryPaths $binaries `
               -SignToolPath $env:RELEASE_SIGNTOOL_PATH `
               -ExpectedPublisher $env:RELEASE_SIGNING_EXPECTED_PUBLISHER `
               -ExpectedProfileEku $env:RELEASE_SIGNING_PROFILE_EKU
@@ -241,10 +268,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: Shnapp-win-*
           merge-multiple: true
@@ -353,7 +380,7 @@ jobs:
             -AssetsDirectory uploaded-assets `
             -OutputDirectory catalog-candidates
       - name: Save catalog candidates for review
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: Catalog-candidates-${{ github.ref_name }}
           path: catalog-candidates/
@@ -366,7 +393,7 @@ jobs:
           bash packaging/release/release-evidence.sh write release-assets \
             "$RELEASE_TAG" "$(git rev-parse HEAD)" "$GITHUB_RUN_ID" release-evidence
       - name: Save release evidence for publication
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: Release-evidence-${{ github.ref_name }}
           path: release-evidence/
@@ -392,7 +419,7 @@ jobs:
       RELEASE_TAG: ${{ inputs.release_tag }}
       RELEASE_OPERATION: ${{ inputs.operation }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
           fetch-depth: 0

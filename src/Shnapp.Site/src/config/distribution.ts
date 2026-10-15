@@ -3,8 +3,6 @@ export const distribution = {
   publicRepository: true,
   /** Requires both ZIPs and matching .sha256 files in the latest stable GitHub Release. */
   downloadsLive: true,
-  /** Requires both files under public/demos/. */
-  workflowVideoLive: true,
   repositoryUrl: 'https://github.com/Zettersten/shhnap',
   contactEmail: 'erik@zettersten.com',
   builds: {

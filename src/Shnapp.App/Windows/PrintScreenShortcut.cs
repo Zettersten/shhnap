@@ -23,6 +23,7 @@ internal sealed class PrintScreenShortcut : IDisposable
     private uint _threadId;
     private nint _hook;
     private bool _pressed;
+    private bool _passedThrough;
     private volatile bool _stop;
 
     internal PrintScreenShortcut(nint targetWindow)
@@ -108,10 +109,30 @@ internal sealed class PrintScreenShortcut : IDisposable
                 return 1;
             }
 
+            if (released && _passedThrough)
+            {
+                _passedThrough = false;
+                return CallNextHookEx(_hook, code, message, data);
+            }
+
+            bool pressed = keyboardMessage is WmKeyDown or WmSysKeyDown;
+            if (pressed && _pressed)
+            {
+                return 1;
+            }
+
+            if (pressed && _passedThrough)
+            {
+                return CallNextHookEx(_hook, code, message, data);
+            }
+
             bool plainKey = (key.Flags & AltDown) == 0 &&
                 !IsDown(0x10) && !IsDown(0x11) && !IsDown(0x5B) && !IsDown(0x5C);
             if (!plainKey)
             {
+                // Keep a modified press with Windows even if its modifiers are
+                // released before Print Screen is released.
+                if (pressed) _passedThrough = true;
                 return CallNextHookEx(_hook, code, message, data);
             }
 
@@ -121,12 +142,13 @@ internal sealed class PrintScreenShortcut : IDisposable
                 return QueueCapture() ? 1 : CallNextHookEx(_hook, code, message, data);
             }
 
-            if (keyboardMessage is WmKeyDown or WmSysKeyDown)
+            if (pressed)
             {
                 if (!_pressed)
                 {
                     if (!QueueCapture())
                     {
+                        _passedThrough = true;
                         return CallNextHookEx(_hook, code, message, data);
                     }
                     _pressed = true;

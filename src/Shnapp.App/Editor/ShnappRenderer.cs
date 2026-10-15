@@ -23,6 +23,9 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
     internal CanvasRenderTarget Flatten(CanvasBitmap original, ShnappDocument document,
         ImageRect? viewportOverride = null)
     {
+        using CanvasRenderTarget? magnifierSource = document.Annotations.Any(item =>
+            item.Kind == AnnotationKind.Magnify && !item.IsFlattened && !item.HiddenByCrop)
+            ? CreateMagnifierSource(original, document) : null;
         ImageRect viewport = viewportOverride ?? document.Viewport;
         var content = new CanvasRenderTarget(_device, (float)viewport.Width, (float)viewport.Height, 96);
         try
@@ -121,7 +124,7 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
                         }
                         else if (item.Kind == AnnotationKind.Magnify)
                         {
-                            DrawMagnifyAnnotation(drawing, original, item, document);
+                            DrawMagnifyFromSource(drawing, magnifierSource ?? original, item, document);
                         }
                         else
                         {
@@ -213,6 +216,8 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
         using var raster = new CanvasRenderTarget(_device, (float)bounds.Width, (float)bounds.Height, 96);
         bool samplesBackdrop = annotation.Kind == AnnotationKind.Redaction &&
             annotation.RedactionMode != RedactionMode.Solid;
+        using CanvasRenderTarget? magnifierSource = annotation.Kind == AnnotationKind.Magnify
+            ? CreateMagnifierSource(original, document) : null;
         using CanvasRenderTarget? composited = samplesBackdrop
             ? Flatten(original, document with
             {
@@ -243,7 +248,7 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
             }
             else if (annotation.Kind == AnnotationKind.Magnify)
             {
-                DrawMagnifyAnnotation(drawing, original, annotation, document);
+                DrawMagnifyFromSource(drawing, magnifierSource ?? original, annotation, document);
             }
             else
             {
@@ -264,6 +269,16 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
         byte[] pixels = new byte[checked((int)stream.Size)];
         reader.ReadBytes(pixels);
         return (Convert.ToBase64String(pixels), bounds);
+    }
+
+    private CanvasRenderTarget? CreateMagnifierSource(CanvasBitmap original,
+        ShnappDocument document)
+    {
+        ShnappDocument? privacySource = MagnifierPrivacySource.Create(document);
+        // Keep original-image coordinates while applying frozen covers and live
+        // redactions. The projection contains no editable lenses, so it cannot recurse.
+        return privacySource is null ? null
+            : Flatten(original, privacySource, document.OriginalBounds);
     }
 
     private ImageRect ElementRasterBounds(Annotation annotation, ImageRect viewport)
