@@ -25,8 +25,12 @@ Shnapp waits quietly in your tray until you need it. Capture part of your screen
 | `Ctrl+Shift+4` | A window you choose |
 | `Ctrl+Shift+3` | The display under your pointer |
 | `Ctrl+Shift+2` | A region you drag out |
+| `Ctrl+Shift+5` | A photo from your camera |
+| `Print Screen` (optional) | Full screen by default; choose window or region in Settings |
 
-You can start any capture from the tray icon or **New shnapp** in the app. Region capture currently uses a rectangle; a drawn free-form selection is planned.
+You can start any capture from the tray icon or **Capture** in the app. Enable Print Screen in **Settings → General → Keyboard shortcuts** to intercept the plain key while Shnapp is running; Alt+Print Screen keeps its Windows behavior. Region capture currently uses a rectangle; a drawn free-form selection is planned.
+
+Choose a camera in Settings or leave it on Automatic. A camera photo opens as an editable shnapp, and the camera button in the editor adds another photo as a movable layer. Select a photo layer to crop it or reset its crop. Camera actions are disabled when no camera is connected.
 
 The grabber freezes the visible desktop when capture starts, so moving content holds still while you choose. A crosshair and live pixel measurements help you draw a region; hold Shift for a square. A bright pulse frames the window or display you are about to capture. Window shnapps use the visible pixels from that frozen moment, including anything overlapping the window.
 
@@ -38,20 +42,22 @@ Paste with `Ctrl+V` to turn copied words into an editable text mark or a copied 
 
 To work with several marks at once, `Ctrl+click` each element to add or remove it from the selection, or press `Ctrl+A` to select every visible editable element. An outline shows the selected group. Drag any selected element to move the group; hold Shift while dragging to keep the move horizontal or vertical. You can also nudge the group with the arrow keys, one pixel at a time or ten with Shift. Moving the group past the current canvas extends the transparent canvas around it. Press `Esc` to clear the group selection.
 
-- **Text:** click once to write without a box; your words can grow in width or across lines. Drag to draw a fixed width and height when text needs to fit a specific space. Choose whether overflow is clipped or ends with an ellipsis, align or justify the text, and set its line height. Both styles offer font, weight, italic style, size, color, kerning, letter spacing, and case controls. Press Enter for another line, `Ctrl+Enter` to finish, or double-click placed text to rewrite it.
+- **Text:** click once to write without a box; your words can grow in width or across lines. Drag to draw a fixed width and height when text needs to fit a specific space. Choose whether overflow is clipped or ends with an ellipsis, align text horizontally and vertically, and set its line height. Style selected words with bold, italic, or underline, and use Windows spelling suggestions while editing. The font picker previews each choice as you move through it with the arrow keys. Press Enter for another line, `Ctrl+Enter` to finish, or double-click placed text to rewrite it.
+- **Callouts:** enter an explanation, then point to the detail it describes. Shnapp numbers the callout and positions its text outside the image, with a leader line back to the point. Edit the text to have the layout measured again.
+- **Magnify:** draw a magnifier over a detail to enlarge the underlying pixels. Adjust the zoom and outline, and resize the magnifier without collapsing it below its usable minimum.
 - **Steps:** place dots labeled with numbers, letters, or Roman numerals. Restart the count at any dot, and adjust its size, colors, font, and weight. The next dot keeps your last size.
-- **Lines and shapes:** use one line tool for solid, dashed, or dotted strokes. Choose a cap for either end: triangle, open arrow, circle, diamond, bar, or none. Draw rectangles, squares, ellipses, and circles with adjustable outlines and fills, including fill-only shapes.
+- **Lines and shapes:** use one line tool for solid, dashed, or dotted strokes. New lines start with a triangle end cap; choose a different cap for either end if needed: open arrow, circle, diamond, bar, or none. Draw rectangles, squares, ellipses, and circles with adjustable outlines and fills, including fill-only shapes.
 - **Privacy:** choose Cover, Blur, or Pixelate for a rectangular area. Use opaque Cover for sensitive details; Blur and Pixelate only obscure the view.
 
 Draw a crop and drag it into place, use exact X, Y, width, and height values, lock proportions, or pick a ratio such as 1:1, 9:16, or 5:7. The crosshair stays visible while you position and draw a crop, with a live size readout; press `Esc` to cancel crop mode and return to Select. Text, steps, lines, shapes, and privacy tools each show a placement cursor while active. Scroll the canvas to zoom; hold Space and drag with the hand cursor to pan with a short, gentle glide. Hold Shift while resizing a single mark to keep its proportions. Click a number field, then scroll to change it by one; hold Shift for ten. Undo or redo as you go. Window captures get a soft drop shadow by default.
 
 Right-click any placed element, including an image pasted from the clipboard or dragged from the gallery, to clone it, delete it, change which marks sit in front, or **Flatten** it. With a group selected, right-click one of its elements to clone, delete, or flatten the whole group. Flatten rasterizes each selected element in place so it can no longer be selected, moved, or edited; use Undo (`Ctrl+Z`) to restore the editable elements. `Ctrl+D` duplicates the selection, and `Delete` removes it. For a single element, `Ctrl+]` moves it to the front and `Ctrl+[` moves it to the back.
 
-When it looks right, **Copy** (`Ctrl+C`) puts the finished image on your clipboard with its transparent areas intact, and **Save** (`Ctrl+S`) lets you export a PNG. Close the window when you're finished; Shnapp stays ready in the tray. The toolbar menu also offers Windows Share, Copy full path, and Delete shnapp.
+When it looks right, choose **Copy** (`Ctrl+C`) from the toolbar menu to put the finished image on your clipboard with its transparent areas intact, or **Save** (`Ctrl+S`) to export a PNG. Close the window when you're finished; Shnapp stays ready in the tray. The menu also offers Windows Share, Copy full path, and Delete shnapp.
 
 ## Find it again
 
-Your shnapps live in a local library, ready to search and reopen. Choose a list or one of four thumbnail sizes. Each item shows its last saved date, dimensions, and PNG size; sort by any of those or by name. After you edit a shnapp, its date and preview update when you return to the library.
+Your shnapps live in a local library, ready to search and reopen. Choose a list or one of four thumbnail sizes, and press `Ctrl+A` to select all visible results in either view. Press `Ctrl+A` again or `Esc` to clear the selection, or use the Clear selection button beside Delete. Each item shows its last saved date, dimensions, and PNG size; sort by any of those or by name. After you edit a shnapp, its date and preview update when you return to the library.
 
 Right-click an item to clone, rename, share, delete, or copy its saved PNG path. In the grid, hover over a thumbnail to reveal its checkbox at the bottom right. List checkboxes are always visible. Selecting an item brings **Delete** beside search for bulk cleanup.
 

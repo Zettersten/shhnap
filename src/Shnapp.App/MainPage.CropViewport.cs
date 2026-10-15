@@ -68,6 +68,7 @@ public sealed partial class MainPage
         _viewViewport = null;
         _viewShadowPadding = 0;
         _pendingContentAnchor = null;
+        UpdateRecenterCanvasButton();
         UpdateZoomLabel();
     }
 
@@ -105,7 +106,16 @@ public sealed partial class MainPage
         double target = preset == "fit" ? _fitScale :
             double.TryParse(preset, NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
                 ? value : _scale;
-        QueueCanvasZoom(target, new Point(DrawingCanvas.ActualWidth / 2, DrawingCanvas.ActualHeight / 2));
+        if (preset == "fit")
+        {
+            CenterCanvasImage();
+        }
+
+        const double toolbarInset = 64;
+        const double bottomInset = 24;
+        double availableHeight = Math.Max(1, DrawingCanvas.ActualHeight - toolbarInset - bottomInset);
+        QueueCanvasZoom(target, new Point(DrawingCanvas.ActualWidth / 2,
+            toolbarInset + availableHeight / 2));
     }
 
     private double MinimumZoomScale() => Math.Max(0.005, Math.Min(0.1, _fitScale * 0.2));
@@ -161,7 +171,7 @@ public sealed partial class MainPage
             _zoomFactor = _scale / _fitScale;
             _offsetX = _zoomAnchor.X - _zoomAnchorImageX * _scale;
             _offsetY = _zoomAnchor.Y - _zoomAnchorImageY * _scale;
-            ClampCanvasPan();
+            UpdateRecenterCanvasButton();
             UpdateZoomLabel();
             DrawingCanvas.Invalidate();
         };
@@ -200,7 +210,7 @@ public sealed partial class MainPage
         _panLastMovement = _panLastSample;
         _panVelocity = Vector2.Zero;
         HideCropTip();
-        DrawingCanvas.Focus(FocusState.Programmatic);
+        CanvasHost.Focus(FocusState.Programmatic);
         CanvasHost.CapturePointer(args.Pointer);
         args.Handled = true;
     }
@@ -218,7 +228,7 @@ public sealed partial class MainPage
         {
             _offsetX += dx;
             _offsetY += dy;
-            ClampCanvasPan();
+            UpdateRecenterCanvasButton();
             _panLastMovement = now;
             _panVelocity = new Vector2((float)Math.Clamp(dx / elapsed, -0.9, 0.9),
                 (float)Math.Clamp(dy / elapsed, -0.9, 0.9));
@@ -252,15 +262,12 @@ public sealed partial class MainPage
             DateTimeOffset now = DateTimeOffset.UtcNow;
             double elapsed = Math.Clamp((now - _panLastSample).TotalMilliseconds, 1, 50);
             _panLastSample = now;
-            double beforeX = _offsetX;
-            double beforeY = _offsetY;
             _offsetX += _panVelocity.X * elapsed;
             _offsetY += _panVelocity.Y * elapsed;
-            ClampCanvasPan();
+            UpdateRecenterCanvasButton();
             _panVelocity *= (float)Math.Exp(-elapsed / 60);
             DrawingCanvas.Invalidate();
-            if (_panVelocity.Length() < 0.08f ||
-                (Math.Abs(_offsetX - beforeX) < 0.01 && Math.Abs(_offsetY - beforeY) < 0.01))
+            if (_panVelocity.Length() < 0.08f)
             {
                 StopCanvasPan();
             }
@@ -290,6 +297,11 @@ public sealed partial class MainPage
 
     private void Canvas_PointerExited(object sender, PointerRoutedEventArgs args)
     {
+        if ((CanvasHost.PointerCaptures?.Count ?? 0) == 0)
+        {
+            FlushCanvasTextRefresh();
+        }
+
         if (_dragStart is null)
         {
             HideCropTip();
@@ -389,21 +401,47 @@ public sealed partial class MainPage
         DrawingCanvas.Invalidate();
     }
 
-    private void ClampCanvasPan()
+    private void UpdateRecenterCanvasButton()
     {
-        if (_flattened is null)
+        if (RecenterCanvasButton is null)
         {
             return;
         }
 
-        double imageWidth = _flattened.Size.Width * _scale;
-        double imageHeight = _flattened.Size.Height * _scale;
-        _offsetX = imageWidth <= DrawingCanvas.ActualWidth
-            ? Math.Clamp(_offsetX, 0, DrawingCanvas.ActualWidth - imageWidth)
-            : Math.Clamp(_offsetX, DrawingCanvas.ActualWidth - imageWidth, 0);
-        _offsetY = imageHeight <= DrawingCanvas.ActualHeight
-            ? Math.Clamp(_offsetY, 0, DrawingCanvas.ActualHeight - imageHeight)
-            : Math.Clamp(_offsetY, DrawingCanvas.ActualHeight - imageHeight, 0);
+        bool outside = _editor is not null && _flattened is not null &&
+            DrawingCanvas.ActualWidth > 0 && DrawingCanvas.ActualHeight > 0 &&
+            (_offsetX + _flattened.Size.Width * _scale <= 0 ||
+             _offsetX >= DrawingCanvas.ActualWidth ||
+             _offsetY + _flattened.Size.Height * _scale <= 0 ||
+             _offsetY >= DrawingCanvas.ActualHeight);
+        Visibility visibility = outside ? Visibility.Visible : Visibility.Collapsed;
+        if (RecenterCanvasButton.Visibility != visibility)
+        {
+            RecenterCanvasButton.Visibility = visibility;
+        }
+    }
+
+    private void RecenterCanvas_Click(object sender, RoutedEventArgs args)
+    {
+        CenterCanvasImage();
+    }
+
+    private void CenterCanvasImage()
+    {
+        if (_editor is null || _flattened is null)
+        {
+            return;
+        }
+
+        StopCanvasPan();
+        StopZoomAnimation();
+        const double toolbarInset = 64;
+        const double bottomInset = 24;
+        double availableHeight = Math.Max(1, DrawingCanvas.ActualHeight - toolbarInset - bottomInset);
+        _offsetX = (DrawingCanvas.ActualWidth - _flattened.Size.Width * _scale) / 2;
+        _offsetY = toolbarInset + (availableHeight - _flattened.Size.Height * _scale) / 2;
+        UpdateRecenterCanvasButton();
+        DrawingCanvas.Invalidate();
     }
 
     private void UpdateCropInspector()

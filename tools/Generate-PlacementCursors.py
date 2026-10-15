@@ -84,6 +84,15 @@ def privacy_cursor():
     return image
 
 
+def magnify_cursor():
+    image, draw = cursor_base()
+    ellipse(draw, (11, 10, 24, 23), INK, 4)
+    ellipse(draw, (11, 10, 24, 23), PAPER, 2)
+    line(draw, ((22.5, 21.5), (28, 27)), INK, 5)
+    line(draw, ((22.5, 21.5), (28, 27)), PAPER, 2.5)
+    return image
+
+
 def cursor_data(image):
     rgba = image.resize((SIZE, SIZE), Image.Resampling.LANCZOS)
     dib = pack("<IiiHHIIiiII", 40, SIZE, SIZE * 2, 1, 32, 0, SIZE * SIZE * 4, 0, 0, 0, 0)
@@ -105,7 +114,8 @@ def cursor_data(image):
 
 
 for name, render in (("PlaceShape", shape_cursor), ("PlaceLine", line_cursor),
-                     ("PlaceStep", step_cursor), ("PlacePrivacy", privacy_cursor)):
+                     ("PlaceStep", step_cursor), ("PlacePrivacy", privacy_cursor),
+                     ("PlaceMagnify", magnify_cursor)):
     data, preview = cursor_data(render())
     (ASSETS / f"{name}.cur").write_bytes(data)
     if "--preview" in sys.argv:

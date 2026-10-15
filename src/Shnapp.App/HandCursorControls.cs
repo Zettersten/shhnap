@@ -2,27 +2,29 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
 
 namespace Shnapp.App;
 
 internal static class ActionHandCursor
 {
-    internal static readonly InputCursor Value = InputSystemCursor.Create(InputSystemCursorShape.Hand);
+    internal static InputCursor Create() => InputSystemCursor.Create(InputSystemCursorShape.Hand);
 }
 
 public sealed class HandCursorAppBarButton : AppBarButton
 {
+    private readonly InputCursor _hand = ActionHandCursor.Create();
     public bool HideFlyoutChevron { get; set; }
 
     public HandCursorAppBarButton()
     {
-        ProtectedCursor = ActionHandCursor.Value;
+        ProtectedCursor = _hand;
         Loaded += (_, _) =>
         {
-            ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
+            RefreshCursor();
             UpdateFlyoutChevron();
         };
-        IsEnabledChanged += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
+        IsEnabledChanged += (_, _) => RefreshCursor();
     }
 
     protected override void OnApplyTemplate()
@@ -30,6 +32,8 @@ public sealed class HandCursorAppBarButton : AppBarButton
         base.OnApplyTemplate();
         UpdateFlyoutChevron();
     }
+
+    private void RefreshCursor() => ProtectedCursor = IsEnabled ? _hand : null;
 
     private void UpdateFlyoutChevron()
     {
@@ -50,41 +54,94 @@ public sealed class HandCursorAppBarButton : AppBarButton
     }
 }
 
-public sealed class HandCursorAppBarToggleButton : AppBarToggleButton
+internal static class ToolbarIconAppearance
 {
-    public HandCursorAppBarToggleButton()
+    internal static void Apply(ContentControl button, bool active)
     {
-        ProtectedCursor = ActionHandCursor.Value;
-        Loaded += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
-        IsEnabledChanged += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
+        if (button.Content is IconElement icon)
+        {
+            Brush brush = (Brush)Application.Current.Resources["ShnappToolbarActiveIconBrush"];
+            if (!ReferenceEquals(icon.Foreground, brush))
+            {
+                icon.Foreground = brush;
+            }
+            icon.Opacity = !button.IsEnabled ? 0.35 : active ? 1 : 0.58;
+        }
+    }
+}
+
+/// <summary>A regular Button for toolbar actions and the Shapes flyout.</summary>
+public sealed class ToolbarActionButton : Button
+{
+    private readonly InputCursor _hand = ActionHandCursor.Create();
+    private bool _hovered;
+    private bool _selected;
+
+    public bool IsSelected
+    {
+        get => _selected;
+        set
+        {
+            if (_selected == value) return;
+            _selected = value;
+            RefreshAppearance();
+        }
+    }
+
+    public ToolbarActionButton()
+    {
+        Loaded += (_, _) => RefreshAppearance();
+        ActualThemeChanged += (_, _) => RefreshAppearance();
+        IsEnabledChanged += (_, _) => RefreshAppearance();
+        PointerEntered += (_, _) => { _hovered = true; RefreshAppearance(); };
+        PointerExited += (_, _) => { _hovered = false; RefreshAppearance(); };
+    }
+
+    private void RefreshAppearance()
+    {
+        InputCursor? cursor = IsEnabled ? _hand : null;
+        if (!ReferenceEquals(ProtectedCursor, cursor))
+        {
+            ProtectedCursor = cursor;
+        }
+        if (IsLoaded)
+        {
+            ToolbarIconAppearance.Apply(this, _selected || _hovered);
+        }
     }
 }
 
 public sealed class HandCursorToggleButton : ToggleButton
 {
+    private readonly InputCursor _hand = ActionHandCursor.Create();
+
     public HandCursorToggleButton()
     {
-        ProtectedCursor = ActionHandCursor.Value;
-        Loaded += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
-        IsEnabledChanged += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
+        ProtectedCursor = _hand;
+        Loaded += (_, _) => ProtectedCursor = IsEnabled ? _hand : null;
+        IsEnabledChanged += (_, _) => ProtectedCursor = IsEnabled ? _hand : null;
     }
 }
 
 public sealed class HandCursorSplitButton : SplitButton
 {
+    private readonly InputCursor _hand = ActionHandCursor.Create();
+
     public HandCursorSplitButton()
     {
-        ProtectedCursor = ActionHandCursor.Value;
-        Loaded += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
-        IsEnabledChanged += (_, _) => ProtectedCursor = IsEnabled ? ActionHandCursor.Value : null;
+        ProtectedCursor = _hand;
+        Loaded += (_, _) => ProtectedCursor = IsEnabled ? _hand : null;
+        IsEnabledChanged += (_, _) => ProtectedCursor = IsEnabled ? _hand : null;
     }
 }
 
 public sealed class HandCursorRegion : Grid
 {
+    private readonly InputCursor _hand = ActionHandCursor.Create();
+
     public HandCursorRegion()
     {
-        ProtectedCursor = ActionHandCursor.Value;
-        Loaded += (_, _) => ProtectedCursor = ActionHandCursor.Value;
+        ProtectedCursor = _hand;
+        Loaded += (_, _) => ProtectedCursor = _hand;
     }
 }

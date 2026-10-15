@@ -12,13 +12,13 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid Background="{ThemeResource ShnappCanvasBrush}">
+    <Grid Background="Transparent">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TitleBar x:Name="AppTitleBar" Title="Shnapp" Background="{ThemeResource ShnappChromeBrush}">
+        <TitleBar x:Name="AppTitleBar" Title="Shnapp" Background="{ThemeResource ShnappCanvasBrush}">
             <TitleBar.IconSource>
                 <ImageIconSource ImageSource="Assets/AppIcon.ico" />
             </TitleBar.IconSource>

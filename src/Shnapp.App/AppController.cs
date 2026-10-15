@@ -132,6 +132,19 @@ internal sealed partial class AppController
         {
             _settings = await Library.LoadSettingsAsync(_lifetime.Token);
             ApplyTheme();
+            if (!_options.Isolated && _settings.PrintScreenEnabled)
+            {
+                try
+                {
+                    _tray.ConfigurePrintScreen(true, _settings.PrintScreenMode);
+                }
+                catch (System.ComponentModel.Win32Exception exception)
+                {
+                    _page.ShowMessage("Print Screen unavailable",
+                        exception.Message + " Turn it off in Settings or restart Shnapp to try again.",
+                        InfoBarSeverity.Warning);
+                }
+            }
             IReadOnlyList<ShnappSummary> documents = await ListReadySummariesAsync();
             _page.ShowLibrary(documents);
             UpdateNavigationButtons();
@@ -169,7 +182,7 @@ internal sealed partial class AppController
         if (_tray.Conflicts.Count > 0)
         {
             _page.ShowMessage("Shortcut already in use",
-                string.Join(", ", _tray.Conflicts) + " could not be registered. Close the conflicting app, restart Shnapp, or use New shnapp.",
+                string.Join(", ", _tray.Conflicts) + " could not be registered. Close the conflicting app, restart Shnapp, or use Capture.",
                 InfoBarSeverity.Warning);
         }
         else if (!_tray.IsPresent)
@@ -178,12 +191,16 @@ internal sealed partial class AppController
                 InfoBarSeverity.Warning);
         }
 
+        await RefreshCameraAvailabilityAsync();
+        StartCameraWatcher();
         Run(async () => { await CheckForUpdatesAsync(manual: false); });
         if (!HasPackageIdentity) { _updateTimer.Start(); }
         _ = CleanupExpiredExportSnapshotsAsync();
     }
 
-    internal void Capture(CaptureKind kind) => Run(() => CaptureAsync(kind));
+    internal void Capture(CaptureKind kind) => Run(() =>
+        kind == CaptureKind.Camera ? CaptureCameraAsync() : CaptureAsync(kind));
+    internal void InsertCameraPhoto() => Run(InsertCameraPhotoAsync);
     internal void OpenLibrary() => Run(() => OpenLibraryAsync());
     internal void OpenDocument(Guid id) => Run(() => OpenDocumentAsync(id));
     internal void Copy() => Run(CopyAsync);
@@ -593,7 +610,7 @@ internal sealed partial class AppController
             if (recordHistory) { RecordNavigation(null); }
             _page.SetGalleryDocuments(documents);
             Renderer.ClearPastedImages();
-            _page.ViewModel.Status = "Saved on this PC · New shnapp or Ctrl+Shift+4 to capture";
+            _page.ViewModel.Status = "Saved on this PC · Capture or Ctrl+Shift+4 to start again";
             Show();
         }
         finally
@@ -725,13 +742,24 @@ internal sealed partial class AppController
         bool packaged = HasPackageIdentity;
         bool startupChanged = !_options.Isolated &&
             settings.StartOnLogin != _settings.StartOnLogin;
+        bool printScreenChanged = !_options.Isolated &&
+            (settings.PrintScreenEnabled != _settings.PrintScreenEnabled ||
+             settings.PrintScreenMode != _settings.PrintScreenMode);
         if (startupChanged) { await StartupPreference.ApplyAsync(settings.StartOnLogin, packaged); }
         try
         {
+            if (printScreenChanged)
+            {
+                _tray.ConfigurePrintScreen(settings.PrintScreenEnabled, settings.PrintScreenMode);
+            }
             await Library.SaveSettingsAsync(settings);
         }
         catch
         {
+            if (printScreenChanged)
+            {
+                _tray.ConfigurePrintScreen(_settings.PrintScreenEnabled, _settings.PrintScreenMode);
+            }
             if (startupChanged) { await StartupPreference.ApplyAsync(_settings.StartOnLogin, packaged); }
             throw;
         }
@@ -750,6 +778,7 @@ internal sealed partial class AppController
     private async Task QuitAsync()
     {
         _activeCapture?.Cancel();
+        StopCameraWatcher();
         _saveTimer.Stop();
         _updateTimer.Stop();
         _storeUpdateTimer?.Stop();

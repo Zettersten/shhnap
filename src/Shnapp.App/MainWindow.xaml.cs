@@ -2,6 +2,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Windowing;
 using Windows.Graphics;
+using Windows.UI;
+using Windows.UI.ViewManagement;
 
 namespace Shnapp.App;
 
@@ -74,12 +76,24 @@ public sealed partial class MainWindow : Window
         Page.RequestedTheme = theme;
         if (AppWindowTitleBar.IsCustomizationSupported())
         {
-            AppWindow.TitleBar.PreferredTheme = theme switch
+            AppWindowTitleBar titleBar = AppWindow.TitleBar;
+            titleBar.PreferredTheme = theme switch
             {
                 ElementTheme.Light => TitleBarTheme.Light,
                 ElementTheme.Dark => TitleBarTheme.Dark,
                 _ => TitleBarTheme.UseDefaultAppMode,
             };
+            // The XAML title bar paints the same surface as the page. Let that
+            // surface show through the native caption buttons as well.
+            bool highContrast = new AccessibilitySettings().HighContrast;
+            bool dark = theme == ElementTheme.Dark ||
+                (theme == ElementTheme.Default && AppTitleBar.ActualTheme == ElementTheme.Dark);
+            titleBar.ButtonBackgroundColor = highContrast ? null : Color.FromArgb(0, 0, 0, 0);
+            titleBar.ButtonInactiveBackgroundColor = highContrast ? null : Color.FromArgb(0, 0, 0, 0);
+            titleBar.ButtonHoverBackgroundColor = highContrast ? null :
+                dark ? Color.FromArgb(32, 255, 255, 255) : Color.FromArgb(20, 10, 39, 77);
+            titleBar.ButtonPressedBackgroundColor = highContrast ? null :
+                dark ? Color.FromArgb(48, 255, 255, 255) : Color.FromArgb(32, 10, 39, 77);
         }
     }
 
@@ -115,4 +129,5 @@ public sealed partial class MainWindow : Window
             presenter.PreferredMinimumHeight = 420;
         }
     }
+
 }
