@@ -164,13 +164,20 @@ public sealed partial class MainPage
         drawing.DrawRectangle(frame, border, (float)(2 / _scale));
     }
 
-    private static Annotation ShiftAnnotation(Annotation annotation, double dx, double dy) =>
-        annotation with
+    private static Annotation ShiftAnnotation(Annotation annotation, double dx, double dy)
+    {
+        Annotation moved = annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow
+            ? LineGeometry.Translate(annotation, dx, dy)
+            : annotation with
+            {
+                Start = new ImagePoint(annotation.Start.X + dx, annotation.Start.Y + dy),
+                End = new ImagePoint(annotation.End.X + dx, annotation.End.Y + dy),
+            };
+        return moved with
         {
-            Start = new ImagePoint(annotation.Start.X + dx, annotation.Start.Y + dy),
-            End = new ImagePoint(annotation.End.X + dx, annotation.End.Y + dy),
             VisibilityClip = annotation.VisibilityClip is ImageRect clip
                 ? clip with { X = clip.X + dx, Y = clip.Y + dy }
                 : null,
         };
+    }
 }

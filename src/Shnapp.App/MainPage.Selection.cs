@@ -23,6 +23,7 @@ public sealed partial class MainPage
         Left,
         Start,
         End,
+        CurveMidpoint,
     }
 
     private readonly record struct SelectionHandle(ResizeHandle Kind, ImagePoint Position);
@@ -32,6 +33,8 @@ public sealed partial class MainPage
         AnnotationKind.Text => ShnappRenderer.TextBounds(annotation),
         AnnotationKind.Step => new Rect(annotation.Start.X - annotation.StepDiameter / 2,
             annotation.Start.Y - annotation.StepDiameter / 2, annotation.StepDiameter, annotation.StepDiameter),
+        AnnotationKind.Callout => new Rect(annotation.End.X, annotation.End.Y,
+            annotation.TextBoxWidth, annotation.TextBoxHeight),
         _ => ShnappRenderer.ToRect(annotation.Bounds),
     };
 
@@ -45,15 +48,8 @@ public sealed partial class MainPage
 
         if (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow)
         {
-            double dx = annotation.End.X - annotation.Start.X;
-            double dy = annotation.End.Y - annotation.Start.Y;
-            double lengthSquared = dx * dx + dy * dy;
-            double fraction = lengthSquared < 1 ? 0 : Math.Clamp(
-                ((position.X - annotation.Start.X) * dx + (position.Y - annotation.Start.Y) * dy) / lengthSquared, 0, 1);
-            double distanceX = position.X - annotation.Start.X - fraction * dx;
-            double distanceY = position.Y - annotation.Start.Y - fraction * dy;
-            double distance = Math.Sqrt(distanceX * distanceX + distanceY * distanceY);
-            if (distance <= Math.Max(7 / _scale, annotation.StrokeWidth / 2 + 3 / _scale))
+            if (LineGeometry.DistanceToPath(annotation, position) <=
+                Math.Max(7 / _scale, annotation.StrokeWidth / 2 + 3 / _scale))
             {
                 return true;
             }
@@ -75,6 +71,14 @@ public sealed partial class MainPage
                 <= annotation.StepDiameter / 2 + 5 / _scale;
         }
 
+        if (annotation.Kind == AnnotationKind.Callout)
+        {
+            double dx = position.X - annotation.Start.X;
+            double dy = position.Y - annotation.Start.Y;
+            return dx * dx + dy * dy <= Math.Pow(14 / _scale, 2) ||
+                HitBounds(annotation).Contains(new Point(position.X, position.Y));
+        }
+
         return HitBounds(annotation).Contains(new Point(position.X, position.Y));
     }
 
@@ -86,13 +90,21 @@ public sealed partial class MainPage
     {
         if (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow)
         {
-            return [new(ResizeHandle.Start, annotation.Start), new(ResizeHandle.End, annotation.End)];
+            return annotation.AllowCurves && annotation.LinePoints.IsDefaultOrEmpty
+                ? [new(ResizeHandle.Start, annotation.Start), new(ResizeHandle.End, annotation.End),
+                    new(ResizeHandle.CurveMidpoint, LineGeometry.Midpoint(annotation))]
+                : [new(ResizeHandle.Start, annotation.Start), new(ResizeHandle.End, annotation.End)];
         }
 
         Rect bounds = SelectionBounds(annotation);
         if (annotation.Kind == AnnotationKind.Step)
         {
             return [new(ResizeHandle.Right, new(bounds.Right, bounds.Y + bounds.Height / 2))];
+        }
+
+        if (annotation.Kind == AnnotationKind.Callout)
+        {
+            return [new(ResizeHandle.Start, annotation.Start)];
         }
 
         if (annotation.Kind == AnnotationKind.Text)
@@ -110,9 +122,11 @@ public sealed partial class MainPage
             return [new(ResizeHandle.BottomRight, new(bounds.Right, bounds.Bottom))];
         }
 
-        if (annotation.Kind == AnnotationKind.Image)
+        if (annotation.Kind is AnnotationKind.Image or AnnotationKind.Magnify)
         {
-            if (VisibleImageBounds(annotation) is not ImageRect visible)
+            ImageRect? selectedBounds = annotation.Kind == AnnotationKind.Image
+                ? VisibleImageBounds(annotation) : annotation.Bounds;
+            if (selectedBounds is not ImageRect visible)
             {
                 return [];
             }
@@ -237,6 +251,14 @@ public sealed partial class MainPage
         float radius = (float)(5 / _scale);
         foreach (SelectionHandle handle in HandlesFor(annotation))
         {
+            if (handle.Kind == ResizeHandle.CurveMidpoint)
+            {
+                drawing.FillCircle(new Vector2((float)handle.Position.X, (float)handle.Position.Y),
+                    radius, blue);
+                drawing.DrawCircle(new Vector2((float)handle.Position.X, (float)handle.Position.Y),
+                    radius, Colors.White, (float)(2 / _scale));
+                continue;
+            }
             Rect square = new(handle.Position.X - radius, handle.Position.Y - radius, radius * 2, radius * 2);
             drawing.FillRectangle(square, Colors.White);
             drawing.DrawRectangle(square, blue, (float)(2 / _scale));
@@ -249,6 +271,10 @@ public sealed partial class MainPage
         ImageRect viewport = _editor!.Current.Viewport;
         if (original.Kind is AnnotationKind.Line or AnnotationKind.Arrow)
         {
+            if (handle == ResizeHandle.CurveMidpoint)
+            {
+                return original with { CurveMidpoint = point };
+            }
             if (maintainProportions)
             {
                 return ResizeLineProportional(original, handle, point);
@@ -260,7 +286,7 @@ public sealed partial class MainPage
             double dy = end.Y - start.Y;
             return Math.Sqrt(dx * dx + dy * dy) < 2
                 ? original
-                : original with { Start = start, End = end };
+                : LineGeometry.Resize(original, start, end);
         }
 
         if (original.Kind == AnnotationKind.Step)
@@ -268,6 +294,11 @@ public sealed partial class MainPage
             double diameter = Math.Clamp(2 * Math.Abs(point.X - original.Start.X), 16, 120);
             double fontSize = Math.Clamp(original.FontSize * diameter / original.StepDiameter, 8, 144);
             return original with { StepDiameter = diameter, FontSize = fontSize };
+        }
+
+        if (original.Kind == AnnotationKind.Callout)
+        {
+            return handle == ResizeHandle.Start ? original with { Start = point } : original;
         }
 
         if (original.Kind == AnnotationKind.Text)
@@ -300,9 +331,9 @@ public sealed partial class MainPage
             });
         }
 
-        if (original.Kind == AnnotationKind.Image)
+        if (original.Kind is AnnotationKind.Image or AnnotationKind.Magnify)
         {
-            if (VisibleImageBounds(original) is ImageRect visible)
+            if (original.Kind == AnnotationKind.Image && VisibleImageBounds(original) is ImageRect visible)
             {
                 ImagePoint fullCorner = Corner(original.Bounds, handle);
                 ImagePoint visibleCorner = Corner(visible, handle);
@@ -310,7 +341,8 @@ public sealed partial class MainPage
                     point.Y + fullCorner.Y - visibleCorner.Y);
             }
 
-            return ResizeImage(original, handle, point, maintainProportions);
+            return ResizeImage(original, handle, point, maintainProportions,
+                original.Kind == AnnotationKind.Magnify ? 48 : 2);
         }
 
         Rect shape = SelectionBounds(original);
@@ -347,26 +379,26 @@ public sealed partial class MainPage
     }
 
     private static Annotation ResizeImage(Annotation original, ResizeHandle handle, ImagePoint point,
-        bool maintainProportions)
+        bool maintainProportions, double minimumSize)
     {
         ImageRect bounds = original.Bounds;
         bool fromLeft = handle is ResizeHandle.TopLeft or ResizeHandle.BottomLeft;
         bool fromTop = handle is ResizeHandle.TopLeft or ResizeHandle.TopRight;
         double anchorX = fromLeft ? bounds.Right : bounds.X;
         double anchorY = fromTop ? bounds.Bottom : bounds.Y;
-        double width = Math.Max(2, fromLeft ? anchorX - point.X : point.X - anchorX);
-        double height = Math.Max(2, fromTop ? anchorY - point.Y : point.Y - anchorY);
+        double width = Math.Max(minimumSize, fromLeft ? anchorX - point.X : point.X - anchorX);
+        double height = Math.Max(minimumSize, fromTop ? anchorY - point.Y : point.Y - anchorY);
 
         if (maintainProportions)
         {
             double ratio = bounds.Width / bounds.Height;
             if (Math.Abs(width / bounds.Width - 1) >= Math.Abs(height / bounds.Height - 1))
             {
-                height = Math.Max(2, width / ratio);
+                height = Math.Max(minimumSize, width / ratio);
             }
             else
             {
-                width = Math.Max(2, height * ratio);
+                width = Math.Max(minimumSize, height * ratio);
             }
         }
 
@@ -502,8 +534,8 @@ public sealed partial class MainPage
         factor = Math.Max(factor, minimum);
         ImagePoint end = new(anchor.X + directionX * factor, anchor.Y + directionY * factor);
         return handle == ResizeHandle.Start
-            ? original with { Start = end }
-            : original with { End = end };
+            ? LineGeometry.Resize(original, end, original.End)
+            : LineGeometry.Resize(original, original.Start, end);
     }
 
     private bool NudgeSelected(int dx, int dy)
@@ -532,11 +564,13 @@ public sealed partial class MainPage
         double offsetY = dy;
         if (offsetX != 0 || offsetY != 0)
         {
-            Annotation moved = selected with
-            {
-                Start = new(selected.Start.X + offsetX, selected.Start.Y + offsetY),
-                End = new(selected.End.X + offsetX, selected.End.Y + offsetY),
-            };
+            Annotation moved = selected.Kind is AnnotationKind.Line or AnnotationKind.Arrow
+                ? LineGeometry.Translate(selected, offsetX, offsetY)
+                : selected with
+                {
+                    Start = new(selected.Start.X + offsetX, selected.Start.Y + offsetY),
+                    End = new(selected.End.X + offsetX, selected.End.Y + offsetY),
+                };
             try
             {
                 if (selected.Kind == AnnotationKind.Image)

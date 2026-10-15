@@ -12,6 +12,8 @@ public enum CaptureKind
     FullScreen,
     /// <summary>A rectangular screen region.</summary>
     Region,
+    /// <summary>A still image captured from a camera.</summary>
+    Camera,
 }
 
 /// <summary>The tools supported by the initial editor.</summary>
@@ -33,6 +35,47 @@ public enum AnnotationKind
     Redaction,
     /// <summary>A pasted PNG that can be moved and resized independently.</summary>
     Image,
+    /// <summary>A numbered leader with text automatically laid out beyond the capture.</summary>
+    Callout,
+    /// <summary>A resizable lens that samples and enlarges captured pixels.</summary>
+    Magnify,
+    /// <summary>A configurable geometric shape from the expanded shape palette.</summary>
+    Shape,
+}
+
+/// <summary>The edge of the captured image hosting an annotation callout.</summary>
+public enum CalloutSide { Left, Right, Top, Bottom }
+
+/// <summary>The outline used by a magnifying lens.</summary>
+public enum MagnifyShape { Ellipse, Rectangle }
+
+/// <summary>The outline selected from the editor's geometric shape palette.</summary>
+public enum BasicShapeKind
+{
+    Rectangle,
+    Circle,
+    Ellipse,
+    Diamond,
+    RightBracket,
+    Triangle,
+    InvertedTriangle,
+    Pentagon,
+    Hexagon,
+    WideHexagon,
+    Octagon,
+    Parallelogram,
+    Trapezoid,
+    Star,
+    Plus,
+    UpArrow,
+    Semicircle,
+    RightTriangle,
+    TopLeftCorner,
+    TopRightCorner,
+    BottomLeftCorner,
+    BottomRightCorner,
+    UShape,
+    InvertedUShape,
 }
 
 /// <summary>How a rectangular redaction obscures the image beneath it.</summary>
@@ -83,6 +126,18 @@ public enum TextHorizontalAlignment
     Right,
     Justify,
 }
+
+/// <summary>Vertical placement of text inside a fixed text box.</summary>
+public enum TextVerticalAlignment
+{
+    Top,
+    Middle,
+    Bottom,
+}
+
+/// <summary>Character formatting for a contiguous range of editable text.</summary>
+/// <remarks>Offsets and lengths use UTF-16 code units, matching the Windows text editor.</remarks>
+public readonly record struct TextStyleRun(int Start, int Length, bool Bold, bool Italic, bool Underline);
 
 /// <summary>How text that exceeds a fixed text box is shown.</summary>
 public enum TextTruncation
@@ -172,6 +227,10 @@ public sealed record Annotation
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool HideOutline { get; init; }
 
+    /// <summary>Gets the selected outline when <see cref="Kind"/> is <see cref="AnnotationKind.Shape"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public BasicShapeKind ShapeKind { get; init; }
+
     /// <summary>Gets whether a line or arrow has an arrowhead at its starting point.</summary>
     public bool StartArrow { get; init; }
 
@@ -188,6 +247,18 @@ public sealed record Annotation
     /// <summary>Gets the line shaft pattern.</summary>
     public LinePattern LinePattern { get; init; }
 
+    /// <summary>Gets the rounded points of a freehand line, including both endpoints.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<ImagePoint> LinePoints { get; init; } = [];
+
+    /// <summary>Lets a straight line expose a draggable midpoint for bending.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AllowCurves { get; init; }
+
+    /// <summary>Gets the position the curved line passes through halfway along its path.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImagePoint? CurveMidpoint { get; init; }
+
     /// <summary>Gets the effective starting mark, including legacy arrow flags.</summary>
     [JsonIgnore]
     public LineEndCap EffectiveStartCap => StartCap != LineEndCap.None ? StartCap :
@@ -201,6 +272,10 @@ public sealed record Annotation
     /// <summary>Gets the user-entered text.</summary>
     public string Text { get; init; } = string.Empty;
 
+    /// <summary>Gets optional bold, italic, and underline overrides for portions of text.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<TextStyleRun> TextStyleRuns { get; init; } = [];
+
     /// <summary>Gets the text wrap width in source pixels; zero lets each line grow freely.</summary>
     /// <remarks>With <see cref="TextBoxHeight"/>, this is a fixed box. Older width-only
     /// documents retain their unbounded-height wrapped text.</remarks>
@@ -211,9 +286,26 @@ public sealed record Annotation
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public double TextBoxHeight { get; init; }
 
+    /// <summary>Gets the space between text and the inner edge of its area in source pixels.</summary>
+    /// <remarks>Zero preserves the layout of older saved shnapps.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double TextPadding { get; init; }
+
+    /// <summary>Gets the text area's border color as packed ARGB; zero hides the border.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public uint TextBorderArgb { get; init; }
+
+    /// <summary>Gets the text area's border width in source pixels.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double TextBorderWidth { get; init; }
+
     /// <summary>Gets horizontal alignment inside a fixed text box.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public TextHorizontalAlignment TextAlignment { get; init; }
+
+    /// <summary>Gets vertical alignment inside a fixed text box.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public TextVerticalAlignment TextVerticalAlignment { get; init; }
 
     /// <summary>Gets how excess text is shown inside a fixed text box.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -248,6 +340,11 @@ public sealed record Annotation
     /// <remarks>The payload lives in the editable document so it survives undo, save, and reopening.</remarks>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ImagePngBase64 { get; init; }
+
+    /// <summary>Gets the visible source pixels of an editable image; null displays its entire PNG.</summary>
+    /// <remarks>The destination remains <see cref="Bounds"/> in canvas coordinates.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImageRect? ImageSourceCrop { get; init; }
 
     /// <summary>Gets whether this element has been rasterized and can no longer be edited.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -299,6 +396,26 @@ public sealed record Annotation
     /// <summary>Gets the assigned step number.</summary>
     public int StepNumber { get; init; }
 
+    /// <summary>Gets the assigned number of a callout, in document order.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int CalloutNumber { get; init; }
+
+    /// <summary>Gets the image edge chosen for an automatically positioned callout.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public CalloutSide CalloutSide { get; init; }
+
+    /// <summary>Gets the callout's text color as packed ARGB.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public uint CalloutTextArgb { get; init; }
+
+    /// <summary>Gets the lens zoom factor: 2 means 200%.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double MagnifyZoom { get; init; }
+
+    /// <summary>Gets whether the lens is elliptical or rectangular.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public MagnifyShape MagnifyShape { get; init; }
+
     /// <summary>Gets the numbering style shown inside this step.</summary>
     public StepLabelFormat StepLabelFormat { get; init; }
 
@@ -307,7 +424,12 @@ public sealed record Annotation
 
     /// <summary>Gets the normalized geometric bounds.</summary>
     [JsonIgnore]
-    public ImageRect Bounds => ImageRect.FromPoints(Start, End);
+    public ImageRect Bounds => Kind == AnnotationKind.Callout
+        ? new ImageRect(Math.Min(Start.X, End.X), Math.Min(Start.Y, End.Y),
+            Math.Max(Start.X, End.X + TextBoxWidth) - Math.Min(Start.X, End.X),
+            Math.Max(Start.Y, End.Y + TextBoxHeight) - Math.Min(Start.Y, End.Y))
+        : Kind is AnnotationKind.Line or AnnotationKind.Arrow
+            ? LineGeometry.Bounds(this) : ImageRect.FromPoints(Start, End);
 }
 
 /// <summary>The editable source of truth for a saved shnapp.</summary>
@@ -392,4 +514,14 @@ public sealed record ShnappSettings
 
     /// <summary>Gets whether window shnapps receive a shadow by default.</summary>
     public bool WindowShadow { get; init; } = true;
+
+    /// <summary>Gets whether the plain Print Screen key starts a Shnapp capture.</summary>
+    public bool PrintScreenEnabled { get; init; }
+
+    /// <summary>Gets the capture mode started by the plain Print Screen key.</summary>
+    public CaptureKind PrintScreenMode { get; init; } = CaptureKind.FullScreen;
+
+    /// <summary>Gets the selected camera device identifier; null uses the default camera.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CameraSourceId { get; init; }
 }

@@ -7,10 +7,29 @@
     xmlns:editor="using:Shnapp.App.Editor"
     xmlns:local="using:Shnapp.App"
     FontFamily="Segoe UI Variable Text"
-    Background="Transparent">
+    Background="{ThemeResource ShnappCanvasBrush}">
     <Page.Resources>
         <ResourceDictionary>
             <Style x:Key="CaptureSplitButtonStyle" TargetType="SplitButton" />
+            <Style x:Key="QuietOverflowButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Width" Value="48" />
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid Background="Transparent">
+                                <ContentPresenter Content="{TemplateBinding Content}"
+                                    Foreground="{TemplateBinding Foreground}"
+                                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                    Control.IsTemplateFocusTarget="True" />
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
                     <LinearGradientBrush x:Key="NewShnappSplitFill" StartPoint="0,0" EndPoint="0,1">
@@ -151,8 +170,18 @@
             DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True"
             Background="{ThemeResource ShnappChromeBrush}">
             <CommandBar.Content>
-                <StackPanel Orientation="Horizontal" Spacing="0" Margin="16,0,16,0" MinHeight="48" VerticalAlignment="Center">
-                    <local:HandCursorAppBarButton CornerRadius="8" x:Name="BackButton" Label="Back" LabelPosition="Collapsed" Width="48" Height="48"
+                <StackPanel Orientation="Horizontal" Spacing="0" Margin="-4,0,16,0" MinHeight="48" VerticalAlignment="Center">
+                    <StackPanel.Resources>
+                        <SolidColorBrush x:Key="AppBarButtonBackground" Color="Transparent" />
+                        <SolidColorBrush x:Key="AppBarButtonBackgroundPointerOver" Color="Transparent" />
+                        <SolidColorBrush x:Key="AppBarButtonBackgroundPressed" Color="Transparent" />
+                        <SolidColorBrush x:Key="AppBarButtonBackgroundDisabled" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBackground" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="Transparent" />
+                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent" />
+                    </StackPanel.Resources>
+                    <local:HandCursorAppBarButton CornerRadius="8" x:Name="BackButton" Label="Back" LabelPosition="Collapsed" Width="44" Height="48"
                         IsEnabled="False" VerticalAlignment="Center"
                         Click="Back_Click" ToolTipService.ToolTip="Back · Alt+Left"
                         AutomationProperties.Name="Back" AutomationProperties.AutomationId="NavigateBack">
@@ -190,19 +219,19 @@
                 </StackPanel>
             </CommandBar.Content>
             <AppBarElementContainer Padding="0" Margin="0,0,8,0" Background="Transparent" BorderThickness="0">
-                <Grid Width="168" Height="48" VerticalAlignment="Center" Translation="0,0,2">
-                <local:HandCursorRegion x:Name="NewShnappCaptureShell" Width="168" Height="34" VerticalAlignment="Center" Background="Transparent">
-                <Border Width="168" Height="34" CornerRadius="8" VerticalAlignment="Center"
+                <Grid Width="140" Height="48" VerticalAlignment="Center" Translation="0,0,2">
+                <local:HandCursorRegion x:Name="NewShnappCaptureShell" Width="140" Height="34" VerticalAlignment="Center" Background="Transparent">
+                <Border Width="140" Height="34" CornerRadius="8" VerticalAlignment="Center"
                     Background="{ThemeResource CaptureButtonShadowBrush}" IsHitTestVisible="False">
                     <Border.RenderTransform><TranslateTransform Y="2" /></Border.RenderTransform>
                 </Border>
-                <local:HandCursorSplitButton x:Name="NewShnappButton" Width="168" Height="34" MinWidth="0" CornerRadius="8"
+                <local:HandCursorSplitButton x:Name="NewShnappButton" Width="140" Height="34" MinWidth="0" CornerRadius="8"
                     VerticalAlignment="Center"
                     Style="{StaticResource CaptureSplitButtonStyle}"
                     Click="NewShnappButton_Click"
                     ToolTipService.ToolTip="Capture a region · Ctrl+Shift+2"
                     Background="{ThemeResource NewShnappSplitFill}" Foreground="{ThemeResource NewShnappSplitText}"
-                    AutomationProperties.Name="New shnapp" AutomationProperties.HelpText="Capture a region. Use the arrow for other capture options."
+                    AutomationProperties.Name="Capture" AutomationProperties.HelpText="Capture a region. Use the arrow for other capture options."
                     AutomationProperties.AutomationId="NewShnapp">
                     <SplitButton.Shadow><ThemeShadow /></SplitButton.Shadow>
                     <SplitButton.Resources>
@@ -307,19 +336,26 @@
                                     <KeyboardAccelerator Key="Number2" Modifiers="Control,Shift" />
                                 </MenuFlyoutItem.KeyboardAccelerators>
                             </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="CameraCaptureMenu" Text="Camera photo" Tag="Camera" Click="Capture_Click"
+                                IsEnabled="False" ToolTipService.ToolTip="Connect a camera to take a photo">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE722;" FontSize="16" /></MenuFlyoutItem.Icon>
+                                <MenuFlyoutItem.KeyboardAccelerators>
+                                    <KeyboardAccelerator Key="Number5" Modifiers="Control,Shift" />
+                                </MenuFlyoutItem.KeyboardAccelerators>
+                            </MenuFlyoutItem>
                         </MenuFlyout>
                     </SplitButton.Flyout>
                 </local:HandCursorSplitButton>
-                    <local:CaptureSparkleHost x:Name="NewShnappSparkleHost" Width="134" Height="34"
+                    <local:CaptureSparkleHost x:Name="NewShnappSparkleHost" Width="106" Height="34"
                         HorizontalAlignment="Left" VerticalAlignment="Center"
                         Background="Transparent" IsHitTestVisible="False" />
-                    <Grid Width="134" Height="34" HorizontalAlignment="Left" VerticalAlignment="Center"
+                    <Grid Width="106" Height="34" HorizontalAlignment="Left" VerticalAlignment="Center"
                         IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw">
                         <StackPanel Orientation="Horizontal" Spacing="8"
                             HorizontalAlignment="Center" VerticalAlignment="Center">
                             <FontIcon Glyph="&#xE722;" FontSize="17"
                                 Foreground="{ThemeResource NewShnappSplitText}" />
-                            <TextBlock Text="New shnapp" FontSize="14" FontWeight="SemiBold"
+                            <TextBlock Text="Capture" FontSize="14" FontWeight="SemiBold"
                                 Foreground="{ThemeResource NewShnappSplitText}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Grid>
@@ -331,13 +367,13 @@
                         <Border x:Name="NewShnappArrowHoverOverlay" CornerRadius="0,8,8,0" IsHitTestVisible="False" />
                     </local:HandCursorRegion>
                 </local:HandCursorRegion>
-                <Border x:Name="NewShnappRimNormal" Width="168" Height="34" CornerRadius="8" VerticalAlignment="Center"
+                <Border x:Name="NewShnappRimNormal" Width="140" Height="34" CornerRadius="8" VerticalAlignment="Center"
                     BorderThickness="1" BorderBrush="{ThemeResource CaptureButtonRimBrush}"
                     IsHitTestVisible="False" />
-                <Border x:Name="NewShnappRimHover" Width="168" Height="34" CornerRadius="8" VerticalAlignment="Center"
+                <Border x:Name="NewShnappRimHover" Width="140" Height="34" CornerRadius="8" VerticalAlignment="Center"
                     BorderThickness="1" BorderBrush="{ThemeResource CaptureButtonRimBrushPointerOver}"
                     Visibility="Collapsed" IsHitTestVisible="False" />
-                <Border x:Name="NewShnappRimPressed" Width="168" Height="34" CornerRadius="8" VerticalAlignment="Center"
+                <Border x:Name="NewShnappRimPressed" Width="140" Height="34" CornerRadius="8" VerticalAlignment="Center"
                     BorderThickness="1" BorderBrush="{ThemeResource CaptureButtonRimBrushPressed}"
                     Visibility="Collapsed" IsHitTestVisible="False" />
                 </Grid>
@@ -368,7 +404,11 @@
                                 <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#C9E0FF" />
                                 <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#B8D4FA" />
                                 <SolidColorBrush x:Key="ToggleButtonForeground" Color="#0A4D95" />
+                                <SolidColorBrush x:Key="ToggleButtonForegroundPointerOver" Color="#073F7A" />
+                                <SolidColorBrush x:Key="ToggleButtonForegroundPressed" Color="#073F7A" />
                                 <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#0A4D95" />
+                                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="#073F7A" />
+                                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="#073F7A" />
                             </ResourceDictionary>
                             <ResourceDictionary x:Key="Default">
                                 <SolidColorBrush x:Key="ToggleButtonBackground" Color="#182C50" />
@@ -378,36 +418,38 @@
                                 <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#2B5590" />
                                 <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#173663" />
                                 <SolidColorBrush x:Key="ToggleButtonForeground" Color="White" />
+                                <SolidColorBrush x:Key="ToggleButtonForegroundPointerOver" Color="White" />
+                                <SolidColorBrush x:Key="ToggleButtonForegroundPressed" Color="White" />
                                 <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White" />
+                                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White" />
+                                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White" />
                             </ResourceDictionary>
                             <ResourceDictionary x:Key="HighContrast">
                                 <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="SystemColorHighlightColorBrush" />
                                 <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="SystemColorHighlightColorBrush" />
                                 <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="SystemColorHighlightColorBrush" />
                                 <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="SystemColorHighlightTextColorBrush" />
+                                <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="SystemColorHighlightTextColorBrush" />
+                                <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="SystemColorHighlightTextColorBrush" />
                             </ResourceDictionary>
                         </ResourceDictionary.ThemeDictionaries>
                     </ResourceDictionary>
                 </ToggleButton.Resources>
                 </local:HandCursorToggleButton>
             </AppBarElementContainer>
-            <AppBarSeparator />
-            <local:HandCursorAppBarButton CornerRadius="8" x:Name="CopyButton" Label="Copy" Icon="Copy" Click="Copy_Click"
-                IsEnabled="{x:Bind ViewModel.HasDocument, Mode=OneWay}" AutomationProperties.AutomationId="CopyShnapp"
-                ToolTipService.ToolTip="Copy flattened image · Ctrl+C" />
-            <local:HandCursorAppBarButton CornerRadius="8" x:Name="SaveButton" Label="Save" Icon="Save" Click="Save_Click"
-                IsEnabled="{x:Bind ViewModel.HasDocument, Mode=OneWay}" AutomationProperties.AutomationId="SaveShnapp"
-                ToolTipService.ToolTip="Save PNG to a chosen location · Ctrl+S" />
             <CommandBar.SecondaryCommands>
-                <local:HandCursorAppBarButton CornerRadius="8" Width="190" x:Name="UpdateAvailableButton" Label="Update Shnapp" Icon="Download"
-                    Click="Settings_Click" IsEnabled="False"
-                    AutomationProperties.AutomationId="UpdateAvailable"
-                    ToolTipService.ToolTip="Open About &amp; Updates when a newer Shnapp release is available" />
-                <AppBarSeparator />
-                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Recent shnapps" Icon="Pictures" Click="ToggleGallery_Click"
+                <local:HandCursorAppBarButton x:Name="QuickCameraCapture" CornerRadius="8" Width="190"
+                    Label="Take camera photo" Icon="Camera" Click="CameraCapture_Click" IsEnabled="False"
+                    AutomationProperties.AutomationId="QuickCameraCapture"
+                    ToolTipService.ToolTip="Take a camera photo · Ctrl+Shift+5" />
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" x:Name="CopyButton" Label="Copy image" Icon="Copy" Click="Copy_Click"
                     Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
-                    AutomationProperties.AutomationId="ShowGallery"
-                    ToolTipService.ToolTip="Show the gallery · Ctrl+Shift+G" />
+                    AutomationProperties.AutomationId="CopyShnapp"
+                    ToolTipService.ToolTip="Copy flattened image · Ctrl+C" />
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" x:Name="SaveButton" Label="Save PNG…" Icon="Save" Click="Save_Click"
+                    Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
+                    AutomationProperties.AutomationId="SaveShnapp"
+                    ToolTipService.ToolTip="Save PNG to a chosen location · Ctrl+S" />
                 <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Share" Icon="Share" Click="Share_Click"
                     Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
                     AutomationProperties.AutomationId="ShareShnapp"
@@ -416,11 +458,23 @@
                     Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
                     AutomationProperties.AutomationId="CopyCurrentShnappPath"
                     ToolTipService.ToolTip="Copy an unchanged PNG path, kept at least 7 days unless this shnapp is deleted" />
+                <AppBarSeparator Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}" />
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Recent shnapps" Icon="Pictures" Click="ToggleGallery_Click"
+                    Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
+                    AutomationProperties.AutomationId="ShowGallery"
+                    ToolTipService.ToolTip="Show the gallery · Ctrl+Shift+G" />
+                <AppBarSeparator Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}" />
                 <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Delete shnapp" Icon="Delete" Click="DeleteCurrent_Click"
                     Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
                     AutomationProperties.AutomationId="DeleteCurrentShnapp"
                     ToolTipService.ToolTip="Delete this shnapp from your Library" />
+                <AppBarSeparator Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}" />
                 <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Settings" Icon="Setting" Click="Settings_Click" AutomationProperties.AutomationId="OpenSettings" />
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" x:Name="UpdateAvailableButton" Label="Update Shnapp" Icon="Download"
+                    Click="Settings_Click" IsEnabled="False"
+                    AutomationProperties.AutomationId="UpdateAvailable"
+                    ToolTipService.ToolTip="Open About &amp; Updates when a newer Shnapp release is available" />
+                <AppBarSeparator />
                 <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Quit Shnapp" Icon="Cancel" Click="Quit_Click" AutomationProperties.AutomationId="QuitShnapp" />
             </CommandBar.SecondaryCommands>
         </CommandBar>
@@ -429,7 +483,7 @@
             Fill="{ThemeResource UpdateAttentionBrush}" Stroke="{ThemeResource ShnappChromeBrush}"
             StrokeThickness="1" Visibility="Collapsed" IsHitTestVisible="False"
             AutomationProperties.AccessibilityView="Raw" />
-        <InfoBar x:Name="MessageBar" Grid.Row="1" IsOpen="False" IsClosable="True" Margin="20,0" />
+        <InfoBar x:Name="MessageBar" Grid.Row="1" IsOpen="False" IsClosable="True" Margin="16,0" />
         <Grid x:Name="EditorHost" Grid.Row="2" Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
             SizeChanged="EditorHost_SizeChanged"
             Background="{ThemeResource ShnappCanvasBrush}">
@@ -440,7 +494,7 @@
                             IsHitTestVisible="False" IsTabStop="True" />
                         <!-- Keep the cursor on the element that receives pointer input. Win2D's
                              CanvasControl otherwise restores its own default cursor on movement. -->
-                        <local:EditorCursorHost x:Name="CanvasHost" Background="Transparent"
+                        <local:EditorCursorHost x:Name="CanvasHost" Background="Transparent" IsTabStop="True"
                             PointerPressed="Canvas_PointerPressed" PointerMoved="Canvas_PointerMoved"
                             PointerReleased="Canvas_PointerReleased" PointerCanceled="Canvas_PointerCanceled"
                             PointerCaptureLost="Canvas_PointerCaptureLost"
@@ -450,7 +504,53 @@
                             DragOver="Canvas_DragOver" Drop="Canvas_Drop"
                             AutomationProperties.Name="Shnapp annotation canvas"
                             AutomationProperties.AutomationId="ShnappCanvas" />
-                        <Canvas x:Name="TextOverlay" />
+                        <Canvas x:Name="TextOverlay" SizeChanged="TextOverlay_SizeChanged">
+                            <Border x:Name="InlineTextStyleRow" Visibility="Collapsed" Opacity="0"
+                                Canvas.ZIndex="10" Width="108" Height="36" Padding="3"
+                                Background="{ThemeResource ShnappToolbarBrush}"
+                                BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}" BorderThickness="1"
+                                CornerRadius="9" Translation="0,0,24"
+                                AutomationProperties.Name="Text formatting">
+                                <Border.Shadow><ThemeShadow /></Border.Shadow>
+                                <Border.RenderTransform><TranslateTransform /></Border.RenderTransform>
+                                <StackPanel Orientation="Horizontal" Spacing="3">
+                                    <local:HandCursorToggleButton x:Name="InlineBold" Width="30" Height="28"
+                                        MinWidth="0" Padding="0" BorderThickness="0" CornerRadius="6"
+                                        AllowFocusOnInteraction="False"
+                                        Click="InlineTextStyle_Click" AutomationProperties.Name="Bold selected text"
+                                        ToolTipService.ToolTip="Bold · Ctrl+B">
+                                        <FontIcon Glyph="&#xE8DD;" FontFamily="Segoe Fluent Icons" FontSize="14" />
+                                    </local:HandCursorToggleButton>
+                                    <local:HandCursorToggleButton x:Name="InlineItalic" Width="30" Height="28"
+                                        MinWidth="0" Padding="0" BorderThickness="0" CornerRadius="6"
+                                        AllowFocusOnInteraction="False"
+                                        Click="InlineTextStyle_Click" AutomationProperties.Name="Italicize selected text"
+                                        ToolTipService.ToolTip="Italic · Ctrl+I">
+                                        <FontIcon Glyph="&#xE8DB;" FontFamily="Segoe Fluent Icons" FontSize="14" />
+                                    </local:HandCursorToggleButton>
+                                    <local:HandCursorToggleButton x:Name="InlineUnderline" Width="30" Height="28"
+                                        MinWidth="0" Padding="0" BorderThickness="0" CornerRadius="6"
+                                        AllowFocusOnInteraction="False"
+                                        Click="InlineTextStyle_Click" AutomationProperties.Name="Underline selected text"
+                                        ToolTipService.ToolTip="Underline · Ctrl+U">
+                                        <FontIcon Glyph="&#xE8DC;" FontFamily="Segoe Fluent Icons" FontSize="14" />
+                                    </local:HandCursorToggleButton>
+                                </StackPanel>
+                            </Border>
+                        </Canvas>
+                        <Button x:Name="RecenterCanvasButton" Width="40" Height="40" Padding="0"
+                            HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="16"
+                            Visibility="Collapsed" CornerRadius="12"
+                            Background="{ThemeResource ShnappToolbarBrush}"
+                            BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}" BorderThickness="1"
+                            Translation="0,0,20" Click="RecenterCanvas_Click"
+                            ToolTipService.ToolTip="Re-center canvas"
+                            AutomationProperties.Name="Re-center canvas"
+                            AutomationProperties.AutomationId="RecenterCanvas">
+                            <Button.Shadow><ThemeShadow /></Button.Shadow>
+                            <PathIcon Width="16" Height="16"
+                                Data="F0 M8,1 A7,7 0 1 1 8,15 A7,7 0 1 1 8,1 Z M8,3 A5,5 0 1 0 8,13 A5,5 0 1 0 8,3 Z M7,0 L9,0 L9,4 L7,4 Z M7,12 L9,12 L9,16 L7,16 Z M0,7 L4,7 L4,9 L0,9 Z M12,7 L16,7 L16,9 L12,9 Z" />
+                        </Button>
                         <Border x:Name="GalleryDock" Visibility="Collapsed" Width="80" Opacity="0"
                             HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,0,0,0"
                             Padding="8" CornerRadius="12"
@@ -481,18 +581,17 @@
                         </Border>
                     </Grid>
                     <Border x:Name="InspectorPanel" Visibility="Visible"
-                        Width="252" MaxHeight="560" Margin="12,64,12,12"
-                        HorizontalAlignment="Right" VerticalAlignment="Top"
-                        Background="{ThemeResource ShnappChromeBrush}" CornerRadius="12"
-                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
+                        Width="252" MaxHeight="560" Margin="12,12,12,64"
+                        HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                        Background="{ThemeResource ShnappToolbarBrush}" CornerRadius="12"
+                        BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}" BorderThickness="1"
+                        Translation="0,0,20"
                         AutomationProperties.Name="Tool options">
-                        <Border.Transitions>
-                            <TransitionCollection>
-                                <EntranceThemeTransition FromHorizontalOffset="24" />
-                            </TransitionCollection>
-                        </Border.Transitions>
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel Padding="12,12,12,16" Spacing="8">
+                        <Border.Shadow><ThemeShadow /></Border.Shadow>
+                        <Border.RenderTransform><TranslateTransform /></Border.RenderTransform>
+                        <ScrollViewer x:Name="InspectorScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="InspectorContent" Padding="12,12,12,16" Spacing="8">
+                                <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
                                 <StackPanel Spacing="4">
                                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                         <Grid Width="20" Height="20">
@@ -513,8 +612,20 @@
                                             <PathIcon x:Name="InspectorCircleIcon" Visibility="Collapsed"
                                                 Data="F0 M8,1 A7,7 0 1 1 8,15 A7,7 0 1 1 8,1 Z M8,2.5 A5.5,5.5 0 1 0 8,13.5 A5.5,5.5 0 1 0 8,2.5 Z"
                                                 Foreground="{ThemeResource ShnappBlueBrush}" />
+                                            <Path x:Name="InspectorPaletteShapeIcon" Visibility="Collapsed"
+                                                Width="18" Height="18" Stretch="Uniform"
+                                                Stroke="{ThemeResource ShnappBlueBrush}" StrokeThickness="1.5"
+                                                StrokeLineJoin="Round" />
                                         </Grid>
-                                        <TextBlock x:Name="InspectorTitle" Text="Select" FontSize="16" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="InspectorTitle" Text="Select" FontSize="16" FontWeight="SemiBold"
+                                            MaxWidth="158" TextTrimming="CharacterEllipsis" />
+                                        <local:ToolbarActionButton x:Name="EditSelectedTextButton" Width="28" Height="28"
+                                            MinWidth="0" Padding="0" BorderThickness="0" CornerRadius="6"
+                                            Visibility="Collapsed" Click="EditSelectedText_Click"
+                                            AutomationProperties.Name="Edit selected text"
+                                            ToolTipService.ToolTip="Edit selected text">
+                                            <FontIcon Glyph="&#xE70F;" FontFamily="Segoe Fluent Icons" FontSize="14" />
+                                        </local:ToolbarActionButton>
                                     </StackPanel>
                                     <TextBlock x:Name="InspectorHelp" Text="Click markup to move it. Press Delete to remove it."
                                         TextWrapping="Wrap" FontSize="12"
@@ -546,6 +657,21 @@
                                 </Grid>
                                 <Rectangle x:Name="InspectorSeparator" Height="1"
                                     Fill="{ThemeResource ControlStrokeColorDefaultBrush}" />
+                                <StackPanel x:Name="PhotoOptionsRow" Visibility="Collapsed" Spacing="8">
+                                    <TextBlock Text="Photo" FontWeight="SemiBold" />
+                                    <TextBlock Text="Crop this layer without changing the canvas. Drag over the part to keep."
+                                        FontSize="12" TextWrapping="Wrap"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <Button x:Name="PhotoCropButton" Content="Crop photo" CornerRadius="8"
+                                        HorizontalAlignment="Stretch" Click="PhotoCrop_Click"
+                                        AutomationProperties.Name="Crop selected photo" />
+                                    <Button x:Name="ResetPhotoCropButton" Content="Reset photo crop" CornerRadius="8"
+                                        HorizontalAlignment="Stretch" Click="ResetPhotoCrop_Click"
+                                        AutomationProperties.Name="Reset selected photo crop" />
+                                    <Button x:Name="PhotoAddButton" Content="Add another camera photo" CornerRadius="8"
+                                        HorizontalAlignment="Stretch" Click="CameraPhotoTool_Click" IsEnabled="False"
+                                        AutomationProperties.Name="Add another camera photo" />
+                                </StackPanel>
                                 <StackPanel x:Name="CropOptionsRow" Visibility="Collapsed" Spacing="8">
                                     <TextBlock Text="Crop in pixels" FontWeight="SemiBold" />
                                     <Grid ColumnSpacing="8" RowSpacing="8">
@@ -592,6 +718,24 @@
                                         <ComboBoxItem Content="Pixelate" Tag="Pixelate" />
                                     </ComboBox>
                                 </StackPanel>
+                                <StackPanel x:Name="CalloutEditRow" Visibility="Collapsed">
+                                    <Button Content="Edit annotation text" Click="EditCallout_Click"
+                                        HorizontalAlignment="Stretch"
+                                        AutomationProperties.Name="Edit selected annotation text" />
+                                </StackPanel>
+                                <StackPanel x:Name="MagnifyOptionsRow" Visibility="Collapsed" Spacing="8">
+                                    <NumberBox x:Name="MagnifyZoomChoice" Header="Zoom (%)" Value="200"
+                                        Minimum="125" Maximum="800" SmallChange="25" SpinButtonPlacementMode="Compact"
+                                        ValueChanged="NumberOption_Changed" Loaded="NumberBox_Loaded"
+                                        AutomationProperties.Name="Magnifying lens zoom percentage" />
+                                    <ComboBox x:Name="MagnifyShapeChoice" Header="Lens shape" SelectedIndex="0"
+                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed">
+                                        <ComboBoxItem Content="Ellipse" Tag="Ellipse" />
+                                        <ComboBoxItem Content="Rectangle" Tag="Rectangle" />
+                                    </ComboBox>
+                                    <CheckBox x:Name="MagnifyOutlineChoice" Content="Show border" IsChecked="True"
+                                        Click="Options_Changed" />
+                                </StackPanel>
                                 <StackPanel x:Name="PrimaryColorRow" Visibility="Collapsed" Spacing="8">
                                     <TextBlock x:Name="PrimaryColorLabel" Text="Color" FontWeight="SemiBold" />
                                     <Button CornerRadius="8" x:Name="PrimaryColorButton" HorizontalAlignment="Stretch"
@@ -606,7 +750,7 @@
                                         <Button.Flyout>
                                             <Flyout Closed="ColorFlyout_Closed">
                                                 <ColorPicker x:Name="PrimaryColorPicker" Color="#E5484D"
-                                                    IsAlphaEnabled="False" ColorChanged="ColorOption_Changed" />
+                                                    IsAlphaEnabled="True" ColorChanged="ColorOption_Changed" />
                                             </Flyout>
                                         </Button.Flyout>
                                     </Button>
@@ -625,7 +769,7 @@
                                         <Button.Flyout>
                                             <Flyout Closed="ColorFlyout_Closed">
                                                 <ColorPicker x:Name="SecondaryColorPicker" Color="#FFFFFF"
-                                                    IsAlphaEnabled="False" ColorChanged="ColorOption_Changed" />
+                                                    IsAlphaEnabled="True" ColorChanged="ColorOption_Changed" />
                                             </Flyout>
                                         </Button.Flyout>
                                     </Button>
@@ -637,24 +781,28 @@
                                 </StackPanel>
                                 <StackPanel x:Name="FontFamilyRow" Visibility="Collapsed">
                                     <AutoSuggestBox x:Name="FontFamilyChoice" Header="Font" PlaceholderText="Search fonts"
-                                        HorizontalAlignment="Stretch" MaxSuggestionListHeight="280" QueryIcon="Find"
+                                        HorizontalAlignment="Stretch" MaxSuggestionListHeight="420" QueryIcon="Find"
                                         TextMemberPath="Name" TextChanged="FontFamilyChoice_TextChanged"
                                         QuerySubmitted="FontFamilyChoice_QuerySubmitted"
+                                        SuggestionChosen="FontFamilyChoice_SuggestionChosen"
                                         GotFocus="FontFamilyChoice_GotFocus"
                                         LostFocus="FontFamilyChoice_LostFocus"
                                         AutomationProperties.Name="Search fonts">
                                         <AutoSuggestBox.ItemTemplate>
                                             <DataTemplate x:DataType="local:FontPreviewChoice">
-                                                <Grid MinWidth="204" Height="38" ColumnSpacing="8"
+                                                <Grid MinWidth="206" MaxWidth="220" MinHeight="46" Padding="10,3" ColumnSpacing="8"
+                                                    PointerEntered="FontPreviewItem_PointerEntered"
+                                                    ToolTipService.ToolTip="{x:Bind Name}"
                                                     AutomationProperties.Name="{x:Bind Name}">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{x:Bind Name}" VerticalAlignment="Center"
-                                                        TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Grid.Column="1" Text="Aa" FontFamily="{x:Bind PreviewFont}"
-                                                        FontSize="19" VerticalAlignment="Center"
+                                                    <TextBlock Text="{x:Bind Name}" FontSize="13" FontWeight="SemiBold"
+                                                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                                    <TextBlock Grid.Column="1" Text="Ag" FontFamily="{x:Bind PreviewFont}"
+                                                        Width="52" FontSize="22" TextAlignment="Center" VerticalAlignment="Center"
+                                                        TextTrimming="CharacterEllipsis" MaxLines="1"
                                                         AutomationProperties.AccessibilityView="Raw" />
                                                 </Grid>
                                             </DataTemplate>
@@ -664,40 +812,68 @@
                                         Visibility="Collapsed" Margin="0,4,0,0" FontSize="12"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
-                                <StackPanel x:Name="FontWeightRow" Visibility="Collapsed">
-                                    <ComboBox x:Name="FontWeightChoice" Header="Weight" SelectedIndex="2"
-                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed">
-                                        <ComboBoxItem Content="Regular" Tag="400" />
-                                        <ComboBoxItem Content="Medium" Tag="500" />
-                                        <ComboBoxItem Content="Semibold" Tag="600" />
-                                        <ComboBoxItem Content="Bold" Tag="700" />
-                                        <ComboBoxItem Content="Extra bold" Tag="800" />
-                                    </ComboBox>
-                                </StackPanel>
-                                <StackPanel x:Name="ItalicRow" Visibility="Collapsed">
-                                    <CheckBox x:Name="ItalicText" Content="Italic" Click="Options_Changed" />
-                                </StackPanel>
                                 <StackPanel x:Name="FontSizeRow" Visibility="Collapsed">
                                     <NumberBox x:Name="FontSizeChoice" Header="Text size (px)" Value="18" Minimum="8" Maximum="144"
                                         SmallChange="1" SpinButtonPlacementMode="Compact" ValueChanged="NumberOption_Changed"
                                         Loaded="NumberBox_Loaded" />
                                 </StackPanel>
-                                <StackPanel x:Name="TextCharacterRow" Visibility="Collapsed" Spacing="8">
-                                    <TextBlock Text="Characters" FontWeight="SemiBold" />
-                                    <CheckBox x:Name="TextKerningChoice" Content="Kern letter pairs" IsChecked="True"
-                                        Click="Options_Changed" AutomationProperties.AutomationId="TextKerningChoice" />
-                                    <NumberBox x:Name="TextLetterSpacingChoice" Header="Letter spacing (px)" Value="0"
-                                        Minimum="0" Maximum="50" SmallChange="1" SpinButtonPlacementMode="Compact"
-                                        ValueChanged="NumberOption_Changed" Loaded="NumberBox_Loaded"
-                                        AutomationProperties.AutomationId="TextLetterSpacingChoice" />
-                                    <ComboBox x:Name="TextTransformChoice" Header="Text transform" SelectedIndex="0"
-                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed"
-                                        AutomationProperties.AutomationId="TextTransformChoice">
-                                        <ComboBoxItem Content="As typed" Tag="None" />
-                                        <ComboBoxItem Content="UPPERCASE" Tag="Uppercase" />
-                                        <ComboBoxItem Content="lowercase" Tag="Lowercase" />
-                                        <ComboBoxItem Content="Title Case" Tag="TitleCase" />
-                                    </ComboBox>
+                                <StackPanel x:Name="TextAreaStyleRow" Visibility="Collapsed" Spacing="8">
+                                    <TextBlock Text="Text area" FontWeight="SemiBold" />
+                                    <StackPanel Spacing="0">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Padding" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="TextPaddingValue" Grid.Column="1" Text="0 px"
+                                                VerticalAlignment="Center"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </Grid>
+                                        <Slider x:Name="TextPaddingChoice" Minimum="0" Maximum="64" Value="0"
+                                            SmallChange="1" LargeChange="8" StepFrequency="1"
+                                            ValueChanged="TextPaddingChoice_ValueChanged"
+                                            AutomationProperties.Name="Text area padding" />
+                                    </StackPanel>
+                                    <CheckBox x:Name="TextBackgroundEnabled" Content="Background"
+                                        Click="Options_Changed" />
+                                    <Button x:Name="TextBackgroundColorButton" CornerRadius="8" HorizontalAlignment="Stretch"
+                                        AutomationProperties.Name="Choose text area background color">
+                                        <Button.Content>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Border x:Name="TextBackgroundSwatch" Width="24" Height="24" CornerRadius="4"
+                                                    Background="White" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1" />
+                                                <TextBlock Text="Background color" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button.Content>
+                                        <Button.Flyout>
+                                            <Flyout Closed="ColorFlyout_Closed">
+                                                <ColorPicker x:Name="TextBackgroundColorPicker" Color="White"
+                                                    IsAlphaEnabled="True" ColorChanged="ColorOption_Changed" />
+                                            </Flyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                    <CheckBox x:Name="TextBorderEnabled" Content="Border" Click="Options_Changed" />
+                                    <Button x:Name="TextBorderColorButton" CornerRadius="8" HorizontalAlignment="Stretch"
+                                        AutomationProperties.Name="Choose text area border color">
+                                        <Button.Content>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Border x:Name="TextBorderSwatch" Width="24" Height="24" CornerRadius="4"
+                                                    Background="#0A84FF" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1" />
+                                                <TextBlock Text="Border color" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button.Content>
+                                        <Button.Flyout>
+                                            <Flyout Closed="ColorFlyout_Closed">
+                                                <ColorPicker x:Name="TextBorderColorPicker" Color="#0A84FF"
+                                                    IsAlphaEnabled="True" ColorChanged="ColorOption_Changed" />
+                                            </Flyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                    <NumberBox x:Name="TextBorderWidthChoice" Header="Border width (px)"
+                                        Value="2" Minimum="1" Maximum="24" SmallChange="1"
+                                        SpinButtonPlacementMode="Compact" ValueChanged="NumberOption_Changed"
+                                        Loaded="NumberBox_Loaded" />
                                 </StackPanel>
                                 <StackPanel x:Name="TextBoxLayoutRow" Visibility="Collapsed" Spacing="8">
                                     <TextBlock Text="Text box" FontWeight="SemiBold" />
@@ -708,6 +884,13 @@
                                         <ComboBoxItem Content="Center" Tag="Center" />
                                         <ComboBoxItem Content="Right" Tag="Right" />
                                         <ComboBoxItem Content="Justified" Tag="Justify" />
+                                    </ComboBox>
+                                    <ComboBox x:Name="TextVerticalAlignmentChoice" Header="Vertical alignment" SelectedIndex="0"
+                                        HorizontalAlignment="Stretch" SelectionChanged="Options_Changed"
+                                        AutomationProperties.AutomationId="TextVerticalAlignmentChoice">
+                                        <ComboBoxItem Content="Top" Tag="Top" />
+                                        <ComboBoxItem Content="Middle" Tag="Middle" />
+                                        <ComboBoxItem Content="Bottom" Tag="Bottom" />
                                     </ComboBox>
                                     <ComboBox x:Name="TextTruncationChoice" Header="Overflow" SelectedIndex="0"
                                         HorizontalAlignment="Stretch" SelectionChanged="Options_Changed"
@@ -746,11 +929,6 @@
                                 <StackPanel x:Name="FillToggleRow" Visibility="Collapsed">
                                     <CheckBox x:Name="FillShape" Content="Fill shape" Click="Options_Changed" />
                                 </StackPanel>
-                                <StackPanel x:Name="FillOpacityRow" Visibility="Collapsed">
-                                    <NumberBox x:Name="FillOpacityChoice" Header="Fill opacity (%)" Value="25"
-                                        Minimum="1" Maximum="100" SmallChange="1" SpinButtonPlacementMode="Compact"
-                                        ValueChanged="NumberOption_Changed" Loaded="NumberBox_Loaded" />
-                                </StackPanel>
                                 <StackPanel x:Name="LinePatternRow" Visibility="Collapsed">
                                     <ComboBox x:Name="LinePatternChoice" Header="Line style" SelectedIndex="0"
                                         HorizontalAlignment="Stretch" SelectionChanged="Options_Changed">
@@ -758,6 +936,16 @@
                                         <ComboBoxItem Content="Dashed" Tag="Dashed" />
                                         <ComboBoxItem Content="Dotted" Tag="Dotted" />
                                     </ComboBox>
+                                </StackPanel>
+                                <StackPanel x:Name="LineFreehandRow" Visibility="Collapsed">
+                                    <CheckBox x:Name="LineFreehandChoice" Content="Draw freehand (new lines)"
+                                        Click="Options_Changed" AutomationProperties.AutomationId="LineFreehandChoice"
+                                        ToolTipService.ToolTip="Follow your pointer with a smoothed line. Hold Shift while dragging to draw a straight horizontal or vertical line." />
+                                </StackPanel>
+                                <StackPanel x:Name="LineCurvesRow" Visibility="Collapsed">
+                                    <CheckBox x:Name="LineCurvesChoice" Content="Allow curves"
+                                        Click="Options_Changed" AutomationProperties.AutomationId="LineCurvesChoice"
+                                        ToolTipService.ToolTip="Drag the midpoint handle to bend this line. A freehand stroke becomes one editable curve." />
                                 </StackPanel>
                                 <StackPanel x:Name="LineCapRow" Visibility="Collapsed" Spacing="8">
                                     <ComboBox x:Name="StartCapChoice" Header="Start cap" SelectedIndex="0"
@@ -783,109 +971,111 @@
                         </ScrollViewer>
                     </Border>
             <Grid Margin="12,8,12,0" VerticalAlignment="Top">
-                <CommandBar x:Name="Tools" HorizontalAlignment="Center" MaxWidth="900"
-                    DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" CornerRadius="12"
+                <Border HorizontalAlignment="Center" MaxWidth="900" Padding="4" CornerRadius="14"
                     Background="{ThemeResource ShnappToolbarBrush}"
-                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
-                    AutomationProperties.Name="Annotation tools">
-                    <CommandBar.Resources>
-                        <ResourceDictionary>
-                            <ResourceDictionary.ThemeDictionaries>
-                                <ResourceDictionary x:Key="Light">
-                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundChecked" Color="#0A84FF" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundCheckedPointerOver" Color="#0878EA" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundCheckedPressed" Color="#0668CC" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundChecked" Color="White" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundCheckedPointerOver" Color="White" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundCheckedPressed" Color="White" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonCheckGlyphForegroundChecked" Color="White" />
-                                </ResourceDictionary>
-                                <ResourceDictionary x:Key="Default">
-                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundChecked" Color="#0A84FF" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundCheckedPointerOver" Color="#0878EA" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonBackgroundCheckedPressed" Color="#0668CC" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundChecked" Color="White" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundCheckedPointerOver" Color="White" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonForegroundCheckedPressed" Color="White" />
-                                    <SolidColorBrush x:Key="AppBarToggleButtonCheckGlyphForegroundChecked" Color="White" />
-                                </ResourceDictionary>
-                                <ResourceDictionary x:Key="HighContrast">
-                                    <StaticResource x:Key="AppBarToggleButtonBackgroundChecked" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="AppBarToggleButtonBackgroundCheckedPointerOver" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="AppBarToggleButtonBackgroundCheckedPressed" ResourceKey="SystemColorHighlightColorBrush" />
-                                    <StaticResource x:Key="AppBarToggleButtonForegroundChecked" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                    <StaticResource x:Key="AppBarToggleButtonForegroundCheckedPointerOver" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                    <StaticResource x:Key="AppBarToggleButtonForegroundCheckedPressed" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                    <StaticResource x:Key="AppBarToggleButtonCheckGlyphForegroundChecked" ResourceKey="SystemColorHighlightTextColorBrush" />
-                                </ResourceDictionary>
-                            </ResourceDictionary.ThemeDictionaries>
-                        </ResourceDictionary>
-                    </CommandBar.Resources>
-                <local:HandCursorAppBarToggleButton CornerRadius="8" x:Name="SelectTool" Label="Select" Tag="Select" IsChecked="True" Click="Tool_Click"
-                    ToolTipService.ToolTip="Select or move · V" AutomationProperties.AutomationId="ToolSelect">
-                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE8B0;" /></AppBarToggleButton.Icon>
-                </local:HandCursorAppBarToggleButton>
-                <local:HandCursorAppBarToggleButton CornerRadius="8" x:Name="TextTool" Label="Text" Tag="Text" Click="Tool_Click"
-                    ToolTipService.ToolTip="Add text · T" AutomationProperties.AutomationId="ToolText">
-                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE8D2;" /></AppBarToggleButton.Icon>
-                </local:HandCursorAppBarToggleButton>
-                <local:HandCursorAppBarToggleButton CornerRadius="8" x:Name="StepTool" Label="Step" Tag="Step" Click="Tool_Click"
-                    ToolTipService.ToolTip="Numbered step · N" AutomationProperties.AutomationId="ToolStep">
-                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE8FD;" /></AppBarToggleButton.Icon>
-                </local:HandCursorAppBarToggleButton>
-                <local:HandCursorAppBarToggleButton CornerRadius="8" x:Name="LineTool" Label="Line" Tag="Line" Click="Tool_Click"
-                    ToolTipService.ToolTip="Line and arrows · L (arrow preset A)" AutomationProperties.AutomationId="ToolLine">
-                    <AppBarToggleButton.Icon>
-                        <PathIcon Data="M2,13 L12,3 L9,3 L9,1 L15,1 L15,7 L13,7 L13,4 L3,14 Z" />
-                    </AppBarToggleButton.Icon>
-                </local:HandCursorAppBarToggleButton>
-                <local:HandCursorAppBarButton CornerRadius="8" x:Name="ShapesTool" Label="Shapes" Tag="Rectangle"
-                    HideFlyoutChevron="True"
-                    ToolTipService.ToolTip="Rectangle, square, ellipse, or circle · R" AutomationProperties.AutomationId="ToolShapes">
-                    <AppBarButton.Icon>
-                        <PathIcon Data="F0 M2,2 L14,2 L14,14 L2,14 Z M3.5,3.5 L3.5,12.5 L12.5,12.5 L12.5,3.5 Z" />
-                    </AppBarButton.Icon>
-                    <AppBarButton.Flyout>
-                        <MenuFlyout>
-                            <MenuFlyoutItem x:Name="RectangleTool" Text="Rectangle" Tag="Rectangle" Click="ToolMenu_Click">
-                                <MenuFlyoutItem.Icon><PathIcon Data="F0 M1,3 L15,3 L15,13 L1,13 Z M2.5,4.5 L2.5,11.5 L13.5,11.5 L13.5,4.5 Z" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="SquareTool" Text="Square" Tag="Square" Click="ToolMenu_Click">
-                                <MenuFlyoutItem.Icon><PathIcon Data="F0 M2,2 L14,2 L14,14 L2,14 Z M3.5,3.5 L3.5,12.5 L12.5,12.5 L12.5,3.5 Z" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="EllipseTool" Text="Ellipse" Tag="Ellipse" Click="ToolMenu_Click">
-                                <MenuFlyoutItem.Icon><PathIcon Data="F0 M8,3 C12,3 15,5 15,8 C15,11 12,13 8,13 C4,13 1,11 1,8 C1,5 4,3 8,3 Z M8,4.5 C4.9,4.5 2.5,6 2.5,8 C2.5,10 4.9,11.5 8,11.5 C11.1,11.5 13.5,10 13.5,8 C13.5,6 11.1,4.5 8,4.5 Z" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem x:Name="CircleTool" Text="Circle" Tag="Circle" Click="ToolMenu_Click">
-                                <MenuFlyoutItem.Icon><PathIcon Data="F0 M8,1 A7,7 0 1 1 8,15 A7,7 0 1 1 8,1 Z M8,2.5 A5.5,5.5 0 1 0 8,13.5 A5.5,5.5 0 1 0 8,2.5 Z" /></MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                        </MenuFlyout>
-                    </AppBarButton.Flyout>
-                </local:HandCursorAppBarButton>
-                <local:HandCursorAppBarToggleButton CornerRadius="8" x:Name="RedactTool" Label="Redact" Tag="Redaction" Click="Tool_Click"
-                    ToolTipService.ToolTip="Cover, blur, or pixelate · B" AutomationProperties.AutomationId="ToolRedact">
-                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE72E;" /></AppBarToggleButton.Icon>
-                </local:HandCursorAppBarToggleButton>
-                <local:HandCursorAppBarToggleButton CornerRadius="8" x:Name="CropTool" Label="Crop" Tag="Crop" Click="Tool_Click"
-                    ToolTipService.ToolTip="Drag to crop · Enter confirms · Esc cancels" AutomationProperties.AutomationId="ToolCrop">
-                    <AppBarToggleButton.Icon><SymbolIcon Symbol="Crop" /></AppBarToggleButton.Icon>
-                </local:HandCursorAppBarToggleButton>
-                <AppBarSeparator />
-                <local:HandCursorAppBarButton CornerRadius="8" Label="Undo" Icon="Undo" Click="Undo_Click" IsEnabled="{x:Bind ViewModel.CanUndo, Mode=OneWay}"
-                    ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.AutomationId="UndoEdit" />
-                <local:HandCursorAppBarButton CornerRadius="8" Label="Redo" Icon="Redo" Click="Redo_Click" IsEnabled="{x:Bind ViewModel.CanRedo, Mode=OneWay}"
-                    ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.AutomationId="RedoEdit" />
-                <AppBarSeparator />
-                <local:HandCursorAppBarToggleButton CornerRadius="8" x:Name="InspectorToggle" Label="Options" IsChecked="True"
-                    Click="InspectorToggle_Click" ToolTipService.ToolTip="Show or hide tool options"
-                    AutomationProperties.AutomationId="ToolOptions">
-                    <AppBarToggleButton.Icon><FontIcon Glyph="&#xE8A0;" /></AppBarToggleButton.Icon>
-                </local:HandCursorAppBarToggleButton>
-                </CommandBar>
+                    BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}" BorderThickness="1"
+                    Translation="0,0,20">
+                    <Border.Shadow><ThemeShadow /></Border.Shadow>
+                    <StackPanel x:Name="Tools" Orientation="Horizontal" HorizontalAlignment="Center"
+                        Height="40" VerticalAlignment="Center" Background="Transparent"
+                        AutomationProperties.Name="Annotation tools">
+                        <StackPanel.Resources>
+                            <ResourceDictionary>
+                                <SolidColorBrush x:Key="ToolbarClearBrush" Color="Transparent" />
+                                <StaticResource x:Key="ButtonBackground" ResourceKey="ToolbarClearBrush" />
+                                <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="ToolbarClearBrush" />
+                                <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="ToolbarClearBrush" />
+                                <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="ToolbarClearBrush" />
+                                <StaticResource x:Key="ButtonBorderBrush" ResourceKey="ToolbarClearBrush" />
+                                <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="ToolbarClearBrush" />
+                                <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="ToolbarClearBrush" />
+                                <StaticResource x:Key="ButtonBorderBrushDisabled" ResourceKey="ToolbarClearBrush" />
+                            </ResourceDictionary>
+                        </StackPanel.Resources>
+                        <local:ToolbarActionButton CornerRadius="8" Padding="0" Margin="0" Width="40" Height="40" x:Name="SelectTool" Tag="Select" Click="Tool_Click"
+                            ToolTipService.ToolTip="Select or move · V" AutomationProperties.Name="Select" AutomationProperties.AutomationId="ToolSelect">
+                            <FontIcon Glyph="&#xE8B0;" FontSize="16" />
+                        </local:ToolbarActionButton>
+                        <local:ToolbarActionButton CornerRadius="8" Padding="0" Margin="0" Width="40" Height="40" x:Name="TextTool" Tag="Text" Click="Tool_Click"
+                            ToolTipService.ToolTip="Add text · T" AutomationProperties.Name="Text" AutomationProperties.AutomationId="ToolText">
+                            <FontIcon Glyph="&#xE8D2;" FontSize="16" />
+                        </local:ToolbarActionButton>
+                        <local:ToolbarActionButton CornerRadius="8" Padding="0" Margin="0" Width="40" Height="40" x:Name="StepTool" Tag="Step" Click="Tool_Click"
+                            ToolTipService.ToolTip="Numbered step · N" AutomationProperties.Name="Step" AutomationProperties.AutomationId="ToolStep">
+                            <FontIcon Glyph="&#xE8FD;" FontSize="16" />
+                        </local:ToolbarActionButton>
+                        <local:ToolbarActionButton CornerRadius="8" Padding="0" Margin="0" Width="40" Height="40" x:Name="CalloutTool" Tag="Callout" Click="Tool_Click"
+                            ToolTipService.ToolTip="Numbered annotation outside the image · C" AutomationProperties.Name="Annotate" AutomationProperties.AutomationId="ToolCallout">
+                            <FontIcon Glyph="&#xE8F2;" FontSize="16" />
+                        </local:ToolbarActionButton>
+                        <local:ToolbarActionButton CornerRadius="8" Padding="0" Margin="0" Width="40" Height="40" x:Name="MagnifyTool" Tag="Magnify" Click="Tool_Click"
+                            ToolTipService.ToolTip="Draw a zoom lens · M" AutomationProperties.Name="Magnify" AutomationProperties.AutomationId="ToolMagnify">
+                            <FontIcon Glyph="&#xE71E;" FontSize="16" />
+                        </local:ToolbarActionButton>
+                        <local:ToolbarActionButton CornerRadius="8" Padding="0" Margin="0" Width="40" Height="40" x:Name="LineTool" Tag="Line" Click="Tool_Click"
+                            ToolTipService.ToolTip="Line and arrows · L (arrow preset A)" AutomationProperties.Name="Line" AutomationProperties.AutomationId="ToolLine">
+                            <PathIcon Width="16" Height="16" Data="M2,13 L12,3 L9,3 L9,1 L15,1 L15,7 L13,7 L13,4 L3,14 Z" />
+                        </local:ToolbarActionButton>
+                        <local:ToolbarActionButton CornerRadius="8" Padding="0" Margin="0" Width="40" Height="40" x:Name="ShapesTool" Tag="Shape" Click="ShapesTool_Click"
+                            ToolTipService.ToolTip="Choose a shape · R" AutomationProperties.Name="Shapes" AutomationProperties.AutomationId="ToolShapes">
+                            <local:ToolbarActionButton.Content>
+                                <PathIcon Width="16" Height="16" Data="F0 M2,2 L14,2 L14,14 L2,14 Z M3.5,3.5 L3.5,12.5 L12.5,12.5 L12.5,3.5 Z" />
+                            </local:ToolbarActionButton.Content>
+                            <Button.Flyout>
+                                <Flyout Opening="ShapePalette_Opening">
+                                    <Flyout.FlyoutPresenterStyle>
+                                        <Style TargetType="FlyoutPresenter">
+                                            <Setter Property="Background" Value="{ThemeResource ShnappToolbarBrush}" />
+                                            <Setter Property="BorderBrush" Value="{ThemeResource ShnappFloatingEdgeBrush}" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                            <Setter Property="CornerRadius" Value="12" />
+                                        </Style>
+                                    </Flyout.FlyoutPresenterStyle>
+                                    <Grid x:Name="ShapePaletteGrid" Width="168" Height="216"
+                                        AutomationProperties.Name="Shape palette" />
+                                </Flyout>
+                            </Button.Flyout>
+                        </local:ToolbarActionButton>
+                        <local:ToolbarActionButton CornerRadius="8" Padding="0" Margin="0" Width="40" Height="40" x:Name="RedactTool" Tag="Redaction" Click="Tool_Click"
+                            ToolTipService.ToolTip="Cover, blur, or pixelate · B" AutomationProperties.Name="Redact" AutomationProperties.AutomationId="ToolRedact">
+                            <FontIcon Glyph="&#xE72E;" FontSize="16" />
+                        </local:ToolbarActionButton>
+                        <local:ToolbarActionButton CornerRadius="8" Padding="0" Margin="0" Width="40" Height="40"
+                            x:Name="CameraPhotoTool" Click="CameraPhotoTool_Click" IsEnabled="False"
+                            ToolTipService.ToolTip="Add a camera photo layer" AutomationProperties.Name="Add camera photo"
+                            AutomationProperties.AutomationId="ToolCameraPhoto">
+                            <FontIcon Glyph="&#xE722;" FontSize="16" />
+                        </local:ToolbarActionButton>
+                        <local:ToolbarActionButton CornerRadius="8" Padding="0" Margin="0" Width="40" Height="40" x:Name="CropTool" Tag="Crop" Click="Tool_Click"
+                            ToolTipService.ToolTip="Drag to crop · Enter confirms · Esc cancels" AutomationProperties.Name="Crop" AutomationProperties.AutomationId="ToolCrop">
+                            <SymbolIcon Symbol="Crop" Width="16" Height="16" />
+                        </local:ToolbarActionButton>
+                        <Border Width="1" Height="18" Margin="6,0" VerticalAlignment="Center" Background="{ThemeResource ShnappFloatingEdgeBrush}" />
+                        <local:ToolbarActionButton CornerRadius="8" Padding="0" Margin="0" Width="40" Height="40" Click="Undo_Click" IsEnabled="{x:Bind ViewModel.CanUndo, Mode=OneWay}"
+                            ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.Name="Undo" AutomationProperties.AutomationId="UndoEdit">
+                            <FontIcon Glyph="&#xE7A7;" FontSize="18" />
+                        </local:ToolbarActionButton>
+                        <local:ToolbarActionButton CornerRadius="8" Padding="0" Margin="0" Width="40" Height="40" Click="Redo_Click" IsEnabled="{x:Bind ViewModel.CanRedo, Mode=OneWay}"
+                            ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.Name="Redo" AutomationProperties.AutomationId="RedoEdit">
+                            <FontIcon Glyph="&#xE7A6;" FontSize="18" />
+                        </local:ToolbarActionButton>
+                    </StackPanel>
+                </Border>
             </Grid>
+            <local:HandCursorToggleButton x:Name="InspectorToggle" Width="40" Height="40" Padding="0"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,12,12"
+                CornerRadius="12" IsChecked="True" Click="InspectorToggle_Click"
+                Background="{ThemeResource ShnappToolbarBrush}"
+                BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}" BorderThickness="1"
+                ToolTipService.ToolTip="Show or hide tool options"
+                AutomationProperties.Name="Tool options" AutomationProperties.AutomationId="ToolOptions">
+                <local:HandCursorToggleButton.Shadow><ThemeShadow /></local:HandCursorToggleButton.Shadow>
+                <FontIcon Glyph="&#xE8A0;" FontSize="16" />
+            </local:HandCursorToggleButton>
         </Grid>
         <Grid x:Name="LibraryRoot" Grid.Row="2" Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}"
-            Padding="20,20,20,16" SizeChanged="LibraryRoot_SizeChanged">
+            Padding="16,8,16,16" Background="{ThemeResource ShnappCanvasBrush}"
+            SizeChanged="LibraryRoot_SizeChanged">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -900,14 +1090,22 @@
                         QuerySubmitted="LibrarySearch_QuerySubmitted" KeyDown="LibrarySearch_KeyDown"
                         ToolTipService.ToolTip="Search by title, date, dimensions, or capture type"
                         AutomationProperties.Name="Search library" AutomationProperties.AutomationId="LibrarySearch" />
-                    <Button CornerRadius="8" x:Name="LibraryDeleteSelected" Grid.Column="1" Height="36" Padding="10,0"
-                        Visibility="Collapsed" Click="LibraryDeleteSelected_Click"
-                        AutomationProperties.Name="Delete selected shnapps" AutomationProperties.AutomationId="LibraryDeleteSelected">
-                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <SymbolIcon Symbol="Delete" />
-                            <TextBlock x:Name="LibrarySelectionCount" Text="Delete 0" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                        <Button CornerRadius="8" x:Name="LibraryClearSelection" Content="Clear selection"
+                            Height="36" Padding="10,0" Visibility="Collapsed" Click="LibraryClearSelection_Click"
+                            ToolTipService.ToolTip="Clear selection · Esc"
+                            AutomationProperties.Name="Clear library selection"
+                            AutomationProperties.HelpText="Press Escape to clear the selection"
+                            AutomationProperties.AutomationId="LibraryClearSelection" />
+                        <Button CornerRadius="8" x:Name="LibraryDeleteSelected" Height="36" Padding="10,0"
+                            Visibility="Collapsed" Click="LibraryDeleteSelected_Click"
+                            AutomationProperties.Name="Delete selected shnapps" AutomationProperties.AutomationId="LibraryDeleteSelected">
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <SymbolIcon Symbol="Delete" />
+                                <TextBlock x:Name="LibrarySelectionCount" Text="Delete 0" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Grid>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                     <DropDownButton CornerRadius="8" x:Name="LibrarySortButton" Height="36" Padding="10,0"
@@ -929,19 +1127,43 @@
                             </MenuFlyout>
                         </DropDownButton.Flyout>
                     </DropDownButton>
-                    <Button CornerRadius="8" x:Name="LibrarySizeButton" Width="36" Height="36" Padding="0"
+                    <DropDownButton CornerRadius="8" x:Name="LibrarySizeButton" Height="36" Padding="10,0"
                         ToolTipService.ToolTip="Thumbnail size" AutomationProperties.Name="Thumbnail size"
                         AutomationProperties.AutomationId="LibrarySizeButton">
-                        <Button.Content><FontIcon Glyph="&#xE8A7;" FontSize="16" /></Button.Content>
-                        <Button.Flyout>
+                        <DropDownButton.Content><TextBlock Text="Size" /></DropDownButton.Content>
+                        <DropDownButton.Flyout>
                             <MenuFlyout>
-                                <RadioMenuFlyoutItem Text="Small" Tag="0" GroupName="LibrarySize" Click="LibrarySize_Click" />
-                                <RadioMenuFlyoutItem Text="Medium" Tag="1" GroupName="LibrarySize" Click="LibrarySize_Click" />
-                                <RadioMenuFlyoutItem Text="Large" Tag="2" GroupName="LibrarySize" IsChecked="True" Click="LibrarySize_Click" />
-                                <RadioMenuFlyoutItem Text="Extra large" Tag="3" GroupName="LibrarySize" Click="LibrarySize_Click" />
+                                <RadioMenuFlyoutItem Text="Small · 152 px" Tag="0" GroupName="LibrarySize" IsChecked="True" Click="LibrarySize_Click">
+                                    <RadioMenuFlyoutItem.Icon>
+                                        <PathIcon Data="F0 M0,0 H20 V14 H0 Z M2,2 V12 H18 V2 Z M3,11 L7,7 L10,9 L13,5 L17,11 Z M14,3 H16 V5 H14 Z" RenderTransformOrigin="0.5,0.5">
+                                            <PathIcon.RenderTransform><ScaleTransform ScaleX="0.8" ScaleY="0.8" /></PathIcon.RenderTransform>
+                                        </PathIcon>
+                                    </RadioMenuFlyoutItem.Icon>
+                                </RadioMenuFlyoutItem>
+                                <RadioMenuFlyoutItem Text="Medium · 224 px" Tag="1" GroupName="LibrarySize" Click="LibrarySize_Click">
+                                    <RadioMenuFlyoutItem.Icon>
+                                        <PathIcon Data="F0 M0,0 H20 V14 H0 Z M2,2 V12 H18 V2 Z M3,11 L7,7 L10,9 L13,5 L17,11 Z M14,3 H16 V5 H14 Z" RenderTransformOrigin="0.5,0.5">
+                                            <PathIcon.RenderTransform><ScaleTransform ScaleX="0.95" ScaleY="0.95" /></PathIcon.RenderTransform>
+                                        </PathIcon>
+                                    </RadioMenuFlyoutItem.Icon>
+                                </RadioMenuFlyoutItem>
+                                <RadioMenuFlyoutItem Text="Large · 304 px" Tag="2" GroupName="LibrarySize" Click="LibrarySize_Click">
+                                    <RadioMenuFlyoutItem.Icon>
+                                        <PathIcon Data="F0 M0,0 H20 V14 H0 Z M2,2 V12 H18 V2 Z M3,11 L7,7 L10,9 L13,5 L17,11 Z M14,3 H16 V5 H14 Z" RenderTransformOrigin="0.5,0.5">
+                                            <PathIcon.RenderTransform><ScaleTransform ScaleX="1.1" ScaleY="1.1" /></PathIcon.RenderTransform>
+                                        </PathIcon>
+                                    </RadioMenuFlyoutItem.Icon>
+                                </RadioMenuFlyoutItem>
+                                <RadioMenuFlyoutItem Text="Extra large · 384 px" Tag="3" GroupName="LibrarySize" Click="LibrarySize_Click">
+                                    <RadioMenuFlyoutItem.Icon>
+                                        <PathIcon Data="F0 M0,0 H20 V14 H0 Z M2,2 V12 H18 V2 Z M3,11 L7,7 L10,9 L13,5 L17,11 Z M14,3 H16 V5 H14 Z" RenderTransformOrigin="0.5,0.5">
+                                            <PathIcon.RenderTransform><ScaleTransform ScaleX="1.25" ScaleY="1.25" /></PathIcon.RenderTransform>
+                                        </PathIcon>
+                                    </RadioMenuFlyoutItem.Icon>
+                                </RadioMenuFlyoutItem>
                             </MenuFlyout>
-                        </Button.Flyout>
-                    </Button>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
                     <ToggleButton CornerRadius="8" x:Name="LibraryGridMode" Width="36" Height="36" Padding="0" IsChecked="True"
                         Click="LibraryGridMode_Click" ToolTipService.ToolTip="Grid view"
                         AutomationProperties.Name="Grid view" AutomationProperties.AutomationId="LibraryGridMode">
@@ -961,6 +1183,9 @@
                     GotFocus="LibraryGrid_GotFocus" LostFocus="LibraryGrid_LostFocus"
                     ContainerContentChanging="Library_ContainerContentChanging"
                     AutomationProperties.Name="Saved shnapps grid" AutomationProperties.AutomationId="ShnappLibrary">
+                    <GridView.KeyboardAccelerators>
+                        <KeyboardAccelerator Key="A" Modifiers="Control" Invoked="LibrarySelectAll_Invoked" />
+                    </GridView.KeyboardAccelerators>
                     <GridView.Resources>
                         <SolidColorBrush x:Key="GridViewItemBackgroundPointerOver" Color="Transparent" />
                         <SolidColorBrush x:Key="GridViewItemBackgroundPressed" Color="Transparent" />
@@ -1016,6 +1241,9 @@
                     SelectionMode="None" IsItemClickEnabled="True" ItemClick="LibraryCard_ItemClick"
                     ContainerContentChanging="Library_ContainerContentChanging"
                     AutomationProperties.Name="Saved shnapps list" AutomationProperties.AutomationId="ShnappLibraryList">
+                    <ListView.KeyboardAccelerators>
+                        <KeyboardAccelerator Key="A" Modifiers="Control" Invoked="LibrarySelectAll_Invoked" />
+                    </ListView.KeyboardAccelerators>
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -1081,7 +1309,7 @@
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
-                <ScrollViewer x:Name="LibraryEmpty" Margin="-20,0,-20,-16"
+                <ScrollViewer x:Name="LibraryEmpty" Margin="-16,0,-16,-16"
                     HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                     SizeChanged="LibraryEmpty_SizeChanged">
                     <Grid x:Name="LibraryEmptyContent" SizeChanged="LibraryEmptyContent_SizeChanged">
@@ -1136,6 +1364,10 @@
                                                 <MenuFlyoutItem Text="Capture region" Tag="Region" Click="Capture_Click">
                                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7A8;" FontSize="16" /></MenuFlyoutItem.Icon>
                                                 </MenuFlyoutItem>
+                                                <MenuFlyoutItem x:Name="LibraryEmptyCameraCaptureMenu" Text="Camera photo" Tag="Camera"
+                                                    Click="Capture_Click" IsEnabled="False">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE722;" FontSize="16" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
                                             </MenuFlyout>
                                         </SplitButton.Flyout>
                                     </local:HandCursorSplitButton>
@@ -1167,7 +1399,7 @@
                 </ScrollViewer>
             </Grid>
         </Grid>
-        <Grid Grid.Row="3" Height="36" Padding="20,4" ColumnSpacing="16" Background="{ThemeResource ShnappChromeBrush}">
+        <Grid Grid.Row="3" Height="36" Padding="16,4" ColumnSpacing="16" Background="{ThemeResource ShnappChromeBrush}">
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <DropDownButton CornerRadius="8" x:Name="ZoomPresetButton" Content="100%" Height="24" MinWidth="60"
                 FontSize="11" Padding="5,0" Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"

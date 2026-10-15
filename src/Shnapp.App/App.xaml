@@ -17,8 +17,12 @@
                     <SolidColorBrush x:Key="ShnappPanelBrush" Color="#F8FBFF" />
                     <SolidColorBrush x:Key="ShnappBlueBrush" Color="#0A84FF" />
                     <SolidColorBrush x:Key="ShnappOnBlueBrush" Color="White" />
-                    <SolidColorBrush x:Key="ShnappChromeBrush" Color="#EEF0F6FF" />
-                    <SolidColorBrush x:Key="ShnappToolbarBrush" Color="#F2F8FBFF" />
+                    <AcrylicBrush x:Key="ShnappChromeBrush" TintColor="#F0F5FC" TintOpacity="0.82" FallbackColor="#F0F5FC" />
+                    <AcrylicBrush x:Key="ShnappToolbarBrush" TintColor="#DDEBFF" TintOpacity="0.72" FallbackColor="#E4F0FC" />
+                    <SolidColorBrush x:Key="ShnappToolbarInactiveIconBrush" Color="#617C9B" />
+                    <SolidColorBrush x:Key="ShnappToolbarActiveIconBrush" Color="#075DBB" />
+                    <SolidColorBrush x:Key="ShnappToolbarDisabledIconBrush" Color="#A2B3C7" />
+                    <SolidColorBrush x:Key="ShnappFloatingEdgeBrush" Color="#8094B5D4" />
                     <SolidColorBrush x:Key="ShnappPreviewBrush" Color="#EDF3FC" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Default">
@@ -28,8 +32,12 @@
                     <SolidColorBrush x:Key="ShnappPanelBrush" Color="#182848" />
                     <SolidColorBrush x:Key="ShnappBlueBrush" Color="#0A84FF" />
                     <SolidColorBrush x:Key="ShnappOnBlueBrush" Color="White" />
-                    <SolidColorBrush x:Key="ShnappChromeBrush" Color="#EE0B1833" />
-                    <SolidColorBrush x:Key="ShnappToolbarBrush" Color="#F0132344" />
+                    <AcrylicBrush x:Key="ShnappChromeBrush" TintColor="#101C36" TintOpacity="0.82" FallbackColor="#101C36" />
+                    <AcrylicBrush x:Key="ShnappToolbarBrush" TintColor="#2A4F80" TintOpacity="0.68" FallbackColor="#1C365B" />
+                    <SolidColorBrush x:Key="ShnappToolbarInactiveIconBrush" Color="#9BB3D2" />
+                    <SolidColorBrush x:Key="ShnappToolbarActiveIconBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="ShnappToolbarDisabledIconBrush" Color="#6F87A7" />
+                    <SolidColorBrush x:Key="ShnappFloatingEdgeBrush" Color="#708DADD7" />
                     <SolidColorBrush x:Key="ShnappPreviewBrush" Color="#172847" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="HighContrast">
@@ -41,6 +49,10 @@
                     <SolidColorBrush x:Key="ShnappOnBlueBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
                     <SolidColorBrush x:Key="ShnappChromeBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="ShnappToolbarBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="ShnappToolbarInactiveIconBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="ShnappToolbarActiveIconBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                    <SolidColorBrush x:Key="ShnappToolbarDisabledIconBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+                    <SolidColorBrush x:Key="ShnappFloatingEdgeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="ShnappPreviewBrush" Color="{ThemeResource SystemColorWindowColor}" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>

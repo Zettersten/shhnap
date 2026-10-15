@@ -27,7 +27,12 @@ public sealed partial class MainPage : Page
     private CanvasRenderTarget? _flattened;
     private CanvasRenderTarget? _dragBase;
     private EditorTool _tool;
-    private bool _cropEscapeHandledUntilKeyUp;
+    private bool _toolbarPointerPressed;
+    private bool _toolbarTextRefreshPending;
+    private ToolbarActionButton? _toolbarRefreshSource;
+    private bool _canvasTextRefreshPending;
+    private bool _canvasInspectorOpenPending;
+    private bool _escapeHandledUntilKeyUp;
     private Guid? _selectedId;
     private ImagePoint? _dragStart;
     private Annotation? _moving;
@@ -37,11 +42,12 @@ public sealed partial class MainPage : Page
     private double _groupDragDy;
     private ResizeHandle _resizeHandle;
     private ImageRect? _crop;
-    private TextBox? _textBox;
+    private RichEditBox? _textBox;
     private Guid? _textEditId;
     private ImagePoint _textOrigin;
     private ImagePoint? _textDragStart;
     private ImagePoint? _textDragEnd;
+    private bool _placementShiftHeld;
     private Annotation? _textDraft;
     private double _scale = 1;
     private double _offsetX;
@@ -65,6 +71,22 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         InitializeComponent();
+        Tools.AddHandler(PointerEnteredEvent,
+            new PointerEventHandler((_, _) => CanvasHost.SuspendCursor()), true);
+        Tools.AddHandler(PointerMovedEvent,
+            new PointerEventHandler((_, _) => CanvasHost.SuspendCursor()), true);
+        Tools.AddHandler(PointerPressedEvent,
+            new PointerEventHandler((_, _) => _toolbarPointerPressed = true), true);
+        Tools.AddHandler(PointerReleasedEvent,
+            new PointerEventHandler((_, _) => _toolbarPointerPressed = false), true);
+        Tools.AddHandler(PointerCanceledEvent,
+            new PointerEventHandler((_, _) => _toolbarPointerPressed = false), true);
+        Tools.AddHandler(PointerExitedEvent,
+            new PointerEventHandler(Tools_PointerExited), true);
+        foreach (ToolbarActionButton button in Tools.Children.OfType<ToolbarActionButton>())
+        {
+            button.PointerExited += ToolbarButton_PointerExited;
+        }
         InitializeCaptureButtonRims();
         // Page-level shortcuts remain active, but the first one (Ctrl+C) must not
         // appear as a tooltip when the pointer rests on the annotation canvas.
@@ -154,21 +176,39 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        ViewModel.Title = _editor.Current.Title;
-        CanvasRenderTarget rendered = _controller.Renderer.Flatten(_original, _editor.Current);
-        _flattened?.Dispose();
-        _flattened = rendered;
-        ImageRect viewport = _editor.Current.Viewport;
-        ViewModel.Dimensions = $"{viewport.Width:0} × {viewport.Height:0} px";
-        UpdateDocumentMetadata();
+        RefreshFlattenedImage();
         ViewModel.CanUndo = _editor.CanUndo;
         ViewModel.CanRedo = _editor.CanRedo;
         SetSelectedAnnotations(_selectedIds);
-        ViewModel.Status = FooterToolHint();
         UpdateTransform();
-        UpdateInspector();
-        UpdateCropInspector();
         DrawingCanvas.Invalidate();
+        if (_deferDocumentChromeRefresh)
+        {
+            _documentChromeRefreshPending = true;
+        }
+        else
+        {
+            RefreshDocumentChrome();
+        }
+    }
+
+    private void RefreshFlattenedImage()
+    {
+        if (_editor is null || _original is null || _controller is null)
+        {
+            return;
+        }
+
+        ShnappDocument display = _editor.Current;
+        if (_textEditId is Guid editId &&
+            display.Annotations.FirstOrDefault(annotation => annotation.Id == editId) is { } editing)
+        {
+            display = display with { Annotations = display.Annotations.RemoveAt(display.Annotations.IndexOf(editing)) };
+        }
+
+        CanvasRenderTarget rendered = _controller.Renderer.Flatten(_original, display);
+        _flattened?.Dispose();
+        _flattened = rendered;
     }
 
     private void UpdateTransform()
@@ -220,7 +260,7 @@ public sealed partial class MainPage : Page
         _viewImageHeight = _flattened.Size.Height;
         _viewViewport = viewport;
         _viewShadowPadding = padding;
-        ClampCanvasPan();
+        UpdateRecenterCanvasButton();
         UpdateZoomLabel();
     }
 
@@ -264,7 +304,7 @@ public sealed partial class MainPage : Page
         DrawCanvasBackdrop(drawing, sender.ActualWidth, sender.ActualHeight);
         drawing.Transform = Matrix3x2.CreateScale((float)_scale)
             * Matrix3x2.CreateTranslation((float)_offsetX, (float)_offsetY);
-        drawing.DrawImage(_dragBase ?? _flattened);
+        drawing.DrawImage(_dragBase ?? _fontPreviewImage ?? _flattened);
         drawing.Transform = Matrix3x2.Identity;
         Color canvasEdge = CanvasThemeColor("ShnappCanvasEdgeBrush");
         drawing.DrawRectangle(new Rect(_offsetX, _offsetY,
@@ -299,6 +339,8 @@ public sealed partial class MainPage : Page
             DrawSelection(drawing, _moving is not null ? preview ?? selected : selected);
         }
 
+        DrawPhotoCropOverlay(drawing);
+
         if (_crop is ImageRect crop)
         {
             ImageRect viewport = _editor.Current.Viewport;
@@ -313,11 +355,8 @@ public sealed partial class MainPage : Page
         if (_textDragStart is ImagePoint textStart && _textDragEnd is ImagePoint textEnd &&
             Math.Max(Math.Abs(textEnd.X - textStart.X), Math.Abs(textEnd.Y - textStart.Y)) * _scale >= 8)
         {
-            double left = Math.Min(textStart.X, textEnd.X);
-            double top = Math.Min(textStart.Y, textEnd.Y);
-            double width = Math.Clamp(Math.Abs(textEnd.X - textStart.X), 48, 12000);
-            double height = Math.Clamp(Math.Abs(textEnd.Y - textStart.Y), 24, 12000);
-            Rect textFrame = new(left, top, width, height);
+            ImageRect bounds = TextFrameFromDrag(textStart, textEnd, IsShiftHeld());
+            Rect textFrame = new(bounds.X, bounds.Y, bounds.Width, bounds.Height);
             drawing.FillRectangle(textFrame, Color.FromArgb(36, 42, 138, 245));
             drawing.DrawRectangle(textFrame, Colors.DodgerBlue, (float)(2 / _scale));
         }
@@ -338,6 +377,10 @@ public sealed partial class MainPage : Page
         if (preview.Kind == AnnotationKind.Image)
         {
             _controller!.Renderer.DrawImageAnnotation(drawing, preview);
+        }
+        else if (preview.Kind == AnnotationKind.Magnify)
+        {
+            _controller!.Renderer.DrawMagnifyAnnotation(drawing, _original!, preview, _editor!.Current);
         }
         else if (preview.Kind == AnnotationKind.Redaction)
         {
@@ -399,7 +442,7 @@ public sealed partial class MainPage : Page
 
     private void Canvas_SizeChanged(object sender, SizeChangedEventArgs args)
     {
-        InspectorPanel.MaxHeight = Math.Min(560, Math.Max(0, args.NewSize.Height - 88));
+        InspectorPanel.MaxHeight = Math.Min(560, Math.Max(0, args.NewSize.Height - 148));
         CommitText();
         UpdateTransform();
         DrawingCanvas.Invalidate();
@@ -423,6 +466,7 @@ public sealed partial class MainPage : Page
 
         StopCanvasPan();
         CommitText();
+        if (TryStartPhotoCrop(args, canvasPosition)) return;
         if (!IsKeyHeld(VirtualKey.Control) && !HasMultipleSelectedAnnotations &&
             SelectedAnnotation() is { } current &&
             HitResizeHandle(current, canvasPosition) is ResizeHandle handle and not ResizeHandle.None)
@@ -431,10 +475,12 @@ public sealed partial class MainPage : Page
             _resizeHandle = handle;
             _dragStart = ImagePosition(canvasPosition, allowOutside: true);
             BeginSmartGuideDrag(current);
-            OpenInspectorForSelection();
-            UpdateInspector();
+            if (InspectorToggle.IsChecked != true || InspectorPanel.Visibility != Visibility.Visible)
+            {
+                QueueCanvasTextRefresh(openInspector: true);
+            }
             _crop = null;
-            DrawingCanvas.Focus(FocusState.Programmatic);
+            CanvasHost.Focus(FocusState.Programmatic);
             CanvasHost.CapturePointer(args.Pointer);
             args.Handled = true;
             UpdateCanvasElementCursor(canvasPosition);
@@ -449,7 +495,7 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        DrawingCanvas.Focus(FocusState.Programmatic);
+        CanvasHost.Focus(FocusState.Programmatic);
         if (_tool != EditorTool.Crop)
         {
             _crop = null;
@@ -461,19 +507,21 @@ public sealed partial class MainPage : Page
         if (hit is not null && IsKeyHeld(VirtualKey.Control))
         {
             ToggleAnnotationSelection(hit.Id);
-            UpdateInspector();
-            ViewModel.Status = FooterToolHint();
+            QueueCanvasTextRefresh();
             UpdateCanvasElementCursor(canvasPosition);
             DrawingCanvas.Invalidate();
             args.Handled = true;
             return;
         }
 
+        bool needsTextRefresh = false;
+        bool openInspectorOnExit = false;
         if (hit is not null)
         {
             if (!IsAnnotationSelected(hit.Id))
             {
                 SelectOnlyAnnotation(hit.Id);
+                needsTextRefresh = true;
             }
 
             _moving = hit;
@@ -483,18 +531,21 @@ public sealed partial class MainPage : Page
             if (_groupMoving.Length <= 1)
             {
                 BeginSmartGuideDrag(hit);
-                OpenInspectorForSelection();
+                openInspectorOnExit = InspectorToggle.IsChecked != true ||
+                    InspectorPanel.Visibility != Visibility.Visible;
             }
             CanvasHost.CapturePointer(args.Pointer);
         }
         else
         {
+            needsTextRefresh = _selectedIds.Count > 0;
             ClearAnnotationSelection();
             switch (_tool)
             {
                 case EditorTool.Text:
                     _textDragStart = point;
                     _textDragEnd = point;
+                    _placementShiftHeld = IsShiftHeld();
                     CanvasHost.CapturePointer(args.Pointer);
                     break;
                 case EditorTool.Step:
@@ -504,13 +555,17 @@ public sealed partial class MainPage : Page
                     };
                     try
                     {
-                        _editor.AddAnnotation(step);
+                        RunWithDeferredDocumentChromeRefresh(() => _editor.AddAnnotation(step));
                         SelectOnlyAnnotation(step.Id);
+                        needsTextRefresh = true;
                     }
                     catch (ArgumentException exception)
                     {
                         ShowAnnotationEditError(exception);
                     }
+                    break;
+                case EditorTool.Callout:
+                    _ = AddCalloutAtAsync(point);
                     break;
                 case EditorTool.Select:
                     break;
@@ -525,22 +580,31 @@ public sealed partial class MainPage : Page
                     break;
                 default:
                     _dragStart = point;
+                    _placementShiftHeld = IsShiftHeld();
                     AnnotationKind kind = _tool switch
                     {
                         EditorTool.Square => AnnotationKind.Rectangle,
                         EditorTool.Circle => AnnotationKind.Ellipse,
                         EditorTool.Arrow => AnnotationKind.Line,
+                        EditorTool.Shape => AnnotationKind.Shape,
                         _ => Enum.Parse<AnnotationKind>(_tool.ToString()),
                     };
                     _draft = NewAnnotation(kind, point);
+                    if (kind is AnnotationKind.Line or AnnotationKind.Arrow)
+                    {
+                        _lineTrace.Clear();
+                        _lineTrace.Add(point);
+                    }
                     CanvasHost.CapturePointer(args.Pointer);
                     break;
             }
         }
 
-        UpdateInspector();
-        UpdateCropInspector();
-        ViewModel.Status = FooterToolHint();
+        if (needsTextRefresh || openInspectorOnExit)
+        {
+            QueueCanvasTextRefresh(openInspectorOnExit);
+        }
+        if (_tool == EditorTool.Crop) UpdateCropInspector();
         UpdateCanvasElementCursor(canvasPosition);
         args.Handled = true;
         DrawingCanvas.Invalidate();
@@ -555,6 +619,12 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        if (TryUpdatePhotoCrop(canvasPosition))
+        {
+            args.Handled = true;
+            return;
+        }
+
         if (IsSpaceHeld())
         {
             UpdatePanCursor();
@@ -563,6 +633,7 @@ public sealed partial class MainPage : Page
         UpdateCanvasElementCursor(canvasPosition);
         if (_textDragStart is not null && _editor is not null)
         {
+            _placementShiftHeld = (args.KeyModifiers & VirtualKeyModifiers.Shift) != 0 || IsShiftHeld();
             _textDragEnd = ImagePosition(canvasPosition, allowOutside: true);
             DrawingCanvas.Invalidate();
             return;
@@ -615,11 +686,13 @@ public sealed partial class MainPage : Page
                     (dx, dy) = SnapMovingAnnotation(_moving, dx, dy,
                         !shiftHeld || _axisLockHorizontal is true,
                         !shiftHeld || _axisLockHorizontal is false);
-                    _draft = _moving with
-                    {
-                        Start = new(_moving.Start.X + dx, _moving.Start.Y + dy),
-                        End = new(_moving.End.X + dx, _moving.End.Y + dy),
-                    };
+                    _draft = _moving.Kind is AnnotationKind.Line or AnnotationKind.Arrow
+                        ? Shnapp.Core.LineGeometry.Translate(_moving, dx, dy)
+                        : _moving with
+                        {
+                            Start = new(_moving.Start.X + dx, _moving.Start.Y + dy),
+                            End = new(_moving.End.X + dx, _moving.End.Y + dy),
+                        };
                 }
             }
 
@@ -647,9 +720,15 @@ public sealed partial class MainPage : Page
         }
         else if (_draft is not null)
         {
-            _draft = _draft with { End = _tool is EditorTool.Square or EditorTool.Circle
-                ? ConstrainSquare(start, point)
-                : point };
+            _placementShiftHeld = (args.KeyModifiers & VirtualKeyModifiers.Shift) != 0 || IsShiftHeld();
+            if (_draft.Kind is AnnotationKind.Line or AnnotationKind.Arrow)
+            {
+                UpdateLineDraftFromPointer(args, point, _placementShiftHeld);
+            }
+            else
+            {
+                _draft = _draft with { End = PlacementEnd(start, point, _placementShiftHeld) };
+            }
         }
 
         UpdateCropHover(canvasPosition, point);
@@ -700,21 +779,26 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        if (TryCompletePhotoCrop(args)) return;
+
+        // Keep the last placement preview when Shift is released immediately after
+        // mouse-up but before WinUI dispatches this pointer event.
+        bool shiftAtRelease = (args.KeyModifiers & VirtualKeyModifiers.Shift) != 0 ||
+            IsShiftHeld() || _placementShiftHeld;
         if (_textDragStart is ImagePoint textStart)
         {
             ImagePoint end = ImagePosition(args.GetCurrentPoint(DrawingCanvas).Position,
                 allowOutside: true) ?? textStart;
             _textDragStart = null;
             _textDragEnd = null;
+            _placementShiftHeld = false;
             CanvasHost.ReleasePointerCapture(args.Pointer);
             bool bounded = Math.Max(Math.Abs(end.X - textStart.X),
                 Math.Abs(end.Y - textStart.Y)) * _scale >= 8;
-            ImagePoint origin = bounded
-                ? new(Math.Min(textStart.X, end.X), Math.Min(textStart.Y, end.Y))
-                : textStart;
-            double width = bounded ? Math.Clamp(Math.Abs(end.X - textStart.X), 48, 12000) : 0;
-            double height = bounded ? Math.Clamp(Math.Abs(end.Y - textStart.Y), 24, 12000) : 0;
-            StartText(origin, width: width, height: height);
+            ImageRect frame = bounded
+                ? TextFrameFromDrag(textStart, end, shiftAtRelease)
+                : new ImageRect(textStart.X, textStart.Y, 0, 0);
+            StartText(new ImagePoint(frame.X, frame.Y), width: frame.Width, height: frame.Height);
             DrawingCanvas.Invalidate();
             args.Handled = true;
             return;
@@ -730,8 +814,27 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        if (_moving is null && _draft is { Kind: AnnotationKind.Line or AnnotationKind.Arrow } &&
+            ImagePosition(args.GetCurrentPoint(DrawingCanvas).Position, allowOutside: true) is ImagePoint lineEnd)
+        {
+            UpdateLineDraftFromPointer(args, lineEnd, shiftAtRelease);
+        }
+        else if (_moving is null && _draft is not null && _dragStart is ImagePoint placementStart &&
+            ImagePosition(args.GetCurrentPoint(DrawingCanvas).Position, allowOutside: true) is ImagePoint placementEnd)
+        {
+            // Re-evaluate the modifier at release so the committed dimensions match
+            // the last preview even if Shift changed after the final pointer move.
+            bool dragged = Math.Max(Math.Abs(placementEnd.X - placementStart.X),
+                Math.Abs(placementEnd.Y - placementStart.Y)) * _scale >= 2;
+            _draft = _draft with
+            {
+                End = dragged ? PlacementEnd(placementStart, placementEnd, shiftAtRelease) : placementStart,
+            };
+        }
+
         DisposeDragBase();
         ClearSmartGuides();
+        bool needsTextRefresh = false;
         if (_draft is Annotation annotation)
         {
             if (_moving is not null)
@@ -742,14 +845,19 @@ public sealed partial class MainPage : Page
                     _pendingContentAnchor = args.GetCurrentPoint(DrawingCanvas).Position;
                     if (_groupMoving.Length > 1)
                     {
-                        _editor.MoveAnnotations(_groupMoving.Select(member => member.Id).ToArray(),
-                            _groupDragDx, _groupDragDy);
+                        if (_groupDragDx != 0 || _groupDragDy != 0)
+                        {
+                            RunWithDeferredDocumentChromeRefresh(() =>
+                                _editor.MoveAnnotations(_groupMoving.Select(member => member.Id).ToArray(),
+                                    _groupDragDx, _groupDragDy));
+                            updated = true;
+                        }
                     }
-                    else
+                    else if (annotation != _moving)
                     {
-                        _editor.UpdateAnnotation(annotation);
+                        RunWithDeferredDocumentChromeRefresh(() => _editor.UpdateAnnotation(annotation));
+                        updated = true;
                     }
-                    updated = true;
                 }
                 catch (ArgumentException exception)
                 {
@@ -766,14 +874,24 @@ public sealed partial class MainPage : Page
                     stepStyle.StepDiameter = annotation.StepDiameter;
                     stepStyle.FontSize = annotation.FontSize;
                 }
+
+                if (updated && _resizeHandle != ResizeHandle.None)
+                {
+                    needsTextRefresh = InspectorPresentationChanged(_moving, annotation);
+                }
             }
-            else if (Math.Abs(annotation.End.X - annotation.Start.X) + Math.Abs(annotation.End.Y - annotation.Start.Y) >= 2)
+            else if (Math.Abs(annotation.End.X - annotation.Start.X) +
+                Math.Abs(annotation.End.Y - annotation.Start.Y) >= 2 ||
+                (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow) &&
+                !annotation.LinePoints.IsDefaultOrEmpty &&
+                annotation.Bounds.Width + annotation.Bounds.Height >= 2)
             {
                 try
                 {
                     _pendingContentAnchor = args.GetCurrentPoint(DrawingCanvas).Position;
-                    _editor.AddAnnotation(annotation);
+                    RunWithDeferredDocumentChromeRefresh(() => _editor.AddAnnotation(annotation));
                     SelectOnlyAnnotation(annotation.Id);
+                    needsTextRefresh = true;
                 }
                 catch (ArgumentException exception)
                 {
@@ -787,6 +905,8 @@ public sealed partial class MainPage : Page
         }
 
         _draft = null;
+        _lineTrace.Clear();
+        _placementShiftHeld = false;
         _moving = null;
         _groupMoving = [];
         _groupDragDx = _groupDragDy = 0;
@@ -800,19 +920,44 @@ public sealed partial class MainPage : Page
         if (_tool == EditorTool.Crop) UpdateCropInspector();
         UpdateCropHover(args.GetCurrentPoint(DrawingCanvas).Position);
         UpdateCanvasElementCursor(args.GetCurrentPoint(DrawingCanvas).Position);
-        UpdateInspector();
+        if (needsTextRefresh)
+        {
+            QueueCanvasTextRefresh();
+        }
+
+        // The interaction is complete; show the selected element's options even
+        // when the pointer stays over the canvas after release.
+        FlushCanvasTextRefresh();
         DrawingCanvas.Invalidate();
         args.Handled = true;
     }
 
+    private static bool InspectorPresentationChanged(Annotation before, Annotation after)
+    {
+        if (before.Kind != after.Kind) return true;
+
+        return after.Kind switch
+        {
+            AnnotationKind.Step => before.StepDiameter != after.StepDiameter || before.FontSize != after.FontSize,
+            AnnotationKind.Rectangle or AnnotationKind.Ellipse =>
+                DisplayShapeTool(before, ToolFor(before)) != DisplayShapeTool(after, ToolFor(after)),
+            AnnotationKind.Text =>
+                (before.TextBoxWidth > 0 && before.TextBoxHeight > 0) !=
+                (after.TextBoxWidth > 0 && after.TextBoxHeight > 0),
+            _ => false,
+        };
+    }
+
     private void Canvas_PointerCanceled(object sender, PointerRoutedEventArgs args)
     {
+        if (_photoCropMode) { CancelPhotoCrop(); return; }
         if (_tool == EditorTool.Crop && _moving is null && _dragStart is not null) RestoreCropDrag();
         else CancelInteraction();
     }
 
     private void Canvas_PointerCaptureLost(object sender, PointerRoutedEventArgs args)
     {
+        if (_photoCropMode) { CancelPhotoCrop(); return; }
         if (_panning || _dragStart is not null || _textDragStart is not null)
         {
             if (_tool == EditorTool.Crop && _moving is null && _dragStart is not null) RestoreCropDrag();
@@ -824,6 +969,18 @@ public sealed partial class MainPage : Page
     {
         if (_editor is null || ImagePosition(args.GetPosition(DrawingCanvas)) is not ImagePoint point)
         {
+            return;
+        }
+
+        Annotation? callout = _editor.Current.OrderedAnnotations.Reverse().FirstOrDefault(annotation =>
+            !annotation.IsFlattened && annotation.Kind == AnnotationKind.Callout &&
+            HitAnnotation(annotation, point));
+        if (callout is not null)
+        {
+            CancelInteraction();
+            SelectOnlyAnnotation(callout.Id);
+            _ = EditCalloutAsync(callout);
+            args.Handled = true;
             return;
         }
 
@@ -842,7 +999,28 @@ public sealed partial class MainPage : Page
         args.Handled = true;
     }
 
-    private ImagePoint ConstrainSquare(ImagePoint start, ImagePoint point)
+    private ImagePoint PlacementEnd(ImagePoint start, ImagePoint point, bool shiftHeld) => _tool switch
+    {
+        EditorTool.Magnify => MagnifyEnd(start, point, shiftHeld),
+        EditorTool.Square or EditorTool.Circle => ConstrainSquare(start, point),
+        EditorTool.Shape when _activeShape == BasicShapeKind.Circle || shiftHeld =>
+            ConstrainSquare(start, point),
+        EditorTool.Rectangle or EditorTool.Ellipse or EditorTool.Redaction when shiftHeld =>
+            ConstrainSquare(start, point),
+        _ => point,
+    };
+
+    private static ImageRect TextFrameFromDrag(ImagePoint start, ImagePoint pointer, bool shiftHeld)
+    {
+        ImagePoint end = shiftHeld ? ConstrainSquare(start, pointer) : pointer;
+        double width = Math.Clamp(Math.Abs(end.X - start.X), 48, 12000);
+        double height = shiftHeld ? width : Math.Clamp(Math.Abs(end.Y - start.Y), 24, 12000);
+        double left = end.X < start.X ? start.X - width : start.X;
+        double top = end.Y < start.Y ? start.Y - height : start.Y;
+        return new ImageRect(left, top, width, height);
+    }
+
+    private static ImagePoint ConstrainSquare(ImagePoint start, ImagePoint point)
     {
         double dx = point.X - start.X;
         double dy = point.Y - start.Y;
@@ -876,24 +1054,35 @@ public sealed partial class MainPage : Page
         }
 
         _narrowInspector = narrow;
-        InspectorPanel.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
-        InspectorToggle.IsChecked = !narrow;
+        SetInspectorVisibility(!narrow, animate: false);
     }
 
     private Annotation NewAnnotation(AnnotationKind kind, ImagePoint point)
     {
         ToolStyle style = _toolStyles[_tool];
+        bool fillableShape = kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse ||
+            kind == AnnotationKind.Shape && BasicShapeGeometry.IsClosed(_activeShape);
+        bool openShape = kind == AnnotationKind.Shape && !BasicShapeGeometry.IsClosed(_activeShape);
         return new Annotation
         {
             Kind = kind,
             Start = point,
             End = point,
             StrokeArgb = style.Primary,
-            FillArgb = kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse && style.FillShape
-                ? WithOpacity(style.Secondary, style.FillOpacity)
-                : 0,
+            FillArgb = kind == AnnotationKind.Text && style.TextBackgroundEnabled &&
+                style.TextBackgroundColor >> 24 != 0
+                ? style.TextBackgroundColor
+                : fillableShape && style.FillShape && style.Secondary >> 24 != 0
+                    ? style.Secondary
+                    : 0,
+            ShapeKind = kind == AnnotationKind.Shape ? _activeShape : BasicShapeKind.Rectangle,
+            TextBorderArgb = kind == AnnotationKind.Text && style.TextBorderEnabled &&
+                style.TextBorderColor >> 24 != 0 ? style.TextBorderColor : 0,
+            TextBorderWidth = kind == AnnotationKind.Text ? style.TextBorderWidth : 0,
+            TextPadding = kind == AnnotationKind.Text ? style.TextPadding : 0,
             StrokeWidth = style.StrokeWidth,
-            HideOutline = !style.OutlineShape,
+            HideOutline = !openShape && !style.OutlineShape &&
+                (!fillableShape || style.FillShape && style.Secondary >> 24 != 0),
             FontFamily = style.FontFamily,
             FontSize = style.FontSize,
             FontWeight = style.FontWeight,
@@ -902,10 +1091,16 @@ public sealed partial class MainPage : Page
             TextLetterSpacing = style.TextLetterSpacing,
             TextTransform = style.TextTransform,
             TextAlignment = style.TextAlignment,
+            TextVerticalAlignment = style.TextVerticalAlignment,
             TextTruncation = style.TextTruncation,
             TextLineHeight = style.TextLineHeight,
             StepDiameter = style.StepDiameter,
             StepTextArgb = style.Secondary,
+            CalloutTextArgb = style.Secondary,
+            TextBoxWidth = kind == AnnotationKind.Callout ? 300 : 0,
+            TextBoxHeight = kind == AnnotationKind.Callout ? 76 : 0,
+            MagnifyZoom = style.MagnifyZoom,
+            MagnifyShape = style.MagnifyShape,
             StartArrow = style.StartArrow,
             EndArrow = style.EndArrow,
             StartCap = style.StartCap,
@@ -915,9 +1110,6 @@ public sealed partial class MainPage : Page
             RedactionMode = style.RedactionMode,
         };
     }
-
-    private static uint WithOpacity(uint color, double percent) =>
-        ((uint)Math.Clamp(Math.Round(percent * 255 / 100), 0, 255) << 24) | (color & 0x00FFFFFF);
 
     private static double FiniteValue(double value, double fallback) => double.IsFinite(value) ? value : fallback;
 
@@ -931,6 +1123,11 @@ public sealed partial class MainPage : Page
 
     private void StartText(ImagePoint point, Annotation? existing = null, double width = 0, double height = 0)
     {
+        if (_fontPreviewImage is not null)
+        {
+            ClearFontPreview();
+        }
+
         _textOrigin = point;
         _textEditId = existing?.Id;
         _textDraft = existing ?? NewAnnotation(AnnotationKind.Text, point) with
@@ -961,11 +1158,13 @@ public sealed partial class MainPage : Page
             position -= new Vector2((float)shiftX, (float)shiftY);
             DrawingCanvas.Invalidate();
         }
-        _textBox = new TextBox
+        _textBox = new RichEditBox
         {
-            Text = existing?.Text ?? string.Empty,
             PlaceholderText = "Type here · Ctrl+Enter to finish",
             AcceptsReturn = true,
+            IsSpellCheckEnabled = true,
+            // The compact inline toolbar replaces the built-in text selection commands.
+            SelectionFlyout = null,
             TextWrapping = _textDraft.TextBoxWidth > 0 ? TextWrapping.Wrap : TextWrapping.NoWrap,
             TextAlignment = (fixedBox ? _textDraft.TextAlignment : TextHorizontalAlignment.Left) switch
             {
@@ -982,7 +1181,15 @@ public sealed partial class MainPage : Page
             FontStyle = style.Italic ? FontStyle.Italic : FontStyle.Normal,
             Foreground = new SolidColorBrush(ShnappRenderer.FromArgb(style.Primary)),
             Padding = fixedBox ? new Thickness(0) : new Thickness(8, 5, 8, 5),
+            VerticalContentAlignment = fixedBox ? _textDraft.TextVerticalAlignment switch
+            {
+                TextVerticalAlignment.Middle => VerticalAlignment.Center,
+                TextVerticalAlignment.Bottom => VerticalAlignment.Bottom,
+                _ => VerticalAlignment.Top,
+            } : VerticalAlignment.Top,
         };
+        ApplyTextAreaDecoration(_textDraft, editScale);
+        SetEditorText(_textBox, _textDraft);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_textBox, "Annotation text");
         Canvas.SetLeft(_textBox, position.X);
         Canvas.SetTop(_textBox, position.Y);
@@ -1009,38 +1216,57 @@ public sealed partial class MainPage : Page
                 CancelText();
                 args.Handled = true;
             }
+            else if (IsKeyHeld(VirtualKey.Control) && args.Key is VirtualKey.B or VirtualKey.I or VirtualKey.U)
+            {
+                ToggleInlineTextShortcut(args.Key);
+                args.Handled = true;
+            }
         };
-        _textBox.TextChanged += (_, _) => UpdateTextEditorSize();
-        TextBox activeTextBox = _textBox;
+        _textBox.TextChanged += (_, _) =>
+        {
+            UpdateTextEditorSize();
+            RefreshInlineTextStyleButtons();
+        };
+        _textBox.SelectionChanged += (_, _) => RefreshInlineTextStyleButtons();
+        RichEditBox activeTextBox = _textBox;
         _textBox.LostFocus += (_, _) =>
         {
             // Inspector controls take focus while the text is still being styled.
             // Wait for focus to settle so their change events can edit the draft.
             DispatcherQueue.TryEnqueue(() =>
             {
-                if (ReferenceEquals(_textBox, activeTextBox) && !FocusIsInTextInspector())
+                if (ReferenceEquals(_textBox, activeTextBox) && !FocusIsInTextFormattingControls())
                 {
                     CommitText();
                 }
             });
         };
         TextOverlay.Children.Add(_textBox);
-        UpdateTextEditorSize();
-        _textBox.Focus(FocusState.Programmatic);
         if (existing is not null)
         {
-            _textBox.SelectAll();
+            RefreshFlattenedImage();
+            DrawingCanvas.Invalidate();
+        }
+
+        _textBox.Focus(FocusState.Programmatic);
+        // Restore character formatting after the editor joins the visual tree.
+        ApplyEditorCharacterStyles(_textBox, _textDraft);
+        UpdateTextEditorSize();
+        if (existing is not null)
+        {
+            _textBox.Document.Selection.SetRange(0, existing.Text.Length);
         }
 
         UpdateInspector();
     }
 
-    private bool FocusIsInTextInspector()
+    private bool FocusIsInTextFormattingControls()
     {
         DependencyObject? focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
         while (focused is not null)
         {
-            if (ReferenceEquals(focused, InspectorPanel) || focused is ColorPicker)
+            if (ReferenceEquals(focused, InspectorPanel) ||
+                ReferenceEquals(focused, InlineTextStyleRow) || focused is ColorPicker)
             {
                 return true;
             }
@@ -1066,6 +1292,7 @@ public sealed partial class MainPage : Page
         _textBox.FontWeight = new FontWeight { Weight = (ushort)draft.FontWeight };
         _textBox.FontStyle = draft.Italic ? FontStyle.Italic : FontStyle.Normal;
         _textBox.Foreground = new SolidColorBrush(ShnappRenderer.FromArgb(draft.StrokeArgb));
+        ApplyTextAreaDecoration(draft, editScale);
         _textBox.TextAlignment = (fixedBox ? draft.TextAlignment : TextHorizontalAlignment.Left) switch
         {
             TextHorizontalAlignment.Center => TextAlignment.Center,
@@ -1074,7 +1301,32 @@ public sealed partial class MainPage : Page
             _ => TextAlignment.Left,
         };
         _textBox.TextWrapping = draft.TextBoxWidth > 0 ? TextWrapping.Wrap : TextWrapping.NoWrap;
+        _textBox.VerticalContentAlignment = fixedBox ? draft.TextVerticalAlignment switch
+        {
+            TextVerticalAlignment.Middle => VerticalAlignment.Center,
+            TextVerticalAlignment.Bottom => VerticalAlignment.Bottom,
+            _ => VerticalAlignment.Top,
+        } : VerticalAlignment.Top;
+        ApplyEditorCharacterStyles(_textBox, draft);
         UpdateTextEditorSize();
+    }
+
+    private void ApplyTextAreaDecoration(Annotation text, double editScale)
+    {
+        if (_textBox is null)
+        {
+            return;
+        }
+
+        _textBox.Background = new SolidColorBrush(ShnappRenderer.FromArgb(text.FillArgb));
+        _textBox.BorderBrush = new SolidColorBrush(ShnappRenderer.FromArgb(text.TextBorderArgb));
+        _textBox.BorderThickness = text.TextBorderArgb >> 24 == 0
+            ? new Thickness(0)
+            : new Thickness(Math.Max(0.5, text.TextBorderWidth * editScale));
+        double contentInset = ShnappRenderer.TextContentInset(text);
+        double borderInset = text.TextBorderArgb >> 24 == 0 ? 0 : text.TextBorderWidth;
+        double editorPadding = Math.Max(0, contentInset - borderInset) * editScale;
+        _textBox.Padding = new Thickness(editorPadding);
     }
 
     private void UpdateTextEditorSize()
@@ -1084,7 +1336,7 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        Annotation preview = _textDraft with { Text = _textBox.Text };
+        Annotation preview = SyncTextDraftFromEditor();
         Rect measured = _controller.Renderer.MeasureTextBounds(preview);
         double editScale = _textBox.FontSize / preview.FontSize;
         if (preview.TextBoxWidth > 0 && preview.TextBoxHeight > 0)
@@ -1093,6 +1345,7 @@ public sealed partial class MainPage : Page
             // stays editable here and is clipped or ellipsized in the finished layer.
             _textBox.Width = Math.Max(1, preview.TextBoxWidth * editScale);
             _textBox.Height = Math.Max(1, preview.TextBoxHeight * editScale);
+            PositionInlineTextStyleRow();
             return;
         }
 
@@ -1104,6 +1357,7 @@ public sealed partial class MainPage : Page
         _textBox.Width = Math.Clamp(desiredWidth,
             Math.Min(preview.TextBoxWidth > 0 ? 64 : 120, availableWidth), availableWidth);
         _textBox.Height = Math.Clamp(measured.Height * editScale + 20, 40, availableHeight);
+        PositionInlineTextStyleRow();
     }
 
     private Annotation MeasureTextAnnotation(Annotation annotation)
@@ -1131,10 +1385,9 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        string text = _textBox.Text.Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n');
         Guid? editId = _textEditId;
-        Annotation? draft = _textDraft;
+        Annotation draft = SyncTextDraftFromEditor();
+        string text = draft.Text;
         CancelText();
         if (_editor is null)
         {
@@ -1152,7 +1405,7 @@ public sealed partial class MainPage : Page
             {
                 try
                 {
-                    _editor.UpdateAnnotation(MeasureTextAnnotation((draft ?? existing) with { Text = text }));
+                    _editor.UpdateAnnotation(MeasureTextAnnotation(draft ?? existing));
                 }
                 catch (ArgumentException exception)
                 {
@@ -1164,7 +1417,7 @@ public sealed partial class MainPage : Page
         {
             try
             {
-                Annotation annotation = MeasureTextAnnotation((draft ?? NewAnnotation(AnnotationKind.Text, _textOrigin))
+                Annotation annotation = MeasureTextAnnotation(draft ?? NewAnnotation(AnnotationKind.Text, _textOrigin)
                     with { Text = text });
                 _editor.AddAnnotation(annotation);
                 SelectOnlyAnnotation(annotation.Id);
@@ -1180,14 +1433,20 @@ public sealed partial class MainPage : Page
 
     private void CancelText()
     {
-        TextBox? textBox = _textBox;
+        RichEditBox? textBox = _textBox;
+        bool editedExisting = _textEditId is not null;
         _textBox = null;
         _textEditId = null;
         _textDraft = null;
         if (textBox is not null)
         {
             TextOverlay.Children.Remove(textBox);
-            ClampCanvasPan();
+            if (editedExisting)
+            {
+                RefreshFlattenedImage();
+            }
+
+            UpdateRecenterCanvasButton();
             DrawingCanvas.Invalidate();
             UpdateInspector();
         }
@@ -1195,9 +1454,14 @@ public sealed partial class MainPage : Page
 
     private void CancelInteraction()
     {
+        _photoCropMode = false;
+        _photoCropTargetId = null;
+        _photoCropStart = null;
+        _photoCropEnd = null;
         StopCanvasPan();
         CancelText();
         _draft = null;
+        _lineTrace.Clear();
         _groupMoving = [];
         _groupDragDx = _groupDragDy = 0;
         DisposeDragBase();
@@ -1214,12 +1478,14 @@ public sealed partial class MainPage : Page
         _dragStart = null;
         _textDragStart = null;
         _textDragEnd = null;
+        _placementShiftHeld = false;
         HideCropTip();
         CanvasHost.ReleasePointerCaptures();
         DrawingCanvas.Invalidate();
     }
 
-    private void SetTool(EditorTool tool)
+    private void SetTool(EditorTool tool, bool deferToolbarTextRefresh = false,
+        bool clearSelectionForUserAction = false)
     {
         if (tool == EditorTool.Arrow)
         {
@@ -1231,7 +1497,14 @@ public sealed partial class MainPage : Page
 
         CommitText();
         CancelInteraction();
+        _canvasTextRefreshPending = false;
+        _canvasInspectorOpenPending = false;
         _tool = tool;
+        if (!deferToolbarTextRefresh)
+        {
+            _toolbarRefreshSource = null;
+            FlushDeferredDocumentChromeRefresh();
+        }
         if (tool == EditorTool.Crop && _editor is not null)
         {
             _crop = _editor.Current.Viewport;
@@ -1242,24 +1515,66 @@ public sealed partial class MainPage : Page
             }
         }
         CanvasHost.SetToolCursor(tool);
-        if (tool != EditorTool.Select)
+        if (clearSelectionForUserAction || tool != EditorTool.Select)
         {
             ClearAnnotationSelection();
         }
-        foreach (AppBarToggleButton button in Tools.PrimaryCommands.OfType<AppBarToggleButton>()
+        foreach (ToolbarActionButton button in Tools.Children.OfType<ToolbarActionButton>()
             .Where(button => button.Tag is string))
         {
-            button.IsChecked = string.Equals(button.Tag as string, tool.ToString(), StringComparison.Ordinal);
+            button.IsSelected = string.Equals(button.Tag as string, tool.ToString(), StringComparison.Ordinal);
         }
 
-        ShapesTool.Label = tool is EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle
-            ? tool.ToString()
-            : "Shapes";
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ShapesTool,
+            tool == EditorTool.Shape ? ShapeLabel(_activeShape)
+                : tool is EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle
+                ? tool.ToString() : "Shapes");
         UpdateShapeButtonAppearance();
-        UpdateInspector();
+        _toolbarTextRefreshPending = deferToolbarTextRefresh;
+        if (!deferToolbarTextRefresh)
+        {
+            UpdateInspector();
+        }
         UpdateCropInspector();
-        ViewModel.Status = FooterToolHint();
+        if (!deferToolbarTextRefresh)
+        {
+            ViewModel.Status = FooterToolHint();
+        }
         DrawingCanvas.Invalidate();
+    }
+
+    private void QueueCanvasTextRefresh(bool openInspector = false)
+    {
+        _canvasTextRefreshPending = true;
+        _canvasInspectorOpenPending |= openInspector;
+    }
+
+    private void FlushCanvasTextRefresh()
+    {
+        if (!_canvasTextRefreshPending && !_documentChromeRefreshPending)
+        {
+            return;
+        }
+
+        bool openInspector = _canvasInspectorOpenPending;
+        bool updateText = _canvasTextRefreshPending;
+        _canvasTextRefreshPending = false;
+        _canvasInspectorOpenPending = false;
+        if (openInspector)
+        {
+            OpenInspectorForSelection();
+        }
+
+        if (_documentChromeRefreshPending)
+        {
+            FlushDeferredDocumentChromeRefresh();
+        }
+        else if (updateText)
+        {
+            UpdateInspector();
+            if (_tool == EditorTool.Crop) UpdateCropInspector();
+            else ViewModel.Status = FooterToolHint();
+        }
     }
 
     private string FooterToolHint() => HasMultipleSelectedAnnotations
@@ -1267,9 +1582,11 @@ public sealed partial class MainPage : Page
         : _tool switch
     {
         EditorTool.Select => "Select · Ctrl+click multiple · Ctrl+A selects all",
-        EditorTool.Text => "Text · click or drag",
+        EditorTool.Text => "Text · click or drag · Shift for a square box",
         EditorTool.Step => "Step · click to place",
-        EditorTool.Redaction => "Redact · drag an area",
+        EditorTool.Callout => "Annotate · click a point, then enter text",
+        EditorTool.Magnify => "Magnify · drag a lens · Shift for a square lens",
+        EditorTool.Redaction => "Redact · drag an area · Shift for square",
         EditorTool.Crop => "Crop · drag a frame",
         _ => $"{_tool} · drag to draw",
     };
@@ -1277,27 +1594,103 @@ public sealed partial class MainPage : Page
     private string ToolHint() => _tool switch
     {
         EditorTool.Select => "Ctrl+click multiple · Ctrl+A selects all · Drag or arrows move · Shift constrains drag · Ctrl+D duplicates · Delete removes · Right-click flattens · Esc clears",
-        EditorTool.Text => "Click to type freely · Drag a fixed text box · Enter adds a line · Ctrl+Enter finishes",
+        EditorTool.Text => "Click to type freely · Drag a fixed text box · Shift makes it square · Enter adds a line · Ctrl+Enter finishes",
         EditorTool.Step => "Click to place the next numbered step",
-        EditorTool.Redaction => "Drag to obscure an area · Solid fully masks; blur and pixelate soften detail",
+        EditorTool.Callout => "Click a point in the image, then enter text. The numbered note will be arranged outside the image.",
+        EditorTool.Magnify => "Drag over the image to draw a lens · Shift makes it square. Adjust zoom and outline in Options.",
+        EditorTool.Line or EditorTool.Arrow => "Drag a straight line, hold Shift for horizontal or vertical, or enable Draw freehand. Select a straight line and enable Allow curves to bend it.",
+        EditorTool.Shape => $"Drag to draw a {ShapeLabel(_activeShape).ToLowerInvariant()} · Shift locks its proportions",
+        EditorTool.Redaction => "Drag to obscure an area · Shift makes it square · Solid fully masks; blur and pixelate soften detail",
         EditorTool.Crop => "Drag or enter a crop · Pick a ratio · Enter confirms · Esc cancels",
-        _ => $"Drag to draw a {_tool.ToString().ToLowerInvariant()}",
+        _ => $"Drag to draw a {_tool.ToString().ToLowerInvariant()} · Shift locks its proportions",
     };
 
-    private void Tool_Click(object sender, RoutedEventArgs args) => SetTool(Enum.Parse<EditorTool>((string)((AppBarToggleButton)sender).Tag));
+    private void Tool_Click(object sender, RoutedEventArgs args)
+    {
+        bool deferTextRefresh = _toolbarPointerPressed && sender is ToolbarActionButton;
+        if (deferTextRefresh)
+        {
+            _toolbarRefreshSource = (ToolbarActionButton)sender;
+        }
+        SetTool(Enum.Parse<EditorTool>((string)((FrameworkElement)sender).Tag), deferTextRefresh,
+            clearSelectionForUserAction: true);
+    }
+
+    private void ShapesTool_Click(object sender, RoutedEventArgs args)
+    {
+        if (_selectedIds.Count == 0)
+        {
+            return;
+        }
+
+        ClearAnnotationSelection();
+        CanvasHost.SetSelectionCursor(null);
+        DrawingCanvas.Invalidate();
+        if (_toolbarPointerPressed)
+        {
+            _toolbarRefreshSource = ShapesTool;
+            _toolbarTextRefreshPending = true;
+        }
+        else
+        {
+            UpdateInspector();
+            ViewModel.Status = FooterToolHint();
+        }
+    }
+
+    private void ToolbarButton_PointerExited(object sender, PointerRoutedEventArgs args)
+    {
+        if (!ReferenceEquals(sender, _toolbarRefreshSource) || sender is not ToolbarActionButton button)
+        {
+            return;
+        }
+
+        Point position = args.GetCurrentPoint(button).Position;
+        if (position.X >= 0 && position.Y >= 0 &&
+            position.X < button.ActualWidth && position.Y < button.ActualHeight)
+        {
+            return;
+        }
+
+        FlushToolbarTextRefresh();
+    }
+
+    private void Tools_PointerExited(object sender, PointerRoutedEventArgs args)
+    {
+        Point position = args.GetCurrentPoint(Tools).Position;
+        if (position.X >= 0 && position.Y >= 0 &&
+            position.X < Tools.ActualWidth && position.Y < Tools.ActualHeight)
+        {
+            return;
+        }
+
+        FlushToolbarTextRefresh();
+    }
+
+    private void FlushToolbarTextRefresh()
+    {
+        _toolbarRefreshSource = null;
+        FlushDeferredDocumentChromeRefresh();
+        if (_toolbarTextRefreshPending)
+        {
+            _toolbarTextRefreshPending = false;
+            UpdateInspector();
+            ViewModel.Status = FooterToolHint();
+        }
+    }
 
     private void ToolMenu_Click(object sender, RoutedEventArgs args) =>
-        SetTool(Enum.Parse<EditorTool>((string)((FrameworkElement)sender).Tag));
+        SetTool(Enum.Parse<EditorTool>((string)((FrameworkElement)sender).Tag),
+            clearSelectionForUserAction: true);
 
     private void InspectorToggle_Click(object sender, RoutedEventArgs args) =>
-        InspectorPanel.Visibility = InspectorToggle.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        SetInspectorVisibility(InspectorToggle.IsChecked == true, animate: true);
 
     private void OpenInspectorForSelection()
     {
         if (InspectorToggle.IsChecked != true || InspectorPanel.Visibility != Visibility.Visible)
         {
-            InspectorToggle.IsChecked = true;
-            InspectorPanel.Visibility = Visibility.Visible;
+            SetInspectorVisibility(true, animate: true);
         }
     }
 
@@ -1318,18 +1711,10 @@ public sealed partial class MainPage : Page
 
     private void UpdateShapeButtonAppearance()
     {
-        bool selected = _tool is EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle;
-        if (selected)
-        {
-            ShapesTool.Background = (Brush)Application.Current.Resources["ShnappBlueBrush"];
-            ShapesTool.Foreground = (Brush)Application.Current.Resources["ShnappOnBlueBrush"];
-        }
-        else
-        {
-            ShapesTool.ClearValue(Control.BackgroundProperty);
-            ShapesTool.ClearValue(Control.ForegroundProperty);
-        }
+        ShapesTool.IsSelected = _tool is EditorTool.Rectangle or EditorTool.Square
+            or EditorTool.Ellipse or EditorTool.Circle or EditorTool.Shape;
     }
+
     private void Library_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         LibraryEntry? entry = args.InRecycleQueue ? null : args.Item as LibraryEntry;
@@ -1347,15 +1732,46 @@ public sealed partial class MainPage : Page
         else { _controller?.OpenSettings(); }
     }
     private void Quit_Click(object sender, RoutedEventArgs args) => _controller?.Quit();
-    private void Undo_Click(object sender, RoutedEventArgs args) { CancelInteraction(); _editor?.Undo(); }
-    private void Redo_Click(object sender, RoutedEventArgs args) { CancelInteraction(); _editor?.Redo(); }
+    private void Undo_Click(object sender, RoutedEventArgs args)
+    {
+        void Undo()
+        {
+            CommitText();
+            CancelInteraction();
+            _editor?.Undo();
+        }
+
+        if (_toolbarPointerPressed && sender is ToolbarActionButton button)
+        {
+            _toolbarRefreshSource = button;
+            RunWithDeferredDocumentChromeRefresh(Undo);
+        }
+        else Undo();
+    }
+
+    private void Redo_Click(object sender, RoutedEventArgs args)
+    {
+        void Redo()
+        {
+            CommitText();
+            CancelInteraction();
+            _editor?.Redo();
+        }
+
+        if (_toolbarPointerPressed && sender is ToolbarActionButton button)
+        {
+            _toolbarRefreshSource = button;
+            RunWithDeferredDocumentChromeRefresh(Redo);
+        }
+        else Redo();
+    }
 
     private bool EditorInputHasFocus()
     {
         DependencyObject? focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
         while (focused is not null)
         {
-            if (focused is TextBox or ComboBox or NumberBox or ColorPicker or CheckBox ||
+            if (focused is TextBox or RichEditBox or ComboBox or NumberBox or ColorPicker or CheckBox ||
                 ReferenceEquals(focused, InspectorPanel))
             {
                 return true;
@@ -1398,29 +1814,42 @@ public sealed partial class MainPage : Page
     {
         if (args.Key == VirtualKey.Escape && !args.KeyStatus.WasKeyDown)
         {
-            _cropEscapeHandledUntilKeyUp = false;
+            _escapeHandledUntilKeyUp = false;
         }
     }
 
     private void HandleEscape()
     {
-        if (_cropEscapeHandledUntilKeyUp)
+        if (_escapeHandledUntilKeyUp)
         {
             return;
         }
 
         if (_editor is null)
         {
-            _controller?.Hide();
+            if (_selectedLibraryIds.Count > 0)
+            {
+                _escapeHandledUntilKeyUp = true;
+                RemoveLibrarySelection(_selectedLibraryIds.ToArray());
+            }
+            else
+            {
+                _controller?.Hide();
+            }
         }
         else if (_tool == EditorTool.Crop)
         {
-            _cropEscapeHandledUntilKeyUp = true;
+            _escapeHandledUntilKeyUp = true;
             SetTool(EditorTool.Select);
+        }
+        else if (_photoCropMode)
+        {
+            _escapeHandledUntilKeyUp = true;
+            CancelPhotoCrop();
         }
         else if (_selectedIds.Count > 0)
         {
-            _cropEscapeHandledUntilKeyUp = true;
+            _escapeHandledUntilKeyUp = true;
             CancelInteraction();
             ClearAnnotationSelection();
             UpdateInspector();
@@ -1440,6 +1869,18 @@ public sealed partial class MainPage : Page
         {
             HandleEscape();
             args.Handled = true;
+            return;
+        }
+
+        if (_editor is null && LibraryRoot.Visibility == Visibility.Visible)
+        {
+            if (args.Key == VirtualKey.A && IsKeyHeld(VirtualKey.Control) &&
+                !IsKeyHeld(VirtualKey.Menu) && !LibraryTextInputHasFocus())
+            {
+                ToggleSelectAllVisibleLibraryEntries();
+                args.Handled = true;
+            }
+
             return;
         }
 
@@ -1499,16 +1940,18 @@ public sealed partial class MainPage : Page
                 VirtualKey.V => EditorTool.Select,
                 VirtualKey.T => EditorTool.Text,
                 VirtualKey.N => EditorTool.Step,
+                VirtualKey.C => EditorTool.Callout,
+                VirtualKey.M => EditorTool.Magnify,
                 VirtualKey.A => EditorTool.Arrow,
                 VirtualKey.L => EditorTool.Line,
-                VirtualKey.R => EditorTool.Rectangle,
+                VirtualKey.R => EditorTool.Shape,
                 VirtualKey.E => EditorTool.Ellipse,
                 VirtualKey.B => EditorTool.Redaction,
                 _ => null,
             };
             if (tool is EditorTool selectedTool)
             {
-                SetTool(selectedTool);
+                SetTool(selectedTool, clearSelectionForUserAction: true);
                 args.Handled = true;
             }
         }
@@ -1516,9 +1959,14 @@ public sealed partial class MainPage : Page
 
     private void Page_KeyUp(object sender, KeyRoutedEventArgs args)
     {
+        if (args.Key == VirtualKey.A)
+        {
+            _librarySelectAllKeyActive = false;
+        }
+
         if (args.Key == VirtualKey.Escape)
         {
-            _cropEscapeHandledUntilKeyUp = false;
+            _escapeHandledUntilKeyUp = false;
         }
 
         if (args.Key == VirtualKey.Space)
@@ -1564,7 +2012,15 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private void PrimaryCommandBar_Loaded(object sender, RoutedEventArgs args) => UpdateOverflowAccessibility();
+    private void PrimaryCommandBar_Loaded(object sender, RoutedEventArgs args)
+    {
+        if (FindNamedDescendant(PrimaryCommandBar, "MoreButton") is Button more)
+        {
+            more.Style = (Style)Resources["QuietOverflowButtonStyle"];
+        }
+
+        UpdateOverflowAccessibility();
+    }
 
     private void UpdateOverflowAccessibility()
     {
@@ -1581,6 +2037,7 @@ public sealed partial class MainPage : Page
 
     internal void ReleaseDocument()
     {
+        ClearFontPreview();
         CancelInteraction();
         ResetCanvasView();
         if (_editor is not null)

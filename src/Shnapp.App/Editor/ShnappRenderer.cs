@@ -13,7 +13,7 @@ using Windows.UI.Text;
 
 namespace Shnapp.App.Editor;
 
-internal sealed class ShnappRenderer(CanvasDevice device)
+internal sealed partial class ShnappRenderer(CanvasDevice device)
 {
     internal const int ShadowPadding = 32;
     private const float MaximumUnboundedTextExtent = 16_384;
@@ -118,6 +118,10 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                         if (item.IsFlattened || item.Kind == AnnotationKind.Image)
                         {
                             DrawImageAnnotation(drawing, item);
+                        }
+                        else if (item.Kind == AnnotationKind.Magnify)
+                        {
+                            DrawMagnifyAnnotation(drawing, original, item, document);
                         }
                         else
                         {
@@ -237,6 +241,10 @@ internal sealed class ShnappRenderer(CanvasDevice device)
             {
                 DrawImageAnnotation(drawing, annotation);
             }
+            else if (annotation.Kind == AnnotationKind.Magnify)
+            {
+                DrawMagnifyAnnotation(drawing, original, annotation, document);
+            }
             else
             {
                 DrawAnnotation(drawing, annotation);
@@ -271,8 +279,13 @@ internal sealed class ShnappRenderer(CanvasDevice device)
             AnnotationKind.Line or AnnotationKind.Arrow => FromRect(ToRect(annotation.Bounds),
                 Math.Max(10, annotation.StrokeWidth * 3.5) +
                 Math.Max(1, annotation.StrokeWidth) / 2 + 2),
-            AnnotationKind.Rectangle or AnnotationKind.Ellipse when !annotation.HideOutline =>
+            AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Shape
+                when !annotation.HideOutline =>
                 FromRect(ToRect(annotation.Bounds), annotation.StrokeWidth / 2 + 3),
+            AnnotationKind.Magnify => FromRect(ToRect(annotation.Bounds),
+                annotation.StrokeWidth / 2 + 3),
+            AnnotationKind.Callout => FromRect(ToRect(annotation.Bounds),
+                Math.Max(12, annotation.StrokeWidth / 2 + 3)),
             AnnotationKind.Redaction => WholePixelBounds(annotation.Bounds),
             _ => annotation.Bounds,
         };
@@ -477,8 +490,16 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         {
             if (ReferenceEquals(entry.Payload, annotation.ImagePngBase64))
             {
-                drawing.DrawImage(entry.Bitmap, ToRect(annotation.IsFlattened
-                    ? annotation.RasterizedBounds!.Value : annotation.Bounds));
+                Rect destination = ToRect(annotation.IsFlattened
+                    ? annotation.RasterizedBounds!.Value : annotation.Bounds);
+                if (!annotation.IsFlattened && annotation.ImageSourceCrop is ImageRect source)
+                {
+                    drawing.DrawImage(entry.Bitmap, destination, ToRect(source));
+                }
+                else
+                {
+                    drawing.DrawImage(entry.Bitmap, destination);
+                }
                 return;
             }
         }
@@ -496,10 +517,26 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         Rect bounds = ToRect(annotation.Bounds);
         switch (annotation.Kind)
         {
+            case AnnotationKind.Callout:
+                DrawCalloutAnnotation(drawing, annotation);
+                break;
             case AnnotationKind.Text:
+                double textInset = TextContentInset(annotation);
                 if (fill.A != 0)
                 {
                     drawing.FillRectangle(TextBounds(annotation), fill);
+                }
+
+                if (annotation.TextBorderArgb >> 24 != 0 && annotation.TextBorderWidth > 0)
+                {
+                    Rect textArea = TextBounds(annotation);
+                    double borderWidth = Math.Min(annotation.TextBorderWidth,
+                        Math.Min(textArea.Width, textArea.Height) / 2);
+                    double inset = borderWidth / 2;
+                    drawing.DrawRectangle(new Rect(textArea.X + inset, textArea.Y + inset,
+                        Math.Max(0, textArea.Width - borderWidth),
+                        Math.Max(0, textArea.Height - borderWidth)),
+                        FromArgb(annotation.TextBorderArgb), (float)borderWidth);
                 }
 
                 using (CanvasTextFormat format = TextFormat(annotation))
@@ -507,25 +544,33 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                     ConfigureTextFormat(format, annotation);
                     string text = DisplayText(annotation);
                     using var layout = new CanvasTextLayout(drawing, text, format,
-                        (float)(annotation.TextBoxWidth > 0 ? annotation.TextBoxWidth : MaximumUnboundedTextExtent),
-                        (float)(annotation.TextBoxHeight > 0 ? annotation.TextBoxHeight : MaximumUnboundedTextExtent));
+                        (float)(annotation.TextBoxWidth > 0
+                            ? Math.Max(1, annotation.TextBoxWidth - 2 * textInset) : MaximumUnboundedTextExtent),
+                        (float)(annotation.TextBoxHeight > 0
+                            ? Math.Max(1, annotation.TextBoxHeight - 2 * textInset) : MaximumUnboundedTextExtent));
                     using CanvasTypography? typography = DisableKerningIfRequested(layout, annotation, text.Length);
                     if (text.Length > 0 && annotation.TextLetterSpacing != 0)
                     {
                         layout.SetCharacterSpacing(0, text.Length, 0,
                             (float)annotation.TextLetterSpacing, 0);
                     }
+                    ApplyTextStyleRuns(layout, annotation, text.Length);
 
                     if (annotation.TextBoxHeight > 0)
                     {
-                        // DirectWrite's layout may paint glyph overhang just outside its
-                        // requested extent. The layer enforces the user's exact drag box.
-                        using var clipped = drawing.CreateLayer(1, TextBounds(annotation));
-                        drawing.DrawTextLayout(layout, start.X, start.Y, stroke);
+                        // DirectWrite's glyph overhang must stay inside the padded content area.
+                        Rect area = TextBounds(annotation);
+                        using var clipped = drawing.CreateLayer(1, new Rect(
+                            area.X + textInset, area.Y + textInset,
+                            Math.Max(1, area.Width - 2 * textInset),
+                            Math.Max(1, area.Height - 2 * textInset)));
+                        drawing.DrawTextLayout(layout, start.X + (float)textInset,
+                            start.Y + (float)textInset, stroke);
                     }
                     else
                     {
-                        drawing.DrawTextLayout(layout, start.X, start.Y, stroke);
+                        drawing.DrawTextLayout(layout, start.X + (float)textInset,
+                            start.Y + (float)textInset, stroke);
                     }
                 }
 
@@ -549,7 +594,42 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                 break;
             case AnnotationKind.Line:
             case AnnotationKind.Arrow:
-                if (annotation.LinePattern == LinePattern.Dotted)
+                bool hasFreehandPath = !annotation.LinePoints.IsDefaultOrEmpty;
+                bool hasCurve = annotation.AllowCurves && annotation.CurveMidpoint is not null;
+                if (hasFreehandPath || hasCurve)
+                {
+                    using var path = new CanvasPathBuilder(drawing);
+                    path.BeginFigure(start);
+                    if (hasFreehandPath)
+                    {
+                        for (int index = 1; index < annotation.LinePoints.Length; index++)
+                        {
+                            ImagePoint point = annotation.LinePoints[index];
+                            path.AddLine(new Vector2((float)point.X, (float)point.Y));
+                        }
+                    }
+                    else
+                    {
+                        ImagePoint control = LineGeometry.ControlPoint(annotation);
+                        path.AddQuadraticBezier(new Vector2((float)control.X, (float)control.Y), end);
+                    }
+                    path.EndFigure(CanvasFigureLoop.Open);
+                    using CanvasGeometry geometry = CanvasGeometry.CreatePath(path);
+                    using var style = new CanvasStrokeStyle
+                    {
+                        StartCap = CanvasCapStyle.Round,
+                        EndCap = CanvasCapStyle.Round,
+                        LineJoin = CanvasLineJoin.Round,
+                        DashStyle = annotation.LinePattern switch
+                        {
+                            LinePattern.Dotted => CanvasDashStyle.Dot,
+                            LinePattern.Dashed => CanvasDashStyle.Dash,
+                            _ => CanvasDashStyle.Solid,
+                        },
+                    };
+                    drawing.DrawGeometry(geometry, stroke, width, style);
+                }
+                else if (annotation.LinePattern == LinePattern.Dotted)
                 {
                     DrawDottedLine(drawing, start, end, stroke, width);
                 }
@@ -565,11 +645,32 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                     drawing.DrawLine(start, end, stroke, width, style);
                 }
 
-                if (Vector2.Distance(start, end) > 1)
+                if (Vector2.Distance(start, end) > 1 || hasFreehandPath || hasCurve)
                 {
-                    Vector2 direction = Vector2.Normalize(end - start);
-                    DrawLineEndCap(drawing, start, -direction, width, stroke, annotation.EffectiveStartCap);
-                    DrawLineEndCap(drawing, end, direction, width, stroke, annotation.EffectiveEndCap);
+                    Vector2 startTangent = hasFreehandPath && annotation.LinePoints.Length > 1
+                        ? new Vector2((float)(annotation.LinePoints[1].X - annotation.Start.X),
+                            (float)(annotation.LinePoints[1].Y - annotation.Start.Y))
+                        : hasCurve
+                            ? new Vector2((float)(LineGeometry.ControlPoint(annotation).X - annotation.Start.X),
+                                (float)(LineGeometry.ControlPoint(annotation).Y - annotation.Start.Y))
+                            : end - start;
+                    Vector2 endTangent = hasFreehandPath && annotation.LinePoints.Length > 1
+                        ? new Vector2((float)(annotation.End.X - annotation.LinePoints[^2].X),
+                            (float)(annotation.End.Y - annotation.LinePoints[^2].Y))
+                        : hasCurve
+                            ? new Vector2((float)(annotation.End.X - LineGeometry.ControlPoint(annotation).X),
+                                (float)(annotation.End.Y - LineGeometry.ControlPoint(annotation).Y))
+                            : end - start;
+                    if (startTangent.LengthSquared() > 0.001f)
+                    {
+                        DrawLineEndCap(drawing, start, -Vector2.Normalize(startTangent), width, stroke,
+                            annotation.EffectiveStartCap);
+                    }
+                    if (endTangent.LengthSquared() > 0.001f)
+                    {
+                        DrawLineEndCap(drawing, end, Vector2.Normalize(endTangent), width, stroke,
+                            annotation.EffectiveEndCap);
+                    }
                 }
 
                 break;
@@ -595,6 +696,9 @@ internal sealed class ShnappRenderer(CanvasDevice device)
                 {
                     drawing.DrawEllipse(center, (float)bounds.Width / 2, (float)bounds.Height / 2, stroke, width);
                 }
+                break;
+            case AnnotationKind.Shape:
+                DrawBasicShape(drawing, annotation);
                 break;
             case AnnotationKind.Redaction:
                 CanvasAntialiasing previous = drawing.Antialiasing;
@@ -746,25 +850,48 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         using CanvasTextFormat format = TextFormat(annotation);
         ConfigureTextFormat(format, annotation);
         string text = DisplayText(annotation);
+        double inset = TextContentInset(annotation);
         using var layout = new CanvasTextLayout(_device,
             text.Length == 0 ? " " : text,
-            format, (float)(annotation.TextBoxWidth > 0 ? annotation.TextBoxWidth : MaximumUnboundedTextExtent),
+            format, (float)(annotation.TextBoxWidth > 0
+                ? Math.Max(1, annotation.TextBoxWidth - 2 * inset) : MaximumUnboundedTextExtent),
             MaximumUnboundedTextExtent);
         using CanvasTypography? typography = DisableKerningIfRequested(layout, annotation, text.Length);
         if (text.Length > 0 && annotation.TextLetterSpacing != 0)
         {
             layout.SetCharacterSpacing(0, text.Length, 0, (float)annotation.TextLetterSpacing, 0);
         }
+        ApplyTextStyleRuns(layout, annotation, text.Length);
         Rect aligned = layout.LayoutBoundsIncludingTrailingWhitespace;
         Rect drawn = layout.DrawBounds;
         double width = annotation.TextBoxWidth > 0
             ? annotation.TextBoxWidth
-            : Math.Max(16, Math.Max(aligned.Right, drawn.Right));
+            : Math.Max(16, Math.Max(aligned.Right, drawn.Right)) + 2 * inset;
         int explicitLines = text.Count(character => character == '\n') + 1;
         double height = Math.Max(annotation.FontSize * 1.5,
             Math.Max(Math.Max(aligned.Bottom, drawn.Bottom),
-                explicitLines * annotation.FontSize * 1.25));
+                explicitLines * annotation.FontSize * 1.25)) + 2 * inset;
         return new Rect(annotation.Start.X, annotation.Start.Y, Math.Ceiling(width), Math.Ceiling(height));
+    }
+
+    internal static double TextContentInset(Annotation annotation)
+    {
+        if (annotation.TextPadding == 0)
+        {
+            return 0;
+        }
+
+        double border = annotation.TextBorderArgb >> 24 == 0 ? 0 : annotation.TextBorderWidth;
+        double inset = annotation.TextPadding + border;
+        if (annotation.TextBoxWidth > 0)
+        {
+            inset = Math.Min(inset, Math.Max(0, (annotation.TextBoxWidth - 1) / 2));
+        }
+        if (annotation.TextBoxHeight > 0)
+        {
+            inset = Math.Min(inset, Math.Max(0, (annotation.TextBoxHeight - 1) / 2));
+        }
+        return inset;
     }
 
     internal static Rect TextBounds(Annotation annotation)
@@ -799,9 +926,10 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         }
 
         longestLine = Math.Max(longestLine, currentLine);
+        double inset = TextContentInset(annotation);
         return new Rect(annotation.Start.X, annotation.Start.Y,
-            Math.Max(16, longestLine * annotation.FontSize * 0.6),
-            lineCount * annotation.FontSize * 1.5);
+            Math.Max(16, longestLine * annotation.FontSize * 0.6) + 2 * inset,
+            lineCount * annotation.FontSize * 1.5 + 2 * inset);
     }
 
     internal static CanvasTextFormat TextFormat(Annotation annotation) => new()
@@ -829,6 +957,12 @@ internal sealed class ShnappRenderer(CanvasDevice device)
             TextHorizontalAlignment.Justify => CanvasHorizontalAlignment.Justified,
             _ => CanvasHorizontalAlignment.Left,
         };
+        format.VerticalAlignment = annotation.TextVerticalAlignment switch
+        {
+            TextVerticalAlignment.Middle => CanvasVerticalAlignment.Center,
+            TextVerticalAlignment.Bottom => CanvasVerticalAlignment.Bottom,
+            _ => CanvasVerticalAlignment.Top,
+        };
         if (annotation.TextLineHeight > 0)
         {
             format.LineSpacingMode = CanvasLineSpacingMode.Uniform;
@@ -855,6 +989,29 @@ internal sealed class ShnappRenderer(CanvasDevice device)
         typography.AddFeature(CanvasTypographyFeatureName.Kerning, 0);
         layout.SetTypography(0, length, typography);
         return typography;
+    }
+
+    private static void ApplyTextStyleRuns(CanvasTextLayout layout, Annotation annotation, int textLength)
+    {
+        if (annotation.TextStyleRuns.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        foreach (TextStyleRun run in annotation.TextStyleRuns)
+        {
+            // A visual case transform can change UTF-16 length for some languages.
+            int count = Math.Min(run.Length, textLength - run.Start);
+            if (count <= 0)
+            {
+                continue;
+            }
+
+            int weight = run.Bold ? Math.Max(700, annotation.FontWeight) : Math.Min(600, annotation.FontWeight);
+            layout.SetFontWeight(run.Start, count, new FontWeight { Weight = (ushort)weight });
+            layout.SetFontStyle(run.Start, count, run.Italic ? FontStyle.Italic : FontStyle.Normal);
+            layout.SetUnderline(run.Start, count, run.Underline);
+        }
     }
 
     internal static string DisplayText(Annotation annotation)

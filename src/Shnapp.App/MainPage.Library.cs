@@ -20,10 +20,11 @@ public sealed partial class MainPage
     ];
 
     private readonly Dictionary<Guid, LibraryEntry> _libraryEntries = [];
-    private int _librarySizeIndex = 2;
+    private int _librarySizeIndex;
     private bool _libraryListMode;
     private bool _librarySelectionMode;
     private bool _restoringLibrarySelection;
+    private bool _librarySelectAllKeyActive;
     private bool _libraryCompactList;
     private readonly HashSet<Guid> _selectedLibraryIds = [];
     private LibraryEntry? _focusedGridEntry;
@@ -282,6 +283,7 @@ public sealed partial class MainPage
         {
             CaptureKind.Window => "window",
             CaptureKind.FullScreen => "full screen display",
+            CaptureKind.Camera => "camera photo webcam",
             _ => "region",
         };
         string terms = $"{document.Title} {type} {document.ModifiedAt.ToLocalTime():MMM d yyyy HH:mm} " +
@@ -316,7 +318,7 @@ public sealed partial class MainPage
     {
         if (args.Key == VirtualKey.Escape)
         {
-            _controller?.Hide();
+            HandleEscape();
             args.Handled = true;
         }
     }
@@ -468,6 +470,65 @@ public sealed partial class MainPage
 
     private void LibrarySelectionCheck_Tapped(object sender, TappedRoutedEventArgs args) => args.Handled = true;
 
+    private void LibrarySelectAll_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        ToggleSelectAllVisibleLibraryEntries();
+        args.Handled = true;
+    }
+
+    private void ToggleSelectAllVisibleLibraryEntries()
+    {
+        // A focused list can raise both its accelerator and the bubbling key event.
+        // Handle one physical Ctrl+A press once, then allow the next press to toggle.
+        if (_librarySelectAllKeyActive)
+        {
+            return;
+        }
+
+        _librarySelectAllKeyActive = true;
+        if (ViewModel.Library.Count > 0 &&
+            ViewModel.Library.All(entry => _selectedLibraryIds.Contains(entry.Id)))
+        {
+            RemoveLibrarySelection(_selectedLibraryIds.ToArray());
+            return;
+        }
+
+        SelectAllVisibleLibraryEntries();
+    }
+
+    private void SelectAllVisibleLibraryEntries()
+    {
+        _restoringLibrarySelection = true;
+        try
+        {
+            foreach (LibraryEntry entry in ViewModel.Library)
+            {
+                _selectedLibraryIds.Add(entry.Id);
+                entry.IsSelected = true;
+            }
+        }
+        finally
+        {
+            _restoringLibrarySelection = false;
+        }
+
+        UpdateLibrarySelectionStatus();
+    }
+
+    private bool LibraryTextInputHasFocus()
+    {
+        for (DependencyObject? focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
+            focused is not null; focused = VisualTreeHelper.GetParent(focused))
+        {
+            if (focused is TextBox or AutoSuggestBox)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void LibrarySelectionCheck_Changed(object sender, RoutedEventArgs args)
     {
         if (!IsLoaded || _restoringLibrarySelection ||
@@ -512,8 +573,22 @@ public sealed partial class MainPage
 
         LibrarySelectionCount.Text = $"Delete {count}";
         LibraryDeleteSelected.Visibility = selectionMode ? Visibility.Visible : Visibility.Collapsed;
+        LibraryClearSelection.Visibility = selectionMode ? Visibility.Visible : Visibility.Collapsed;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(LibraryDeleteSelected,
             count == 1 ? "Delete 1 selected shnapp" : $"Delete {count} selected shnapps");
+    }
+
+    private void LibraryClearSelection_Click(object sender, RoutedEventArgs args)
+    {
+        RemoveLibrarySelection(_selectedLibraryIds.ToArray());
+        if (_libraryListMode)
+        {
+            LibraryList.Focus(FocusState.Keyboard);
+        }
+        else
+        {
+            LibraryGrid.Focus(FocusState.Keyboard);
+        }
     }
 
     private void LibraryDeleteSelected_Click(object sender, RoutedEventArgs args)

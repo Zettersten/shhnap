@@ -17,18 +17,27 @@ internal sealed class ToolStyle
     internal double TextLetterSpacing { get; set; }
     internal TextTransformMode TextTransform { get; set; }
     internal TextHorizontalAlignment TextAlignment { get; set; }
+    internal TextVerticalAlignment TextVerticalAlignment { get; set; }
     internal TextTruncation TextTruncation { get; set; }
     internal double TextLineHeight { get; set; }
     internal double StepDiameter { get; set; } = 28;
     internal bool FillShape { get; set; }
-    internal double FillOpacity { get; set; } = 25;
+    internal uint TextBackgroundColor { get; set; } = 0xFFFFFFFF;
+    internal bool TextBackgroundEnabled { get; set; }
+    internal double TextPadding { get; set; }
+    internal uint TextBorderColor { get; set; } = 0xFF0A84FF;
+    internal double TextBorderWidth { get; set; } = 2;
+    internal bool TextBorderEnabled { get; set; }
     internal bool StartArrow { get; set; }
     internal bool EndArrow { get; set; }
     internal LineEndCap StartCap { get; set; }
     internal LineEndCap EndCap { get; set; }
     internal LinePattern LinePattern { get; set; }
+    internal bool FreehandLine { get; set; }
     internal StepLabelFormat StepLabelFormat { get; set; }
     internal RedactionMode RedactionMode { get; set; } = RedactionMode.Solid;
+    internal double MagnifyZoom { get; set; } = 2;
+    internal MagnifyShape MagnifyShape { get; set; } = MagnifyShape.Ellipse;
 
     internal static ToolStyle Defaults(EditorTool tool) => new()
     {
@@ -36,10 +45,18 @@ internal sealed class ToolStyle
         {
             EditorTool.Step => 0xFF0A84FF,
             EditorTool.Redaction => 0xFF111418,
+            EditorTool.Callout or EditorTool.Magnify => 0xFF0A84FF,
             _ => 0xFFE5484D,
         },
-        Secondary = tool == EditorTool.Step ? 0xFFFFFFFF : 0xFFE5484D,
+        Secondary = tool switch
+        {
+            EditorTool.Step => 0xFFFFFFFF,
+            EditorTool.Callout => 0xFF1F2937,
+            EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle or
+                EditorTool.Shape => 0x40E5484D,
+            _ => 0xFFE5484D,
+        },
         FontSize = tool == EditorTool.Step ? 13 : 18,
-        EndCap = tool == EditorTool.Arrow ? LineEndCap.Triangle : LineEndCap.None,
+        EndCap = tool is EditorTool.Arrow or EditorTool.Line ? LineEndCap.Triangle : LineEndCap.None,
     };
 }

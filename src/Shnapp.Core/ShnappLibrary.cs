@@ -444,8 +444,14 @@ public sealed class ShnappLibrary(string rootPath)
                 JsonSchema.ValidateSettings(json.RootElement);
                 SettingsFile file = json.RootElement.Deserialize(ShnappJsonContext.Default.SettingsFile)
                     ?? throw new InvalidDataException("The stored settings are null.");
-                DocumentValidation.ValidateSettings(file.Settings);
-                return file.Settings;
+                // Older settings files predate the Print Screen choice. The enum's zero value
+                // is Window, so supply the intended full-screen default explicitly.
+                ShnappSettings settings = json.RootElement.GetProperty("settings")
+                    .TryGetProperty("printScreenMode", out _)
+                    ? file.Settings
+                    : file.Settings with { PrintScreenMode = CaptureKind.FullScreen };
+                DocumentValidation.ValidateSettings(settings);
+                return settings;
             }
             catch (FileNotFoundException)
             {

@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Shnapp.App.Capture;
 using Shnapp.Core;
 using Shnapp.App.Windows;
 using Windows.System;
@@ -21,6 +22,10 @@ public sealed partial class SettingsPage : Page
     private InstallationChannel _managerChannel;
     private bool _saving;
     private bool _startupEditable;
+    private bool _printScreenEditable;
+    private bool _cameraSourcesLoaded;
+    private bool _loadingCameraSources;
+    private int _availableCameraSourceCount;
     private bool _configured;
     private bool _entered;
     private readonly bool _animationsEnabled = new UISettings().AnimationsEnabled;
@@ -36,7 +41,9 @@ public sealed partial class SettingsPage : Page
         if (_animationsEnabled)
         {
             SettingsScrim.Opacity = 0;
-            SettingsDialogMotion.Y = 14;
+            SettingsDialogMotion.TranslateY = 14;
+            SettingsDialogMotion.ScaleX = 0.985;
+            SettingsDialogMotion.ScaleY = 0.985;
         }
     }
 
@@ -45,12 +52,28 @@ public sealed partial class SettingsPage : Page
     {
         _controller = controller;
         _startupEditable = !isolated;
+        _printScreenEditable = !isolated;
         _savedSettings = settings;
         _configured = false;
         StartAtSignIn.IsOn = settings.StartOnLogin;
         StartAtSignIn.IsEnabled = _startupEditable;
         AutoCopy.IsOn = settings.AutoCopy;
         WindowShadow.IsOn = settings.WindowShadow;
+        PrintScreenEnabled.IsOn = settings.PrintScreenEnabled;
+        PrintScreenEnabled.IsEnabled = _printScreenEditable;
+        PrintScreenModePicker.SelectedIndex = settings.PrintScreenMode switch
+        {
+            CaptureKind.Window => 1,
+            CaptureKind.Region => 2,
+            _ => 0,
+        };
+        PrintScreenModePicker.IsEnabled = _printScreenEditable && settings.PrintScreenEnabled;
+        _cameraSourcesLoaded = false;
+        _availableCameraSourceCount = 0;
+        CameraSourcePicker.SelectedIndex = 0;
+        CameraSourcePicker.IsEnabled = false;
+        TakeCameraPhotoButton.IsEnabled = false;
+        CameraSourceStatus.Text = "Finding cameras…";
         ThemePicker.SelectedIndex = settings.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
         LibraryPath.Text = libraryPath;
         LibraryNote.Text = isolated
@@ -150,7 +173,7 @@ public sealed partial class SettingsPage : Page
         if (!_saving) { SelectSection("feedback"); }
     }
 
-    private void SettingsPage_Loaded(object sender, RoutedEventArgs args)
+    private async void SettingsPage_Loaded(object sender, RoutedEventArgs args)
     {
         (UpdatesPanel.Visibility == Visibility.Visible ? UpdatesNavButton : GeneralNavButton)
             .Focus(FocusState.Programmatic);
@@ -160,6 +183,97 @@ public sealed partial class SettingsPage : Page
             _entered = true;
             _openingTransition = AnimateDialogAsync(0, 1, 14, 0, 240, EasingMode.EaseOut);
         }
+        await RefreshCameraSourcesAsync();
+    }
+
+    private async Task RefreshCameraSourcesAsync()
+    {
+        if (!_configured || _loadingCameraSources)
+        {
+            return;
+        }
+
+        _loadingCameraSources = true;
+        _cameraSourcesLoaded = false;
+        CameraSourcePicker.IsEnabled = false;
+        TakeCameraPhotoButton.IsEnabled = false;
+        CameraSourceStatus.Text = "Finding cameras…";
+        try
+        {
+            IReadOnlyList<CameraSource> sources = await CameraCaptureService.EnumerateSourcesAsync();
+            CameraSourcePicker.Items.Clear();
+            CameraSourcePicker.Items.Add(new ComboBoxItem { Content = "Automatic", Tag = string.Empty });
+            foreach (CameraSource source in sources)
+            {
+                CameraSourcePicker.Items.Add(new ComboBoxItem { Content = source.Name, Tag = source.Id });
+            }
+
+            _availableCameraSourceCount = sources.Count;
+            SelectCameraSource(_savedSettings.CameraSourceId);
+            _cameraSourcesLoaded = true;
+            CameraSourcePicker.IsEnabled = !_saving && sources.Count > 0;
+            TakeCameraPhotoButton.IsEnabled = !_saving && sources.Count > 0;
+            UpdateCameraSourceStatus();
+        }
+        catch (Exception exception)
+        {
+            _availableCameraSourceCount = 0;
+            CameraSourcePicker.IsEnabled = false;
+            TakeCameraPhotoButton.IsEnabled = false;
+            CameraSourceStatus.Text = "Camera sources could not be loaded. Reopen Settings to try again.";
+            Debug.WriteLine($"Shnapp camera source enumeration failed: {exception}");
+        }
+        finally
+        {
+            _loadingCameraSources = false;
+        }
+    }
+
+    private void SelectCameraSource(string? sourceId)
+    {
+        for (int index = 0; index < CameraSourcePicker.Items.Count; index++)
+        {
+            if (CameraSourcePicker.Items[index] is ComboBoxItem item &&
+                string.Equals(item.Tag as string, sourceId ?? string.Empty, StringComparison.Ordinal))
+            {
+                CameraSourcePicker.SelectedIndex = index;
+                return;
+            }
+        }
+
+        CameraSourcePicker.Items.Add(new ComboBoxItem
+        {
+            Content = "Previously selected camera (unavailable)",
+            Tag = sourceId,
+        });
+        CameraSourcePicker.SelectedIndex = CameraSourcePicker.Items.Count - 1;
+    }
+
+    private void UpdateCameraSourceStatus()
+    {
+        if (!_cameraSourcesLoaded)
+        {
+            return;
+        }
+
+        CameraSourceStatus.Text = _availableCameraSourceCount == 0
+            ? "No camera is connected. Connect one to take a camera photo."
+            : CameraSourcePicker.SelectedIndex > _availableCameraSourceCount
+                ? "The saved camera is unavailable. Choose Automatic or another camera."
+                : CameraSourcePicker.SelectedIndex <= 0
+                    ? "Automatic uses the default available camera."
+                    : "This camera will be used for camera photos.";
+    }
+
+    private string? SelectedCameraSourceId()
+    {
+        if (!_cameraSourcesLoaded)
+        {
+            return _savedSettings.CameraSourceId;
+        }
+
+        string? sourceId = (CameraSourcePicker.SelectedItem as ComboBoxItem)?.Tag as string;
+        return string.IsNullOrEmpty(sourceId) ? null : sourceId;
     }
 
     internal async Task PlayCloseTransitionAsync()
@@ -197,15 +311,38 @@ public sealed partial class SettingsPage : Page
             EasingFunction = easing,
         };
         Storyboard.SetTarget(move, SettingsDialogMotion);
-        Storyboard.SetTargetProperty(move, "Y");
+        Storyboard.SetTargetProperty(move, "TranslateY");
         storyboard.Children.Add(move);
+
+        var scale = new DoubleAnimation
+        {
+            From = toOpacity > fromOpacity ? 0.985 : 1,
+            To = toOpacity > fromOpacity ? 1 : 0.985,
+            Duration = new Duration(TimeSpan.FromMilliseconds(milliseconds)),
+            EasingFunction = easing,
+        };
+        Storyboard.SetTarget(scale, SettingsDialogMotion);
+        Storyboard.SetTargetProperty(scale, "ScaleX");
+        storyboard.Children.Add(scale);
+        var scaleY = new DoubleAnimation
+        {
+            From = scale.From,
+            To = scale.To,
+            Duration = scale.Duration,
+            EasingFunction = easing,
+        };
+        Storyboard.SetTarget(scaleY, SettingsDialogMotion);
+        Storyboard.SetTargetProperty(scaleY, "ScaleY");
+        storyboard.Children.Add(scaleY);
 
         var completed = new TaskCompletionSource<bool>();
         storyboard.Completed += (_, _) =>
         {
             storyboard.Stop();
             SettingsScrim.Opacity = toOpacity;
-            SettingsDialogMotion.Y = toOffset;
+            SettingsDialogMotion.TranslateY = toOffset;
+            SettingsDialogMotion.ScaleX = scale.To ?? 1;
+            SettingsDialogMotion.ScaleY = scaleY.To ?? 1;
             completed.TrySetResult(true);
         };
         storyboard.Begin();
@@ -267,17 +404,43 @@ public sealed partial class SettingsPage : Page
     private void SetSaving(bool saving)
     {
         _saving = saving;
-        FooterCloseButton.IsEnabled = !saving;
         CloseSettingsButton.IsEnabled = !saving;
         GeneralNavButton.IsEnabled = !saving;
         UpdatesNavButton.IsEnabled = !saving;
         FeedbackNavButton.IsEnabled = !saving;
         StartAtSignIn.IsEnabled = _startupEditable;
+        PrintScreenEnabled.IsEnabled = !saving && _printScreenEditable;
+        PrintScreenModePicker.IsEnabled = !saving && _printScreenEditable && PrintScreenEnabled.IsOn;
+        CameraSourcePicker.IsEnabled = !saving && _cameraSourcesLoaded && _availableCameraSourceCount > 0;
+        TakeCameraPhotoButton.IsEnabled = !saving && _cameraSourcesLoaded && _availableCameraSourceCount > 0;
     }
 
-    private void PreferenceToggle_Changed(object sender, RoutedEventArgs args) => SaveChangedPreferences();
+    private void TakeCameraPhoto_Click(object sender, RoutedEventArgs args)
+    {
+        if (!_saving && _availableCameraSourceCount > 0)
+        {
+            _controller?.Capture(CaptureKind.Camera);
+        }
+    }
+
+    private void PreferenceToggle_Changed(object sender, RoutedEventArgs args)
+    {
+        PrintScreenModePicker.IsEnabled = !_saving && _printScreenEditable && PrintScreenEnabled.IsOn;
+        SaveChangedPreferences();
+    }
 
     private void ThemePicker_Changed(object sender, SelectionChangedEventArgs args) => SaveChangedPreferences();
+
+    private void PrintScreenModePicker_Changed(object sender, SelectionChangedEventArgs args) => SaveChangedPreferences();
+
+    private void CameraSourcePicker_Changed(object sender, SelectionChangedEventArgs args)
+    {
+        if (!_loadingCameraSources && _cameraSourcesLoaded)
+        {
+            UpdateCameraSourceStatus();
+            SaveChangedPreferences();
+        }
+    }
 
     private async void SaveChangedPreferences()
     {
@@ -319,6 +482,17 @@ public sealed partial class SettingsPage : Page
             StartAtSignIn.IsOn = _savedSettings.StartOnLogin;
             AutoCopy.IsOn = _savedSettings.AutoCopy;
             WindowShadow.IsOn = _savedSettings.WindowShadow;
+            PrintScreenEnabled.IsOn = _savedSettings.PrintScreenEnabled;
+            PrintScreenModePicker.SelectedIndex = _savedSettings.PrintScreenMode switch
+            {
+                CaptureKind.Window => 1,
+                CaptureKind.Region => 2,
+                _ => 0,
+            };
+            _loadingCameraSources = true;
+            SelectCameraSource(_savedSettings.CameraSourceId);
+            _loadingCameraSources = false;
+            UpdateCameraSourceStatus();
             ThemePicker.SelectedIndex = _savedSettings.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
             _configured = true;
             SettingsSaveStatus.Text = "Change not saved";
@@ -341,6 +515,14 @@ public sealed partial class SettingsPage : Page
             StartOnLogin = StartAtSignIn.IsOn,
             AutoCopy = AutoCopy.IsOn,
             WindowShadow = WindowShadow.IsOn,
+            PrintScreenEnabled = PrintScreenEnabled.IsOn,
+            PrintScreenMode = PrintScreenModePicker.SelectedIndex switch
+            {
+                1 => CaptureKind.Window,
+                2 => CaptureKind.Region,
+                _ => CaptureKind.FullScreen,
+            },
+            CameraSourceId = SelectedCameraSourceId(),
             Theme = ThemePicker.SelectedIndex switch { 1 => "Light", 2 => "Dark", _ => "System" },
         };
 

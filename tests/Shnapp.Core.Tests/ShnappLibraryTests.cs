@@ -39,6 +39,8 @@ public sealed class ShnappLibraryTests
         Assert.IsFalse(settings.StartOnLogin);
         Assert.IsFalse(settings.AutoCopy);
         Assert.IsTrue(settings.WindowShadow);
+        Assert.IsFalse(settings.PrintScreenEnabled);
+        Assert.AreEqual(CaptureKind.FullScreen, settings.PrintScreenMode);
         Assert.AreEqual("System", settings.Theme);
         Assert.IsFalse(Directory.Exists(temporary.RootPath));
     }
@@ -76,10 +78,12 @@ public sealed class ShnappLibraryTests
             TestDocuments.Annotation(kind) with
             {
                 Start = new ImagePoint(10.25, 20.5),
-                End = new ImagePoint(300.75, 200.125),
+                End = kind == AnnotationKind.Callout
+                    ? new ImagePoint(680.75, 200.125)
+                    : new ImagePoint(300.75, 200.125),
                 Text = "Text with \"quotes\", \\paths\\, line breaks\nand Unicode: shnapp \u2728 \u754c",
-                TextBoxWidth = kind == AnnotationKind.Text ? 290.5 : 0,
-                TextBoxHeight = kind == AnnotationKind.Text ? 179.625 : 0,
+                TextBoxWidth = kind is AnnotationKind.Text or AnnotationKind.Callout ? 290.5 : 0,
+                TextBoxHeight = kind is AnnotationKind.Text or AnnotationKind.Callout ? 179.625 : 0,
                 TextAlignment = kind == AnnotationKind.Text
                     ? TextHorizontalAlignment.Justify : TextHorizontalAlignment.Left,
                 TextTruncation = kind == AnnotationKind.Text
@@ -103,11 +107,17 @@ public sealed class ShnappLibraryTests
                 EndArrow = kind == AnnotationKind.Line,
                 StepDiameter = 32.5,
                 StepNumber = kind == AnnotationKind.Step ? 1 : 0,
+                CalloutNumber = kind == AnnotationKind.Callout ? 1 : 0,
+                CalloutSide = kind == AnnotationKind.Callout ? CalloutSide.Right : CalloutSide.Left,
+                CalloutTextArgb = kind == AnnotationKind.Callout ? 0xFF273444 : 0,
+                MagnifyZoom = kind == AnnotationKind.Magnify ? 3.5 : 0,
+                MagnifyShape = kind == AnnotationKind.Magnify ? MagnifyShape.Rectangle : MagnifyShape.Ellipse,
             }).ToImmutableArray();
         ShnappDocument document = TestDocuments.Create() with
         {
             CaptureKind = captureKind,
             Crop = new ImageRect(50, 60, 300, 220),
+            ExpandedCanvasBounds = new ImageRect(0, 0, 1000, 480),
             HasWindowShadow = captureKind == CaptureKind.Window,
             Annotations = annotations,
         };
@@ -425,11 +435,11 @@ public sealed class ShnappLibraryTests
     }
 
     [TestMethod]
-    [DataRow("System", false, false, true)]
-    [DataRow("Light", true, false, false)]
-    [DataRow("Dark", false, true, true)]
+    [DataRow("System", false, false, true, false, CaptureKind.FullScreen)]
+    [DataRow("Light", true, false, false, true, CaptureKind.Window)]
+    [DataRow("Dark", false, true, true, true, CaptureKind.Region)]
     public async Task SettingsRoundTripAllPreferencesInAVersionedEnvelope(string theme, bool startOnLogin,
-        bool autoCopy, bool windowShadow)
+        bool autoCopy, bool windowShadow, bool printScreenEnabled, CaptureKind printScreenMode)
     {
         using var temporary = new TemporaryLibrary();
         var settings = new ShnappSettings
@@ -438,6 +448,8 @@ public sealed class ShnappLibraryTests
             StartOnLogin = startOnLogin,
             AutoCopy = autoCopy,
             WindowShadow = windowShadow,
+            PrintScreenEnabled = printScreenEnabled,
+            PrintScreenMode = printScreenMode,
         };
 
         await temporary.Library.SaveSettingsAsync(settings);
@@ -446,8 +458,33 @@ public sealed class ShnappLibraryTests
         using JsonDocument json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(temporary.RootPath, "settings.json")));
         Assert.AreEqual(1, json.RootElement.GetProperty("schemaVersion").GetInt32());
         Assert.AreEqual(theme, json.RootElement.GetProperty("settings").GetProperty("theme").GetString());
+        Assert.AreEqual(printScreenEnabled,
+            json.RootElement.GetProperty("settings").GetProperty("printScreenEnabled").GetBoolean());
+        Assert.AreEqual(printScreenMode.ToString(),
+            json.RootElement.GetProperty("settings").GetProperty("printScreenMode").GetString());
         Assert.IsFalse(Directory.Exists(Path.Combine(temporary.RootPath, "shnapps")));
         temporary.AssertNoTemporaryFiles();
+    }
+
+    [TestMethod]
+    public async Task LegacySettingsDefaultPrintScreenToFullScreen()
+    {
+        using var temporary = new TemporaryLibrary();
+        await temporary.Library.SaveSettingsAsync(new ShnappSettings
+        {
+            PrintScreenEnabled = true,
+            PrintScreenMode = CaptureKind.Window,
+        });
+        string path = Path.Combine(temporary.RootPath, "settings.json");
+        JsonObject json = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        JsonObject settings = json["settings"]!.AsObject();
+        settings.Remove("printScreenEnabled");
+        settings.Remove("printScreenMode");
+        await File.WriteAllTextAsync(path, json.ToJsonString());
+
+        ShnappSettings loaded = await temporary.Library.LoadSettingsAsync();
+        Assert.IsFalse(loaded.PrintScreenEnabled);
+        Assert.AreEqual(CaptureKind.FullScreen, loaded.PrintScreenMode);
     }
 
     [TestMethod]
@@ -460,6 +497,8 @@ public sealed class ShnappLibraryTests
         {
             await Assert.ThrowsAsync<ArgumentException>(() => temporary.Library.SaveSettingsAsync(original with { Theme = theme! }));
         }
+        await Assert.ThrowsAsync<ArgumentException>(() => temporary.Library.SaveSettingsAsync(
+            original with { PrintScreenMode = (CaptureKind)999 }));
 
         Assert.AreEqual(original, await temporary.Library.LoadSettingsAsync());
         temporary.AssertNoTemporaryFiles();
