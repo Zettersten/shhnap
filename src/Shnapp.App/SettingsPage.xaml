@@ -14,10 +14,9 @@
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="SettingsScrimBrush" Color="#B900102D" />
-                    <SolidColorBrush x:Key="SettingsSurfaceBrush" Color="#F4F7FF" />
-                    <SolidColorBrush x:Key="SettingsSidebarBrush" Color="#EAF0FB" />
+                    <AcrylicBrush x:Key="SettingsSurfaceBrush" TintColor="#F4F7FF" TintOpacity="0.86" FallbackColor="#F4F7FF" />
+                    <AcrylicBrush x:Key="SettingsSidebarBrush" TintColor="#EAF0FB" TintOpacity="0.82" FallbackColor="#EAF0FB" />
                     <SolidColorBrush x:Key="SettingsCardBrush" Color="#FFFFFF" />
-                    <SolidColorBrush x:Key="SettingsFooterBrush" Color="#EDF3FC" />
                     <SolidColorBrush x:Key="SettingsStrokeBrush" Color="#C7D4EB" />
                     <SolidColorBrush x:Key="SettingsSecondaryBrush" Color="#52617A" />
                     <SolidColorBrush x:Key="SettingsShortcutBrush" Color="#EAF0FC" />
@@ -35,10 +34,9 @@
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Default">
                     <SolidColorBrush x:Key="SettingsScrimBrush" Color="#BE030B20" />
-                    <SolidColorBrush x:Key="SettingsSurfaceBrush" Color="#111B3A" />
-                    <SolidColorBrush x:Key="SettingsSidebarBrush" Color="#111B36" />
+                    <AcrylicBrush x:Key="SettingsSurfaceBrush" TintColor="#111B3A" TintOpacity="0.82" FallbackColor="#111B3A" />
+                    <AcrylicBrush x:Key="SettingsSidebarBrush" TintColor="#111B36" TintOpacity="0.78" FallbackColor="#111B36" />
                     <SolidColorBrush x:Key="SettingsCardBrush" Color="#1B2949" />
-                    <SolidColorBrush x:Key="SettingsFooterBrush" Color="#101A37" />
                     <SolidColorBrush x:Key="SettingsStrokeBrush" Color="#344775" />
                     <SolidColorBrush x:Key="SettingsSecondaryBrush" Color="#B5C7E7" />
                     <SolidColorBrush x:Key="SettingsShortcutBrush" Color="#26375F" />
@@ -59,7 +57,6 @@
                     <SolidColorBrush x:Key="SettingsSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="SettingsSidebarBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="SettingsCardBrush" Color="{ThemeResource SystemColorWindowColor}" />
-                    <SolidColorBrush x:Key="SettingsFooterBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="SettingsStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="SettingsSecondaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="SettingsShortcutBrush" Color="{ThemeResource SystemColorWindowColor}" />
@@ -101,39 +98,42 @@
         <Grid MaxWidth="900" MaxHeight="760" Margin="16"
             HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
             <Border x:Name="SettingsDialog" Background="{ThemeResource SettingsSurfaceBrush}"
-                BorderBrush="{ThemeResource SettingsEdgeBrush}" BorderThickness="2" CornerRadius="18">
+                BorderBrush="{ThemeResource SettingsStrokeBrush}" BorderThickness="1" CornerRadius="16"
+                RenderTransformOrigin="0.5,0.5">
                 <Border.Shadow><ThemeShadow /></Border.Shadow>
                 <Border.RenderTransform>
-                    <TranslateTransform x:Name="SettingsDialogMotion" />
+                    <CompositeTransform x:Name="SettingsDialogMotion" />
                 </Border.RenderTransform>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0" Margin="28,22,26,18">
+                    <Grid Grid.Row="0" Margin="24,18,22,16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Border x:Name="SettingsHeaderIcon" Width="60" Height="60"
+                        <Border x:Name="SettingsHeaderIcon" Width="44" Height="44"
                             Background="{ThemeResource SettingsSelectedNavBrush}"
                             BorderBrush="{ThemeResource SettingsEdgeBrush}" BorderThickness="1"
-                            CornerRadius="14" VerticalAlignment="Center">
-                            <FontIcon Glyph="&#xE713;" FontSize="30"
+                            CornerRadius="10" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE713;" FontSize="22"
                                 Foreground="{ThemeResource SettingsSelectedNavForegroundBrush}" HorizontalAlignment="Center"
                                 VerticalAlignment="Center" />
                         </Border>
-                        <StackPanel Grid.Column="1" Margin="20,0,12,0" VerticalAlignment="Center" Spacing="3">
-                            <TextBlock Text="Settings" FontSize="28" FontWeight="SemiBold" />
+                        <StackPanel Grid.Column="1" Margin="14,0,12,0" VerticalAlignment="Center" Spacing="3">
+                            <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold" />
                             <TextBlock Text="Customize how Shnapp captures and handles your work."
                                 Style="{StaticResource SettingsSupportingTextStyle}" />
                             <TextBlock x:Name="SettingsVersionLabel" FontSize="12"
                                 Style="{StaticResource SettingsSupportingTextStyle}"
                                 IsTextSelectionEnabled="True" />
+                            <TextBlock x:Name="SettingsSaveStatus" Text="Changes save automatically"
+                                Style="{StaticResource SettingsSupportingTextStyle}" />
                         </StackPanel>
                         <Button x:Name="CloseSettingsButton" Grid.Column="2" Width="40" Height="40" VerticalAlignment="Top" CornerRadius="8"
                             Click="BackToEditor_Click" AutomationProperties.Name="Close settings"
@@ -143,7 +143,12 @@
                         </Button>
                     </Grid>
 
-                    <Grid Grid.Row="1" MinHeight="0" Margin="22,0,22,0">
+                    <StackPanel Grid.Row="1" Margin="22,0,22,0" Spacing="8">
+                        <InfoBar x:Name="PreferenceMessage" IsOpen="False" IsClosable="True" />
+                        <InfoBar x:Name="ExternalLinkMessage" IsOpen="False" IsClosable="True" />
+                    </StackPanel>
+
+                    <Grid Grid.Row="2" MinHeight="0" Margin="22,0,22,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition x:Name="SidebarColumn" Width="204" />
                             <ColumnDefinition Width="*" />
@@ -196,7 +201,7 @@
                         <ScrollViewer x:Name="SettingsScrollViewer" Grid.Column="1"
                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                             HorizontalScrollMode="Disabled" HorizontalContentAlignment="Stretch">
-                            <StackPanel Margin="6,0,4,72" Spacing="18" HorizontalAlignment="Stretch">
+                            <StackPanel Margin="6,0,4,16" Spacing="18" HorizontalAlignment="Stretch">
                                 <StackPanel x:Name="GeneralPanel" Spacing="18">
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="Capture" Style="{StaticResource SettingsSectionTitleStyle}" />
@@ -209,7 +214,8 @@
                                                         <TextBlock Text="Keep capture one shortcut away after Windows starts."
                                                             Style="{StaticResource SettingsSupportingTextStyle}" />
                                                     </StackPanel>
-                                                    <ToggleSwitch x:Name="StartAtSignIn" Grid.Column="1" VerticalAlignment="Center"
+                                                    <ToggleSwitch x:Name="StartAtSignIn" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                        Width="48" MinWidth="0" OnContent="" OffContent=""
                                                         Toggled="PreferenceToggle_Changed"
                                                         AutomationProperties.Name="Start Shnapp at sign-in"
                                                         AutomationProperties.AutomationId="StartOnLogin" />
@@ -222,7 +228,8 @@
                                                         <TextBlock Text="Your latest capture is ready to paste."
                                                             Style="{StaticResource SettingsSupportingTextStyle}" />
                                                     </StackPanel>
-                                                    <ToggleSwitch x:Name="AutoCopy" Grid.Column="1" VerticalAlignment="Center"
+                                                    <ToggleSwitch x:Name="AutoCopy" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                        Width="48" MinWidth="0" OnContent="" OffContent=""
                                                         Toggled="PreferenceToggle_Changed"
                                                         AutomationProperties.Name="Copy new shnapps automatically"
                                                         AutomationProperties.AutomationId="AutoCopy" />
@@ -235,11 +242,29 @@
                                                         <TextBlock Text="Give captured windows a little separation when shared."
                                                             Style="{StaticResource SettingsSupportingTextStyle}" />
                                                     </StackPanel>
-                                                    <ToggleSwitch x:Name="WindowShadow" Grid.Column="1" VerticalAlignment="Center"
+                                                    <ToggleSwitch x:Name="WindowShadow" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                        Width="48" MinWidth="0" OnContent="" OffContent=""
                                                         Toggled="PreferenceToggle_Changed"
                                                         AutomationProperties.Name="Soft shadow on window shnapps"
                                                         AutomationProperties.AutomationId="WindowShadow" />
                                                 </Grid>
+                                                <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <StackPanel Margin="16,12" Spacing="6">
+                                                    <TextBlock Text="Camera source" FontWeight="SemiBold" />
+                                                    <ComboBox x:Name="CameraSourcePicker" HorizontalAlignment="Stretch"
+                                                        SelectionChanged="CameraSourcePicker_Changed"
+                                                        AutomationProperties.Name="Camera source"
+                                                        AutomationProperties.AutomationId="CameraSource">
+                                                        <ComboBoxItem Content="Automatic" Tag="" />
+                                                    </ComboBox>
+                                                    <TextBlock x:Name="CameraSourceStatus" Text="Finding cameras…"
+                                                        TextWrapping="Wrap" Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    <Button x:Name="TakeCameraPhotoButton" Content="Take camera photo"
+                                                        HorizontalAlignment="Left" IsEnabled="False"
+                                                        Click="TakeCameraPhoto_Click"
+                                                        AutomationProperties.Name="Take camera photo"
+                                                        AutomationProperties.AutomationId="TakeCameraPhotoFromSettings" />
+                                                </StackPanel>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
@@ -266,6 +291,15 @@
                                             <StackPanel Spacing="5">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Take a camera photo" VerticalAlignment="Center" />
+                                                    <Border Grid.Column="1" Background="{ThemeResource SettingsShortcutBrush}"
+                                                        BorderBrush="{ThemeResource SettingsStrokeBrush}" BorderThickness="1"
+                                                        CornerRadius="7" Padding="8,3">
+                                                        <TextBlock Text="Ctrl+Shift+5" FontFamily="Cascadia Mono" FontSize="12" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                                     <TextBlock Text="Capture a window" VerticalAlignment="Center" />
                                                     <Border Grid.Column="1" Background="{ThemeResource SettingsShortcutBrush}"
                                                         BorderBrush="{ThemeResource SettingsStrokeBrush}" BorderThickness="1"
@@ -290,6 +324,32 @@
                                                         CornerRadius="7" Padding="8,3">
                                                         <TextBlock Text="Ctrl+Shift+2" FontFamily="Cascadia Mono" FontSize="12" />
                                                     </Border>
+                                                </Grid>
+                                                <Rectangle Height="1" Margin="0,8" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Use Print Screen" FontWeight="SemiBold" />
+                                                        <TextBlock Text="Capture with the plain Print Screen key while Shnapp is running. Alt+Print Screen keeps its Windows behavior."
+                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    </StackPanel>
+                                                    <ToggleSwitch x:Name="PrintScreenEnabled" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                        Width="48" MinWidth="0" OnContent="" OffContent=""
+                                                        Toggled="PreferenceToggle_Changed" AutomationProperties.Name="Use Print Screen for Shnapp"
+                                                        AutomationProperties.AutomationId="PrintScreenEnabled" />
+                                                </Grid>
+                                                <Grid Margin="0,8,0,4">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Print Screen capture mode" FontWeight="SemiBold"
+                                                        VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
+                                                    <ComboBox x:Name="PrintScreenModePicker" Grid.Column="1" MinWidth="160" HorizontalAlignment="Right"
+                                                        SelectionChanged="PrintScreenModePicker_Changed"
+                                                        AutomationProperties.Name="Print Screen capture mode"
+                                                        AutomationProperties.AutomationId="PrintScreenMode">
+                                                        <ComboBoxItem Content="Full screen" />
+                                                        <ComboBoxItem Content="Window" />
+                                                        <ComboBoxItem Content="Free form" />
+                                                    </ComboBox>
                                                 </Grid>
                                             </StackPanel>
                                         </Border>
@@ -319,7 +379,7 @@
                                                 <TextBlock x:Name="VersionLabel" FontWeight="SemiBold" IsTextSelectionEnabled="True" />
                                                 <TextBlock x:Name="RuntimeLabel" IsTextSelectionEnabled="True"
                                                     Style="{StaticResource SettingsSupportingTextStyle}" />
-                                                <TextBlock Text="Published by Erik Zettersten · MIT licensed"
+                                                <TextBlock Text="Published by Nenvy LLC · Created by Erik Zettersten · MIT licensed"
                                                     Style="{StaticResource SettingsSupportingTextStyle}" />
                                             </StackPanel>
                                         </Border>
@@ -356,7 +416,7 @@
                                             <StackPanel Spacing="7" HorizontalAlignment="Left">
                                                 <Button Content="Visit shhnap.com" Click="OpenWebsite_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenWebsite" />
                                                 <Button Content="Open source repository" Click="OpenRepository_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenRepository" />
-                                                <Button Content="About the publisher" Click="OpenPublisher_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPublisher" />
+                                                <Button Content="About the creator" Click="OpenPublisher_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPublisher" />
                                                 <Button Content="Privacy" Click="OpenPrivacy_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPrivacy" />
                                             </StackPanel>
                                         </Border>
@@ -395,25 +455,6 @@
                         </ScrollViewer>
                     </Grid>
 
-                    <Border Grid.Row="2" Background="{ThemeResource SettingsFooterBrush}"
-                        BorderBrush="{ThemeResource SettingsStrokeBrush}" BorderThickness="0,1,0,0"
-                        Padding="16">
-                        <StackPanel Spacing="0">
-                            <InfoBar x:Name="PreferenceMessage" IsOpen="False" IsClosable="True" />
-                            <InfoBar x:Name="ExternalLinkMessage" IsOpen="False" IsClosable="True" />
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="SettingsSaveStatus" Text="Changes save automatically"
-                                    Style="{StaticResource SettingsSupportingTextStyle}"
-                                    VerticalAlignment="Center" Margin="0,0,16,0" />
-                                <Button x:Name="FooterCloseButton" Grid.Column="1" Content="Close" MinWidth="104" CornerRadius="8"
-                                    Click="BackToEditor_Click" AutomationProperties.AutomationId="CloseSettingsFooter" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
                 </Grid>
             </Border>
         </Grid>

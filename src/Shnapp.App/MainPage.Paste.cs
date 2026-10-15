@@ -196,7 +196,8 @@ public sealed partial class MainPage
     }
 
     private static async Task<Annotation> ReadClipboardImageAsync(
-        IRandomAccessStream input, ImagePoint placement, CanvasBitmap original)
+        IRandomAccessStream input, ImagePoint placement, CanvasBitmap original,
+        string sourceLabel = "clipboard image")
     {
         BitmapDecoder decoder = await BitmapDecoder.CreateAsync(input);
         int width = checked((int)decoder.PixelWidth);
@@ -204,7 +205,7 @@ public sealed partial class MainPage
         if (width < 1 || height < 1 || width > MaximumPastedImageSide ||
             height > MaximumPastedImageSide || (long)width * height > MaximumPastedImagePixels)
         {
-            throw new InvalidDataException("The clipboard image exceeds the 40-megapixel paste limit.");
+            throw new InvalidDataException($"The {sourceLabel} exceeds the 40-megapixel image-layer limit.");
         }
 
         input.Seek(0);
@@ -214,14 +215,14 @@ public sealed partial class MainPage
         if (width < 1 || height < 1 || width > MaximumPastedImageSide ||
             height > MaximumPastedImageSide || (long)width * height > MaximumPastedImagePixels)
         {
-            throw new InvalidDataException("The clipboard image exceeds the 40-megapixel paste limit.");
+            throw new InvalidDataException($"The {sourceLabel} exceeds the 40-megapixel image-layer limit.");
         }
 
         using var png = new InMemoryRandomAccessStream();
         await bitmap.SaveAsync(png, CanvasBitmapFileFormat.Png);
         if (png.Size > MaximumPastedPngBytes)
         {
-            throw new InvalidDataException("The clipboard image exceeds the 32 MB paste limit.");
+            throw new InvalidDataException($"The {sourceLabel} exceeds the 32 MB image-layer limit.");
         }
 
         png.Seek(0);

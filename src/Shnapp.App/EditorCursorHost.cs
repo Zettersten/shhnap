@@ -13,6 +13,7 @@ public sealed class EditorCursorHost : Grid
     private const uint LineCursorResourceId = 104;
     private const uint StepCursorResourceId = 105;
     private const uint PrivacyCursorResourceId = 106;
+    private const uint MagnifyCursorResourceId = 107;
     private readonly InputCursor _crosshair = InputSystemCursor.Create(InputSystemCursorShape.Cross);
     private readonly InputCursor _text = InputSystemCursor.Create(InputSystemCursorShape.IBeam);
     private readonly InputCursor _move = InputSystemCursor.Create(InputSystemCursorShape.SizeAll);
@@ -22,12 +23,39 @@ public sealed class EditorCursorHost : Grid
     private readonly InputCursor _line = CreateResourceCursor(LineCursorResourceId, InputSystemCursorShape.Cross);
     private readonly InputCursor _step = CreateResourceCursor(StepCursorResourceId, InputSystemCursorShape.Pin);
     private readonly InputCursor _privacy = CreateResourceCursor(PrivacyCursorResourceId, InputSystemCursorShape.Cross);
+    private readonly InputCursor _magnify = CreateResourceCursor(MagnifyCursorResourceId, InputSystemCursorShape.Cross);
     private readonly Dictionary<InputSystemCursorShape, InputCursor> _sizingCursors = [];
     private EditorTool _tool;
     private bool _panActive;
     private bool _panDragging;
+    private bool _pointerInside;
     private InputSystemCursorShape? _selectionShape;
 
+    public EditorCursorHost()
+    {
+        PointerEntered += (_, _) =>
+        {
+            _pointerInside = true;
+            UpdateCursor();
+        };
+        PointerMoved += (_, _) =>
+        {
+            if (!_pointerInside)
+            {
+                _pointerInside = true;
+                UpdateCursor();
+            }
+        };
+        PointerExited += (_, _) =>
+        {
+            _pointerInside = false;
+            UpdateCursor();
+        };
+        PointerCaptureLost += (_, _) =>
+        {
+            UpdateCursor();
+        };
+    }
 
     private static InputCursor CreateResourceCursor(uint resourceId, InputSystemCursorShape fallback)
     {
@@ -61,26 +89,43 @@ public sealed class EditorCursorHost : Grid
     /// <summary>Shows the correct directional cursor over an annotation's resize handle.</summary>
     public void SetSelectionCursor(InputSystemCursorShape? shape)
     {
-        if (_selectionShape == shape)
+        if (_selectionShape != shape)
+        {
+            _selectionShape = shape;
+            UpdateCursor();
+        }
+    }
+
+    /// <summary>Stops the canvas cursor from covering floating editor controls.</summary>
+    public void SuspendCursor()
+    {
+        if ((PointerCaptures?.Count ?? 0) > 0)
         {
             return;
         }
 
-        _selectionShape = shape;
-        UpdateCursor();
+        _pointerInside = false;
+        if (ProtectedCursor is not null)
+        {
+            ProtectedCursor = null;
+        }
     }
 
     private void UpdateCursor()
     {
-        InputCursor? cursor = _panActive ? _panDragging ? _panClosed : _panOpen
+        InputCursor? cursor = !_pointerInside && (PointerCaptures?.Count ?? 0) == 0 ? null
+            : _panActive ? _panDragging ? _panClosed : _panOpen
             : _tool == EditorTool.Crop ? _crosshair
             : _selectionShape is InputSystemCursorShape shape ? GetSizingCursor(shape)
             : _tool switch
             {
                 EditorTool.Text => _text,
                 EditorTool.Step => _step,
+                EditorTool.Callout => _step,
+                EditorTool.Magnify => _magnify,
                 EditorTool.Line or EditorTool.Arrow => _line,
-                EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle => _shape,
+                EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle
+                    or EditorTool.Shape => _shape,
                 EditorTool.Redaction => _privacy,
                 _ => null,
             };

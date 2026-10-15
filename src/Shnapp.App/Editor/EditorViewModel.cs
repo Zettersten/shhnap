@@ -177,6 +177,7 @@ public sealed partial class LibraryEntry : ObservableObject
         {
             CaptureKind.Window => "Window",
             CaptureKind.FullScreen => "Full screen",
+            CaptureKind.Camera => "Camera photo",
             _ => "Region",
         };
         ModifiedAt = document.ModifiedAt;
@@ -223,6 +224,8 @@ internal enum EditorTool
     Select,
     Text,
     Step,
+    Callout,
+    Magnify,
     Arrow,
     Line,
     Rectangle,
@@ -231,4 +234,5 @@ internal enum EditorTool
     Circle,
     Redaction,
     Crop,
+    Shape,
 }

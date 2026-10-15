@@ -11,6 +11,7 @@ if ($ReleaseTag -notmatch '^v([1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') 
     throw 'Catalog packages require a stable v1.0.0-style release tag.'
 }
 $version = $ReleaseTag.Substring(1)
+$multiFile = [version]$version -ge [version]'2.0.0'
 $assetsPath = (Resolve-Path -LiteralPath $AssetsDirectory).Path
 $hashes = @{}
 
@@ -40,9 +41,14 @@ foreach ($rid in @('win-x64', 'win-arm64')) {
         if (@($entries | Group-Object | Where-Object Count -gt 1).Count -gt 0) {
             throw "$archiveName contains duplicate ZIP entries."
         }
-        foreach ($entry in $entries) {
-            if ($entry.StartsWith('/') -or $entry.Contains([char]92) -or $entry.Contains(':') -or
-                @($entry.Split('/') | Where-Object { $_ -in @('.', '..') }).Count -gt 0) {
+        foreach ($zipEntry in $zip.Entries) {
+            $entry = $zipEntry.FullName
+            $segments = $entry.TrimEnd('/').Split('/')
+            $unixFileType = ($zipEntry.ExternalAttributes -shr 16) -band 0xF000
+            if ($entry.StartsWith('/') -or $entry.Contains([char]92) -or
+                $entry.Contains(':') -or $entry -match '[\x00-\x1f]' -or
+                @($segments | Where-Object { $_ -in @('', '.', '..') }).Count -gt 0 -or
+                $unixFileType -eq 0xA000) {
                 throw "$archiveName contains an unsafe ZIP entry: $entry"
             }
         }
@@ -63,6 +69,13 @@ foreach ($rid in @('win-x64', 'win-arm64')) {
             "${versionRoot}Shnapp.exe", "${versionRoot}Shnapp.pri",
             "${versionRoot}LICENSE", "${versionRoot}THIRD_PARTY_NOTICES.txt"
         )
+        if ($multiFile) {
+            foreach ($relative in @('Shnapp.dll', 'Shnapp.Core.dll',
+                    'Shnapp.deps.json', 'Shnapp.runtimeconfig.json',
+                    'Microsoft.ui.xaml.dll')) {
+                $requiredFiles += "$versionRoot$relative"
+            }
+        }
         foreach ($required in $requiredFiles) {
             if ($required -cnotin $entries) {
                 throw "$archiveName does not contain $required."
@@ -86,12 +99,23 @@ foreach ($rid in @('win-x64', 'win-arm64')) {
             if ($entry -cin $allowedRoot) { continue }
             if ($entry.StartsWith($versionRoot, [System.StringComparison]::Ordinal)) {
                 $relative = $entry.Substring($versionRoot.Length)
-                if ($relative -cin $allowedPayload -or
+                if ($multiFile) {
+                    $payloadFile = $relative -match '^[A-Za-z0-9_. -]+\.(exe|dll|json|pri|winmd|pdb|xml)$'
+                    $asset = $relative -match '^Assets/(?:[A-Za-z0-9_. -]+\.(ico|json|png))?$'
+                    $winuiAsset = $relative -match '^Microsoft\.UI\.Xaml/(?:Assets/(?:[A-Za-z0-9_. -]+\.(html|png))?)?$'
+                    $localizedResource = $relative -match '^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){1,2}/(?:Microsoft\.ui\.xaml(?:\.Phone)?\.dll\.mui)?$'
+                    if ($payloadFile -or $asset -or $winuiAsset -or $localizedResource -or
+                        $relative -cin @('LICENSE', 'THIRD_PARTY_NOTICES.txt', 'THIRD_PARTY_NOTICES/') -or
+                        $relative.StartsWith('THIRD_PARTY_NOTICES/', [System.StringComparison]::Ordinal)) {
+                        continue
+                    }
+                }
+                elseif ($relative -cin $allowedPayload -or
                     $relative.StartsWith('THIRD_PARTY_NOTICES/', [System.StringComparison]::Ordinal)) {
                     continue
                 }
             }
-            throw "$archiveName contains an unexpected file in its single-file layout: $entry"
+            throw "$archiveName contains an unexpected file in its portable layout: $entry"
         }
     }
     finally {

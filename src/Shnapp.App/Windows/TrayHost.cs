@@ -13,6 +13,9 @@ internal sealed class TrayHost : IDisposable
     private readonly List<int> _registeredHotkeys = [];
     private readonly List<string> _conflicts = [];
     private NativeMethods.NotifyIconData _icon;
+    private PrintScreenShortcut? _printScreenShortcut;
+    private CaptureKind _printScreenMode = CaptureKind.FullScreen;
+    private bool _cameraAvailable;
     private bool _disposed;
 
     internal event Action<CaptureKind>? CaptureRequested;
@@ -23,6 +26,27 @@ internal sealed class TrayHost : IDisposable
 
     internal IReadOnlyList<string> Conflicts => _conflicts;
     internal bool IsPresent { get; private set; }
+
+    internal void ConfigurePrintScreen(bool enabled, CaptureKind mode)
+    {
+        if (_disposed) { throw new ObjectDisposedException(nameof(TrayHost)); }
+        if (mode is not (CaptureKind.Window or CaptureKind.FullScreen or CaptureKind.Region))
+        {
+            throw new ArgumentOutOfRangeException(nameof(mode));
+        }
+        if (enabled)
+        {
+            _printScreenShortcut ??= new PrintScreenShortcut(_hwnd);
+            _printScreenMode = mode;
+        }
+        else
+        {
+            _printScreenShortcut?.Dispose();
+            _printScreenShortcut = null;
+        }
+    }
+
+    internal void SetCameraAvailable(bool available) => _cameraAvailable = available;
 
     internal void ShowUpdateNotification(string version)
     {
@@ -66,6 +90,7 @@ internal sealed class TrayHost : IDisposable
         Register(1, 0x34, "Ctrl+Shift+4");
         Register(2, 0x33, "Ctrl+Shift+3");
         Register(3, 0x32, "Ctrl+Shift+2");
+        Register(4, 0x35, "Ctrl+Shift+5");
     }
 
     private void Register(int id, uint key, string label)
@@ -105,12 +130,23 @@ internal sealed class TrayHost : IDisposable
         }
         else if (message == NativeMethods.WmHotkey)
         {
-            CaptureRequested?.Invoke((int)wParam switch
+            CaptureKind? kind = (int)wParam switch
             {
                 1 => CaptureKind.Window,
                 2 => CaptureKind.FullScreen,
-                _ => CaptureKind.Region,
-            });
+                3 => CaptureKind.Region,
+                4 => CaptureKind.Camera,
+                _ => null,
+            };
+            if (kind is CaptureKind captureKind)
+            {
+                CaptureRequested?.Invoke(captureKind);
+            }
+            return 0;
+        }
+        else if (message == NativeMethods.WmPrintScreen)
+        {
+            CaptureRequested?.Invoke(_printScreenMode);
             return 0;
         }
         else if (message == NativeMethods.TrayCallback)
@@ -143,7 +179,9 @@ internal sealed class TrayHost : IDisposable
         {
             NativeMethods.AppendMenu(menu, 0, 1, "New window shnapp\tCtrl+Shift+4");
             NativeMethods.AppendMenu(menu, 0, 2, "New full-screen shnapp\tCtrl+Shift+3");
-            NativeMethods.AppendMenu(menu, 0, 3, "New free-form shnapp\tCtrl+Shift+2");
+            NativeMethods.AppendMenu(menu, 0, 3, "New region shnapp\tCtrl+Shift+2");
+            NativeMethods.AppendMenu(menu, _cameraAvailable ? 0u : 0x1u, 7,
+                "New camera photo\tCtrl+Shift+5");
             NativeMethods.AppendMenu(menu, 0x800, 0, null);
             NativeMethods.AppendMenu(menu, 0, 4, "Open Library");
             NativeMethods.AppendMenu(menu, 0, 5, "Settings");
@@ -156,6 +194,7 @@ internal sealed class TrayHost : IDisposable
                 case 1: CaptureRequested?.Invoke(CaptureKind.Window); break;
                 case 2: CaptureRequested?.Invoke(CaptureKind.FullScreen); break;
                 case 3: CaptureRequested?.Invoke(CaptureKind.Region); break;
+                case 7 when _cameraAvailable: CaptureRequested?.Invoke(CaptureKind.Camera); break;
                 case 4: LibraryRequested?.Invoke(); break;
                 case 5: SettingsRequested?.Invoke(); break;
                 case 6: QuitRequested?.Invoke(); break;
@@ -175,6 +214,8 @@ internal sealed class TrayHost : IDisposable
         }
 
         _disposed = true;
+        _printScreenShortcut?.Dispose();
+        _printScreenShortcut = null;
         foreach (int id in _registeredHotkeys)
         {
             NativeMethods.UnregisterHotKey(_hwnd, id);

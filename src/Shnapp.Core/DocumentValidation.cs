@@ -87,12 +87,17 @@ internal static class DocumentValidation
         ArgumentNullException.ThrowIfNull(annotation);
         Require(annotation.Id != Guid.Empty, "An annotation identifier cannot be empty.", nameof(annotation));
         Require(Enum.IsDefined(annotation.Kind), "The annotation kind is not supported.", nameof(annotation));
+        Require(Enum.IsDefined(annotation.ShapeKind), "The shape kind is not supported.", nameof(annotation));
         Require(Enum.IsDefined(annotation.RedactionMode), "The redaction mode is not supported.", nameof(annotation));
         Require(Enum.IsDefined(annotation.StartCap) && Enum.IsDefined(annotation.EndCap),
             "The line end cap is not supported.", nameof(annotation));
         Require(Enum.IsDefined(annotation.LinePattern), "The line pattern is not supported.", nameof(annotation));
         Require(Enum.IsDefined(annotation.StepLabelFormat), "The step label format is not supported.", nameof(annotation));
-        Require(Enum.IsDefined(annotation.TextAlignment) && Enum.IsDefined(annotation.TextTruncation) &&
+        Require(Enum.IsDefined(annotation.CalloutSide) && Enum.IsDefined(annotation.MagnifyShape),
+            "An annotation shape option is not supported.", nameof(annotation));
+        Require(annotation.CalloutNumber >= 0, "An annotation number cannot be negative.", nameof(annotation));
+        Require(Enum.IsDefined(annotation.TextAlignment) && Enum.IsDefined(annotation.TextVerticalAlignment) &&
+            Enum.IsDefined(annotation.TextTruncation) &&
             Enum.IsDefined(annotation.TextTransform),
             "A text formatting option is not supported.", nameof(annotation));
         Require(annotation.Kind == AnnotationKind.Step || !annotation.StepReset,
@@ -107,8 +112,30 @@ internal static class DocumentValidation
         // A trim can also leave cropped-out annotations outside the visible canvas.
         ValidatePoint(annotation.Start, nameof(annotation));
         ValidatePoint(annotation.End, nameof(annotation));
+        bool line = annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow;
+        Require(line || annotation.LinePoints.IsDefaultOrEmpty && !annotation.AllowCurves &&
+            annotation.CurveMidpoint is null,
+            "Only lines can contain stroke paths or curves.", nameof(annotation));
+        Require(annotation.LinePoints.IsDefaultOrEmpty ||
+            line && annotation.LinePoints.Length is >= 2 and <= 4096 &&
+            annotation.LinePoints[0] == annotation.Start && annotation.LinePoints[^1] == annotation.End &&
+            !annotation.AllowCurves && annotation.CurveMidpoint is null,
+            "A freehand line needs a valid path with matching endpoints.", nameof(annotation));
+        foreach (ImagePoint point in annotation.LinePoints.IsDefault ? [] : annotation.LinePoints)
+        {
+            ValidatePoint(point, nameof(annotation));
+        }
+        Require(annotation.CurveMidpoint is null ||
+            line && annotation.AllowCurves && annotation.LinePoints.IsDefaultOrEmpty,
+            "A curve midpoint requires a bendable straight line.", nameof(annotation));
+        if (annotation.CurveMidpoint is ImagePoint curveMidpoint)
+        {
+            ValidatePoint(curveMidpoint, nameof(annotation));
+        }
         if (annotation.IsFlattened)
         {
+            Require(annotation.ImageSourceCrop is null,
+                "A flattened element cannot retain an editable image crop.", nameof(annotation));
             Require(annotation.RasterizedBounds is ImageRect,
                 "A flattened element needs pixel bounds.", nameof(annotation));
             ImageRect raster = annotation.RasterizedBounds!.Value;
@@ -127,13 +154,23 @@ internal static class DocumentValidation
             ImageRect bounds = annotation.Bounds;
             Require(bounds.Width >= 1 && bounds.Height >= 1,
                 "A pasted image must have positive visible dimensions.", nameof(annotation));
-            ValidatePng(annotation.ImagePngBase64, MaximumPastedPngBytes,
+            (uint width, uint height) = ValidatePng(annotation.ImagePngBase64, MaximumPastedPngBytes,
                 MaximumPastedImageSide, MaximumPastedImagePixels, nameof(annotation));
+            if (annotation.ImageSourceCrop is ImageRect sourceCrop)
+            {
+                ValidateRectangle(sourceCrop, nameof(annotation));
+                Require(IsInteger(sourceCrop.X) && IsInteger(sourceCrop.Y) &&
+                    IsInteger(sourceCrop.Width) && IsInteger(sourceCrop.Height) &&
+                    Contains(new ImageRect(0, 0, width, height), sourceCrop),
+                    "An image crop must use whole source pixels inside its PNG.", nameof(annotation));
+            }
         }
         else
         {
             Require(annotation.ImagePngBase64 is null,
                 "Only a pasted image can contain PNG data.", nameof(annotation));
+            Require(annotation.ImageSourceCrop is null,
+                "Only an editable image can have a source crop.", nameof(annotation));
         }
         Require(annotation.IsFlattened || annotation.RasterizedBounds is null,
             "Only a flattened element can have rasterized bounds.", nameof(annotation));
@@ -147,9 +184,12 @@ internal static class DocumentValidation
         }
         Require(double.IsFinite(annotation.StrokeWidth) && annotation.StrokeWidth >= 0,
             "Stroke width must be finite and nonnegative.", nameof(annotation));
-        Require(annotation.Kind is not (AnnotationKind.Rectangle or AnnotationKind.Ellipse) ||
+        Require(annotation.Kind is not (AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Shape) ||
             !annotation.HideOutline || (annotation.FillArgb >> 24) != 0,
             "A shape needs an outline or fill.", nameof(annotation));
+        Require(annotation.Kind != AnnotationKind.Shape || BasicShapeGeometry.IsClosed(annotation.ShapeKind) ||
+            !annotation.HideOutline && annotation.FillArgb == 0,
+            "An open shape needs an outline and cannot have a fill.", nameof(annotation));
         Require(double.IsFinite(annotation.FontSize) && annotation.FontSize > 0,
             "Font size must be finite and positive.", nameof(annotation));
         Require(double.IsFinite(annotation.StepDiameter) && annotation.StepDiameter > 0,
@@ -157,6 +197,44 @@ internal static class DocumentValidation
         Require(annotation.FontWeight is >= 100 and <= 900,
             "Font weight must be between 100 and 900.", nameof(annotation));
         Require(annotation.Text is not null, "Annotation text cannot be null.", nameof(annotation));
+        Require(annotation.Kind == AnnotationKind.Text ||
+            (annotation.TextBorderArgb == 0 && annotation.TextBorderWidth == 0),
+            "Only text can have a text area border.", nameof(annotation));
+        Require(double.IsFinite(annotation.TextBorderWidth) &&
+            annotation.TextBorderWidth is >= 0 and <= 24 &&
+            (annotation.TextBorderArgb == 0 || annotation.TextBorderWidth > 0),
+            "Text area border width must be between 0 and 24 pixels, and a visible border needs a width.",
+            nameof(annotation));
+        Require(annotation.Kind == AnnotationKind.Text || annotation.TextPadding == 0,
+            "Only text can have text area padding.", nameof(annotation));
+        Require(double.IsFinite(annotation.TextPadding) && annotation.TextPadding is >= 0 and <= 64,
+            "Text area padding must be between 0 and 64 pixels.", nameof(annotation));
+        if (annotation.Kind == AnnotationKind.Callout)
+        {
+            Require(!string.IsNullOrWhiteSpace(annotation.Text) && annotation.Text.Length <= 2_000,
+                "Annotation text must contain 1 to 2,000 characters.", nameof(annotation));
+            Require(annotation.TextBoxWidth >= 48 && annotation.TextBoxHeight >= 24,
+                "An annotation callout needs a text box.", nameof(annotation));
+        }
+        if (annotation.Kind == AnnotationKind.Magnify)
+        {
+            Require(annotation.Bounds.Width >= 48 && annotation.Bounds.Height >= 48,
+                "A magnifying lens must be at least 48 by 48 pixels.", nameof(annotation));
+            Require(double.IsFinite(annotation.MagnifyZoom) &&
+                annotation.MagnifyZoom is >= 1.25 and <= 8,
+                "Lens zoom must be between 125% and 800%.", nameof(annotation));
+        }
+        Require(annotation.Kind == AnnotationKind.Text || annotation.TextStyleRuns.IsDefaultOrEmpty,
+            "Only text can contain character formatting.", nameof(annotation));
+        int nextTextStylePosition = 0;
+        foreach (TextStyleRun run in annotation.TextStyleRuns.IsDefault
+            ? [] : annotation.TextStyleRuns)
+        {
+            Require(run.Start >= nextTextStylePosition && run.Length > 0 &&
+                (long)run.Start + run.Length <= annotation.Text!.Length,
+                "Character formatting ranges must be ordered, separate, and inside the text.", nameof(annotation));
+            nextTextStylePosition = run.Start + run.Length;
+        }
         Require(double.IsFinite(annotation.TextBoxWidth) &&
             (annotation.TextBoxWidth == 0 || annotation.TextBoxWidth is >= 48 and <= 12_000),
             "A text box width must be zero or between 48 and 12,000 pixels.", nameof(annotation));
@@ -185,6 +263,8 @@ internal static class DocumentValidation
         ArgumentNullException.ThrowIfNull(settings);
         Require(settings.Theme is "System" or "Light" or "Dark",
             "Theme must be System, Light, or Dark.", nameof(settings));
+        Require(settings.PrintScreenMode is CaptureKind.Window or CaptureKind.FullScreen or CaptureKind.Region,
+            "Print Screen capture mode must be a screen capture.", nameof(settings));
     }
 
     internal static ImageRect IntersectPixelCrop(ImageRect crop, ImageRect viewport)

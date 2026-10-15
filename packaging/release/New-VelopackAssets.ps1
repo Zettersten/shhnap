@@ -87,7 +87,7 @@ try {
         --packDir $publishDirectory --mainExe Shnapp.exe `
         --runtime "win11-$architecture" --channel $RuntimeIdentifier `
         --outputDir $velopackDirectory --packTitle Shnapp `
-        --packAuthors 'Erik Zettersten' --icon 'src/Shnapp.App/Assets/AppIcon.ico' `
+        --packAuthors 'Nenvy LLC' --icon 'src/Shnapp.App/Assets/AppIcon.ico' `
         --instLicense LICENSE --noPortable @signingArguments
     if ($LASTEXITCODE -ne 0) { throw 'Velopack pack failed.' }
 

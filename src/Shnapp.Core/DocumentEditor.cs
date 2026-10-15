@@ -281,6 +281,7 @@ public sealed class DocumentEditor(ShnappDocument document)
             IsFlattened = true,
             RasterizedBounds = rasterizedBounds,
             ImagePngBase64 = pngBase64,
+            ImageSourceCrop = null,
             FlattenOrder = latestFlattenOrder + 1,
         };
         DocumentValidation.ValidateAnnotation(flattened, Current);
@@ -328,6 +329,7 @@ public sealed class DocumentEditor(ShnappDocument document)
                 IsFlattened = true,
                 RasterizedBounds = rasterizedBounds,
                 ImagePngBase64 = pngBase64,
+                ImageSourceCrop = null,
                 FlattenOrder = ++order,
             });
         }
@@ -511,6 +513,7 @@ public sealed class DocumentEditor(ShnappDocument document)
                 Crop = viewport,
                 BaseImageCrop = baseImageCrop,
                 HideOriginalImage = hideOriginalImage,
+                Annotations = CropCalloutVisibility(Current.Annotations, viewport),
             });
         }
     }
@@ -619,20 +622,22 @@ public sealed class DocumentEditor(ShnappDocument document)
         ImageRect? clip = source.VisibilityClip is ImageRect area
             ? area with { X = area.X + dx, Y = area.Y + dy }
             : null;
-        return source with
+        Annotation moved = ShiftGeometry(source, dx, dy);
+        return moved with
         {
             Id = id,
-            Start = new ImagePoint(source.Start.X + dx, source.Start.Y + dy),
-            End = new ImagePoint(source.End.X + dx, source.End.Y + dy),
             VisibilityClip = clip,
         };
     }
 
-    private static Annotation ShiftGeometry(Annotation source, double dx, double dy) => source with
-    {
-        Start = new ImagePoint(source.Start.X + dx, source.Start.Y + dy),
-        End = new ImagePoint(source.End.X + dx, source.End.Y + dy),
-    };
+    private static Annotation ShiftGeometry(Annotation source, double dx, double dy) =>
+        source.Kind is AnnotationKind.Line or AnnotationKind.Arrow
+            ? LineGeometry.Translate(source, dx, dy)
+            : source with
+            {
+                Start = new ImagePoint(source.Start.X + dx, source.Start.Y + dy),
+                End = new ImagePoint(source.End.X + dx, source.End.Y + dy),
+            };
 
     private static HashSet<Guid> ValidateIds(IEnumerable<Guid> ids)
     {
@@ -829,8 +834,14 @@ public sealed class DocumentEditor(ShnappDocument document)
                 radius * 2, radius * 2);
         }
 
+        if (annotation.Kind == AnnotationKind.Callout)
+        {
+            return Inflate(annotation.Bounds, Math.Max(12, annotation.StrokeWidth / 2 + 2));
+        }
+
         ImageRect bounds = annotation.Bounds;
-        if (annotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse && !annotation.HideOutline)
+        if (annotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Shape or AnnotationKind.Magnify &&
+            !annotation.HideOutline)
         {
             return Inflate(bounds, annotation.StrokeWidth / 2 + 1);
         }
@@ -910,6 +921,35 @@ public sealed class DocumentEditor(ShnappDocument document)
         return builder?.ToImmutable() ?? annotations;
     }
 
+    private static ImmutableArray<Annotation> CropCalloutVisibility(
+        ImmutableArray<Annotation> annotations, ImageRect viewport)
+    {
+        ImmutableArray<Annotation>.Builder? builder = null;
+        for (int index = 0; index < annotations.Length; index++)
+        {
+            Annotation callout = annotations[index];
+            if (callout.Kind != AnnotationKind.Callout || callout.HiddenByCrop)
+            {
+                continue;
+            }
+
+            ImageRect? clip = callout.VisibilityClip is ImageRect previous
+                ? Intersection(previous, viewport) : viewport;
+            ImageRect content = ContentBounds(callout);
+            Annotation cropped = clip is not ImageRect visible || Intersection(content, visible) is null
+                ? callout with { VisibilityClip = null, HiddenByCrop = true }
+                : Contains(visible, content) ? callout
+                : callout with { VisibilityClip = visible };
+            if (cropped != callout)
+            {
+                builder ??= annotations.ToBuilder();
+                builder[index] = cropped;
+            }
+        }
+
+        return builder?.ToImmutable() ?? annotations;
+    }
+
     private static Annotation CarryVisibilityWithGeometry(Annotation previous, Annotation replacement)
     {
         if (previous.HiddenByCrop)
@@ -982,6 +1022,24 @@ public sealed class DocumentEditor(ShnappDocument document)
 
     private void Commit(ShnappDocument next)
     {
+        if (!next.Annotations.SequenceEqual(Current.Annotations) &&
+            next.Annotations.Any(item => item.Kind == AnnotationKind.Callout && !item.IsFlattened))
+        {
+            next = next with { Annotations = CalloutLayout.Reflow(next) };
+            Annotation[] callouts = next.Annotations
+                .Where(item => item.Kind == AnnotationKind.Callout &&
+                    !item.HiddenByCrop && item.VisibilityClip is null)
+                .ToArray();
+            if (callouts.Length > 0)
+            {
+                next = ExpandCanvasForContents(next, callouts,
+                    callouts.Select(item => item.Id).ToHashSet());
+                next = TrimCanvasToContent(next);
+            }
+
+            DocumentValidation.Validate(next);
+        }
+
         if (next.Title == Current.Title && next.Crop == Current.Crop && next.BaseImageCrop == Current.BaseImageCrop &&
             next.HideOriginalImage == Current.HideOriginalImage &&
             next.ExpandedCanvasBounds == Current.ExpandedCanvasBounds &&

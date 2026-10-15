@@ -6,7 +6,7 @@
     <RootNamespace>Shnapp.Launcher</RootNamespace>
     <Product>Shnapp</Product>
     <Authors>Erik Zettersten</Authors>
-    <Company>Erik Zettersten</Company>
+    <Company>Nenvy LLC</Company>
     <Copyright>Copyright © Erik Zettersten</Copyright>
     <ApplicationIcon>../Shnapp.App/Assets/AppIcon.ico</ApplicationIcon>
     <Version>1.0.0</Version>

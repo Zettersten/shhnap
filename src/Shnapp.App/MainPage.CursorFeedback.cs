@@ -23,12 +23,6 @@ public sealed partial class MainPage
             return;
         }
 
-        if (_tool != EditorTool.Select)
-        {
-            CanvasHost.SetSelectionCursor(null);
-            return;
-        }
-
         if (_dragStart is not null || _textDragStart is not null)
         {
             CanvasHost.SetSelectionCursor(null);
@@ -62,6 +56,7 @@ public sealed partial class MainPage
         ResizeHandle.TopLeft or ResizeHandle.BottomRight => InputSystemCursorShape.SizeNorthwestSoutheast,
         ResizeHandle.TopRight or ResizeHandle.BottomLeft => InputSystemCursorShape.SizeNortheastSouthwest,
         ResizeHandle.Start or ResizeHandle.End => LineHandleCursor(annotation),
+        ResizeHandle.CurveMidpoint => InputSystemCursorShape.Hand,
         _ => InputSystemCursorShape.SizeAll,
     };
 

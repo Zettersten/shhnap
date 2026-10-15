@@ -9,6 +9,7 @@ internal static class NativeMethods
 {
     internal const uint WmHotkey = 0x0312;
     internal const uint TrayCallback = 0x8001;
+    internal const uint WmPrintScreen = 0x8002;
     internal const uint Modifiers = 0x4000 | 0x0002 | 0x0004;
     internal const int Show = 5;
     internal const int Hide = 0;

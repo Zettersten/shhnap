@@ -21,18 +21,18 @@ For each architecture, the release workflow publishes two separate distributions
 
 ### Portable ZIP layout
 
-The ZIP contains a self-contained, single-file **app** executable for x64 or ARM64 in a versioned folder. The archive deliberately contains more than one file:
+The v2 ZIP contains a self-contained **app** and its WinUI libraries for x64 or ARM64 in a versioned folder:
 
 | ZIP location | Purpose |
 | --- | --- |
 | Root Shnapp.exe | Stable launcher used by existing v1.0.5 installs and the restart updater. |
 | Root current-version.txt | Selects the active version. |
 | Root LICENSE and THIRD_PARTY_NOTICES.txt | Required distribution notices. |
-| versions/vX.Y.Z/Shnapp.exe | Single-file app payload. |
-| versions/vX.Y.Z/Shnapp.pri | Compatibility with the v1.0.5 updater; the app also bundles its WinUI resources. |
+| versions/vX.Y.Z/Shnapp.exe and DLLs | App and native WinUI components. Registration-free WinRT activation requires the DLLs beside the executable. |
+| versions/vX.Y.Z/Shnapp.pri | App resources. |
 | versions/vX.Y.Z/LICENSE and THIRD_PARTY_NOTICES files | Notices for the exact bundled dependencies. |
 
-Keep the ZIP layout intact. The launcher and version pointer maintain the v1.0.5 updater protocol; replacing them with one bare EXE would break in-place updates. The bundled .NET and Windows App SDK native components can extract into the user's Temp directory on first launch. “Single-file” describes the app payload in the ZIP, not every file used while it runs.
+Keep the ZIP layout intact. The launcher and version pointer maintain the v1.0.5 updater protocol; replacing them with one bare EXE would break in-place updates. v1 ZIPs used a single-file payload; v2 uses a multi-file payload because WinUI activation needs its native DLLs beside the app executable.
 
 ### Signing and verification
 
@@ -53,11 +53,11 @@ Set `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` as **envir
 | `ARTIFACT_SIGNING_EXPECTED_PUBLISHER` | `Nenvy LLC` |
 | `ARTIFACT_SIGNING_PROFILE_EKU` | Profile-specific EKU OID shown by the active certificate in Azure. This stays with the profile when its short-lived leaf certificate rotates. |
 
-The tag job uses Microsoft's Artifact Signing SignTool client to sign and RFC 3161 time-stamp both portable executables before archiving them. Velopack signs its packaged executables and Setup EXE with `--azureTrustedSignFile`. The job then verifies Authenticode trust, the validated publisher, the profile-specific EKU, and a timestamp on the **emitted** ZIP executables, Setup EXE, and every EXE in the full package. An unavailable Azure identity, missing role, invalid signature, missing timestamp, or unexpected signer stops packaging before any draft release is staged. The current Velopack build emits a Setup EXE and full package; it does not emit an MSI. Certificate thumbprints rotate and must not be pinned as the long-term release identity.
+The tag job uses Microsoft's Artifact Signing SignTool client to sign and RFC 3161 time-stamp the portable launcher, app executable, Shnapp DLLs, and bundled Velopack DLL before archiving them. Velopack signs the packaged Shnapp app and Setup EXE with `--azureTrustedSignFile`. The job then verifies Authenticode trust and a timestamp on **every** EXE and DLL in the emitted ZIP and full Velopack package. Shnapp-owned binaries and the Setup EXE must also match the validated publisher and profile-specific EKU; vendor binaries must carry a trusted, time-stamped signature. An unavailable Azure identity, missing role, invalid signature, missing timestamp, or unexpected Shnapp signer stops packaging before any draft release is staged. The current Velopack build emits a Setup EXE and full package; it does not emit an MSI. Certificate thumbprints rotate and must not be pinned as the long-term release identity.
 
 **v1.0.12 and v1.0.13 are explicit unsigned exceptions.** Their tag builds skip the certificate requirement, signature steps, and signature checks, while retaining ZIP layout, Velopack feed, checksum, exact asset, and publication checks. Their portable executables, installers, and packaged apps are unsigned; Windows may show an Unknown publisher or SmartScreen warning. The release notes and download page disclose this. Signing remains required for later tags.
 
-A stable tag builds both architectures, verifies the ZIP layouts, Velopack packages and feeds, and SHA-256 sidecars, uploads 16 release assets, re-downloads them, checks their bytes, and creates catalog candidates. The successful tag run also records its exact commit and asset hashes as a separate Actions artifact. Smoke-test the x64 installer, its launch, update through Settings, and uninstall on Windows 11. Also test x64 ZIP capture, annotation, save, share, startup, and direct update. ARM64 is built and checked structurally in CI; record the lack of a device test until one is available. Review license notices and SmartScreen behavior for the exact build.
+A stable tag builds both architectures, verifies the ZIP layouts, Velopack packages and feeds, and SHA-256 sidecars, uploads 16 release assets, re-downloads them, checks their bytes, and creates catalog candidates. The x64 package job starts the versioned ZIP app with an isolated data root and requires its launcher health signal before archiving it. The successful tag run also records its exact commit and asset hashes as a separate Actions artifact. Smoke-test the x64 installer, its launch, update through Settings, and uninstall on Windows 11. Also test x64 ZIP capture, annotation, save, share, startup, and direct update. ARM64 is built and checked structurally in CI; record the lack of a device test until one is available. Review license notices and SmartScreen behavior for the exact build.
 
 ## Cut and publish a release
 

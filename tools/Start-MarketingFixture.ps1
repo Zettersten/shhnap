@@ -1,50 +1,18 @@
+[CmdletBinding(DefaultParameterSetName = 'Window')]
 param(
-    [Parameter(Mandatory = $true)][string]$OutputPath,
-    [switch]$SafeBackdrop
+    [Parameter(Mandatory = $true, ParameterSetName = 'Window')][string]$OutputPath,
+    [Parameter(Mandatory = $true, ParameterSetName = 'Export')][string]$ExportImagePath,
+    [Parameter(ParameterSetName = 'Window')][switch]$SafeBackdrop
 )
 
 $ErrorActionPreference = 'Stop'
-Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-public static class ShnappMarketingNative
-{
-    [DllImport("user32.dll")]
-    public static extern bool SetProcessDpiAwarenessContext(IntPtr context);
-}
-'@
-[ShnappMarketingNative]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null
-Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-$screen = [System.Windows.Forms.Screen]::PrimaryScreen
-$backdrops = @()
-if ($SafeBackdrop) {
-    # Cover every monitor while Shnapp hides for its virtual-desktop capture picker.
-    foreach ($display in [System.Windows.Forms.Screen]::AllScreens) {
-        $backdrop = New-Object System.Windows.Forms.Form
-        $backdrop.Text = 'Fictional demo backdrop'
-        $backdrop.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
-        $backdrop.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
-        $backdrop.Bounds = $display.Bounds
-        $backdrop.BackColor = [System.Drawing.ColorTranslator]::FromHtml('#DCE6F1')
-        $backdrop.ShowInTaskbar = $false
-        $backdrop.Show()
-        $backdrops += $backdrop
-    }
-}
-$form = New-Object System.Windows.Forms.Form
-$form.Text = 'Launch checklist - sample workspace'
-$form.StartPosition = 'Manual'
-$form.Size = New-Object System.Drawing.Size(1240, 760)
-$form.Location = New-Object System.Drawing.Point(
-    ($screen.WorkingArea.X + [int](($screen.WorkingArea.Width - $form.Width) / 2)),
-    ($screen.WorkingArea.Y + [int](($screen.WorkingArea.Height - $form.Height) / 2)))
-$form.BackColor = [System.Drawing.ColorTranslator]::FromHtml('#F5F7FB')
-
-$form.Add_Paint({
-    param($sender, $eventArgs)
-    $g = $eventArgs.Graphics
+function Draw-MarketingFixture {
+    param(
+        [System.Drawing.Graphics]$g,
+        [System.Drawing.Size]$canvasSize
+    )
     $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
     $ink = [System.Drawing.ColorTranslator]::FromHtml('#1B2430')
@@ -72,7 +40,7 @@ $form.Add_Paint({
     $borderPen = New-Object System.Drawing.Pen($border, 1)
     $checkPen = New-Object System.Drawing.Pen($white, 2.4)
     try {
-        $g.FillRectangle($sidebarBrush, 0, 0, 216, $sender.ClientSize.Height)
+        $g.FillRectangle($sidebarBrush, 0, 0, 216, $canvasSize.Height)
         $g.FillRectangle($blueBrush, 28, 33, 30, 30)
         $g.DrawString('S', $medium, $whiteBrush, 36, 35)
         $g.DrawString('SAMPLE SPACE', $medium, $whiteBrush, 68, 36)
@@ -81,7 +49,7 @@ $form.Add_Paint({
         $g.DrawString('Projects', $font, $whiteBrush, 28, 165)
         $g.DrawString('Activity', $font, $mutedBrush, 28, 220)
         $g.DrawString('Files', $font, $mutedBrush, 28, 274)
-        $g.DrawString('Fictional demo content', $small, $mutedBrush, 28, $sender.ClientSize.Height - 50)
+        $g.DrawString('Fictional demo content', $small, $mutedBrush, 28, $canvasSize.Height - 50)
 
         $g.DrawString('Project / Release', $small, $mutedBrush, 258, 33)
         $g.DrawString('Launch checklist', $heading, $inkBrush, 256, 67)
@@ -130,6 +98,64 @@ $form.Add_Paint({
         foreach ($brush in $brushes) { $brush.Dispose() }
         foreach ($face in @($font, $small, $medium, $heading, $subheading)) { $face.Dispose() }
     }
+}
+
+if ($PSCmdlet.ParameterSetName -eq 'Export') {
+    $exportPath = [System.IO.Path]::GetFullPath($ExportImagePath)
+    [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($exportPath)) | Out-Null
+    $bitmap = New-Object System.Drawing.Bitmap(1240, 760)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $graphics.Clear([System.Drawing.ColorTranslator]::FromHtml('#F5F7FB'))
+        Draw-MarketingFixture $graphics $bitmap.Size
+        $bitmap.Save($exportPath, [System.Drawing.Imaging.ImageFormat]::Png)
+    }
+    finally {
+        $graphics.Dispose()
+        $bitmap.Dispose()
+    }
+    return
+}
+
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class ShnappMarketingNative
+{
+    [DllImport("user32.dll")]
+    public static extern bool SetProcessDpiAwarenessContext(IntPtr context);
+}
+'@
+[ShnappMarketingNative]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null
+Add-Type -AssemblyName System.Windows.Forms
+
+$screen = [System.Windows.Forms.Screen]::PrimaryScreen
+$backdrops = @()
+if ($SafeBackdrop) {
+    # Cover every monitor while Shnapp hides for its virtual-desktop capture picker.
+    foreach ($display in [System.Windows.Forms.Screen]::AllScreens) {
+        $backdrop = New-Object System.Windows.Forms.Form
+        $backdrop.Text = 'Fictional demo backdrop'
+        $backdrop.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+        $backdrop.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+        $backdrop.Bounds = $display.Bounds
+        $backdrop.BackColor = [System.Drawing.ColorTranslator]::FromHtml('#DCE6F1')
+        $backdrop.ShowInTaskbar = $false
+        $backdrop.Show()
+        $backdrops += $backdrop
+    }
+}
+$form = New-Object System.Windows.Forms.Form
+$form.Text = 'Launch checklist - sample workspace'
+$form.StartPosition = 'Manual'
+$form.Size = New-Object System.Drawing.Size(1240, 760)
+$form.Location = New-Object System.Drawing.Point(
+    ($screen.WorkingArea.X + [int](($screen.WorkingArea.Width - $form.Width) / 2)),
+    ($screen.WorkingArea.Y + [int](($screen.WorkingArea.Height - $form.Height) / 2)))
+$form.BackColor = [System.Drawing.ColorTranslator]::FromHtml('#F5F7FB')
+$form.Add_Paint({
+    param($sender, $eventArgs)
+    Draw-MarketingFixture $eventArgs.Graphics $sender.ClientSize
 })
 
 $form.Add_Shown({
