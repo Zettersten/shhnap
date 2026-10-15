@@ -34,9 +34,8 @@ try {
         $extension = [System.IO.Path]::GetExtension($entryPath)
         $extracted = Join-Path $scratch "$index$extension"
         [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $extracted)
-        $ownedDll = $extension -ceq '.dll' -and
-            [System.IO.Path]::GetFileName($entryPath) -imatch '^Shnapp.*\.dll$'
-        if ($extension -ceq '.exe' -or $ownedDll) {
+        $ownedBinary = [System.IO.Path]::GetFileName($entryPath) -imatch '^Shnapp.*\.(?:exe|dll)$'
+        if ($ownedBinary) {
             & (Join-Path $PSScriptRoot 'Sign-ReleaseExecutable.ps1') `
                 -Path $extracted -SignToolPath $SignToolPath `
                 -ExpectedPublisher $ExpectedPublisher -ExpectedProfileEku $ExpectedProfileEku -VerifyOnly
@@ -46,7 +45,7 @@ try {
             if ($signature.Status -ne 'Valid' -or
                 $null -eq $signature.SignerCertificate -or
                 $null -eq $signature.TimeStamperCertificate) {
-                throw "Release DLL is not trusted and time-stamped: $entryPath"
+                throw "Release vendor binary is not trusted and time-stamped: $entryPath"
             }
         }
     }

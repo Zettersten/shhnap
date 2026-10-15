@@ -379,7 +379,7 @@
                                                 <TextBlock x:Name="VersionLabel" FontWeight="SemiBold" IsTextSelectionEnabled="True" />
                                                 <TextBlock x:Name="RuntimeLabel" IsTextSelectionEnabled="True"
                                                     Style="{StaticResource SettingsSupportingTextStyle}" />
-                                                <TextBlock Text="Published by Erik Zettersten · MIT licensed"
+                                                <TextBlock Text="Published by Nenvy LLC · Created by Erik Zettersten · MIT licensed"
                                                     Style="{StaticResource SettingsSupportingTextStyle}" />
                                             </StackPanel>
                                         </Border>
@@ -416,7 +416,7 @@
                                             <StackPanel Spacing="7" HorizontalAlignment="Left">
                                                 <Button Content="Visit shhnap.com" Click="OpenWebsite_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenWebsite" />
                                                 <Button Content="Open source repository" Click="OpenRepository_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenRepository" />
-                                                <Button Content="About the publisher" Click="OpenPublisher_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPublisher" />
+                                                <Button Content="About the creator" Click="OpenPublisher_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPublisher" />
                                                 <Button Content="Privacy" Click="OpenPrivacy_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPrivacy" />
                                             </StackPanel>
                                         </Border>
