@@ -13,6 +13,33 @@ namespace Shnapp.App;
 
 public sealed partial class MainPage
 {
+    // The image is drawn across the entire window. These insets only define the
+    // unobstructed area used when fitting and centering it beneath the overlays.
+    private const double CanvasViewingHorizontalInset = 24;
+    private const double CanvasViewingTopInset = 156;
+    private const double CanvasViewingBottomInset = 56;
+
+    private Rect CanvasViewingArea() =>
+        CanvasViewingArea(DrawingCanvas.ActualWidth, DrawingCanvas.ActualHeight);
+
+    private static Rect CanvasViewingArea(double canvasWidth, double canvasHeight)
+    {
+        double width = double.IsFinite(canvasWidth) ? Math.Max(1, canvasWidth) : 1;
+        double height = double.IsFinite(canvasHeight) ? Math.Max(1, canvasHeight) : 1;
+        double horizontalInset = Math.Min(CanvasViewingHorizontalInset, (width - 1) / 2);
+        double topInset = Math.Min(CanvasViewingTopInset,
+            Math.Max(0, height - CanvasViewingBottomInset - 1));
+        double bottomInset = Math.Min(CanvasViewingBottomInset, Math.Max(0, height - topInset - 1));
+        return new Rect(horizontalInset, topInset,
+            width - 2 * horizontalInset, height - topInset - bottomInset);
+    }
+
+    private Point CanvasViewingCenter()
+    {
+        Rect area = CanvasViewingArea();
+        return new Point(area.X + area.Width / 2, area.Y + area.Height / 2);
+    }
+
     private double _fitScale = 1;
     private double _zoomFactor = 1;
     private DispatcherTimer? _zoomTimer;
@@ -111,11 +138,35 @@ public sealed partial class MainPage
             CenterCanvasImage();
         }
 
-        const double toolbarInset = 64;
-        const double bottomInset = 24;
-        double availableHeight = Math.Max(1, DrawingCanvas.ActualHeight - toolbarInset - bottomInset);
-        QueueCanvasZoom(target, new Point(DrawingCanvas.ActualWidth / 2,
-            toolbarInset + availableHeight / 2));
+        QueueCanvasZoom(target, CanvasViewingCenter());
+    }
+
+    private void ZoomOut_Click(object sender, RoutedEventArgs args) => ZoomBy(0.8);
+
+    private void ZoomIn_Click(object sender, RoutedEventArgs args) => ZoomBy(1.25);
+
+    private void ZoomBy(double factor)
+    {
+        if (_flattened is null || _editor is null)
+        {
+            return;
+        }
+
+        UpdateTransform();
+        double baseScale = _zoomTimer?.IsEnabled == true ? _zoomTargetScale : _scale;
+        QueueCanvasZoom(baseScale * factor, CanvasViewingCenter());
+    }
+
+    private void FooterFit_Click(object sender, RoutedEventArgs args)
+    {
+        if (_flattened is null || _editor is null)
+        {
+            return;
+        }
+
+        UpdateTransform();
+        CenterCanvasImage();
+        QueueCanvasZoom(_fitScale, CanvasViewingCenter());
     }
 
     private double MinimumZoomScale() => Math.Max(0.005, Math.Min(0.1, _fitScale * 0.2));
@@ -350,10 +401,13 @@ public sealed partial class MainPage
         const double height = 52;
         double left = canvasPosition.X + 16;
         double top = canvasPosition.Y + 18;
-        if (left + width > DrawingCanvas.ActualWidth - 8) left = canvasPosition.X - width - 16;
-        if (top + height > DrawingCanvas.ActualHeight - 8) top = canvasPosition.Y - height - 16;
-        left = Math.Clamp(left, 8, Math.Max(8, DrawingCanvas.ActualWidth - width - 8));
-        top = Math.Clamp(top, 8, Math.Max(8, DrawingCanvas.ActualHeight - height - 8));
+        Rect viewingArea = CanvasViewingArea();
+        if (left + width > viewingArea.Right - 8) left = canvasPosition.X - width - 16;
+        if (top + height > viewingArea.Bottom - 8) top = canvasPosition.Y - height - 16;
+        left = Math.Clamp(left, viewingArea.Left + 8,
+            Math.Max(viewingArea.Left + 8, viewingArea.Right - width - 8));
+        top = Math.Clamp(top, viewingArea.Top + 8,
+            Math.Max(viewingArea.Top + 8, viewingArea.Bottom - height - 8));
         if (_cropTipVisible && _cropTipPosition == position && _cropTipSize == size &&
             _cropTipLeft == left && _cropTipTop == top)
         {
@@ -408,12 +462,13 @@ public sealed partial class MainPage
             return;
         }
 
+        Rect viewingArea = CanvasViewingArea();
         bool outside = _editor is not null && _flattened is not null &&
             DrawingCanvas.ActualWidth > 0 && DrawingCanvas.ActualHeight > 0 &&
-            (_offsetX + _flattened.Size.Width * _scale <= 0 ||
-             _offsetX >= DrawingCanvas.ActualWidth ||
-             _offsetY + _flattened.Size.Height * _scale <= 0 ||
-             _offsetY >= DrawingCanvas.ActualHeight);
+            (_offsetX + _flattened.Size.Width * _scale <= viewingArea.Left ||
+             _offsetX >= viewingArea.Right ||
+             _offsetY + _flattened.Size.Height * _scale <= viewingArea.Top ||
+             _offsetY >= viewingArea.Bottom);
         Visibility visibility = outside ? Visibility.Visible : Visibility.Collapsed;
         if (RecenterCanvasButton.Visibility != visibility)
         {
@@ -435,11 +490,9 @@ public sealed partial class MainPage
 
         StopCanvasPan();
         StopZoomAnimation();
-        const double toolbarInset = 64;
-        const double bottomInset = 24;
-        double availableHeight = Math.Max(1, DrawingCanvas.ActualHeight - toolbarInset - bottomInset);
-        _offsetX = (DrawingCanvas.ActualWidth - _flattened.Size.Width * _scale) / 2;
-        _offsetY = toolbarInset + (availableHeight - _flattened.Size.Height * _scale) / 2;
+        Rect viewingArea = CanvasViewingArea();
+        _offsetX = viewingArea.X + (viewingArea.Width - _flattened.Size.Width * _scale) / 2;
+        _offsetY = viewingArea.Y + (viewingArea.Height - _flattened.Size.Height * _scale) / 2;
         UpdateRecenterCanvasButton();
         DrawingCanvas.Invalidate();
     }

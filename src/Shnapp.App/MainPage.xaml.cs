@@ -220,12 +220,10 @@ public sealed partial class MainPage : Page
 
         ImageRect viewport = _editor!.Current.Viewport;
         int padding = _editor.Current.HasWindowShadow ? ShnappRenderer.ShadowPadding : 0;
-        const double toolbarInset = 64;
-        const double bottomInset = 24;
-        double availableHeight = Math.Max(1, DrawingCanvas.ActualHeight - toolbarInset - bottomInset);
+        Rect viewingArea = CanvasViewingArea();
         double fit = Math.Max(0.01, Math.Min(1,
-            Math.Min(Math.Max(1, DrawingCanvas.ActualWidth - 48) / _flattened.Size.Width,
-                availableHeight / _flattened.Size.Height)));
+            Math.Min(viewingArea.Width / _flattened.Size.Width,
+                viewingArea.Height / _flattened.Size.Height)));
         if (_viewCanvasWidth == DrawingCanvas.ActualWidth && _viewCanvasHeight == DrawingCanvas.ActualHeight &&
             _viewImageWidth == _flattened.Size.Width && _viewImageHeight == _flattened.Size.Height)
         {
@@ -237,23 +235,25 @@ public sealed partial class MainPage : Page
 
         StopZoomAnimation();
         bool preserveAnchor = _viewViewport is ImageRect &&
-            _viewCanvasWidth == DrawingCanvas.ActualWidth &&
-            _viewCanvasHeight == DrawingCanvas.ActualHeight &&
+            _viewCanvasWidth > 0 && _viewCanvasHeight > 0 &&
             _viewImageWidth > 0 && _viewImageHeight > 0 && _scale > 0;
-        Point anchor = _pendingContentAnchor ??
-            new Point(DrawingCanvas.ActualWidth / 2, toolbarInset + availableHeight / 2);
+        Point anchor = _pendingContentAnchor ?? CanvasViewingCenter();
+        Rect previousViewingArea = CanvasViewingArea(_viewCanvasWidth, _viewCanvasHeight);
+        Point previousAnchor = _pendingContentAnchor ??
+            new Point(previousViewingArea.X + previousViewingArea.Width / 2,
+                previousViewingArea.Y + previousViewingArea.Height / 2);
         double sourceX = preserveAnchor
-            ? (anchor.X - _offsetX) / _scale - _viewShadowPadding + _viewViewport!.Value.X : 0;
+            ? (previousAnchor.X - _offsetX) / _scale - _viewShadowPadding + _viewViewport!.Value.X : 0;
         double sourceY = preserveAnchor
-            ? (anchor.Y - _offsetY) / _scale - _viewShadowPadding + _viewViewport!.Value.Y : 0;
+            ? (previousAnchor.Y - _offsetY) / _scale - _viewShadowPadding + _viewViewport!.Value.Y : 0;
         _fitScale = fit;
         _scale = _fitScale * _zoomFactor;
         _offsetX = preserveAnchor
             ? anchor.X - (sourceX - viewport.X + padding) * _scale
-            : (DrawingCanvas.ActualWidth - _flattened.Size.Width * _scale) / 2;
+            : viewingArea.X + (viewingArea.Width - _flattened.Size.Width * _scale) / 2;
         _offsetY = preserveAnchor
             ? anchor.Y - (sourceY - viewport.Y + padding) * _scale
-            : toolbarInset + (availableHeight - _flattened.Size.Height * _scale) / 2;
+            : viewingArea.Y + (viewingArea.Height - _flattened.Size.Height * _scale) / 2;
         _viewCanvasWidth = DrawingCanvas.ActualWidth;
         _viewCanvasHeight = DrawingCanvas.ActualHeight;
         _viewImageWidth = _flattened.Size.Width;
@@ -442,7 +442,7 @@ public sealed partial class MainPage : Page
 
     private void Canvas_SizeChanged(object sender, SizeChangedEventArgs args)
     {
-        InspectorPanel.MaxHeight = Math.Min(560, Math.Max(0, args.NewSize.Height - 148));
+        InspectorPanel.MaxHeight = Math.Min(560, Math.Max(0, CanvasViewingArea().Height - 20));
         CommitText();
         UpdateTransform();
         DrawingCanvas.Invalidate();
@@ -1139,19 +1139,22 @@ public sealed partial class MainPage : Page
         ToolStyle style = StyleFor(existing, EditorTool.Text);
         double editScale = fixedBox ? _scale : Math.Max(_scale, 12 / Math.Max(8, style.FontSize));
         Vector2 position = Vector2.Transform(new((float)point.X, (float)point.Y), ImageTransform());
-        // Pan just enough to keep the live editor on screen when text begins at
-        // the right or bottom edge. The annotation itself stays at the clicked point.
+        // Keep the live editor in the unobstructed viewing area. The annotation
+        // itself stays at the clicked point.
+        Rect viewingArea = CanvasViewingArea();
         double visibleEditorWidth = fixedBox
-            ? Math.Min(_textDraft.TextBoxWidth * editScale, Math.Max(0, DrawingCanvas.ActualWidth - 12))
-            : 180;
+            ? Math.Min(_textDraft.TextBoxWidth * editScale, viewingArea.Width)
+            : Math.Min(180, viewingArea.Width);
         double visibleEditorHeight = fixedBox
-            ? Math.Min(_textDraft.TextBoxHeight * editScale, Math.Max(0, DrawingCanvas.ActualHeight - 12))
-            : 80;
-        double editorLeftLimit = Math.Max(0, DrawingCanvas.ActualWidth - visibleEditorWidth);
-        double editorTopLimit = Math.Max(0, DrawingCanvas.ActualHeight - visibleEditorHeight);
-        double shiftX = Math.Max(0, position.X - editorLeftLimit);
-        double shiftY = Math.Max(0, position.Y - editorTopLimit);
-        if (shiftX > 0 || shiftY > 0)
+            ? Math.Min(_textDraft.TextBoxHeight * editScale, viewingArea.Height)
+            : Math.Min(80, viewingArea.Height);
+        double editorLeftLimit = Math.Max(viewingArea.Left, viewingArea.Right - visibleEditorWidth);
+        double editorTopLimit = Math.Max(viewingArea.Top, viewingArea.Bottom - visibleEditorHeight);
+        double shiftX = position.X < viewingArea.Left
+            ? position.X - viewingArea.Left : Math.Max(0, position.X - editorLeftLimit);
+        double shiftY = position.Y < viewingArea.Top
+            ? position.Y - viewingArea.Top : Math.Max(0, position.Y - editorTopLimit);
+        if (shiftX != 0 || shiftY != 0)
         {
             _offsetX -= shiftX;
             _offsetY -= shiftY;
