@@ -143,6 +143,7 @@ public sealed class DocumentEditor(ShnappDocument document)
             annotation.StepExpandsCanvas != previous.StepExpandsCanvas ||
             annotation.TextBoxWidth != previous.TextBoxWidth ||
             annotation.TextBoxHeight != previous.TextBoxHeight ||
+            annotation.RotationDegrees != previous.RotationDegrees ||
             annotation.VisibilityClip != previous.VisibilityClip ||
             annotation.HiddenByCrop != previous.HiddenByCrop;
         next = boundsChanged ? TrimCanvasToContent(next) : next;
@@ -283,6 +284,7 @@ public sealed class DocumentEditor(ShnappDocument document)
             ImagePngBase64 = pngBase64,
             ImageSourceCrop = null,
             FlattenOrder = latestFlattenOrder + 1,
+            RotationDegrees = 0,
         };
         DocumentValidation.ValidateAnnotation(flattened, Current);
         ShnappDocument next = Current with
@@ -331,6 +333,7 @@ public sealed class DocumentEditor(ShnappDocument document)
                 ImagePngBase64 = pngBase64,
                 ImageSourceCrop = null,
                 FlattenOrder = ++order,
+                RotationDegrees = 0,
             });
         }
 
@@ -835,14 +838,16 @@ public sealed class DocumentEditor(ShnappDocument document)
 
         if (annotation.Kind == AnnotationKind.Callout)
         {
-            return Inflate(annotation.Bounds, Math.Max(12, annotation.StrokeWidth / 2 + 2));
+            return AnnotationRotation.RotatedBounds(annotation,
+                Inflate(annotation.Bounds, Math.Max(12, annotation.StrokeWidth / 2 + 2)));
         }
 
         ImageRect bounds = annotation.Bounds;
         if (annotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Shape or AnnotationKind.Magnify &&
             !annotation.HideOutline)
         {
-            return Inflate(bounds, annotation.StrokeWidth / 2 + 1);
+            return AnnotationRotation.RotatedBounds(annotation,
+                Inflate(bounds, annotation.StrokeWidth / 2 + 1));
         }
 
         if (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow)
@@ -865,10 +870,11 @@ public sealed class DocumentEditor(ShnappDocument document)
                 }
             }
 
-            return content;
+            return AnnotationRotation.RotatedBounds(annotation, content);
         }
 
-        return new ImageRect(bounds.X, bounds.Y, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height));
+        return AnnotationRotation.RotatedBounds(annotation,
+            new ImageRect(bounds.X, bounds.Y, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height)));
     }
 
     private static ImageRect Inflate(ImageRect bounds, double amount) =>

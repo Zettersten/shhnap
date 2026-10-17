@@ -62,7 +62,9 @@ internal static class DocumentValidation
                     ? new ImageRect(annotation.Start.X - annotation.StepDiameter / 2,
                         annotation.Start.Y - annotation.StepDiameter / 2,
                         annotation.StepDiameter, annotation.StepDiameter)
-                    : annotation.Bounds;
+                    : annotation.Kind == AnnotationKind.Step
+                        ? annotation.Bounds
+                        : AnnotationRotation.RotatedBounds(annotation, annotation.Bounds);
                 Require(Contains(canvas, content),
                     "Visible annotations must fit inside the expanded canvas.", nameof(document));
             }
@@ -108,6 +110,10 @@ internal static class DocumentValidation
             "An annotation layer order cannot be negative.", nameof(annotation));
         Require(annotation.FlattenOrder >= 0 && (annotation.IsFlattened || annotation.FlattenOrder == 0),
             "Only a flattened element can have a background order.", nameof(annotation));
+        Require(double.IsFinite(annotation.RotationDegrees) &&
+            (!annotation.IsFlattened || annotation.RotationDegrees == 0),
+            "An editable element needs a finite rotation, and flattened pixels cannot rotate again.",
+            nameof(annotation));
         // New marks may extend the canvas; document validation verifies the final bounds.
         // A trim can also leave cropped-out annotations outside the visible canvas.
         ValidatePoint(annotation.Start, nameof(annotation));

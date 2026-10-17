@@ -205,6 +205,11 @@ public sealed record Annotation
     /// <summary>Gets the second point for lines and regions.</summary>
     public ImagePoint End { get; init; }
 
+    /// <summary>Gets the clockwise rotation in degrees around this element's center.</summary>
+    /// <remarks>Zero preserves the appearance of documents saved before rotation was available.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double RotationDegrees { get; init; }
+
     /// <summary>Gets the foreground color as packed ARGB.</summary>
     public uint StrokeArgb { get; init; } = 0xFFE5484D;
 
