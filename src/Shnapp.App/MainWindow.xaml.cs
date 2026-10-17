@@ -17,7 +17,6 @@ public sealed partial class MainWindow : Window
     internal SettingsPage? Settings { get; private set; }
     private UIElement? _focusBeforeSettings;
     private int _settingsTransitionVersion;
-    private bool _updateAvailable;
 
     internal void ShowSettings(SettingsPage page)
     {
@@ -108,16 +107,11 @@ public sealed partial class MainWindow : Window
         AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.Default : AppWindowPresenterKind.FullScreen);
         if (fullScreen && AppWindow.Presenter is OverlappedPresenter presenter)
         {
-            presenter.PreferredMinimumWidth = 560;
+            double scale = Math.Max(1, Windows.NativeMethods.GetDpiForWindow(
+                WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0);
+            presenter.PreferredMinimumWidth = (int)(820 * scale);
             presenter.PreferredMinimumHeight = 420;
         }
-    }
-
-    internal void SetUpdateAttention(bool available)
-    {
-        _updateAvailable = available;
-        UpdateAttentionDot.Visibility = available && Settings is null
-            ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void PageStateChanged(object? sender, PropertyChangedEventArgs args)
@@ -132,15 +126,10 @@ public sealed partial class MainWindow : Window
     private void UpdateTitleBarState()
     {
         bool editing = Page.ViewModel.HasDocument && Settings is null;
-        ChromeNavigationHost.Visibility = Settings is null ? Visibility.Visible : Visibility.Collapsed;
-        ChromeCommandsHost.Visibility = Settings is null ? Visibility.Visible : Visibility.Collapsed;
-        EditorTitleActions.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
-        TitleHistoryActions.Visibility = editing && AppTitleBar.ActualWidth >= 630
-            ? Visibility.Visible : Visibility.Collapsed;
-        TitleEditButton.IsChecked = editing && Page.EditingToolsVisible;
-        TitleSaveActions.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
-        UpdateAttentionDot.Visibility = _updateAvailable && Settings is null
-            ? Visibility.Visible : Visibility.Collapsed;
+        Page.SetChromeToolAvailability(editing, Settings is null);
+        Page.SetSettingsNavigation(Settings is not null);
+        ChromeCommandsHost.IsEnabled = Settings is null;
+        ChromeLibraryHost.IsEnabled = Settings is null;
         TitleUndoButton.IsEnabled = editing && Page.ViewModel.CanUndo;
         TitleRedoButton.IsEnabled = editing && Page.ViewModel.CanRedo;
         Title = Settings is not null ? "Settings" :
@@ -151,20 +140,12 @@ public sealed partial class MainWindow : Window
 
     private void UpdateTitleEditorVisibility()
     {
-        bool editing = Page.ViewModel.HasDocument && Settings is null;
         TitleEditorHost.Visibility = Page.IsTitleRenameActive ? Visibility.Visible : Visibility.Collapsed;
-        Page.SetAnnotationToolbarObscured(editing && Page.IsTitleRenameActive);
         AppTitleBar.RecomputeDragRegions();
     }
 
-    private void TitleEdit_Click(object sender, RoutedEventArgs args) =>
-        Page.SetEditingToolsVisible(TitleEditButton.IsChecked == true);
     private void TitleUndo_Click(object sender, RoutedEventArgs args) => Page.UndoFromChrome();
     private void TitleRedo_Click(object sender, RoutedEventArgs args) => Page.RedoFromChrome();
-    private void TitleSave_Click(SplitButton sender, SplitButtonClickEventArgs args) => Page.SaveFromChrome();
-    private void TitleSaveMenu_Click(object sender, RoutedEventArgs args) => Page.SaveFromChrome();
-    private void TitleSaveCopy_Click(object sender, RoutedEventArgs args) => Page.SaveCopyFromChrome();
-    private void TitleCopy_Click(object sender, RoutedEventArgs args) => Page.CopyFromChrome();
 
     /// <summary>Creates the native shell and its document-first page.</summary>
     public MainWindow()
@@ -185,11 +166,11 @@ public sealed partial class MainWindow : Window
             }
         };
         Page = new MainPage();
-        Page.AttachTitleChrome(ChromeCommandsHost, ChromeNavigationHost, TitleEditorHost);
+        Page.AttachTitleChrome(ChromeCommandsHost, ChromeNavigationHost, ChromeToolsHost,
+            ChromeLibraryHost, TitleEditorHost);
         RootFrame.Content = Page;
         Page.ViewModel.PropertyChanged += PageStateChanged;
         Page.TitleRenameStateChanged += (_, _) => UpdateTitleEditorVisibility();
-        AppTitleBar.SizeChanged += (_, _) => UpdateTitleBarState();
         UpdateTitleBarState();
         RectInt32 work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
         double scale = Math.Max(1, Windows.NativeMethods.GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0);
@@ -199,7 +180,7 @@ public sealed partial class MainWindow : Window
             work.Y + (work.Height - height) / 2, width, height));
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
-            presenter.PreferredMinimumWidth = 560;
+            presenter.PreferredMinimumWidth = (int)(820 * scale);
             presenter.PreferredMinimumHeight = 420;
         }
     }

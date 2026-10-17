@@ -6,18 +6,22 @@ namespace Shnapp.App;
 public sealed partial class MainPage
 {
     internal event EventHandler? TitleRenameStateChanged;
-    private bool _editingToolsVisible;
-    private bool _annotationToolbarObscured;
 
     // Keep the existing page commands and their handlers while displaying them
     // in the single window title bar. The canvas remains the full page size.
-    internal void AttachTitleChrome(ContentControl commandsHost, StackPanel navigationHost, Grid titleEditorHost)
+    internal void AttachTitleChrome(ContentControl commandsHost, StackPanel navigationHost,
+        ContentControl toolsHost, ContentControl libraryHost, Grid titleEditorHost)
     {
         ((InteractiveCursorHost)Content).Children.Remove(PrimaryCommandBar);
         PrimaryChromeContent.Children.Remove(BackButton);
         PrimaryChromeContent.Children.Remove(ForwardButton);
         navigationHost.Children.Add(BackButton);
         navigationHost.Children.Add(ForwardButton);
+        AnnotationToolbarHost.Children.Remove(Tools);
+        toolsHost.Content = Tools;
+        PrimaryCommandBar.PrimaryCommands.Remove(LibraryChromeHost);
+        LibraryChromeHost.Content = null;
+        libraryHost.Content = LibraryNavButton;
 
         DocumentChromeTitleHost.Children.Remove(DocumentTitleEditor);
         DocumentTitleEditor.Width = 180;
@@ -32,30 +36,16 @@ public sealed partial class MainPage
     }
 
     internal bool IsTitleRenameActive => DocumentTitleEditor.Visibility == Visibility.Visible;
-    internal bool EditingToolsVisible => _editingToolsVisible;
 
-    internal void SetEditingToolsVisible(bool visible)
+    internal void SetChromeToolAvailability(bool editorAvailable, bool captureAvailable)
     {
-        _editingToolsVisible = visible;
-        UpdateAnnotationToolbarVisibility();
-        CanvasHost.Focus(FocusState.Programmatic);
+        foreach (UIElement child in Tools.Children)
+        {
+            if (child is ToolbarActionButton button)
+            {
+                button.IsEnabled = ReferenceEquals(button, NewShnappButton)
+                    ? captureAvailable : editorAvailable;
+            }
+        }
     }
-
-    internal void SetAnnotationToolbarObscured(bool obscured)
-    {
-        _annotationToolbarObscured = obscured;
-        UpdateAnnotationToolbarVisibility();
-    }
-
-    private void UpdateAnnotationToolbarVisibility()
-    {
-        AnnotationToolbarHost.Visibility = _editingToolsVisible && !_annotationToolbarObscured
-            ? Visibility.Visible : Visibility.Collapsed;
-        UpdateInspectorPanelPlacement(EditorHost.ActualWidth < 860);
-    }
-
-    private void UpdateInspectorPanelPlacement(bool narrow) =>
-        InspectorPanel.Margin = new Thickness(12,
-            narrow && AnnotationToolbarHost.Visibility == Visibility.Visible ? 120 : 60,
-            12, 50);
 }

@@ -1046,7 +1046,6 @@ public sealed partial class MainPage : Page
     private void EditorHost_SizeChanged(object sender, SizeChangedEventArgs args)
     {
         bool narrow = args.NewSize.Width < 860;
-        UpdateInspectorPanelPlacement(narrow);
         if (_narrowInspector == narrow)
         {
             return;
@@ -2003,7 +2002,6 @@ public sealed partial class MainPage : Page
         UpdateAvailableButton.Label = restartRequired ? "Update ready to restart"
             : available ? "Update available"
             : checkFailed ? "Updates unavailable" : "Update Shnapp";
-        ((MainWindow)App.Window).SetUpdateAttention(available);
         UpdateOverflowAccessibility();
 
         if (!available && MessageBar.IsOpen &&

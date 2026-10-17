@@ -32,9 +32,7 @@ public sealed partial class MainPage
 
     internal void UndoFromChrome() => Undo_Click(this, new RoutedEventArgs());
     internal void RedoFromChrome() => Redo_Click(this, new RoutedEventArgs());
-    internal void CopyFromChrome() => Copy_Click(this, new RoutedEventArgs());
-    internal void SaveFromChrome() => Save_Click(this, new RoutedEventArgs());
-    internal void SaveCopyFromChrome() => _controller?.CloneCurrentDocument();
+    private void SaveCopy_Click(object sender, RoutedEventArgs args) => _controller?.CloneCurrentDocument();
 
     private void Fullscreen_Click(object sender, RoutedEventArgs args) => ((MainWindow)App.Window).ToggleFullScreen();
 }

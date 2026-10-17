@@ -21,73 +21,47 @@
 
         <TitleBar x:Name="AppTitleBar" Height="48"
             VerticalAlignment="Top" Background="{ThemeResource ShnappImageChromeBrush}">
+            <TitleBar.Resources>
+                <SolidColorBrush x:Key="ButtonBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBorderBrush" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
+            </TitleBar.Resources>
             <TitleBar.LeftHeader>
-                <StackPanel x:Name="TitleLeftControls" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <Grid Width="32" Height="32" AutomationProperties.Name="Shnapp">
-                        <Image Source="Assets/AppIcon.ico" Width="16" Height="16"
+                <StackPanel x:Name="TitleLeftControls" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Grid Width="28" Height="28" AutomationProperties.Name="Shnapp">
+                        <Image Source="Assets/AppIcon.ico" Width="12" Height="12"
                             HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
-                    <StackPanel x:Name="ChromeNavigationHost" Orientation="Horizontal" Spacing="6"
+                    <StackPanel x:Name="ChromeNavigationHost" Orientation="Horizontal" Spacing="4"
                         VerticalAlignment="Center" />
-                    <StackPanel x:Name="EditorTitleActions" Orientation="Horizontal" Spacing="6"
-                        VerticalAlignment="Center" Visibility="Collapsed">
-                        <ToggleButton x:Name="TitleEditButton" Width="58" Height="32" Padding="0" Click="TitleEdit_Click" CornerRadius="7"
-                            IsChecked="False" ToolTipService.ToolTip="Show or hide editing tools"
-                            AutomationProperties.Name="Editing tools" AutomationProperties.AutomationId="TitleEdit">
-                            <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
-                                <FontIcon Glyph="&#xE70F;" FontSize="16" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                <TextBlock Text="Edit" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
-                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                            </StackPanel>
-                            <ToggleButton.Resources>
-                                <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="ShnappToolbarBrush" />
-                                <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="ShnappToolbarBrush" />
-                                <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="ShnappToolbarBrush" />
-                                <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
-                                <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent" />
-                                <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
-                            </ToggleButton.Resources>
-                        </ToggleButton>
-                        <StackPanel x:Name="TitleHistoryActions" Orientation="Horizontal" Spacing="6">
-                            <AppBarButton x:Name="TitleUndoButton" Width="32" Height="32" MinWidth="0" Padding="0" Label="Undo" LabelPosition="Collapsed" Click="TitleUndo_Click"
-                                ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.Name="Undo" AutomationProperties.AutomationId="UndoEdit">
-                                <AppBarButton.Icon><FontIcon Glyph="&#xE7A7;" FontSize="16" /></AppBarButton.Icon>
-                            </AppBarButton>
-                            <AppBarButton x:Name="TitleRedoButton" Width="32" Height="32" MinWidth="0" Padding="0" Label="Redo" LabelPosition="Collapsed" Click="TitleRedo_Click"
-                                ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.Name="Redo" AutomationProperties.AutomationId="RedoEdit">
-                                <AppBarButton.Icon><FontIcon Glyph="&#xE7A6;" FontSize="16" /></AppBarButton.Icon>
-                            </AppBarButton>
-                        </StackPanel>
-                    </StackPanel>
-                    <Grid VerticalAlignment="Center">
-                        <ContentControl x:Name="ChromeCommandsHost" VerticalAlignment="Center" />
-                        <Ellipse x:Name="UpdateAttentionDot" Width="8" Height="8"
-                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,1,9,0"
-                            Fill="#D6294D" Stroke="{ThemeResource ShnappChromeBrush}"
-                            StrokeThickness="1" Visibility="Collapsed" IsHitTestVisible="False"
-                            AutomationProperties.AccessibilityView="Raw" />
-                    </Grid>
+                    <Border Width="1" Height="16" Margin="5,0" VerticalAlignment="Center"
+                        Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
+                    <ContentControl x:Name="ChromeToolsHost" VerticalAlignment="Center" />
                 </StackPanel>
             </TitleBar.LeftHeader>
             <TitleBar.RightHeader>
-                <SplitButton x:Name="TitleSaveActions" Width="88" Height="32" MinWidth="0"
-                    Padding="8,0" CornerRadius="7" Content="Save" FontSize="12" FontWeight="SemiBold"
-                    Click="TitleSave_Click" Visibility="Collapsed" Margin="0,0,10,0"
-                    Background="{ThemeResource ShnappBlueBrush}"
-                    Foreground="{ThemeResource ShnappOnBlueBrush}"
-                    ToolTipService.ToolTip="Save PNG or open more save actions"
-                    AutomationProperties.Name="Save actions" AutomationProperties.AutomationId="TitleSaveActions">
-                    <SplitButton.Flyout>
-                        <MenuFlyout>
-                            <MenuFlyoutItem Text="Save PNG…" Click="TitleSaveMenu_Click"
-                                AutomationProperties.AutomationId="SaveShnappFromTitle" />
-                            <MenuFlyoutItem Text="Save as copy" Click="TitleSaveCopy_Click"
-                                AutomationProperties.AutomationId="SaveAsCopy" />
-                            <MenuFlyoutItem Text="Copy image" Click="TitleCopy_Click"
-                                AutomationProperties.AutomationId="CopyShnappFromTitle" />
-                        </MenuFlyout>
-                    </SplitButton.Flyout>
-                </SplitButton>
+                <StackPanel x:Name="TitleRightControls" Orientation="Horizontal" Spacing="4"
+                    VerticalAlignment="Center" Margin="0,0,8,0">
+                    <local:ToolbarActionButton x:Name="TitleUndoButton" Width="28" Height="28" MinWidth="0" Padding="0"
+                        CornerRadius="6" Click="TitleUndo_Click"
+                        ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.Name="Undo" AutomationProperties.AutomationId="UndoEdit">
+                        <FontIcon Glyph="&#xE7A7;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <local:ToolbarActionButton x:Name="TitleRedoButton" Width="28" Height="28" MinWidth="0" Padding="0"
+                        CornerRadius="6" Click="TitleRedo_Click"
+                        ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.Name="Redo" AutomationProperties.AutomationId="RedoEdit">
+                        <FontIcon Glyph="&#xE7A6;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <Border Width="1" Height="16" Margin="5,0" VerticalAlignment="Center"
+                        Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
+                    <ContentControl x:Name="ChromeLibraryHost" VerticalAlignment="Center" />
+                    <ContentControl x:Name="ChromeCommandsHost" VerticalAlignment="Center" />
+                </StackPanel>
             </TitleBar.RightHeader>
         </TitleBar>
         <Grid x:Name="TitleEditorHost" HorizontalAlignment="Center" VerticalAlignment="Top"

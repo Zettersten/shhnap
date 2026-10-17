@@ -23,7 +23,6 @@ public sealed partial class MainPage
     {
         LibraryEmptyCameraCaptureMenu.IsEnabled = available;
         QuickCameraCapture.IsEnabled = available;
-        CameraPhotoTool.IsEnabled = available;
         PhotoAddButton.IsEnabled = available;
     }
 
