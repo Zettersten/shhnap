@@ -51,6 +51,7 @@ public sealed partial class MainPage
 
     private static InputSystemCursorShape CursorForHandle(ResizeHandle handle, Annotation annotation) => handle switch
     {
+        ResizeHandle.Rotate => InputSystemCursorShape.Hand,
         ResizeHandle.Top or ResizeHandle.Bottom => InputSystemCursorShape.SizeNorthSouth,
         ResizeHandle.Left or ResizeHandle.Right => InputSystemCursorShape.SizeWestEast,
         ResizeHandle.TopLeft or ResizeHandle.BottomRight => InputSystemCursorShape.SizeNorthwestSoutheast,

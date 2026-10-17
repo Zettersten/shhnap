@@ -471,7 +471,10 @@ public sealed partial class MainPage : Page
             _moving = current;
             _resizeHandle = handle;
             _dragStart = ImagePosition(canvasPosition, allowOutside: true);
-            BeginSmartGuideDrag(current);
+            if (handle != ResizeHandle.Rotate)
+            {
+                BeginSmartGuideDrag(current);
+            }
             if (InspectorToggle.IsChecked != true || InspectorPanel.Visibility != Visibility.Visible)
             {
                 QueueCanvasTextRefresh(openInspector: true);
@@ -647,9 +650,16 @@ public sealed partial class MainPage : Page
             clamp: cropping, allowOutside: !cropping)!.Value;
         if (_moving is not null)
         {
-            if (_resizeHandle != ResizeHandle.None)
+            if (_resizeHandle == ResizeHandle.Rotate)
             {
-                _draft = ResizeWithSmartGuides(_moving, _resizeHandle, point, IsShiftHeld());
+                _draft = RotateAnnotationFromPointer(_moving, start, point, IsShiftHeld());
+            }
+            else if (_resizeHandle != ResizeHandle.None)
+            {
+                ImagePoint localPoint = AnnotationRotation.Unrotate(_moving, point);
+                Annotation resized = ResizeWithSmartGuides(_moving, _resizeHandle,
+                    localPoint, IsShiftHeld());
+                _draft = PreserveResizeAnchor(_moving, resized, _resizeHandle);
             }
             else
             {
@@ -829,6 +839,15 @@ public sealed partial class MainPage : Page
             };
         }
 
+        if (_moving is Annotation rotating && _resizeHandle == ResizeHandle.Rotate &&
+            _dragStart is ImagePoint rotationStart &&
+            ImagePosition(args.GetCurrentPoint(DrawingCanvas).Position,
+                allowOutside: true) is ImagePoint rotationEnd)
+        {
+            _draft = RotateAnnotationFromPointer(rotating, rotationStart, rotationEnd,
+                (args.KeyModifiers & VirtualKeyModifiers.Shift) != 0 || IsShiftHeld());
+        }
+
         DisposeDragBase();
         ClearSmartGuides();
         bool needsTextRefresh = false;
@@ -983,7 +1002,7 @@ public sealed partial class MainPage : Page
 
         Annotation? text = _editor.Current.OrderedAnnotations.Reverse().FirstOrDefault(annotation =>
             !annotation.IsFlattened && annotation.Kind == AnnotationKind.Text &&
-            HitBounds(annotation).Contains(new Point(point.X, point.Y)));
+            HitAnnotation(annotation, point));
         if (text is null)
         {
             return;
@@ -1193,6 +1212,19 @@ public sealed partial class MainPage : Page
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_textBox, "Annotation text");
         Canvas.SetLeft(_textBox, position.X);
         Canvas.SetTop(_textBox, position.Y);
+        if (existing is { RotationDegrees: not 0 })
+        {
+            ImagePoint pivot = AnnotationRotation.Pivot(existing);
+            Vector2 canvasPivot = Vector2.Transform(new((float)pivot.X, (float)pivot.Y),
+                ImageTransform());
+            _textBox.RenderTransform = new RotateTransform
+            {
+                Angle = existing.RotationDegrees,
+                CenterX = canvasPivot.X - position.X,
+                CenterY = canvasPivot.Y - position.Y,
+            };
+        }
+
         var finishText = new KeyboardAccelerator
         {
             Key = VirtualKey.Enter,

@@ -24,6 +24,7 @@ public sealed partial class MainPage
         Start,
         End,
         CurveMidpoint,
+        Rotate,
     }
 
     private readonly record struct SelectionHandle(ResizeHandle Kind, ImagePoint Position);
@@ -45,6 +46,8 @@ public sealed partial class MainPage
         {
             return false;
         }
+
+        position = AnnotationRotation.Unrotate(annotation, position);
 
         if (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow)
         {
@@ -167,6 +170,26 @@ public sealed partial class MainPage
     {
         ImageRect bounds = annotation.Bounds;
         ImageRect viewport = _editor!.Current.Viewport;
+        if (annotation.RotationDegrees != 0)
+        {
+            // The displayed footprint is rotated, while resize handles stay in
+            // the photo's local frame and are rotated when drawn or hit-tested.
+            ImageRect displayed = AnnotationRotation.RotatedBounds(annotation, bounds);
+            double visibleLeft = Math.Max(displayed.X, viewport.X);
+            double visibleTop = Math.Max(displayed.Y, viewport.Y);
+            double visibleRight = Math.Min(displayed.Right, viewport.Right);
+            double visibleBottom = Math.Min(displayed.Bottom, viewport.Bottom);
+            if (annotation.VisibilityClip is ImageRect visibleClip)
+            {
+                visibleLeft = Math.Max(visibleLeft, visibleClip.X);
+                visibleTop = Math.Max(visibleTop, visibleClip.Y);
+                visibleRight = Math.Min(visibleRight, visibleClip.Right);
+                visibleBottom = Math.Min(visibleBottom, visibleClip.Bottom);
+            }
+
+            return visibleRight > visibleLeft && visibleBottom > visibleTop ? bounds : null;
+        }
+
         double left = Math.Max(bounds.X, viewport.X);
         double top = Math.Max(bounds.Y, viewport.Y);
         double right = Math.Min(bounds.Right, viewport.Right);
@@ -192,20 +215,140 @@ public sealed partial class MainPage
         _ => new(bounds.X, bounds.Bottom),
     };
 
+    private Rect SelectionFrame(Annotation annotation)
+    {
+        Rect bounds = annotation.Kind == AnnotationKind.Image &&
+            VisibleImageBounds(annotation) is ImageRect visible
+            ? ShnappRenderer.ToRect(visible)
+            : SelectionBounds(annotation);
+        if (annotation.Kind is not AnnotationKind.Line and not AnnotationKind.Arrow)
+        {
+            return bounds;
+        }
+
+        // A line needs a visible top edge for the rotation stem. Keep the frame
+        // clear of the stroke and its endpoint handles at every zoom level.
+        double padding = 5 / Math.Max(0.01, _scale);
+        return new Rect(bounds.X - padding, bounds.Y - padding,
+            Math.Max(bounds.Width, 1 / _scale) + padding * 2,
+            Math.Max(bounds.Height, 1 / _scale) + padding * 2);
+    }
+
+    private ImagePoint RotationStemStart(Annotation annotation)
+    {
+        Rect frame = SelectionFrame(annotation);
+        return new ImagePoint(frame.X + frame.Width / 2, frame.Y);
+    }
+
+    private ImagePoint RotationHandlePosition(Annotation annotation)
+    {
+        ImagePoint top = RotationStemStart(annotation);
+        return AnnotationRotation.Rotate(annotation,
+            new ImagePoint(top.X, top.Y - 24 / Math.Max(0.01, _scale)));
+    }
+
+    private static Annotation RotateAnnotationFromPointer(Annotation original,
+        ImagePoint dragStart, ImagePoint pointer, bool snap)
+    {
+        ImagePoint pivot = AnnotationRotation.Pivot(original);
+        double start = Math.Atan2(dragStart.Y - pivot.Y, dragStart.X - pivot.X);
+        double current = Math.Atan2(pointer.Y - pivot.Y, pointer.X - pivot.X);
+        double degrees = AnnotationRotation.NormalizeDegrees(original.RotationDegrees +
+            (current - start) * 180 / Math.PI);
+        if (snap)
+        {
+            degrees = AnnotationRotation.NormalizeDegrees(Math.Round(degrees / 15) * 15);
+        }
+
+        return original with { RotationDegrees = degrees };
+    }
+
+    private Annotation PreserveResizeAnchor(Annotation original, Annotation resized,
+        ResizeHandle handle)
+    {
+        if (original.RotationDegrees == 0 || handle == ResizeHandle.CurveMidpoint)
+        {
+            return resized;
+        }
+
+        ImagePoint before = AnnotationRotation.Rotate(original, ResizeAnchor(original, handle));
+        ImagePoint after = AnnotationRotation.Rotate(resized, ResizeAnchor(resized, handle));
+        double dx = before.X - after.X;
+        double dy = before.Y - after.Y;
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9)
+        {
+            return resized;
+        }
+
+        return resized.Kind is AnnotationKind.Line or AnnotationKind.Arrow
+            ? LineGeometry.Translate(resized, dx, dy)
+            : resized with
+            {
+                Start = new ImagePoint(resized.Start.X + dx, resized.Start.Y + dy),
+                End = new ImagePoint(resized.End.X + dx, resized.End.Y + dy),
+            };
+    }
+
+    private ImagePoint ResizeAnchor(Annotation annotation, ResizeHandle handle)
+    {
+        if (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow)
+        {
+            return handle == ResizeHandle.Start ? annotation.End : annotation.Start;
+        }
+
+        if (annotation.Kind is AnnotationKind.Step or AnnotationKind.Callout)
+        {
+            return AnnotationRotation.Pivot(annotation);
+        }
+
+        Rect bounds = annotation.Kind == AnnotationKind.Image
+            ? ShnappRenderer.ToRect(annotation.Bounds)
+            : SelectionBounds(annotation);
+        double midX = bounds.X + bounds.Width / 2;
+        double midY = bounds.Y + bounds.Height / 2;
+        return handle switch
+        {
+            ResizeHandle.TopLeft => new ImagePoint(bounds.Right, bounds.Bottom),
+            ResizeHandle.Top => new ImagePoint(midX, bounds.Bottom),
+            ResizeHandle.TopRight => new ImagePoint(bounds.Left, bounds.Bottom),
+            ResizeHandle.Right => new ImagePoint(bounds.Left, midY),
+            ResizeHandle.BottomRight => new ImagePoint(bounds.Left, bounds.Top),
+            ResizeHandle.Bottom => new ImagePoint(midX, bounds.Top),
+            ResizeHandle.BottomLeft => new ImagePoint(bounds.Right, bounds.Top),
+            ResizeHandle.Left => new ImagePoint(bounds.Right, midY),
+            _ => AnnotationRotation.Pivot(annotation),
+        };
+    }
+
     private ResizeHandle HitResizeHandle(Annotation annotation, Point canvasPosition)
     {
         ResizeHandle nearest = ResizeHandle.None;
         double nearestDistanceSquared = 9 * 9;
         Matrix3x2 transform = ImageTransform();
+        if (!annotation.HiddenByCrop &&
+            (annotation.Kind != AnnotationKind.Image || VisibleImageBounds(annotation) is not null))
+        {
+            ImagePoint rotationPosition = RotationHandlePosition(annotation);
+            Vector2 center = Vector2.Transform(new((float)rotationPosition.X,
+                (float)rotationPosition.Y), transform);
+            double dx = canvasPosition.X - center.X;
+            double dy = canvasPosition.Y - center.Y;
+            if (dx * dx + dy * dy <= nearestDistanceSquared)
+            {
+                return ResizeHandle.Rotate;
+            }
+        }
+
         foreach (SelectionHandle handle in HandlesFor(annotation))
         {
+            ImagePoint position = AnnotationRotation.Rotate(annotation, handle.Position);
             if (annotation.HiddenByCrop ||
-                annotation.VisibilityClip is ImageRect clip && !clip.Contains(handle.Position))
+                annotation.VisibilityClip is ImageRect clip && !clip.Contains(position))
             {
                 continue;
             }
 
-            Vector2 center = Vector2.Transform(new((float)handle.Position.X, (float)handle.Position.Y), transform);
+            Vector2 center = Vector2.Transform(new((float)position.X, (float)position.Y), transform);
             double dx = canvasPosition.X - center.X;
             double dy = canvasPosition.Y - center.Y;
             double distanceSquared = dx * dx + dy * dy;
@@ -231,38 +374,67 @@ public sealed partial class MainPage
             return;
         }
 
-        using var clipLayer = annotation.VisibilityClip is ImageRect clip
-            ? drawing.CreateLayer(1, ShnappRenderer.ToRect(clip))
-            : null;
         var blue = ShnappRenderer.FromArgb(0xFF0A84FF);
         float outer = (float)(3 / _scale);
         float inner = (float)(1 / _scale);
-        // Endpoint handles show a selected line without hiding its chosen stroke or color.
-        if (annotation.Kind is not AnnotationKind.Line and not AnnotationKind.Arrow)
+        using (var clipLayer = annotation.VisibilityClip is ImageRect clip
+            ? drawing.CreateLayer(1, ShnappRenderer.ToRect(clip))
+            : null)
         {
-            Rect bounds = annotation.Kind == AnnotationKind.Image &&
-                VisibleImageBounds(annotation) is ImageRect visible
-                ? ShnappRenderer.ToRect(visible)
-                : SelectionBounds(annotation);
-            drawing.DrawRectangle(bounds, Colors.White, outer);
-            drawing.DrawRectangle(bounds, blue, inner);
+            Rect frame = SelectionFrame(annotation);
+            ImagePoint[] corners =
+            [
+                AnnotationRotation.Rotate(annotation, new ImagePoint(frame.Left, frame.Top)),
+                AnnotationRotation.Rotate(annotation, new ImagePoint(frame.Right, frame.Top)),
+                AnnotationRotation.Rotate(annotation, new ImagePoint(frame.Right, frame.Bottom)),
+                AnnotationRotation.Rotate(annotation, new ImagePoint(frame.Left, frame.Bottom)),
+            ];
+            for (int index = 0; index < corners.Length; index++)
+            {
+                ImagePoint start = corners[index];
+                ImagePoint end = corners[(index + 1) % corners.Length];
+                drawing.DrawLine((float)start.X, (float)start.Y, (float)end.X, (float)end.Y,
+                    Colors.White, outer);
+                drawing.DrawLine((float)start.X, (float)start.Y, (float)end.X, (float)end.Y,
+                    blue, inner);
+            }
+
+            float radius = (float)(5 / _scale);
+            foreach (SelectionHandle handle in HandlesFor(annotation))
+            {
+                ImagePoint position = AnnotationRotation.Rotate(annotation, handle.Position);
+                if (annotation.VisibilityClip is ImageRect handleClip &&
+                    !handleClip.Contains(position))
+                {
+                    continue;
+                }
+
+                if (handle.Kind == ResizeHandle.CurveMidpoint)
+                {
+                    drawing.FillCircle(new Vector2((float)position.X, (float)position.Y),
+                        radius, blue);
+                    drawing.DrawCircle(new Vector2((float)position.X, (float)position.Y),
+                        radius, Colors.White, (float)(2 / _scale));
+                    continue;
+                }
+                Rect square = new(position.X - radius, position.Y - radius,
+                    radius * 2, radius * 2);
+                drawing.FillRectangle(square, Colors.White);
+                drawing.DrawRectangle(square, blue, (float)(2 / _scale));
+            }
         }
 
-        float radius = (float)(5 / _scale);
-        foreach (SelectionHandle handle in HandlesFor(annotation))
-        {
-            if (handle.Kind == ResizeHandle.CurveMidpoint)
-            {
-                drawing.FillCircle(new Vector2((float)handle.Position.X, (float)handle.Position.Y),
-                    radius, blue);
-                drawing.DrawCircle(new Vector2((float)handle.Position.X, (float)handle.Position.Y),
-                    radius, Colors.White, (float)(2 / _scale));
-                continue;
-            }
-            Rect square = new(handle.Position.X - radius, handle.Position.Y - radius, radius * 2, radius * 2);
-            drawing.FillRectangle(square, Colors.White);
-            drawing.DrawRectangle(square, blue, (float)(2 / _scale));
-        }
+        // The control is editor chrome, so it remains visible above a crop mask.
+        ImagePoint stem = AnnotationRotation.Rotate(annotation, RotationStemStart(annotation));
+        ImagePoint knob = RotationHandlePosition(annotation);
+        drawing.DrawLine((float)stem.X, (float)stem.Y, (float)knob.X, (float)knob.Y,
+            Colors.White, outer);
+        drawing.DrawLine((float)stem.X, (float)stem.Y, (float)knob.X, (float)knob.Y,
+            blue, inner);
+        float knobRadius = (float)(5 / _scale);
+        drawing.FillCircle(new Vector2((float)knob.X, (float)knob.Y), knobRadius, Colors.White);
+        drawing.DrawCircle(new Vector2((float)knob.X, (float)knob.Y), knobRadius,
+            blue, (float)(2 / _scale));
     }
 
     private Annotation ResizeAnnotation(Annotation original, ResizeHandle handle, ImagePoint point,
