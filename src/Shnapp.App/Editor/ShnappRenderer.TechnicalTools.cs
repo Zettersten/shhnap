@@ -101,6 +101,20 @@ internal sealed partial class ShnappRenderer
     internal void DrawMagnifyAnnotation(CanvasDrawingSession drawing, CanvasBitmap original,
         Annotation annotation, ShnappDocument document)
     {
+        Matrix3x2 previousTransform = ApplyAnnotationRotation(drawing, annotation);
+        try
+        {
+            DrawMagnifyAnnotationCore(drawing, original, annotation, document);
+        }
+        finally
+        {
+            drawing.Transform = previousTransform;
+        }
+    }
+
+    private void DrawMagnifyAnnotationCore(CanvasDrawingSession drawing, CanvasBitmap original,
+        Annotation annotation, ShnappDocument document)
+    {
         ImageRect bounds = annotation.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0)
         {
