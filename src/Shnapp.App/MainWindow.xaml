@@ -63,7 +63,7 @@
                     <ContentControl x:Name="ChromeLibraryHost" VerticalAlignment="Center" />
                     <local:ToolbarActionButton x:Name="TitleCaptureButton" Width="28" Height="28" MinWidth="0" Padding="0"
                         CornerRadius="6" Click="TitleCapture_Click"
-                        ToolTipService.ToolTip="Capture region · Ctrl+Shift+4"
+                        ToolTipService.ToolTip="Capture region · Ctrl+Shift+2"
                         AutomationProperties.Name="Capture region" AutomationProperties.AutomationId="CaptureRegionToolbar">
                         <FontIcon Glyph="&#xF7ED;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
                     </local:ToolbarActionButton>
