@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Shnapp.App.Editor;
+using Shnapp.Core;
 
 namespace Shnapp.App;
 
@@ -32,6 +33,7 @@ public sealed partial class MainPage
 
     internal void UndoFromChrome() => Undo_Click(this, new RoutedEventArgs());
     internal void RedoFromChrome() => Redo_Click(this, new RoutedEventArgs());
+    internal void CaptureRegionFromChrome() => _controller?.Capture(CaptureKind.Region);
     private void SaveCopy_Click(object sender, RoutedEventArgs args) => _controller?.CloneCurrentDocument();
 
     private void Fullscreen_Click(object sender, RoutedEventArgs args) => ((MainWindow)App.Window).ToggleFullScreen();

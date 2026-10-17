@@ -130,6 +130,7 @@ public sealed partial class MainWindow : Window
         Page.SetSettingsNavigation(Settings is not null);
         ChromeCommandsHost.IsEnabled = Settings is null;
         ChromeLibraryHost.IsEnabled = Settings is null;
+        TitleCaptureButton.IsEnabled = Settings is null;
         TitleUndoButton.IsEnabled = editing && Page.ViewModel.CanUndo;
         TitleRedoButton.IsEnabled = editing && Page.ViewModel.CanRedo;
         Title = Settings is not null ? "Settings" :
@@ -146,6 +147,7 @@ public sealed partial class MainWindow : Window
 
     private void TitleUndo_Click(object sender, RoutedEventArgs args) => Page.UndoFromChrome();
     private void TitleRedo_Click(object sender, RoutedEventArgs args) => Page.RedoFromChrome();
+    private void TitleCapture_Click(object sender, RoutedEventArgs args) => Page.CaptureRegionFromChrome();
 
     private void TitleBar_KeyDown(object sender, KeyRoutedEventArgs args)
     {
