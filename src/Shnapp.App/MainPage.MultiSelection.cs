@@ -98,7 +98,10 @@ public sealed partial class MainPage
             return null;
         }
 
-        Rect bounds = SelectionBounds(annotation);
+        Rect local = SelectionBounds(annotation);
+        ImageRect rotated = AnnotationRotation.RotatedBounds(annotation,
+            new ImageRect(local.X, local.Y, local.Width, local.Height));
+        Rect bounds = new(rotated.X, rotated.Y, rotated.Width, rotated.Height);
         double left = bounds.Left;
         double top = bounds.Top;
         double right = bounds.Right;
