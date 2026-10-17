@@ -1615,6 +1615,7 @@ public sealed partial class MainPage : Page
         }
         SetTool(Enum.Parse<EditorTool>((string)((FrameworkElement)sender).Tag), deferTextRefresh,
             clearSelectionForUserAction: true);
+        DrawingCanvas.Focus(FocusState.Programmatic);
     }
 
     private void ShapesTool_Click(object sender, RoutedEventArgs args)

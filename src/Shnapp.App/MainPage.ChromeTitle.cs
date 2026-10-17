@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 
 namespace Shnapp.App;
 
@@ -36,6 +37,14 @@ public sealed partial class MainPage
     }
 
     internal bool IsTitleRenameActive => DocumentTitleEditor.Visibility == Visibility.Visible;
+
+    internal void HandleChromeKeyDown(KeyRoutedEventArgs args)
+    {
+        Page_PreviewKeyDown(this, args);
+        Page_KeyDown(this, args);
+    }
+
+    internal void HandleChromeKeyUp(KeyRoutedEventArgs args) => Page_KeyUp(this, args);
 
     internal void SetChromeToolAvailability(bool editorAvailable, bool captureAvailable)
     {

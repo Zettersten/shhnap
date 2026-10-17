@@ -147,6 +147,22 @@ public sealed partial class MainWindow : Window
     private void TitleUndo_Click(object sender, RoutedEventArgs args) => Page.UndoFromChrome();
     private void TitleRedo_Click(object sender, RoutedEventArgs args) => Page.RedoFromChrome();
 
+    private void TitleBar_KeyDown(object sender, KeyRoutedEventArgs args)
+    {
+        if (Settings is null && !args.Handled)
+        {
+            Page.HandleChromeKeyDown(args);
+        }
+    }
+
+    private void TitleBar_KeyUp(object sender, KeyRoutedEventArgs args)
+    {
+        if (Settings is null)
+        {
+            Page.HandleChromeKeyUp(args);
+        }
+    }
+
     /// <summary>Creates the native shell and its document-first page.</summary>
     public MainWindow()
     {
@@ -168,6 +184,8 @@ public sealed partial class MainWindow : Window
         Page = new MainPage();
         Page.AttachTitleChrome(ChromeCommandsHost, ChromeNavigationHost, ChromeToolsHost,
             ChromeLibraryHost, TitleEditorHost);
+        AppTitleBar.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(TitleBar_KeyDown), true);
+        AppTitleBar.AddHandler(UIElement.KeyUpEvent, new KeyEventHandler(TitleBar_KeyUp), true);
         RootFrame.Content = Page;
         Page.ViewModel.PropertyChanged += PageStateChanged;
         Page.TitleRenameStateChanged += (_, _) => UpdateTitleEditorVisibility();
