@@ -29,6 +29,10 @@ public static class ShnappSmokeNative
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, IntPtr processId);
+    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint source, uint target, bool attach);
+    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int command);
     [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr hwnd, int id, uint modifiers, uint key);
     [DllImport("user32.dll")] public static extern bool UnregisterHotKey(IntPtr hwnd, int id);
@@ -85,7 +89,7 @@ function Latest-Document {
 
 function Wait-Editor {
     Invoke-Ui -Arguments @('wait-for', 'ShnappCanvas', '-a', "$AppPid", '-t', '8000') | Out-Null
-    Invoke-Ui -Arguments @('wait-for', 'CopyShnapp', '-a', "$AppPid", '-p', 'IsEnabled', '--value', 'True', '-t', '5000') | Out-Null
+    Invoke-Ui -Arguments @('wait-for', 'ToolStep', '-a', "$AppPid", '-p', 'IsEnabled', '--value', 'True', '-t', '5000') | Out-Null
     Invoke-Ui -Arguments @('wait-for', 'ShnappStatus', '-a', "$AppPid", '--value', 'Saved locally', '--contains', '-t', '8000') | Out-Null
 }
 function Native-SavePicker {
@@ -112,10 +116,20 @@ function Select-Theme {
 }
 
 function Activate-Fixture {
-    [ShnappSmokeNative]::SetForegroundWindow([IntPtr]$fixture.hwnd) | Out-Null
-    Start-Sleep -Milliseconds 150
-    if ([ShnappSmokeNative]::GetForegroundWindow() -ne [IntPtr]$fixture.hwnd) {
-        Invoke-Ui -Arguments @('click', "$($fixture.x + 160),$($fixture.y + 220)", '-w', "$($fixture.hwnd)") | Out-Null
+    $target = [IntPtr]$fixture.hwnd
+    $foreground = [ShnappSmokeNative]::GetForegroundWindow()
+    $currentThread = [ShnappSmokeNative]::GetCurrentThreadId()
+    $foregroundThread = [ShnappSmokeNative]::GetWindowThreadProcessId($foreground, [IntPtr]::Zero)
+    $attached = $foregroundThread -ne $currentThread -and
+        [ShnappSmokeNative]::AttachThreadInput($currentThread, $foregroundThread, $true)
+    try {
+        [ShnappSmokeNative]::ShowWindow($target, 9) | Out-Null # SW_RESTORE
+        [ShnappSmokeNative]::SetForegroundWindow($target) | Out-Null
+        [ShnappSmokeNative]::BringWindowToTop($target) | Out-Null
+    } finally {
+        if ($attached) {
+            [ShnappSmokeNative]::AttachThreadInput($currentThread, $foregroundThread, $false) | Out-Null
+        }
     }
     Wait-Until { [ShnappSmokeNative]::GetForegroundWindow() -eq [IntPtr]$fixture.hwnd } 'The safe capture fixture could not become the foreground window.' 3000
 }
@@ -145,7 +159,7 @@ function Image-Point {
     # Match MainPage.CanvasViewingArea: chrome overlays the full-size canvas,
     # while fit-to-window keeps the image clear of the controls.
     $sideInset = 24 * $dpi
-    $topInset = 108 * $dpi
+    $topInset = 60 * $dpi
     $bottomInset = 50 * $dpi
     $viewWidth = $element.width - 2 * $sideInset
     $viewHeight = $element.height - $topInset - $bottomInset
@@ -235,9 +249,13 @@ Test-Flow 'Opaque redaction and exportable transparent shadow' {
 }
 
 Test-Flow 'Copy produces an image and PNG Save uses the native picker' {
+    Invoke-Ui -Arguments @('invoke', 'MoreButton', '-w', "$script:MainHwnd") | Out-Null
+    Invoke-Ui -Arguments @('wait-for', 'CopyShnapp', '-a', "$AppPid", '-t', '3000') | Out-Null
     Invoke-Ui -Arguments @('invoke', 'CopyShnapp', '-a', "$AppPid") | Out-Null
     Invoke-Ui -Arguments @('wait-for', 'ShnappStatus', '-a', "$AppPid", '--value', 'Copied', '--contains', '-t', '5000') | Out-Null
     Assert-True ([System.Windows.Forms.Clipboard]::ContainsImage()) 'Clipboard does not contain the copied fixture image.'
+    Invoke-Ui -Arguments @('invoke', 'MoreButton', '-w', "$script:MainHwnd") | Out-Null
+    Invoke-Ui -Arguments @('wait-for', 'SaveShnapp', '-a', "$AppPid", '-t', '3000') | Out-Null
     Invoke-Ui -Arguments @('invoke', 'SaveShnapp', '-a', "$AppPid") | Out-Null
     try {
         Wait-Until { $null -ne (Native-SavePicker) } 'The native Save picker did not appear.'
@@ -328,7 +346,7 @@ Test-Flow 'Library search and accessible cards reopen editable annotations' {
     Assert-True ($entry.name -eq $script:WindowDocument.title) 'The library card does not expose its title to accessibility.'
     Invoke-Ui -Arguments @('invoke', $selector, '-a', "$AppPid") | Out-Null
     Invoke-Ui -Arguments @('wait-for', 'ShnappCanvas', '-a', "$AppPid", '-t', '5000') | Out-Null
-    Invoke-Ui -Arguments @('wait-for', 'CopyShnapp', '-a', "$AppPid", '-p', 'IsEnabled', '--value', 'True', '-t', '3000') | Out-Null
+    Invoke-Ui -Arguments @('wait-for', 'ToolStep', '-a', "$AppPid", '-p', 'IsEnabled', '--value', 'True', '-t', '3000') | Out-Null
     $document = Documents | Where-Object { $_.id -eq $script:WindowDocument.id } | Select-Object -First 1
     Assert-True (@($document.annotations).Count -eq 4) 'Reopened annotations were not retained.'
 }
@@ -345,7 +363,6 @@ Test-Flow 'Settings navigation and light/dark themes persist without startup cha
     Capture-Evidence 'settings-feedback.png'
     Invoke-Ui -Arguments @('invoke', 'SettingsGeneral', '-a', "$AppPid") | Out-Null
     Select-Theme 'Dark'
-    Invoke-Ui -Arguments @('invoke', 'SavePreferences', '-a', "$AppPid") | Out-Null
     $settingsPath = Join-Path $DataRoot 'settings.json'
     Wait-Until { (Test-Path -LiteralPath $settingsPath) -and
         (([System.IO.File]::ReadAllText($settingsPath) | ConvertFrom-Json).settings.theme -eq 'Dark') } 'Dark theme was not saved.'
@@ -356,7 +373,6 @@ Test-Flow 'Settings navigation and light/dark themes persist without startup cha
     Capture-Evidence 'editor-dark.png'
     Open-Settings
     Select-Theme 'Light'
-    Invoke-Ui -Arguments @('invoke', 'SavePreferences', '-a', "$AppPid") | Out-Null
     Wait-Until { ([System.IO.File]::ReadAllText($settingsPath) | ConvertFrom-Json).settings.theme -eq 'Light' } 'Light theme was not saved.'
     $settings = [System.IO.File]::ReadAllText($settingsPath) | ConvertFrom-Json
     Assert-True ($settings.settings.theme -eq 'Light' -and -not $settings.settings.startOnLogin) 'Light theme or disabled startup was not persisted.'
