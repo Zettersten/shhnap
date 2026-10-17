@@ -21,6 +21,8 @@
                     <AcrylicBrush x:Key="ShnappToolbarBrush" TintColor="#DDEBFF" TintOpacity="0.72" FallbackColor="#E4F0FC" />
                     <AcrylicBrush x:Key="ShnappImageChromeBrush" TintColor="#F0F5FC" TintOpacity="0.82" FallbackColor="#F0F5FC" Opacity="0.78" />
                     <AcrylicBrush x:Key="ShnappImagePanelBrush" TintColor="#DDEBFF" TintOpacity="0.76" FallbackColor="#E4F0FC" Opacity="0.90" />
+                    <AcrylicBrush x:Key="ShnappInspectorAcrylicBrush" TintColor="#DDEBFF" TintOpacity="0.55"
+                        TintLuminosityOpacity="0.55" FallbackColor="#E4F0FC" />
                     <SolidColorBrush x:Key="ShnappToolbarInactiveIconBrush" Color="#617C9B" />
                     <SolidColorBrush x:Key="ShnappToolbarActiveIconBrush" Color="#075DBB" />
                     <SolidColorBrush x:Key="ShnappToolbarDisabledIconBrush" Color="#A2B3C7" />
@@ -38,6 +40,8 @@
                     <AcrylicBrush x:Key="ShnappToolbarBrush" TintColor="#2A4F80" TintOpacity="0.68" FallbackColor="#1C365B" />
                     <AcrylicBrush x:Key="ShnappImageChromeBrush" TintColor="#101C36" TintOpacity="0.76" FallbackColor="#101C36" Opacity="0.68" />
                     <AcrylicBrush x:Key="ShnappImagePanelBrush" TintColor="#2A4F80" TintOpacity="0.72" FallbackColor="#1C365B" Opacity="0.86" />
+                    <AcrylicBrush x:Key="ShnappInspectorAcrylicBrush" TintColor="#203D65" TintOpacity="0.52"
+                        TintLuminosityOpacity="0.45" FallbackColor="#1C365B" />
                     <SolidColorBrush x:Key="ShnappToolbarInactiveIconBrush" Color="#9BB3D2" />
                     <SolidColorBrush x:Key="ShnappToolbarActiveIconBrush" Color="#FFFFFF" />
                     <SolidColorBrush x:Key="ShnappToolbarDisabledIconBrush" Color="#6F87A7" />
@@ -55,6 +59,7 @@
                     <SolidColorBrush x:Key="ShnappToolbarBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="ShnappImageChromeBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="ShnappImagePanelBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="ShnappInspectorAcrylicBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="ShnappToolbarInactiveIconBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="ShnappToolbarActiveIconBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                     <SolidColorBrush x:Key="ShnappToolbarDisabledIconBrush" Color="{ThemeResource SystemColorGrayTextColor}" />

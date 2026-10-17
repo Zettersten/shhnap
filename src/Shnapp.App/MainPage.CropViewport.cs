@@ -17,7 +17,7 @@ public sealed partial class MainPage
     // unobstructed area used when fitting and centering it beneath the overlays.
     private const double CanvasViewingHorizontalInset = 24;
     private const double CanvasViewingTopInset = 60;
-    private const double CanvasViewingBottomInset = 50;
+    private const double CanvasViewingBottomInset = 36;
 
     private Rect CanvasViewingArea() =>
         CanvasViewingArea(DrawingCanvas.ActualWidth, DrawingCanvas.ActualHeight);

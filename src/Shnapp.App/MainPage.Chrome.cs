@@ -12,10 +12,9 @@ public sealed partial class MainPage
         double width = args.NewSize.Width;
         FooterFitButton.Visibility = width < 650 ? Visibility.Collapsed : Visibility.Visible;
         FooterFullscreenButton.Visibility = width < 520 ? Visibility.Collapsed : Visibility.Visible;
-        FooterGalleryButton.Visibility = width < 430 ? Visibility.Collapsed : Visibility.Visible;
 
-        // Equal side columns keep the utilities centered at regular widths. At
-        // very narrow widths, reserve the zoom controls' actual width first.
+        // Equal side columns keep the Info button centered at regular widths.
+        // At very narrow widths, reserve the zoom controls' actual width first.
         FooterRightColumn.Width = width < 370
             ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
     }

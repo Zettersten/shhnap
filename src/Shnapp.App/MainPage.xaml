@@ -381,9 +381,9 @@
                         </Border>
                     </Grid>
                     <Border x:Name="InspectorPanel" Visibility="Visible"
-                        Width="252" Margin="12,60,12,50"
+                        Width="252" Margin="12,60,12,36"
                         HorizontalAlignment="Right" VerticalAlignment="Stretch"
-                        Background="{ThemeResource ShnappImagePanelBrush}" CornerRadius="12"
+                        Background="{ThemeResource ShnappInspectorAcrylicBrush}" CornerRadius="12"
                         BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}" BorderThickness="1"
                         Translation="0,0,20"
                         AutomationProperties.Name="Tool options">
@@ -851,7 +851,7 @@
             </Grid>
         </Grid>
         <Grid x:Name="LibraryRoot" Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}"
-            Margin="0,48,0,42" Padding="16,8,16,16" Background="{ThemeResource ShnappCanvasBrush}"
+            Margin="0,48,0,28" Padding="16,8,16,16" Background="{ThemeResource ShnappCanvasBrush}"
             SizeChanged="LibraryRoot_SizeChanged">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -1176,9 +1176,9 @@
                 </ScrollViewer>
             </Grid>
         </Grid>
-        <Grid Height="42" VerticalAlignment="Bottom" Canvas.ZIndex="10"
+        <Grid Height="28" VerticalAlignment="Bottom" Canvas.ZIndex="10"
             SizeChanged="FooterBar_SizeChanged"
-            Padding="12,3" ColumnSpacing="8" Background="{ThemeResource ShnappImageChromeBrush}">
+            Padding="10,0" ColumnSpacing="8" Background="{ThemeResource ShnappImageChromeBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -1187,7 +1187,7 @@
             <StackPanel Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="0">
                 <TextBlock x:Name="DocumentMetadataText" Text="{x:Bind ViewModel.DocumentMetadata, Mode=OneWay}"
                     Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
-                    Style="{StaticResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                    FontSize="10" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     AutomationProperties.AutomationId="DocumentMetadata" />
                 <TextBlock x:Name="ShnappStatus" Height="1" Opacity="0"
@@ -1196,25 +1196,20 @@
                     AutomationProperties.LiveSetting="Polite"
                     AutomationProperties.AutomationId="ShnappStatus" />
                 <TextBlock Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}"
-                    Text="{x:Bind ViewModel.Status, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+                    Text="{x:Bind ViewModel.Status, Mode=OneWay}" FontSize="10"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"
                     AutomationProperties.LiveSetting="Polite" AutomationProperties.AutomationId="LibraryStatus" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center"
-                VerticalAlignment="Center" Spacing="2"
+                VerticalAlignment="Center"
                 Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
-                <Button x:Name="FooterGalleryButton" Width="32" Height="32" Padding="0" CornerRadius="7"
-                    Background="Transparent" BorderThickness="0" Click="ToggleGallery_Click"
-                    ToolTipService.ToolTip="Recent shnapps · Ctrl+Shift+G"
-                    AutomationProperties.Name="Recent shnapps" AutomationProperties.AutomationId="FooterGallery">
-                    <FontIcon Glyph="&#xE8B9;" FontSize="16" />
-                </Button>
-                <local:HandCursorToggleButton x:Name="InspectorToggle" Width="32" Height="32" Padding="0"
-                    CornerRadius="7" Background="Transparent" BorderThickness="0"
+                <local:HandCursorToggleButton x:Name="InspectorToggle" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0"
+                    CornerRadius="5" Background="Transparent" BorderThickness="0"
                     IsChecked="True" Click="InspectorToggle_Click"
-                    ToolTipService.ToolTip="Show or hide tool options"
-                    AutomationProperties.Name="Tool options" AutomationProperties.AutomationId="ToolOptions">
-                    <FontIcon Glyph="&#xE8A0;" FontSize="16" Foreground="{ThemeResource ShnappBlueBrush}" />
+                    ToolTipService.ToolTip="Show or hide info panel"
+                    AutomationProperties.Name="Info panel" AutomationProperties.AutomationId="ToolOptions">
+                    <FontIcon Glyph="&#xE946;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12"
+                        Foreground="{ThemeResource ShnappBlueBrush}" />
                     <ToggleButton.Resources>
                         <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="Transparent" />
                         <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="Transparent" />
@@ -1224,32 +1219,32 @@
                         <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent" />
                     </ToggleButton.Resources>
                 </local:HandCursorToggleButton>
-                <Button x:Name="RecenterCanvasButton" Width="32" Height="32" Padding="0"
-                    Visibility="Collapsed" CornerRadius="7" Background="Transparent" BorderThickness="0"
-                    Click="RecenterCanvas_Click"
-                    ToolTipService.ToolTip="Re-center canvas"
-                    AutomationProperties.Name="Re-center canvas" AutomationProperties.AutomationId="RecenterCanvas">
-                    <PathIcon Width="16" Height="16"
-                        Data="F0 M8,1 A7,7 0 1 1 8,15 A7,7 0 1 1 8,1 Z M8,3 A5,5 0 1 0 8,13 A5,5 0 1 0 8,3 Z M7,0 L9,0 L9,4 L7,4 Z M7,12 L9,12 L9,16 L7,16 Z M0,7 L4,7 L4,9 L0,9 Z M12,7 L16,7 L16,9 L12,9 Z" />
-                </Button>
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right"
                 VerticalAlignment="Center" Spacing="2"
                 Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
-                <Button x:Name="FooterFitButton" Width="32" Height="32" Padding="0" CornerRadius="7"
+                <Button x:Name="RecenterCanvasButton" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0"
+                    Visibility="Collapsed" CornerRadius="7" Background="Transparent" BorderThickness="0"
+                    Click="RecenterCanvas_Click"
+                    ToolTipService.ToolTip="Re-center canvas"
+                    AutomationProperties.Name="Re-center canvas" AutomationProperties.AutomationId="RecenterCanvas">
+                    <PathIcon Width="12" Height="12"
+                        Data="F0 M8,1 A7,7 0 1 1 8,15 A7,7 0 1 1 8,1 Z M8,3 A5,5 0 1 0 8,13 A5,5 0 1 0 8,3 Z M7,0 L9,0 L9,4 L7,4 Z M7,12 L9,12 L9,16 L7,16 Z M0,7 L4,7 L4,9 L0,9 Z M12,7 L16,7 L16,9 L12,9 Z" />
+                </Button>
+                <Button x:Name="FooterFitButton" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" CornerRadius="5"
                     Background="Transparent" BorderThickness="0" Click="FooterFit_Click"
                     ToolTipService.ToolTip="Fit image in window" AutomationProperties.Name="Fit image"
                     AutomationProperties.AutomationId="FooterFit">
-                    <FontIcon Glyph="&#xE9A6;" FontSize="16" />
+                    <FontIcon Glyph="&#xE9A6;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
                 </Button>
-                <Button Width="32" Height="32" Padding="0" CornerRadius="7"
+                <Button Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" CornerRadius="5"
                     Background="Transparent" BorderThickness="0" Click="ZoomOut_Click"
                     ToolTipService.ToolTip="Zoom out" AutomationProperties.Name="Zoom out"
                     AutomationProperties.AutomationId="ZoomOut">
-                    <FontIcon Glyph="&#xE71F;" FontSize="16" />
+                    <FontIcon Glyph="&#xE71F;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
                 </Button>
-                <DropDownButton CornerRadius="7" x:Name="ZoomPresetButton" Content="100%" Height="30" MinWidth="56"
-                    FontSize="11" Padding="6,0" ToolTipService.ToolTip="Canvas zoom"
+                <DropDownButton CornerRadius="5" x:Name="ZoomPresetButton" Content="100%" Height="24" MinHeight="0" MinWidth="48"
+                    FontSize="10" Padding="4,0" Background="Transparent" BorderThickness="0" ToolTipService.ToolTip="Canvas zoom"
                     AutomationProperties.AutomationId="ZoomPresets"
                     AutomationProperties.HelpText="Canvas zoom. Choose a preset level.">
                     <DropDownButton.Flyout>
@@ -1268,17 +1263,17 @@
                         </MenuFlyout>
                     </DropDownButton.Flyout>
                 </DropDownButton>
-                <Button Width="32" Height="32" Padding="0" CornerRadius="7"
+                <Button Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" CornerRadius="5"
                     Background="Transparent" BorderThickness="0" Click="ZoomIn_Click"
                     ToolTipService.ToolTip="Zoom in" AutomationProperties.Name="Zoom in"
                     AutomationProperties.AutomationId="ZoomIn">
-                    <FontIcon Glyph="&#xE8A3;" FontSize="16" />
+                    <FontIcon Glyph="&#xE8A3;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
                 </Button>
-                <Button x:Name="FooterFullscreenButton" Width="32" Height="32" Padding="0" CornerRadius="7"
+                <Button x:Name="FooterFullscreenButton" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" CornerRadius="5"
                     Background="Transparent" BorderThickness="0" Click="Fullscreen_Click"
                     ToolTipService.ToolTip="Toggle full screen" AutomationProperties.Name="Toggle full screen"
                     AutomationProperties.AutomationId="Fullscreen">
-                    <FontIcon Glyph="&#xE740;" FontSize="16" />
+                    <FontIcon Glyph="&#xE740;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
                 </Button>
             </StackPanel>
         </Grid>
