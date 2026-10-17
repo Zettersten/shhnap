@@ -383,7 +383,7 @@ public sealed partial class MainPage
                 : $"Selected {selected.Kind.ToString().ToLowerInvariant()}";
         InspectorHelp.Text = photoSelected
             ? _photoCropMode ? "Drag over the photo to choose the area to keep. Press Esc to cancel."
-                : "Drag to move the photo, use handles to resize, or crop it below."
+                : "Drag to move, use corners to resize, or use the circle above to rotate. Crop below."
             : editingText
             ? fixedTextBox
                 ? "Text stays within the drawn box. Select characters for bold, italic, or underline. Press Ctrl+Enter to finish."
@@ -391,18 +391,18 @@ public sealed partial class MainPage
             : redaction
             ? selected is null
                 ? "Drag to apply. Cover fully hides pixels in shared images; blur and pixelate obscure them."
-                : "Change the mode, drag handles to resize, or use arrow keys to nudge. Use Cover for private details."
+                : "Drag squares to resize or the circle to rotate. Use Cover for private details."
             : fixedTextBox
-                ? "Text stays within this box. Resize with the handles; choose its background, border and layout below."
+                ? "Text stays within this box. Squares resize; the circle rotates. Choose its style below."
             : callout && selected is not null
-                ? "Edit the note below. Its numbered box and leader will be arranged again after an edit. Drag the anchor to point elsewhere."
+                ? "Edit the note below. Drag the anchor to point elsewhere or the circle to rotate."
             : magnify && selected is not null
-                ? "Drag the lens or its corner handles. The minimum lens size is 48 × 48 pixels."
+                ? "Drag the lens or its corner handles. The circle rotates it. Minimum size: 48 × 48 pixels."
             : line && selected?.AllowCurves == true
-                ? "Drag the center handle to bend this line into a smooth curve. Drag either end to reshape it."
+                ? "Drag the center to bend the line, either end to reshape it, or the circle to rotate."
             : selected is null
                 ? ToolHint()
-                : "Change options here, drag to move, or use arrow keys to nudge (Shift: 10 px). Drag handles to resize.";
+                : "Drag to move, squares to resize, or the circle to rotate. Arrow keys nudge.";
 
         InspectorHelp.Visibility = Visible(!select || photoSelected);
         SelectGuideRow.Visibility = Visible(select && !photoSelected);
@@ -413,9 +413,9 @@ public sealed partial class MainPage
             SelectGuideFirstLabel.Text = groupSelected || imageSelected ? "Move" : "Click";
             SelectGuideFirstText.Text = groupSelected ? "Drag any selected element"
                 : imageSelected ? "Drag the image" : "Choose an element";
-            SelectGuideSecondLabel.Text = groupSelected ? "Actions" : imageSelected ? "Resize" : "Drag";
+            SelectGuideSecondLabel.Text = groupSelected ? "Actions" : selected is null ? "Drag" : "Handles";
             SelectGuideSecondText.Text = groupSelected ? "Right-click for group actions"
-                : imageSelected ? "Drag a corner handle" : "Move it or resize with handles";
+                : selected is not null ? "Squares resize · circle rotates" : "Move it or resize with handles";
         }
 
         PhotoOptionsRow.Visibility = Visible(photoSelected);
