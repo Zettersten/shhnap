@@ -836,9 +836,10 @@
                             <FontIcon Glyph="&#xE72E;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
                         </local:ToolbarActionButton>
                         <local:ToolbarActionButton CornerRadius="6" Padding="0" Margin="0" Width="28" Height="28"
-                            x:Name="NewShnappButton" Tag="Region" Click="Capture_Click"
-                            ToolTipService.ToolTip="Capture a region · Ctrl+Shift+2" AutomationProperties.Name="Camera"
-                            AutomationProperties.AutomationId="NewShnapp">
+                            x:Name="CameraPhotoToolButton" Click="CameraPhotoTool_Click" IsEnabled="False"
+                            ToolTipService.ToolTip="Take a camera photo and add it to this canvas"
+                            AutomationProperties.Name="Add camera photo"
+                            AutomationProperties.AutomationId="CameraPhotoTool">
                             <FontIcon Glyph="&#xE722;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
                         </local:ToolbarActionButton>
                         <local:ToolbarActionButton CornerRadius="6" Padding="0" Margin="0" Width="28" Height="28" x:Name="CropTool" Tag="Crop" Click="Tool_Click"

@@ -18,12 +18,15 @@ public sealed partial class MainPage
     private Guid? _photoCropTargetId;
     private ImagePoint? _photoCropStart;
     private ImagePoint? _photoCropEnd;
+    private bool _cameraAvailable;
 
     internal void SetCameraAvailable(bool available)
     {
+        _cameraAvailable = available;
         LibraryEmptyCameraCaptureMenu.IsEnabled = available;
         QuickCameraCapture.IsEnabled = available;
         PhotoAddButton.IsEnabled = available;
+        CameraPhotoToolButton.IsEnabled = available && _chromeEditorAvailable;
     }
 
     private void CameraCapture_Click(object sender, RoutedEventArgs args) =>

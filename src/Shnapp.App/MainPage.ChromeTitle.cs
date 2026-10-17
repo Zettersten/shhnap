@@ -7,6 +7,7 @@ namespace Shnapp.App;
 public sealed partial class MainPage
 {
     internal event EventHandler? TitleRenameStateChanged;
+    private bool _chromeEditorAvailable;
 
     // Keep the existing page commands and their handlers while displaying them
     // in the single window title bar. The canvas remains the full page size.
@@ -46,14 +47,15 @@ public sealed partial class MainPage
 
     internal void HandleChromeKeyUp(KeyRoutedEventArgs args) => Page_KeyUp(this, args);
 
-    internal void SetChromeToolAvailability(bool editorAvailable, bool captureAvailable)
+    internal void SetChromeToolAvailability(bool editorAvailable)
     {
+        _chromeEditorAvailable = editorAvailable;
         foreach (UIElement child in Tools.Children)
         {
             if (child is ToolbarActionButton button)
             {
-                button.IsEnabled = ReferenceEquals(button, NewShnappButton)
-                    ? captureAvailable : editorAvailable;
+                button.IsEnabled = editorAvailable &&
+                    (!ReferenceEquals(button, CameraPhotoToolButton) || _cameraAvailable);
             }
         }
     }

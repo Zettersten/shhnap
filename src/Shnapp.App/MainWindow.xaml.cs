@@ -126,7 +126,7 @@ public sealed partial class MainWindow : Window
     private void UpdateTitleBarState()
     {
         bool editing = Page.ViewModel.HasDocument && Settings is null;
-        Page.SetChromeToolAvailability(editing, Settings is null);
+        Page.SetChromeToolAvailability(editing);
         Page.SetSettingsNavigation(Settings is not null);
         ChromeCommandsHost.IsEnabled = Settings is null;
         ChromeLibraryHost.IsEnabled = Settings is null;
