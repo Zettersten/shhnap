@@ -16,7 +16,7 @@ public sealed partial class MainPage
     // The image is drawn across the entire window. These insets only define the
     // unobstructed area used when fitting and centering it beneath the overlays.
     private const double CanvasViewingHorizontalInset = 24;
-    private const double CanvasViewingTopInset = 60;
+    private const double CanvasViewingTopInset = 48;
     private const double CanvasViewingBottomInset = 36;
 
     private Rect CanvasViewingArea() =>

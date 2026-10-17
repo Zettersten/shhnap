@@ -296,7 +296,7 @@
             </CommandBar.SecondaryCommands>
         </CommandBar>
         <InfoBar x:Name="MessageBar" Canvas.ZIndex="12" IsOpen="False" IsClosable="True"
-            VerticalAlignment="Top" Margin="16,56,16,0" />
+            VerticalAlignment="Top" Margin="16,44,16,0" />
         <Grid x:Name="EditorHost" Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}"
             SizeChanged="EditorHost_SizeChanged"
             Background="{ThemeResource ShnappCanvasBrush}">
@@ -381,7 +381,7 @@
                         </Border>
                     </Grid>
                     <Border x:Name="InspectorPanel" Visibility="Visible"
-                        Width="252" Margin="12,60,12,36"
+                        Width="252" Margin="12,48,12,36"
                         HorizontalAlignment="Right" VerticalAlignment="Stretch"
                         Background="{ThemeResource ShnappInspectorAcrylicBrush}" CornerRadius="12"
                         BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}" BorderThickness="1"
@@ -851,7 +851,7 @@
             </Grid>
         </Grid>
         <Grid x:Name="LibraryRoot" Visibility="{x:Bind ViewModel.LibraryVisibility, Mode=OneWay}"
-            Margin="0,48,0,28" Padding="16,8,16,16" Background="{ThemeResource ShnappCanvasBrush}"
+            Margin="0,36,0,28" Padding="16,8,16,16" Background="{ThemeResource ShnappCanvasBrush}"
             SizeChanged="LibraryRoot_SizeChanged">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
