@@ -28,7 +28,6 @@ public sealed partial class MainPage : Page
     private CanvasRenderTarget? _dragBase;
     private EditorTool _tool;
     private bool _toolbarPointerPressed;
-    private bool _toolbarTextRefreshPending;
     private ToolbarActionButton? _toolbarRefreshSource;
     private bool _canvasTextRefreshPending;
     private bool _canvasInspectorOpenPending;
@@ -1485,7 +1484,7 @@ public sealed partial class MainPage : Page
         DrawingCanvas.Invalidate();
     }
 
-    private void SetTool(EditorTool tool, bool deferToolbarTextRefresh = false,
+    private void SetTool(EditorTool tool, bool deferToolbarChromeRefresh = false,
         bool clearSelectionForUserAction = false)
     {
         if (tool == EditorTool.Arrow)
@@ -1501,7 +1500,7 @@ public sealed partial class MainPage : Page
         _canvasTextRefreshPending = false;
         _canvasInspectorOpenPending = false;
         _tool = tool;
-        if (!deferToolbarTextRefresh)
+        if (!deferToolbarChromeRefresh)
         {
             _toolbarRefreshSource = null;
             FlushDeferredDocumentChromeRefresh();
@@ -1531,16 +1530,9 @@ public sealed partial class MainPage : Page
                 : tool is EditorTool.Rectangle or EditorTool.Square or EditorTool.Ellipse or EditorTool.Circle
                 ? tool.ToString() : "Shapes");
         UpdateShapeButtonAppearance();
-        _toolbarTextRefreshPending = deferToolbarTextRefresh;
-        if (!deferToolbarTextRefresh)
-        {
-            UpdateInspector();
-        }
+        UpdateInspector();
         UpdateCropInspector();
-        if (!deferToolbarTextRefresh)
-        {
-            ViewModel.Status = FooterToolHint();
-        }
+        ViewModel.Status = FooterToolHint();
         DrawingCanvas.Invalidate();
     }
 
@@ -1608,12 +1600,12 @@ public sealed partial class MainPage : Page
 
     private void Tool_Click(object sender, RoutedEventArgs args)
     {
-        bool deferTextRefresh = _toolbarPointerPressed && sender is ToolbarActionButton;
-        if (deferTextRefresh)
+        bool deferChromeRefresh = _toolbarPointerPressed && sender is ToolbarActionButton;
+        if (deferChromeRefresh)
         {
             _toolbarRefreshSource = (ToolbarActionButton)sender;
         }
-        SetTool(Enum.Parse<EditorTool>((string)((FrameworkElement)sender).Tag), deferTextRefresh,
+        SetTool(Enum.Parse<EditorTool>((string)((FrameworkElement)sender).Tag), deferChromeRefresh,
             clearSelectionForUserAction: true);
         DrawingCanvas.Focus(FocusState.Programmatic);
     }
@@ -1628,16 +1620,8 @@ public sealed partial class MainPage : Page
         ClearAnnotationSelection();
         CanvasHost.SetSelectionCursor(null);
         DrawingCanvas.Invalidate();
-        if (_toolbarPointerPressed)
-        {
-            _toolbarRefreshSource = ShapesTool;
-            _toolbarTextRefreshPending = true;
-        }
-        else
-        {
-            UpdateInspector();
-            ViewModel.Status = FooterToolHint();
-        }
+        UpdateInspector();
+        ViewModel.Status = FooterToolHint();
     }
 
     private void ToolbarButton_PointerExited(object sender, PointerRoutedEventArgs args)
@@ -1654,7 +1638,7 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        FlushToolbarTextRefresh();
+        FlushToolbarChromeRefresh();
     }
 
     private void Tools_PointerExited(object sender, PointerRoutedEventArgs args)
@@ -1666,19 +1650,13 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        FlushToolbarTextRefresh();
+        FlushToolbarChromeRefresh();
     }
 
-    private void FlushToolbarTextRefresh()
+    private void FlushToolbarChromeRefresh()
     {
         _toolbarRefreshSource = null;
         FlushDeferredDocumentChromeRefresh();
-        if (_toolbarTextRefreshPending)
-        {
-            _toolbarTextRefreshPending = false;
-            UpdateInspector();
-            ViewModel.Status = FooterToolHint();
-        }
     }
 
     private void ToolMenu_Click(object sender, RoutedEventArgs args) =>

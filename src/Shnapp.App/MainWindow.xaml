@@ -34,7 +34,7 @@
             <TitleBar.LeftHeader>
                 <StackPanel x:Name="TitleLeftControls" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                     <Grid Width="28" Height="28" AutomationProperties.Name="Shnapp">
-                        <Image Source="Assets/AppIcon.ico" Width="12" Height="12"
+                        <Image Source="Assets/AppIcon.ico" Width="12" Height="12" Translation="0,-6,0"
                             HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
                     <StackPanel x:Name="ChromeNavigationHost" Orientation="Horizontal" Spacing="4"
@@ -50,12 +50,12 @@
                     <local:ToolbarActionButton x:Name="TitleUndoButton" Width="28" Height="28" MinWidth="0" Padding="0"
                         CornerRadius="6" Click="TitleUndo_Click"
                         ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.Name="Undo" AutomationProperties.AutomationId="UndoEdit">
-                        <FontIcon Glyph="&#xE7A7;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
+                        <FontIcon Glyph="&#xE7A7;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" Translation="0,-6,0" />
                     </local:ToolbarActionButton>
                     <local:ToolbarActionButton x:Name="TitleRedoButton" Width="28" Height="28" MinWidth="0" Padding="0"
                         CornerRadius="6" Click="TitleRedo_Click"
                         ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.Name="Redo" AutomationProperties.AutomationId="RedoEdit">
-                        <FontIcon Glyph="&#xE7A6;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
+                        <FontIcon Glyph="&#xE7A6;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" Translation="0,-6,0" />
                     </local:ToolbarActionButton>
                     <Border Width="1" Height="16" Margin="5,0" VerticalAlignment="Center"
                         Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
