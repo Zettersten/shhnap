@@ -7,6 +7,11 @@
     <authors>Erik Zettersten</authors>
     <owners>Erik Zettersten</owners>
     <projectUrl>https://shhnap.com</projectUrl>
+    <iconUrl>https://shhnap.com/assets/icon.png</iconUrl>
+    <packageSourceUrl>https://github.com/Zettersten/shhnap/tree/main/packaging</packageSourceUrl>
+    <docsUrl>https://github.com/Zettersten/shhnap/blob/main/README.md</docsUrl>
+    <bugTrackerUrl>https://github.com/Zettersten/shhnap/issues</bugTrackerUrl>
+    <projectSourceUrl>https://github.com/Zettersten/shhnap</projectSourceUrl>
     <licenseUrl>https://github.com/Zettersten/shhnap/blob/main/LICENSE</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <summary>Screenshot capture and annotation for Windows 11</summary>

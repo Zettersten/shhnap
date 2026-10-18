@@ -27,6 +27,11 @@ on:
         description: Reviewed main commit SHA for a catalog-only correction; blank uses the release tag
         required: false
         type: string
+      resubmit_under_moderation:
+        description: Resubmit an existing version still in moderation using catalog_source_sha
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: read
 
@@ -50,6 +55,7 @@ jobs:
       REQUESTED_TAG: ${{ inputs.release_tag }}
       VERIFY_ONLY: ${{ inputs.verify_only }}
       CATALOG_SOURCE_SHA: ${{ inputs.catalog_source_sha }}
+      RESUBMIT_UNDER_MODERATION: ${{ inputs.resubmit_under_moderation }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -81,6 +87,15 @@ jobs:
             }
             git merge-base --is-ancestor $catalogSha origin/main
             if ($LASTEXITCODE -ne 0) { throw 'Catalog source commit must be reachable from main.' }
+          }
+          $resubmit = $env:RESUBMIT_UNDER_MODERATION -eq 'true'
+          if ($resubmit) {
+            if ($env:VERIFY_ONLY -eq 'true') { throw 'Resubmission and verification-only are mutually exclusive.' }
+            if ([string]::IsNullOrWhiteSpace($env:CATALOG_SOURCE_SHA)) {
+              throw 'Resubmission requires a reviewed catalog_source_sha on main.'
+            }
+            git merge-base --is-ancestor $tagCommit $catalogSha
+            if ($LASTEXITCODE -ne 0) { throw 'Catalog correction must descend from the release tag.' }
           }
           "Catalog candidate source: $(git rev-parse HEAD)" >> $env:GITHUB_STEP_SUMMARY
 
@@ -131,9 +146,17 @@ jobs:
 
           # A page exists even while its version is still in moderation.
           if (Test-PackagePage $version) {
-            Complete-Preflight 'submitted-or-awaiting-moderation' $false $false
+            if ($resubmit) {
+              ./packaging/chocolatey/Assert-VersionInModeration.ps1 -Version $version
+              Complete-Preflight 'ready-to-resubmit' $true $true
+            }
+            else {
+              Complete-Preflight 'submitted-or-awaiting-moderation' $false $false
+            }
             exit 0
           }
+
+          if ($resubmit) { throw "Chocolatey $version has no existing submission to update." }
 
           Complete-Preflight 'ready-to-submit' $true $true
 
@@ -147,6 +170,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
+      RESUBMIT_UNDER_MODERATION: ${{ inputs.resubmit_under_moderation }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -226,6 +250,9 @@ jobs:
           $version = $env:RELEASE_TAG.Substring(1)
           $package = Join-Path $env:GITHUB_WORKSPACE "chocolatey-package/shnapp.$version.nupkg"
           if (-not (Test-Path -LiteralPath $package -PathType Leaf)) { throw "Missing $package" }
+          if ($env:RESUBMIT_UNDER_MODERATION -eq 'true') {
+            ./packaging/chocolatey/Assert-VersionInModeration.ps1 -Version $version
+          }
           choco push $package --source https://push.chocolatey.org/ --key $env:CHOCOLATEY_API_KEY
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "Chocolatey $env:RELEASE_TAG submitted for moderation." >> $env:GITHUB_STEP_SUMMARY
