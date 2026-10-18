@@ -7,15 +7,16 @@ const feedbackHref = distribution.publicRepository
   : 'mailto:' + distribution.contactEmail;
 
 const captureModes = [
+  { title: 'A region', key: '2', description: 'Drag a precise rectangle with live dimensions. Hold Shift for a square.' },
   { title: 'A window', key: '4', description: 'Choose the window you want. Shnapp frames it with a soft shadow.' },
   { title: 'A screen', key: '3', description: 'Capture the display beneath your pointer in one move.' },
-  { title: 'A region', key: '2', description: 'Drag a precise rectangle with live dimensions. Hold Shift for a square.' },
+  { title: 'A camera photo', key: '5', description: 'Preview a connected camera, take a still, and open it as an editable shnapp.' },
 ];
 ---
 
 <SiteLayout
   title="Shnapp — Make the picture do the explaining"
-  description="Shnapp is a Windows 11 screenshot and annotation app. Capture a window, screen, or region, add context, and copy or save a clear PNG."
+  description="Shnapp captures a region, window, screen, or camera photo. Add callouts, magnify details, cover private information, and share a clear PNG."
   page="home"
 >
   <section class="home-hero" aria-labelledby="hero-title">
@@ -24,7 +25,7 @@ const captureModes = [
     <div class="shell home-hero-content">
       <img class="hero-icon" src="/assets/icon.png" alt="" width="92" height="92" />
       <h1 id="hero-title">Make the picture<br /><span>do the explaining.</span></h1>
-      <p>Shnapp helps creators turn raw screenshots into clear, annotated visuals. Capture the moment, point to what matters, then copy or save a picture that is ready to share.</p>
+      <p>Capture a region, window, screen, or camera photo. Add callouts, magnify what matters, cover private details, then copy or save a picture that is ready to share.</p>
       <div class="hero-actions">
         <a class="button button-hero" href="/download/">{downloadsAvailable ? 'Download Shnapp' : 'Explore the preview'} <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v10m-4-4 4 4 4-4M4 16h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></a>
         <a class="button button-hero-outline" href="#workflow">See how it works <span aria-hidden="true">↘</span></a>
@@ -36,10 +37,41 @@ const captureModes = [
 
   <section class="fact-band" aria-label="Shnapp at a glance">
     <div class="shell fact-band-inner">
-      <p><span class="fact-dot" aria-hidden="true"></span>Ready from the tray</p>
+      <p><span class="fact-dot" aria-hidden="true"></span>Screen and camera capture</p>
+      <p><span class="fact-dot" aria-hidden="true"></span>Callouts and magnifier</p>
       <p><span class="fact-dot" aria-hidden="true"></span>No account for the core flow</p>
-      <p><span class="fact-dot" aria-hidden="true"></span>Your library stays local</p>
-      <p><span class="fact-dot" aria-hidden="true"></span>Copy or save a PNG</p>
+      <p><span class="fact-dot" aria-hidden="true"></span>Searchable local library</p>
+    </div>
+  </section>
+
+  <section class="feature-overview section-space" id="features" aria-labelledby="features-title">
+    <div class="shell feature-overview-inner">
+      <div class="feature-overview-intro">
+        <h2 id="features-title">A clearer picture, start to finish.</h2>
+        <p>Shnapp brings capture, editing, and your saved work into one quick flow. Explore the tools behind each step.</p>
+      </div>
+      <div class="feature-overview-list">
+        <a href="#capture">
+          <h3>Capture</h3>
+          <p>Choose a region, window, display, or camera photo with a click or shortcut.</p>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 19 19 5M9 5h10v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </a>
+        <a href="#editor">
+          <h3>Explain</h3>
+          <p>Point with numbered callouts, magnify details, and add text, steps, lines, or shapes.</p>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 19 19 5M9 5h10v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </a>
+        <a href="#privacy">
+          <h3>Protect</h3>
+          <p>Use opaque Cover to remove a private detail from the picture you share.</p>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 19 19 5M9 5h10v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </a>
+        <a href="#library">
+          <h3>Keep</h3>
+          <p>Copy or save the finished PNG; find and reopen the editable shnapp in your local library.</p>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 19 19 5M9 5h10v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </a>
+      </div>
     </div>
   </section>
 
@@ -50,51 +82,41 @@ const captureModes = [
         <p>For a walkthrough, a visual note, or a quick explanation, Shnapp keeps the whole job in one place. Choose what to capture, add a mark, and get back to making.</p>
       </div>
       <div class="workflow-frame">
-        <div class="workflow-frame-head"><span class="frame-light" aria-hidden="true"></span><span>See Shnapp in action</span><span class="frame-duration">24 seconds</span></div>
-        {distribution.workflowVideoLive ? (
-          <div class="workflow-player">
-            <video data-workflow-video controls preload="none" poster="/demos/shnapp-workflow-poster.jpg" playsinline width="1280" height="688" aria-label="Shnapp demo showing capture, annotation, copy, and the local library">
-              <source src="/demos/shnapp-workflow.mp4" type="video/mp4" />
-              Your browser cannot play this video. The steps are described below.
-            </video>
-            <button class="workflow-play" type="button" data-video-start aria-label="Play the 24-second Shnapp demo"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9 5 10 7-10 7V5Z" fill="currentColor" /></svg><span>Play the demo</span></button>
-          </div>
-        ) : (
-          <img class="workflow-fallback" src="/screenshots/editor.png" alt="The Shnapp editor with an annotated sample capture" width="1920" height="1032" loading="lazy" />
-        )}
-        <p class="workflow-caption">A real Shnapp session using fictional sample content: capture, annotate, copy, and find it again.</p>
+        <div class="workflow-frame-head"><span class="frame-light" aria-hidden="true"></span><span>Shnapp v2 editor</span></div>
+        <img class="workflow-fallback" src="/screenshots/editor.png" alt="The Shnapp editor with an annotated fictional launch checklist" width="1920" height="1032" loading="lazy" />
+        <p class="workflow-caption">The Shnapp v2 editor with fictional sample content.</p>
       </div>
       <div class="workflow-steps" aria-label="The Shnapp workflow">
-        <div><span>1</span><h3>Capture</h3><p>Pick a window, full screen, or a precise region.</p></div>
+        <div><span>1</span><h3>Capture</h3><p>Pick a window, display, region, or camera photo.</p></div>
         <div><span>2</span><h3>Make it clear</h3><p>Add the words, steps, shapes, or privacy cover you need.</p></div>
         <div><span>3</span><h3>Send it on</h3><p>Copy the finished image or save a PNG for later.</p></div>
       </div>
     </div>
   </section>
 
-  <section class="feature-section editor-feature section-space" id="features" aria-labelledby="editor-title">
+  <section class="feature-section editor-feature section-space" id="editor" aria-labelledby="editor-title">
     <div class="shell feature-layout">
       <div class="feature-copy">
         <h2 id="editor-title">The right detail, in the right place.</h2>
         <p>Shnapp puts your capture on the canvas and its tools close by. Add a mark, then adjust it without losing the thread.</p>
         <ul class="feature-points">
-          <li><strong>Keep the image clear.</strong> Numbered callouts connect a point on the capture to an explanation outside it.</li>
-          <li><strong>Show a closer view.</strong> Place a magnifier over a detail and adjust its zoom, size, and outline.</li>
-          <li><strong>Write with control.</strong> Style individual words with bold, italic, or underline and align text inside its box.</li>
-          <li><strong>Keep it precise.</strong> Crop, zoom, pan, and nudge a mark one pixel at a time.</li>
+          <li><strong>Point it out.</strong> Numbered callouts connect a detail on the capture to an explanation outside it.</li>
+          <li><strong>Bring it closer.</strong> Magnify an area and adjust its zoom, size, and outline.</li>
+          <li><strong>Make your mark.</strong> Add rich text, numbered steps, lines, arrows, and shapes; style individual words with bold, italic, or underline.</li>
+          <li><strong>Keep control.</strong> Crop, group, move, flip, or rotate marks, or nudge a selection one pixel at a time.</li>
         </ul>
         <a class="arrow-link" href="/download/">{downloadsAvailable ? 'Get Shnapp' : 'See the preview'} <span aria-hidden="true">↗</span></a>
       </div>
       <figure class="feature-visual editor-visual">
-        <a href="/screenshots/editor.png" aria-label="Open a full-size screenshot of the Shnapp editor"><img src="/screenshots/editor.png" alt="Actual Shnapp editor showing a sample launch checklist with numbered steps and an opaque cover over a fictional access code" width="1920" height="1032" loading="lazy" /></a>
+        <a href="/screenshots/editor.png" aria-label="Open a full-size screenshot of the Shnapp editor"><img src="/screenshots/editor.png" alt="Actual Shnapp editor showing a fictional launch checklist with numbered steps and the selected step's font and color options" width="1920" height="1032" loading="lazy" /></a>
         <figcaption>Actual app screenshot with fictional sample content.</figcaption>
       </figure>
     </div>
   </section>
 
-  <section class="capture-section section-space" aria-labelledby="capture-title">
+  <section class="capture-section section-space" id="capture" aria-labelledby="capture-title">
     <div class="shell">
-      <div class="capture-heading"><h2 id="capture-title">There when you need it.<br />Gone when you don’t.</h2><p>Shnapp waits in the Windows tray. The main capture button starts a region shnapp; its attached arrow offers window and full-screen capture. Shortcuts work while you are in another app.</p></div>
+      <div class="capture-heading"><h2 id="capture-title">Four ways to capture.<br />One place to finish.</h2><p>Shnapp waits in the Windows tray. The main Capture button starts a rectangular region; its separate arrow offers a window, display, or camera photo. Shortcuts work while you are in another app.</p></div>
       <div class="capture-list">
         {captureModes.map((mode) => (
           <div class="capture-row">
@@ -104,14 +126,27 @@ const captureModes = [
           </div>
         ))}
       </div>
+      <div class="camera-spotlight" aria-labelledby="camera-title">
+        <div class="camera-spotlight-copy">
+          <svg class="camera-spotlight-icon" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M7 13h6l2.5-3h9l2.5 3h6a3 3 0 0 1 3 3v16a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V16a3 3 0 0 1 3-3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /><circle cx="20" cy="23" r="6" stroke="currentColor" stroke-width="2" /></svg>
+          <h3 id="camera-title">A camera photo is a shnapp, too.</h3>
+          <p>Press Ctrl+Shift+5 or choose Camera photo from the Capture menu. Pick a connected camera, frame the shot in a live preview, and take a still photo. It opens ready to annotate. You can also add another camera photo to the editor as a movable layer and crop it there.</p>
+          <p class="camera-availability">Camera actions are available when a camera is connected. Choose your preferred camera in Settings.</p>
+        </div>
+        <ol class="camera-flow" aria-label="Camera photo workflow">
+          <li><span>1</span><strong>Preview</strong><small>Frame the photo</small></li>
+          <li><span>2</span><strong>Capture</strong><small>Open an editable shnapp</small></li>
+          <li><span>3</span><strong>Layer</strong><small>Add and crop another photo</small></li>
+        </ol>
+      </div>
       <figure class="capture-app-figure">
-        <a href="/screenshots/empty-library.png" aria-label="Open a full-size screenshot of Shnapp before the first capture"><img src="/screenshots/empty-library.png" alt="Actual Shnapp empty library with the central Capture a region button and its separate dropdown arrow" width="1106" height="793" loading="lazy" /></a>
-        <figcaption>Open Shnapp and start with a region, or use the arrow for another capture mode.</figcaption>
+        <a href="/screenshots/empty-library.png" aria-label="Open a full-size screenshot of Shnapp before the first capture"><img src="/screenshots/empty-library.png" alt="Actual Shnapp empty library with the central Capture a region button and its separate dropdown arrow" width="1280" height="900" loading="lazy" /></a>
+        <figcaption>Start with a region, or use the arrow for a window, display, or camera photo.</figcaption>
       </figure>
     </div>
   </section>
 
-  <section class="feature-section library-feature section-space" aria-labelledby="library-title">
+  <section class="feature-section library-feature section-space" id="library" aria-labelledby="library-title">
     <div class="shell feature-layout feature-layout-reverse">
       <figure class="feature-visual library-visual">
         <a href="/screenshots/library.png" aria-label="Open a full-size screenshot of the Shnapp library"><img src="/screenshots/library.png" alt="Actual Shnapp library showing fictional saved captures, search, sorting, and thumbnail controls" width="1106" height="793" loading="lazy" /></a>
@@ -130,18 +165,18 @@ const captureModes = [
     <div class="shell feature-layout">
       <div class="feature-copy">
         <h2 id="settings-title">Set it once. Keep moving.</h2>
-        <p>Choose how Shnapp starts, copies new captures, and frames captured windows. Assign Print Screen to full-screen, window, or region capture, change the theme, and find your local library path in one place.</p>
+        <p>Choose how Shnapp starts, copies new captures, and frames captured windows. Pick a connected camera or let Shnapp choose automatically. Assign Print Screen to full-screen, window, or region capture, change the theme, and find your local library path in one place.</p>
         <p>Preferences save as you change them. About &amp; Updates shows the installed version and any available release, while Feedback keeps report links close.</p>
         <a class="arrow-link" href="/download/">Get Shnapp <span aria-hidden="true">↗</span></a>
       </div>
       <figure class="feature-visual settings-visual">
-        <a href="/screenshots/settings-general.png" aria-label="Open a full-size screenshot of Shnapp settings"><img src="/screenshots/settings-general.png" alt="Actual Shnapp General settings dialog showing capture preferences, appearance, and keyboard shortcuts" width="1106" height="793" loading="lazy" /></a>
-        <figcaption>Settings in the app. <a href="/screenshots/settings-about.png">See About &amp; Updates <span aria-hidden="true">↗</span></a></figcaption>
+        <a href="/screenshots/settings-general.png" aria-label="Open a full-size screenshot of Shnapp settings"><img src="/screenshots/settings-general.png" alt="Actual Shnapp General settings showing the camera source, capture preferences, and Ctrl+Shift+5 camera photo shortcut" width="1280" height="900" loading="lazy" /></a>
+        <figcaption>Camera source and shortcuts in Settings. <a href="/screenshots/settings-about.png">See About &amp; Updates <span aria-hidden="true">↗</span></a></figcaption>
       </figure>
     </div>
   </section>
 
-  <section class="privacy-feature section-space" aria-labelledby="privacy-title">
+  <section class="privacy-feature section-space" id="privacy" aria-labelledby="privacy-title">
     <div class="shell privacy-feature-inner">
       <div class="privacy-symbol" aria-hidden="true"><img src="/assets/icon.png" alt="" width="130" height="130" loading="lazy" /></div>
       <div class="privacy-feature-copy">
@@ -156,7 +191,7 @@ const captureModes = [
     <div class="shell faq-layout">
       <div class="faq-intro"><h2 id="faq-title">Good to know.</h2><p>A few practical answers before your first shnapp.</p></div>
       <div class="faq-list">
-        <details><summary>What can Shnapp capture?</summary><p>The main Capture button starts a rectangular region capture. Its attached arrow offers a window, the screen beneath your pointer, or a camera photo. The visible desktop freezes while you make a screen selection.</p></details>
+        <details><summary>What can Shnapp capture?</summary><p>The main Capture button starts a rectangular region capture. Its attached arrow offers a window, the screen beneath your pointer, or a camera photo when a camera is connected. The desktop freezes during a screen selection; Camera opens a live preview.</p></details>
         <details><summary>Do I need an account?</summary><p>No. Capture, edit, copy, and save work without an account or internet connection.</p></details>
         <details><summary>How do I install it?</summary><p>Choose the x64 or ARM64 direct download on the <a href="/download/">download page</a> and follow the steps shown for the current release. Portable ZIP packages and Scoop are also available.</p></details>
         <details><summary>Can I hide sensitive information?</summary><p>Use opaque Cover before sharing the finished PNG. Blur and Pixelate are visual obscuring tools and may leave details recognizable. The editable original remains in your local library.</p></details>
@@ -171,19 +206,3 @@ const captureModes = [
     </div>
   </section>
 </SiteLayout>
-
-<script>
-  const video = document.querySelector<HTMLVideoElement>('[data-workflow-video]');
-  const start = document.querySelector<HTMLButtonElement>('[data-video-start]');
-  start?.addEventListener('click', async () => {
-    if (!video) return;
-    try {
-      await video.play();
-      start.hidden = true;
-    } catch {
-      start.textContent = 'Video unavailable. Read the steps below.';
-      start.disabled = true;
-    }
-  });
-  video?.addEventListener('play', () => { if (start) start.hidden = true; });
-</script>

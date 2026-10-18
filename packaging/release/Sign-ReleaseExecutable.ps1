@@ -1,16 +1,16 @@
 param(
     [Parameter(Mandatory = $true)][string] $Path,
     [Parameter(Mandatory = $true)][string] $SignToolPath,
-    [Parameter(Mandatory = $true)][string] $CertificateThumbprint,
+    [Parameter(Mandatory = $true)][string] $ExpectedPublisher,
+    [Parameter(Mandatory = $true)][string] $ExpectedProfileEku,
+    [string] $DlibPath,
+    [string] $MetadataPath,
     [switch] $VerifyOnly
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if ($CertificateThumbprint -cnotmatch '^[0-9A-Fa-f]{40}$') {
-    throw 'A code-signing certificate thumbprint is required.'
-}
 if (-not (Test-Path -LiteralPath $SignToolPath -PathType Leaf)) {
     throw "SignTool is missing: $SignToolPath"
 }
@@ -18,15 +18,22 @@ if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
     throw "Executable is missing: $Path"
 }
 $file = (Resolve-Path -LiteralPath $Path).Path
-$thumbprint = $CertificateThumbprint.ToUpperInvariant()
+if ([System.IO.Path]::GetExtension($file) -cnotin @('.exe', '.dll')) {
+    throw "Release signing requires an EXE or DLL file: $file"
+}
 
 if (-not $VerifyOnly) {
-    & $SignToolPath sign /fd SHA256 /sha1 $thumbprint `
-        /tr http://timestamp.digicert.com /td SHA256 $file
+    if (-not (Test-Path -LiteralPath $DlibPath -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $MetadataPath -PathType Leaf)) {
+        throw 'Artifact Signing requires the x64 Dlib and signing metadata file.'
+    }
+    & $SignToolPath sign /fd SHA256 /tr http://timestamp.acs.microsoft.com /td SHA256 `
+        /dlib $DlibPath /dmdf $MetadataPath $file
     if ($LASTEXITCODE -ne 0) {
-        throw "SignTool could not sign $file."
+        throw "Artifact Signing could not sign $file."
     }
 }
+
 & $SignToolPath verify /pa /tw $file
 if ($LASTEXITCODE -ne 0) {
     throw "SignTool rejected the Authenticode signature on $file."
@@ -34,8 +41,10 @@ if ($LASTEXITCODE -ne 0) {
 $signature = Get-AuthenticodeSignature -LiteralPath $file
 if ($signature.Status -ne 'Valid' -or
     $null -eq $signature.SignerCertificate -or
-    $signature.SignerCertificate.Thumbprint.ToUpperInvariant() -cne $thumbprint -or
     $null -eq $signature.TimeStamperCertificate) {
-    throw "The Authenticode signature on $file is invalid, is not time-stamped, or uses another signer."
+    throw "The Authenticode signature on $file is invalid or is not time-stamped."
 }
-Write-Host "Verified release signature on $file."
+& (Join-Path $PSScriptRoot 'Assert-ReleaseSignerCertificate.ps1') `
+    -Certificate $signature.SignerCertificate `
+    -ExpectedPublisher $ExpectedPublisher -ExpectedProfileEku $ExpectedProfileEku
+Write-Host "Verified Artifact Signing signature on $file."

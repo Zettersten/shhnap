@@ -30,11 +30,17 @@ internal static class CalloutLayout
             }
 
             number++;
-            if (item.IsFlattened || item.HiddenByCrop)
+            if (item.HiddenByCrop)
             {
-                occupied.Add(item.IsFlattened
-                    ? item.CalloutBox()
-                    : AnnotationRotation.TransformedBounds(item, item.CalloutBox()));
+                continue;
+            }
+
+            if (item.IsFlattened || item.VisibilityClip is not null)
+            {
+                if (item.VisibilityClip is null)
+                {
+                    occupied.Add(item.RasterizedBounds ?? item.CalloutBox());
+                }
                 continue;
             }
 

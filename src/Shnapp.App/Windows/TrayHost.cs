@@ -179,7 +179,7 @@ internal sealed class TrayHost : IDisposable
         {
             NativeMethods.AppendMenu(menu, 0, 1, "New window shnapp\tCtrl+Shift+4");
             NativeMethods.AppendMenu(menu, 0, 2, "New full-screen shnapp\tCtrl+Shift+3");
-            NativeMethods.AppendMenu(menu, 0, 3, "New free-form shnapp\tCtrl+Shift+2");
+            NativeMethods.AppendMenu(menu, 0, 3, "New region shnapp\tCtrl+Shift+2");
             NativeMethods.AppendMenu(menu, _cameraAvailable ? 0u : 0x1u, 7,
                 "New camera photo\tCtrl+Shift+5");
             NativeMethods.AppendMenu(menu, 0x800, 0, null);

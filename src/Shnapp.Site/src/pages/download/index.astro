@@ -39,7 +39,7 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
         </div>
         <figure class="dl-hero-preview">
           <div class="dl-preview-frame">
-            <img src="/screenshots/editor.png" width="1920" height="1032" alt="Shnapp editor showing a captured workspace with annotations and a covered access code" />
+            <img src="/screenshots/editor.png" width="1920" height="1032" alt="Shnapp editor showing a fictional launch checklist with selected annotation options" />
           </div>
           <figcaption>Capture. Mark it up. Keep moving.</figcaption>
         </figure>
@@ -53,7 +53,8 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
           <p data-zip-only>Both portable ZIP packages include the app and its runtime. Extract the whole archive and keep the <code>versions</code> folder and <code>current-version.txt</code> beside the root <code>Shnapp.exe</code> launcher.</p>
           <p data-installer-only hidden>Run the setup file for your PC to install Shnapp. Prefer a portable copy? The ZIP package is available beneath each installer.</p>
         </div>
-        {downloadsAvailable && <p class="dl-signing-note" data-unsigned-release><strong data-unsigned-version>v1.0.12 is unsigned.</strong> Windows may show an Unknown publisher or SmartScreen warning. Check the SHA-256 checksum before running the download.</p>}
+        {downloadsAvailable && <p class="dl-signing-note" data-unsigned-release hidden><strong data-unsigned-version>Unsigned release.</strong> Windows may show an Unknown publisher or SmartScreen warning. Check the SHA-256 checksum before running the download.</p>}
+        {downloadsAvailable && <p class="dl-signing-note dl-signing-note--signed" data-signed-release hidden><strong>Signed by Nenvy LLC.</strong> The installer and portable executables are code signed. You can also check each download against its SHA-256 checksum.</p>}
         {!downloadsAvailable && (
           <div class="dl-availability-message" role="status">
             <strong>Public downloads are being prepared.</strong>
@@ -96,7 +97,7 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
         <ol class="dl-setup-list">
           <li><span class="dl-setup-index" aria-hidden="true">01</span><div><h3>Download</h3><p>Choose x64 for an Intel or AMD PC, or ARM64 for a Windows on ARM PC.</p></div></li>
           <li><span class="dl-setup-index" aria-hidden="true">02</span><div><h3 data-zip-only>Extract</h3><p data-zip-only>Extract the entire archive to a folder you choose. Keep <code>versions</code> and <code>current-version.txt</code> beside the root <code>Shnapp.exe</code>, then run that launcher.</p><h3 data-installer-only hidden>Install</h3><p data-installer-only hidden>Run the setup file to install Shnapp, then open the app.</p></div></li>
-          <li><span class="dl-setup-index" aria-hidden="true">03</span><div><h3>Capture</h3><p>Use Ctrl + Shift + 4 for a window, 3 for the full screen, or 2 for a region.</p></div></li>
+          <li><span class="dl-setup-index" aria-hidden="true">03</span><div><h3>Capture</h3><p>Use Ctrl + Shift + 2 for a region, 4 for a window, 3 for a display, or 5 for a camera photo when a camera is connected.</p></div></li>
         </ol>
       </div>
     </section>
@@ -161,8 +162,11 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
       if (!feed) return;
 
       const hasInstaller = feed.schemaVersion === 2;
+      const isSignedRelease = hasInstaller && Number(feed.version.split('.')[0]) >= 2;
       document.querySelectorAll<HTMLElement>('[data-zip-only]').forEach((element) => { element.hidden = hasInstaller; });
       document.querySelectorAll<HTMLElement>('[data-installer-only]').forEach((element) => { element.hidden = !hasInstaller; });
+      const signedNote = document.querySelector<HTMLElement>('[data-signed-release]');
+      if (signedNote) signedNote.hidden = !isSignedRelease;
       const signingNote = document.querySelector<HTMLElement>('[data-unsigned-release]');
       if (signingNote) {
         const isUnsignedRelease = feed.tag === 'v1.0.12' || feed.tag === 'v1.0.13';

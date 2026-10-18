@@ -618,6 +618,7 @@ public sealed class DocumentEditor(ShnappDocument document)
                 Crop = viewport,
                 BaseImageCrop = baseImageCrop,
                 HideOriginalImage = hideOriginalImage,
+                Annotations = CropCalloutVisibility(Current.Annotations, viewport),
             });
         }
     }
@@ -1028,6 +1029,35 @@ public sealed class DocumentEditor(ShnappDocument document)
         return builder?.ToImmutable() ?? annotations;
     }
 
+    private static ImmutableArray<Annotation> CropCalloutVisibility(
+        ImmutableArray<Annotation> annotations, ImageRect viewport)
+    {
+        ImmutableArray<Annotation>.Builder? builder = null;
+        for (int index = 0; index < annotations.Length; index++)
+        {
+            Annotation callout = annotations[index];
+            if (callout.Kind != AnnotationKind.Callout || callout.HiddenByCrop)
+            {
+                continue;
+            }
+
+            ImageRect? clip = callout.VisibilityClip is ImageRect previous
+                ? Intersection(previous, viewport) : viewport;
+            ImageRect content = ContentBounds(callout);
+            Annotation cropped = clip is not ImageRect visible || Intersection(content, visible) is null
+                ? callout with { VisibilityClip = null, HiddenByCrop = true }
+                : Contains(visible, content) ? callout
+                : callout with { VisibilityClip = visible };
+            if (cropped != callout)
+            {
+                builder ??= annotations.ToBuilder();
+                builder[index] = cropped;
+            }
+        }
+
+        return builder?.ToImmutable() ?? annotations;
+    }
+
     private static Annotation CarryVisibilityWithGeometry(Annotation previous, Annotation replacement)
     {
         if (previous.HiddenByCrop)
@@ -1105,7 +1135,8 @@ public sealed class DocumentEditor(ShnappDocument document)
         {
             next = next with { Annotations = CalloutLayout.Reflow(next) };
             Annotation[] callouts = next.Annotations
-                .Where(item => item.Kind == AnnotationKind.Callout && !item.HiddenByCrop)
+                .Where(item => item.Kind == AnnotationKind.Callout &&
+                    !item.HiddenByCrop && item.VisibilityClip is null)
                 .ToArray();
             if (callouts.Length > 0)
             {

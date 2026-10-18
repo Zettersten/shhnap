@@ -7,6 +7,8 @@ test -d "$assets_dir"
 [[ "$expected_tag" =~ ^v[1-9][0-9]*\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
 
 version="${expected_tag#v}"
+multi_file=false
+if (( ${version%%.*} >= 2 )); then multi_file=true; fi
 legacy_setup=false
 if [[ "$version" != '1.0.12' &&
       "$(printf '%s\n' "$version" '1.0.12' | sort -V | head -n 1)" == "$version" ]]; then
@@ -71,6 +73,14 @@ fi
     grep -Fx "versions/$archive_version/Shnapp.pri" <<<"$listing" >/dev/null
     grep -Fx "versions/$archive_version/LICENSE" <<<"$listing" >/dev/null
     grep -Fx "versions/$archive_version/THIRD_PARTY_NOTICES.txt" <<<"$listing" >/dev/null
+    if $multi_file; then
+      for required in Shnapp.dll Shnapp.Core.dll Shnapp.deps.json Shnapp.runtimeconfig.json Microsoft.ui.xaml.dll; do
+        grep -Fx "versions/$archive_version/$required" <<<"$listing" >/dev/null || {
+          echo "$archive is missing $required from its multi-file WinUI payload." >&2
+          exit 1
+        }
+      done
+    fi
     grep -Eq "^versions/$archive_version/THIRD_PARTY_NOTICES/.+" <<<"$listing" || {
       echo "$archive is missing third-party license files." >&2
       exit 1
@@ -87,10 +97,12 @@ fi
       esac
       if [[ "$entry" == "versions/$archive_version/"* ]]; then
         relative="${entry#versions/$archive_version/}"
-        case "$relative" in
-          ''|Shnapp.exe|Shnapp.pri|LICENSE|THIRD_PARTY_NOTICES.txt|THIRD_PARTY_NOTICES/*) ;;
-          *) echo "Unexpected file in single-file payload: $entry" >&2; exit 1 ;;
-        esac
+        if ! $multi_file; then
+          case "$relative" in
+            ''|Shnapp.exe|Shnapp.pri|LICENSE|THIRD_PARTY_NOTICES.txt|THIRD_PARTY_NOTICES/*) ;;
+            *) echo "Unexpected file in single-file payload: $entry" >&2; exit 1 ;;
+          esac
+        fi
       fi
     done <<<"$listing"
 
