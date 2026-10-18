@@ -14,9 +14,19 @@
 
 Shnapp waits quietly in your tray until you need it. Capture part of your screen, add a little context, then copy the finished image or save a PNG. Every capture is a **shnapp**; making one is **shnapping**.
 
-![The Shnapp editor with a captured sample window, numbered steps, and contextual step options](src/Shnapp.Site/public/screenshots/editor.png)
+## See Shnapp in action
 
-*A real Shnapp editor session. Your capture stays in view while the tools stay close.*
+[Watch the 39-second Shnapp v2 tour](src/Shnapp.Site/public/demos/shnapp-workflow.mp4) for the full-window canvas, floating options, transforms, sharing actions, and local library. The app captures below use a fictional sample workspace.
+
+| Full-window canvas and acrylic options | Annotated editor |
+| --- | --- |
+| [![Landscape photo continuing behind Shnapp's translucent title bar, floating options panel, and footer](src/Shnapp.Site/public/screenshots/photo-canvas.png)](src/Shnapp.Site/public/screenshots/photo-canvas.png) | [![Fictional launch checklist annotated with steps, an outlined shape, privacy cover, and arrow](src/Shnapp.Site/public/screenshots/editor.png)](src/Shnapp.Site/public/screenshots/editor.png) |
+| **Rotate and flip** | **Local library** |
+| [![Transform context menu with horizontal and vertical flip plus clockwise rotation angles](src/Shnapp.Site/public/screenshots/rotate-transform.png)](src/Shnapp.Site/public/screenshots/rotate-transform.png) | [![Four fictional captures in the searchable Shnapp library](src/Shnapp.Site/public/screenshots/library.png)](src/Shnapp.Site/public/screenshots/library.png) |
+
+See the [unobstructed photo canvas](src/Shnapp.Site/public/screenshots/photo-canvas-clean.png), [rotation handle](src/Shnapp.Site/public/screenshots/editor-rotation.png), [magnifier, pixelate, and callout](src/Shnapp.Site/public/screenshots/editor-magnify.png), [empty library](src/Shnapp.Site/public/screenshots/empty-library.png), and [settings](src/Shnapp.Site/public/screenshots/settings-general.png).
+
+The landscape is [“Mountain lake in the autumn” by sayid he](https://commons.wikimedia.org/wiki/File:Mountain_lake_in_the_autumn_(Unsplash).jpg), available under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). Video music is [“Cloud Dancer” by Kevin MacLeod](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN2300007), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the tour uses an edited excerpt with fades.
 
 ## Make a shnapp
 
@@ -36,11 +46,13 @@ The grabber freezes the visible desktop when capture starts, so moving content h
 
 ## Explain it in a few clicks
 
-The editor gives your capture room to breathe. Place a mark and it stays selected: changes in the side panel update that mark right away. Select an earlier mark to adjust it, or drag its handles to resize it. When nothing is selected, your choices set up the next mark.
+The editor gives your capture the full window, including the area behind its translucent title bar and compact footer. The title bar keeps navigation, tools, camera, library, and actions together. File details sit at the left of the footer, the info-panel toggle stays centered, and fit, zoom, and full-screen controls sit at the right. The acrylic options panel floats over the image and changes with the selected tool without resizing the canvas. Place a mark and it stays selected: changes in the panel update that mark right away. Select an earlier mark to adjust it, or drag its handles to resize it. When nothing is selected, your choices set up the next mark.
 
 Paste with `Ctrl+V` to turn copied words into an editable text mark or a copied picture into a movable image. If either reaches past the capture, Shnapp grows the transparent canvas around it. Remove or move that mark and the unused space falls away.
 
 To work with several marks at once, `Ctrl+click` each element to add or remove it from the selection, or press `Ctrl+A` to select every visible editable element. An outline shows the selected group. Drag any selected element to move the group; hold Shift while dragging to keep the move horizontal or vertical. You can also nudge the group with the arrow keys, one pixel at a time or ten with Shift. Moving the group past the current canvas extends the transparent canvas around it. Press `Esc` to clear the group selection.
+
+To rotate a selected element, drag the small circular handle above the middle of its top edge. This works for text, callouts, steps, lines, shapes, privacy marks, magnifiers, and photo layers. The image remains continuous behind the title bar, panel, and footer as you zoom or pan.
 
 - **Text:** click once to write without a box; your words can grow in width or across lines. Drag to draw a fixed width and height when text needs to fit a specific space. Choose whether overflow is clipped or ends with an ellipsis, align text horizontally and vertically, and set its line height. Style selected words with bold, italic, or underline, and use Windows spelling suggestions while editing. The font picker previews each choice as you move through it with the arrow keys. Press Enter for another line, `Ctrl+Enter` to finish, or double-click placed text to rewrite it.
 - **Callouts:** enter an explanation, then point to the detail it describes. Shnapp numbers the callout and positions its text outside the image, with a leader line back to the point. Edit the text to have the layout measured again.
@@ -51,7 +63,7 @@ To work with several marks at once, `Ctrl+click` each element to add or remove i
 
 Draw a crop and drag it into place, use exact X, Y, width, and height values, lock proportions, or pick a ratio such as 1:1, 9:16, or 5:7. The crosshair stays visible while you position and draw a crop, with a live size readout; press `Esc` to cancel crop mode and return to Select. Text, steps, lines, shapes, and privacy tools each show a placement cursor while active. Scroll the canvas to zoom; hold Space and drag with the hand cursor to pan with a short, gentle glide. Hold Shift while resizing a single mark to keep its proportions. Click a number field, then scroll to change it by one; hold Shift for ten. Undo or redo as you go. Window captures get a soft drop shadow by default.
 
-Right-click any placed element, including an image pasted from the clipboard or dragged from the gallery, to clone it, delete it, change which marks sit in front, or **Flatten** it. With a group selected, right-click one of its elements to clone, delete, or flatten the whole group. Flatten rasterizes each selected element in place so it can no longer be selected, moved, or edited; use Undo (`Ctrl+Z`) to restore the editable elements. `Ctrl+D` duplicates the selection, and `Delete` removes it. For a single element, `Ctrl+]` moves it to the front and `Ctrl+[` moves it to the back.
+Right-click any placed element, including an image pasted from the clipboard or dragged from the gallery, to clone it, change which marks sit in front, transform it, flatten it, or delete it. **Transform** offers horizontal and vertical flips plus 45°, 90°, 135°, and 180° rotations in either direction. With a group selected, right-click one of its elements to apply a transform to the whole group in one undo step, or to clone, flatten, or delete the group. Flatten rasterizes each selected element in place so it can no longer be selected, moved, or edited; use Undo (`Ctrl+Z`) to restore the editable elements. `Ctrl+D` duplicates the selection, and `Delete` removes it. For a single element, `Ctrl+]` moves it to the front and `Ctrl+[` moves it to the back.
 
 When it looks right, choose **Copy** (`Ctrl+C`) from the toolbar menu to put the finished image on your clipboard with its transparent areas intact, or **Save** (`Ctrl+S`) to export a PNG. Close the window when you're finished; Shnapp stays ready in the tray. The menu also offers Windows Share, Copy full path, and Delete shnapp.
 
@@ -64,10 +76,6 @@ Right-click an item to clone, rename, share, delete, or copy its saved PNG path.
 Back and Forward retrace the places you visited. You can also use `Alt+Left`, `Alt+Right`, or your mouse's Back and Forward buttons. Click the title above an open shnapp to rename it. An empty library offers a quick start, and you can opt in to launching Shnapp at sign-in so it is ready in the tray.
 
 While editing, move to the canvas's left edge to reveal a small image-only gallery over your work, or open it with `Ctrl+Shift+G` or **Recent shnapps** in the menu. Hover to magnify nearby previews, use the arrows or scroll to browse, click a preview to open it, or drag one onto your canvas to add a copy as a movable image layer. Small cropped previews keep browsing quick.
-
-![The Shnapp library showing three locally saved fictional captures with preview thumbnails, dates, dimensions, and file sizes](src/Shnapp.Site/public/screenshots/library.png)
-
-*Your shnapps stay on this PC, with previews that make the right capture easy to find.*
 
 ## Your captures stay yours
 

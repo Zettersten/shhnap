@@ -39,14 +39,14 @@ Capture, annotate, and share screenshots from a Windows 11 tray app. Keep editab
 
 Shnapp helps you turn a screenshot into something you can explain and share. Start a capture from the tray or with a keyboard shortcut, choose a region, a window, or the display under your pointer, then edit the image before exporting it.
 
-Add text, arrows, lines, shapes, numbered or lettered steps, and pasted images. Crop the result or hide details with Cover, Blur, and Pixelate. Copy the finished image, save it as a PNG, or open the Windows share sheet.
+Add text, arrows, lines, shapes, numbered or lettered steps, and pasted images. Rotate or flip editable marks, crop the result, or hide details with Cover, Blur, and Pixelate. Copy the finished image, save it as a PNG, or open the Windows share sheet.
 
 Your editable captures stay in a searchable local library on your Windows device. Shnapp works without an account or cloud service. Launch at sign-in is optional. Updates to the Store edition are delivered through Microsoft Store.
 
 **Product features** (enter each as a separate feature, without a bullet prefix)
 
 1. Capture a region, window, or display from the tray or keyboard.
-2. Annotate with text, arrows, shapes, steps, and pasted images.
+2. Annotate with text, arrows, shapes, steps, and pasted images; rotate or flip editable marks.
 3. Cover, blur, or pixelate sensitive areas before sharing.
 4. Copy, save a PNG, or use the Windows share sheet.
 5. Search, sort, and reopen captures from a local library.
@@ -68,9 +68,9 @@ Your editable captures stay in a searchable local library on your Windows device
 
 | Candidate | Current state | Store caption draft |
 | --- | --- | --- |
-| Annotated editor | [01-editor-annotated.png](screenshots/01-editor-annotated.png), 1920 × 1032. Current v2 editor with numbered steps and a covered fictional access code. | Add context with numbered steps and cover sensitive details before sharing. |
-| Region capture | [02-region-capture.png](screenshots/02-region-capture.png), 1920 × 1032. Current v2 editor with a fictional region capture. | Keep a region capture editable for review and export. |
-| Library | [03-library.png](screenshots/03-library.png), 1920 × 1032. Current v2 library with four fictional local captures. | Find and reopen editable captures in your local library. |
-| Clean editor | [04-editor-clean.png](screenshots/04-editor-clean.png), 1920 × 1032. Current v2 editor with an unannotated fictional project overview. | Start with a capture, then choose the details to emphasize. |
+| Annotated editor | [01-editor-annotated.png](screenshots/01-editor-annotated.png), 1586 × 893. Current v2 editor with numbered steps and a covered fictional access code. | Add context with numbered steps and cover sensitive details before sharing. |
+| Photo canvas | [02-photo-canvas.png](screenshots/02-photo-canvas.png), 1586 × 893. The photo continues behind the translucent title bar, footer, and floating options panel. | Keep the whole picture in view while adjusting tools and zoom. |
+| Library | [03-library.png](screenshots/03-library.png), 1586 × 893. Current v2 library with four local sample captures. | Find and reopen editable captures in your local library. |
+| Transform | [04-transform.png](screenshots/04-transform.png), 1600 × 900. The selected element's context menu offers flips and preset rotations. | Rotate and flip editable elements right on the canvas. |
 
-The four images are genuine v2 app captures made with an isolated `--data-root` and fictional fixture content; no personal capture library was used. All four were visually reviewed at 1920 × 1032 and are below 50 MB. The previous Feedback image was removed because it showed the older interface. The 1106-pixel-wide website captures do not meet the 1366-pixel Store minimum. The transparent picker overlay did not render in the earlier screenshot capture, so it is omitted. `src/Shnapp.App/Assets/Square150x150Logo.scale-200.png` is an existing 300 × 300 transparent Shnapp icon and is a candidate for the recommended Store tile icon; inspect its appearance on both light and dark backgrounds before upload and in Partner Center's package preview.
+The four images are genuine v2 app captures made with an isolated `--data-root`; the sample workspace is fictional and no personal capture library was used. All four exceed the 1366 × 768 Store minimum and are below 50 MB. The landscape is [“Mountain lake in the autumn” by sayid he](https://commons.wikimedia.org/wiki/File:Mountain_lake_in_the_autumn_(Unsplash).jpg), available under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). The previous Feedback image was removed because it showed the older interface. The transparent picker overlay did not render in the earlier screenshot capture, so it is omitted. `src/Shnapp.App/Assets/Square150x150Logo.scale-200.png` is an existing 300 × 300 transparent Shnapp icon and is a candidate for the recommended Store tile icon; inspect its appearance on both light and dark backgrounds before upload and in Partner Center's package preview.
