@@ -376,6 +376,11 @@ public sealed record Annotation
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImageRect? VisibilityClip { get; init; }
 
+    /// <summary>Exact retained image pixels after a crop is moved, mirrored, or rotated.</summary>
+    /// <remarks>Canvas coordinates. The rectangle above also clips this polygon when a later crop is applied.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<ImagePoint> VisibilityPolygon { get; init; }
+
     /// <summary>Gets whether a crop has completely hidden this annotation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool HiddenByCrop { get; init; }

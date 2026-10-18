@@ -14,6 +14,10 @@
 - Tool options use an acrylic panel over the canvas and animate when the panel or selected tool changes.
 - The website and README include new v2 screenshots and a feature tour with licensed music and photography.
 
+### Fixed
+
+- Flipping or rotating a cropped photo layer keeps discarded pixels hidden in the editor and exports.
+
 ## 2.0.0
 
 ### Added

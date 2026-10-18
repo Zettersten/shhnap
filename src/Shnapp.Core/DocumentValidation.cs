@@ -190,6 +190,16 @@ internal static class DocumentValidation
             Require(!annotation.HiddenByCrop,
                 "A completely hidden annotation cannot also have a visibility clip.", nameof(annotation));
         }
+        Require(annotation.VisibilityPolygon.IsDefaultOrEmpty ||
+            annotation.Kind == AnnotationKind.Image && !annotation.IsFlattened &&
+            annotation.VisibilityClip is not null && !annotation.HiddenByCrop &&
+            annotation.VisibilityPolygon.Length is >= 3 and <= 4096,
+            "Only a visible editable image can have a retained-pixel polygon.", nameof(annotation));
+        foreach (ImagePoint point in annotation.VisibilityPolygon.IsDefault
+            ? [] : annotation.VisibilityPolygon)
+        {
+            ValidatePoint(point, nameof(annotation));
+        }
         Require(double.IsFinite(annotation.StrokeWidth) && annotation.StrokeWidth >= 0,
             "Stroke width must be finite and nonnegative.", nameof(annotation));
         Require(annotation.Kind is not (AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Shape) ||

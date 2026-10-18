@@ -294,6 +294,36 @@ public sealed class ShnappLibraryTests
     }
 
     [TestMethod]
+    public async Task TransformedImageVisibilityMaskSurvivesReopening()
+    {
+        using var temporary = new TemporaryLibrary();
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(100, 100, 50, 100));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(400, 400),
+            End = new ImagePoint(450, 450),
+        });
+        editor.UpdateAnnotation(image with { RotationDegrees = 45 });
+        await temporary.Library.SaveAsync(editor.Current);
+
+        ShnappDocument? reopened = await temporary.Library.OpenAsync(editor.Current.Id);
+        Assert.IsNotNull(reopened);
+        Annotation retained = reopened.Annotations.Single(item => item.Id == image.Id);
+        Assert.AreEqual(4, retained.VisibilityPolygon.Length);
+        Assert.IsTrue(ImageVisibility.Contains(retained,
+            AnnotationRotation.TransformContent(retained, new ImagePoint(125, 150))));
+        Assert.IsFalse(ImageVisibility.Contains(retained,
+            AnnotationRotation.TransformContent(retained, new ImagePoint(175, 150))));
+    }
+
+    [TestMethod]
     public async Task PreparedSaveChecksActualEscapedJsonBeforeReplacingExistingMetadata()
     {
         using var temporary = new TemporaryLibrary();

@@ -42,7 +42,7 @@ public sealed partial class MainPage
     private bool HitAnnotation(Annotation annotation, ImagePoint position)
     {
         if (annotation.IsFlattened || annotation.HiddenByCrop ||
-            annotation.VisibilityClip is ImageRect clip && !clip.Contains(position))
+            !ImageVisibility.Contains(annotation, position))
         {
             return false;
         }
@@ -364,7 +364,7 @@ public sealed partial class MainPage
         {
             ImagePoint position = DisplayHandlePosition(annotation, handle);
             if (annotation.HiddenByCrop ||
-                annotation.VisibilityClip is ImageRect clip && !clip.Contains(position))
+                !ImageVisibility.Contains(annotation, position))
             {
                 continue;
             }
@@ -424,8 +424,7 @@ public sealed partial class MainPage
             foreach (SelectionHandle handle in HandlesFor(annotation))
             {
                 ImagePoint position = DisplayHandlePosition(annotation, handle);
-                if (annotation.VisibilityClip is ImageRect handleClip &&
-                    !handleClip.Contains(position))
+                if (!ImageVisibility.Contains(annotation, position))
                 {
                     continue;
                 }

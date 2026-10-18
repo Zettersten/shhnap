@@ -181,6 +181,7 @@ public sealed partial class MainPage
             VisibilityClip = annotation.VisibilityClip is ImageRect clip
                 ? clip with { X = clip.X + dx, Y = clip.Y + dy }
                 : null,
+            VisibilityPolygon = ImageVisibility.Translate(annotation.VisibilityPolygon, dx, dy),
         };
     }
 }

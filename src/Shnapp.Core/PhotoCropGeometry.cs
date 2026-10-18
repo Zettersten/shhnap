@@ -90,10 +90,34 @@ public static class PhotoCropGeometry
         };
     }
 
+    /// <summary>Keeps surviving source pixels at their displayed positions after a photo crop.</summary>
+    public static Annotation PreserveTransformedPlacement(Annotation original, Annotation changed)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+        ArgumentNullException.ThrowIfNull(changed);
+        if (changed == original ||
+            original.RotationDegrees == 0 && !original.FlipHorizontal && !original.FlipVertical)
+        {
+            return changed;
+        }
+
+        ImageRect bounds = changed.Bounds;
+        ImagePoint localCenter = new(bounds.X + bounds.Width / 2,
+            bounds.Y + bounds.Height / 2);
+        ImagePoint worldCenter = AnnotationRotation.TransformContent(original, localCenter);
+        double dx = worldCenter.X - localCenter.X;
+        double dy = worldCenter.Y - localCenter.Y;
+        return changed with
+        {
+            Start = new(changed.Start.X + dx, changed.Start.Y + dy),
+            End = new(changed.End.X + dx, changed.End.Y + dy),
+        };
+    }
+
     private static double RoundSourceEdge(double position) =>
         Math.Round(position, 0, MidpointRounding.AwayFromZero);
 
-    private static (ImageRect Destination, ImageRect Source, ImageRect Full) ReadGeometry(Annotation image)
+    internal static (ImageRect Destination, ImageRect Source, ImageRect Full) ReadGeometry(Annotation image)
     {
         ArgumentNullException.ThrowIfNull(image);
         if (image.Kind != AnnotationKind.Image || image.IsFlattened)

@@ -533,6 +533,10 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
 
     internal void DrawImageAnnotation(CanvasDrawingSession drawing, Annotation annotation)
     {
+        // The crop is a mask over retained pixels, so establish it in canvas
+        // coordinates before applying the image's flip/rotation to its content.
+        using CanvasGeometry? visibility = VisibilityPolygonGeometry(drawing, annotation);
+        using var visibilityLayer = visibility is null ? null : drawing.CreateLayer(1, visibility);
         Matrix3x2 previousTransform = ApplyAnnotationTransform(drawing, annotation);
         try
         {
@@ -542,6 +546,26 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
         {
             drawing.Transform = previousTransform;
         }
+    }
+
+    private static CanvasGeometry? VisibilityPolygonGeometry(CanvasDrawingSession drawing,
+        Annotation annotation)
+    {
+        if (annotation.VisibilityPolygon.IsDefaultOrEmpty)
+        {
+            return null;
+        }
+
+        using var path = new CanvasPathBuilder(drawing);
+        ImagePoint first = annotation.VisibilityPolygon[0];
+        path.BeginFigure(new Vector2((float)first.X, (float)first.Y));
+        for (int index = 1; index < annotation.VisibilityPolygon.Length; index++)
+        {
+            ImagePoint point = annotation.VisibilityPolygon[index];
+            path.AddLine(new Vector2((float)point.X, (float)point.Y));
+        }
+        path.EndFigure(CanvasFigureLoop.Closed);
+        return CanvasGeometry.CreatePath(path);
     }
 
     private void DrawImageAnnotationCore(CanvasDrawingSession drawing, Annotation annotation)

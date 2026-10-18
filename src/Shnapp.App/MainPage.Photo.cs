@@ -101,7 +101,7 @@ public sealed partial class MainPage
         CancelPhotoCrop();
         try
         {
-            _editor.UpdateAnnotation(PreserveTransformedPhotoPlacement(photo,
+            _editor.UpdateAnnotation(PhotoCropGeometry.PreserveTransformedPlacement(photo,
                 PhotoCropGeometry.Reset(photo)));
             UpdateInspector();
             ViewModel.Status = "Photo crop reset";
@@ -195,7 +195,7 @@ public sealed partial class MainPage
 
         try
         {
-            Annotation cropped = PreserveTransformedPhotoPlacement(photo,
+            Annotation cropped = PhotoCropGeometry.PreserveTransformedPlacement(photo,
                 PhotoCropGeometry.Crop(photo, selection));
             if (cropped != photo)
             {
@@ -210,29 +210,6 @@ public sealed partial class MainPage
         }
 
         return true;
-    }
-
-    // A crop changes the photo's destination center. Shift the new rectangle so
-    // its surviving pixels retain their world positions after flips and rotation.
-    private static Annotation PreserveTransformedPhotoPlacement(Annotation original, Annotation changed)
-    {
-        if (changed == original ||
-            original.RotationDegrees == 0 && !original.FlipHorizontal && !original.FlipVertical)
-        {
-            return changed;
-        }
-
-        ImageRect bounds = changed.Bounds;
-        ImagePoint localCenter = new(bounds.X + bounds.Width / 2,
-            bounds.Y + bounds.Height / 2);
-        ImagePoint worldCenter = AnnotationRotation.TransformContent(original, localCenter);
-        double dx = worldCenter.X - localCenter.X;
-        double dy = worldCenter.Y - localCenter.Y;
-        return changed with
-        {
-            Start = new(changed.Start.X + dx, changed.Start.Y + dy),
-            End = new(changed.End.X + dx, changed.End.Y + dy),
-        };
     }
 
     private void DrawPhotoCropOverlay(CanvasDrawingSession drawing)

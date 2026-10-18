@@ -5,6 +5,9 @@ namespace Shnapp.Core.Tests;
 [TestClass]
 public sealed class DocumentEditorTests
 {
+    private const string FourByThreePngBase64 =
+        "iVBORw0KGgoAAAANSUhEUgAAAAQAAAADCAYAAAC09K7GAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAASSURBVBhXY/jPwPCfgQTw/z8AY88D/RnFChIAAAAASUVORK5CYII=";
+
     [TestMethod]
     public void ConstructorKeepsAnAlreadyValidSnapshotAndStartsWithEmptyHistory()
     {
@@ -1524,6 +1527,319 @@ public sealed class DocumentEditorTests
 
         Assert.AreEqual(new ImageRect(225, 225, 50, 50),
             editor.Current.Annotations.Single(item => item.Id == image.Id).VisibilityClip);
+    }
+
+    [TestMethod]
+    public void FlippingClippedPastedImageMovesOnlyItsRetainedHalf()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(100, 100, 50, 100));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(400, 400),
+            End = new ImagePoint(450, 450),
+        });
+
+        editor.UpdateAnnotation(image with { FlipHorizontal = true });
+        Annotation flipped = editor.Current.Annotations.Single(item => item.Id == image.Id);
+
+        Assert.AreEqual(new ImageRect(150, 100, 50, 100), flipped.VisibilityClip);
+        Assert.IsTrue(ImageVisibility.Contains(flipped, new ImagePoint(175, 150)));
+        Assert.IsFalse(ImageVisibility.Contains(flipped, new ImagePoint(125, 150)));
+        Assert.AreEqual(4, flipped.VisibilityPolygon.Length);
+    }
+
+    [TestMethod]
+    public void FlippingImmediatelyAfterCanvasCropCarriesTheRetainedPixels()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(100, 100, 50, 100));
+        Assert.IsNull(editor.Current.Annotations.Single(item => item.Id == image.Id).VisibilityClip);
+
+        Annotation preview = editor.PreviewAnnotation(image with { FlipHorizontal = true });
+        Assert.AreEqual(new ImageRect(150, 100, 50, 100), preview.VisibilityClip);
+        editor.UpdateAnnotation(image with { FlipHorizontal = true });
+        Annotation flipped = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.IsTrue(ImageVisibility.Contains(flipped, new ImagePoint(175, 150)));
+        Assert.IsFalse(ImageVisibility.Contains(flipped, new ImagePoint(125, 150)));
+    }
+
+    [TestMethod]
+    public void ASecondCanvasCropNarrowsTheMaskBeforeAnotherFlip()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(100, 100, 50, 100));
+        editor.UpdateAnnotation(image with { FlipHorizontal = true });
+        editor.ApplyCrop(new ImageRect(160, 100, 20, 100));
+
+        editor.UpdateAnnotation(image with { FlipHorizontal = false });
+        Annotation reflipped = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.AreEqual(new ImageRect(120, 100, 20, 100), reflipped.VisibilityClip);
+        Assert.IsTrue(ImageVisibility.Contains(reflipped, new ImagePoint(130, 150)));
+        Assert.IsFalse(ImageVisibility.Contains(reflipped, new ImagePoint(110, 150)));
+        Assert.IsFalse(ImageVisibility.Contains(reflipped, new ImagePoint(170, 150)));
+    }
+
+    [TestMethod]
+    public void CloningImmediatelyAfterCanvasCropKeepsDiscardedPhotoPixelsHidden()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(100, 100, 50, 100));
+
+        Annotation clone = editor.CloneAnnotation(image.Id)!;
+        Assert.AreEqual(new ImageRect(112, 112, 50, 100), clone.VisibilityClip);
+        Assert.IsTrue(ImageVisibility.Contains(clone, new ImagePoint(140, 150)));
+        Assert.IsFalse(ImageVisibility.Contains(clone, new ImagePoint(180, 150)));
+        Annotation original = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.IsFalse(ImageVisibility.Contains(original, new ImagePoint(175, 150)));
+    }
+
+    [TestMethod]
+    public void PhotoCropOfDiscardedHalfDrawsNothingAndResetRestoresOnlyRetainedPixels()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+            ImagePngBase64 = FourByThreePngBase64,
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(100, 100, 50, 100));
+
+        Annotation cropped = PhotoCropGeometry.Crop(image, new ImageRect(150, 100, 50, 100));
+        editor.UpdateAnnotation(cropped);
+        Annotation discarded = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.IsFalse(ImageVisibility.Contains(discarded, new ImagePoint(175, 150)));
+        Assert.IsFalse(discarded.HiddenByCrop, "Reset must be able to recover retained source pixels.");
+
+        editor.UpdateAnnotation(PhotoCropGeometry.Reset(discarded));
+        Annotation reset = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.IsTrue(ImageVisibility.Contains(reset, new ImagePoint(125, 150)));
+        Assert.IsFalse(ImageVisibility.Contains(reset, new ImagePoint(175, 150)));
+    }
+
+    [TestMethod]
+    public void RotatedFlippedPhotoCropAndResetKeepTheRetainedSourceHalf()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+            ImagePngBase64 = FourByThreePngBase64,
+            FlipHorizontal = true,
+            RotationDegrees = 90,
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(100, 150, 100, 50));
+
+        Annotation cropped = PhotoCropGeometry.PreserveTransformedPlacement(image,
+            PhotoCropGeometry.Crop(image, new ImageRect(150, 100, 50, 100)));
+        editor.UpdateAnnotation(cropped);
+        Annotation discarded = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.IsFalse(discarded.HiddenByCrop);
+        Assert.IsFalse(ImageVisibility.Contains(discarded, new ImagePoint(150, 125)));
+
+        editor.UpdateAnnotation(PhotoCropGeometry.PreserveTransformedPlacement(discarded,
+            PhotoCropGeometry.Reset(discarded)));
+        Annotation reset = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.IsTrue(ImageVisibility.Contains(reset, new ImagePoint(150, 175)));
+        Assert.IsFalse(ImageVisibility.Contains(reset, new ImagePoint(150, 125)));
+    }
+
+    [TestMethod]
+    public void WideCanvasCropCannotRetainPixelsOutsideAPhotosExistingSourceCrop()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(150, 200),
+            ImagePngBase64 = FourByThreePngBase64,
+            ImageSourceCrop = new ImageRect(2, 0, 2, 3),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(50, 50, 150, 200));
+
+        editor.UpdateAnnotation(image with { FlipHorizontal = true });
+        Annotation flipped = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Annotation reset = PhotoCropGeometry.PreserveTransformedPlacement(flipped,
+            PhotoCropGeometry.Reset(flipped));
+        editor.UpdateAnnotation(reset);
+        Annotation restored = editor.Current.Annotations.Single(item => item.Id == image.Id);
+
+        Assert.IsTrue(ImageVisibility.Contains(restored, new ImagePoint(125, 150)));
+        Assert.IsFalse(ImageVisibility.Contains(restored, new ImagePoint(175, 150)),
+            "Reset must not display source pixels outside the originally cropped photo.");
+    }
+
+    [TestMethod]
+    public void CloningASourceCroppedPhotoCannotRecoverNeverVisiblePixelsOnReset()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(150, 200),
+            ImagePngBase64 = FourByThreePngBase64,
+            ImageSourceCrop = new ImageRect(2, 0, 2, 3),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(50, 50, 150, 200));
+
+        Annotation clone = editor.CloneAnnotation(image.Id)!;
+        editor.UpdateAnnotation(PhotoCropGeometry.Reset(clone));
+        Annotation reset = editor.Current.Annotations.Single(item => item.Id == clone.Id);
+        Assert.IsTrue(ImageVisibility.Contains(reset, new ImagePoint(137, 150)));
+        Assert.IsFalse(ImageVisibility.Contains(reset, new ImagePoint(87, 150)));
+    }
+
+    [TestMethod]
+    public void RotatingClippedPastedImageKeepsAnExactRetainedPixelMask()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(100, 100, 50, 100));
+
+        editor.UpdateAnnotation(image with { RotationDegrees = 45 });
+        Annotation rotated = editor.Current.Annotations.Single(item => item.Id == image.Id);
+
+        Assert.AreEqual(4, rotated.VisibilityPolygon.Length);
+        Assert.IsTrue(ImageVisibility.Contains(rotated,
+            AnnotationRotation.TransformContent(rotated, new ImagePoint(125, 150))));
+        Assert.IsFalse(ImageVisibility.Contains(rotated,
+            AnnotationRotation.TransformContent(rotated, new ImagePoint(175, 150))));
+        Assert.IsFalse(ImageVisibility.Contains(rotated, new ImagePoint(90, 90)),
+            "The polygon must exclude discarded pixels inside its axis-aligned bounds.");
+        Assert.IsTrue(rotated.VisibilityClip!.Value.Contains(new ImagePoint(90, 90)));
+    }
+
+    [TestMethod]
+    public void ResizingAFlippedCroppedImageScalesItsRetainedMask()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(100, 100, 50, 100));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(400, 400),
+            End = new ImagePoint(450, 450),
+        });
+        editor.UpdateAnnotation(image with { FlipHorizontal = true });
+
+        Annotation resized = editor.Current.Annotations.Single(item => item.Id == image.Id) with
+        {
+            Start = new ImagePoint(300, 100),
+            End = new ImagePoint(500, 300),
+        };
+        Annotation preview = editor.PreviewAnnotation(resized);
+        Assert.AreEqual(new ImageRect(400, 100, 100, 200), preview.VisibilityClip);
+        Assert.IsTrue(ImageVisibility.Contains(preview, new ImagePoint(450, 200)));
+        Assert.IsFalse(ImageVisibility.Contains(preview, new ImagePoint(350, 200)));
+
+        editor.UpdateAnnotation(resized);
+        Annotation committed = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.AreEqual(preview.VisibilityClip, committed.VisibilityClip);
+        Assert.IsTrue(ImageVisibility.Contains(committed, new ImagePoint(450, 200)));
+    }
+
+    [TestMethod]
+    public void VerticalFlipMovesTheRetainedTopHalfToTheBottom()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(100, 100, 100, 50));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(400, 400),
+            End = new ImagePoint(450, 450),
+        });
+
+        editor.UpdateAnnotation(image with { FlipVertical = true });
+        Annotation flipped = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.AreEqual(new ImageRect(100, 150, 100, 50), flipped.VisibilityClip);
+        Assert.IsTrue(ImageVisibility.Contains(flipped, new ImagePoint(150, 175)));
+        Assert.IsFalse(ImageVisibility.Contains(flipped, new ImagePoint(150, 125)));
+    }
+
+    [TestMethod]
+    public void RecroppingAndReflippingAnImageKeepsOnlyTheTwiceRetainedPixels()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(100, 100, 50, 100));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(400, 400),
+            End = new ImagePoint(450, 450),
+        });
+        editor.UpdateAnnotation(image with { FlipHorizontal = true });
+        editor.ApplyCrop(new ImageRect(160, 100, 20, 100));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(400, 400),
+            End = new ImagePoint(450, 450),
+        });
+
+        editor.UpdateAnnotation(image with { FlipHorizontal = false });
+        Annotation reflipped = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.AreEqual(new ImageRect(120, 100, 20, 100), reflipped.VisibilityClip);
+        Assert.IsTrue(ImageVisibility.Contains(reflipped, new ImagePoint(130, 150)));
+        Assert.IsFalse(ImageVisibility.Contains(reflipped, new ImagePoint(110, 150)));
+        Assert.IsFalse(ImageVisibility.Contains(reflipped, new ImagePoint(170, 150)));
+
+        editor.ApplyCrop(new ImageRect(400, 400, 20, 20));
+        editor.AddAnnotation(TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(0, 0),
+            End = new ImagePoint(20, 20),
+        });
+        Assert.IsTrue(editor.Current.Annotations.Single(item => item.Id == image.Id).HiddenByCrop);
     }
 
     [TestMethod]
