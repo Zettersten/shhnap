@@ -845,6 +845,20 @@ public sealed class DocumentEditor(ShnappDocument document)
                 continue;
             }
 
+            // A photo source crop changes what is drawn now, but Reset can still
+            // show the rest of the pixels retained by the canvas crop. Keep that
+            // recoverable region in the viewport even when none of it is drawn.
+            bool recoverableImage = annotation.Kind == AnnotationKind.Image &&
+                !annotation.IsFlattened && !annotation.VisibilityPolygon.IsDefaultOrEmpty;
+            if (recoverableImage && crop is ImageRect activeViewport &&
+                annotation.VisibilityClip is ImageRect retainedClip &&
+                Intersection(retainedClip, activeViewport) is ImageRect recoverable)
+            {
+                ImageRect pixels = WholePixelBounds(recoverable);
+                occupied = occupied is ImageRect existing
+                    ? UnionPixelBounds(existing, pixels) : pixels;
+            }
+
             ImageRect bounds = ContentBounds(annotation);
             ImageRect? visible = bounds;
             if (visible is ImageRect unclipped && annotation.VisibilityClip is ImageRect clip)
@@ -883,11 +897,19 @@ public sealed class DocumentEditor(ShnappDocument document)
                 continue;
             }
 
-            if (annotation.VisibilityClip != remainder &&
+            // The displayed photo bounds may be narrower than its recoverable
+            // mask. Only an actual canvas crop can narrow that mask.
+            ImageRect retainedRemainder = recoverableImage &&
+                annotation.VisibilityClip is ImageRect imageClip
+                    ? crop is ImageRect maskCrop
+                        ? Intersection(imageClip, maskCrop) ?? remainder
+                        : imageClip
+                    : remainder;
+            if (annotation.VisibilityClip != retainedRemainder &&
                 (annotation.VisibilityClip is not null || crop is not null && remainder != bounds))
             {
                 clippedAnnotations ??= document.Annotations.ToBuilder();
-                clippedAnnotations[index] = annotation with { VisibilityClip = remainder };
+                clippedAnnotations[index] = annotation with { VisibilityClip = retainedRemainder };
             }
 
             ImageRect canvasContent = remainder;

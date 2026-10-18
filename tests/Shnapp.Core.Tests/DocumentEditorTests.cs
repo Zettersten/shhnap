@@ -1644,6 +1644,59 @@ public sealed class DocumentEditorTests
     }
 
     [TestMethod]
+    [DataRow(100)]
+    [DataRow(700)]
+    public void ResetPhotoCropRestoresCanvasPixelsHiddenByTheTemporaryPhotoCrop(int left)
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(left, 100),
+            End = new ImagePoint(left + 100, 200),
+            ImagePngBase64 = FourByThreePngBase64,
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(left, 100, 50, 100));
+        editor.UpdateAnnotation(PhotoCropGeometry.Crop(image,
+            new ImageRect(left, 100, 25, 100)));
+
+        Annotation quarter = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.IsTrue(ImageVisibility.Contains(quarter, new ImagePoint(left + 12, 150)));
+        editor.UpdateAnnotation(PhotoCropGeometry.Reset(quarter));
+
+        Annotation reset = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.IsTrue(ImageVisibility.Contains(reset, new ImagePoint(left + 37, 150)),
+            "Reset should recover the rest of the half retained by the canvas crop.");
+        Assert.IsFalse(ImageVisibility.Contains(reset, new ImagePoint(left + 75, 150)));
+        Assert.IsTrue(editor.Current.Viewport.Contains(new ImagePoint(left + 37, 150)));
+    }
+
+    [TestMethod]
+    public void ASecondCanvasCropStillDiscardsPixelsBeforePhotoCropReset()
+    {
+        var editor = new DocumentEditor(TestDocuments.Create());
+        Annotation image = TestDocuments.Annotation(AnnotationKind.Image) with
+        {
+            Start = new ImagePoint(100, 100),
+            End = new ImagePoint(200, 200),
+            ImagePngBase64 = FourByThreePngBase64,
+        };
+        editor.AddAnnotation(image);
+        editor.ApplyCrop(new ImageRect(100, 100, 50, 100));
+        editor.UpdateAnnotation(PhotoCropGeometry.Crop(image,
+            new ImageRect(100, 100, 25, 100)));
+        editor.ApplyCrop(new ImageRect(120, 100, 30, 100));
+
+        Annotation quarter = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        editor.UpdateAnnotation(PhotoCropGeometry.Reset(quarter));
+
+        Annotation reset = editor.Current.Annotations.Single(item => item.Id == image.Id);
+        Assert.IsTrue(ImageVisibility.Contains(reset, new ImagePoint(137, 150)));
+        Assert.IsFalse(ImageVisibility.Contains(reset, new ImagePoint(112, 150)));
+        Assert.IsFalse(ImageVisibility.Contains(reset, new ImagePoint(175, 150)));
+    }
+
+    [TestMethod]
     public void RotatedFlippedPhotoCropAndResetKeepTheRetainedSourceHalf()
     {
         var editor = new DocumentEditor(TestDocuments.Create());
