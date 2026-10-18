@@ -47,7 +47,7 @@ public sealed partial class MainPage
             return false;
         }
 
-        position = AnnotationRotation.Unrotate(annotation, position);
+        position = AnnotationRotation.UntransformContent(annotation, position);
 
         if (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow)
         {
@@ -263,16 +263,37 @@ public sealed partial class MainPage
         return original with { RotationDegrees = degrees };
     }
 
+    // Frame handles stay on the displayed rectangle. Endpoint and callout
+    // handles follow the actual content when that content is mirrored.
+    private static ImagePoint DisplayHandlePosition(Annotation annotation, SelectionHandle handle) =>
+        annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow or AnnotationKind.Callout
+            ? AnnotationRotation.TransformContent(annotation, handle.Position)
+            : AnnotationRotation.Rotate(annotation, handle.Position);
+
+    private static ImagePoint LocalResizePoint(Annotation annotation, ImagePoint point) =>
+        annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow or AnnotationKind.Callout
+            ? AnnotationRotation.UntransformContent(annotation, point)
+            : AnnotationRotation.Unrotate(annotation, point);
+
     private Annotation PreserveResizeAnchor(Annotation original, Annotation resized,
         ResizeHandle handle)
     {
-        if (original.RotationDegrees == 0 || handle == ResizeHandle.CurveMidpoint)
+        if ((original.RotationDegrees == 0 && !original.FlipHorizontal && !original.FlipVertical) ||
+            handle == ResizeHandle.CurveMidpoint)
         {
             return resized;
         }
 
-        ImagePoint before = AnnotationRotation.Rotate(original, ResizeAnchor(original, handle));
-        ImagePoint after = AnnotationRotation.Rotate(resized, ResizeAnchor(resized, handle));
+        ImagePoint anchorBefore = ResizeAnchor(original, handle);
+        ImagePoint anchorAfter = ResizeAnchor(resized, handle);
+        bool followsContent = original.Kind is AnnotationKind.Line or AnnotationKind.Arrow or
+            AnnotationKind.Callout;
+        ImagePoint before = followsContent
+            ? AnnotationRotation.TransformContent(original, anchorBefore)
+            : AnnotationRotation.Rotate(original, anchorBefore);
+        ImagePoint after = followsContent
+            ? AnnotationRotation.TransformContent(resized, anchorAfter)
+            : AnnotationRotation.Rotate(resized, anchorAfter);
         double dx = before.X - after.X;
         double dy = before.Y - after.Y;
         if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9)
@@ -341,7 +362,7 @@ public sealed partial class MainPage
 
         foreach (SelectionHandle handle in HandlesFor(annotation))
         {
-            ImagePoint position = AnnotationRotation.Rotate(annotation, handle.Position);
+            ImagePoint position = DisplayHandlePosition(annotation, handle);
             if (annotation.HiddenByCrop ||
                 annotation.VisibilityClip is ImageRect clip && !clip.Contains(position))
             {
@@ -402,7 +423,7 @@ public sealed partial class MainPage
             float radius = (float)(5 / _scale);
             foreach (SelectionHandle handle in HandlesFor(annotation))
             {
-                ImagePoint position = AnnotationRotation.Rotate(annotation, handle.Position);
+                ImagePoint position = DisplayHandlePosition(annotation, handle);
                 if (annotation.VisibilityClip is ImageRect handleClip &&
                     !handleClip.Contains(position))
                 {

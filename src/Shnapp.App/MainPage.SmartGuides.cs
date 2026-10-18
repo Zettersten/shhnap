@@ -106,7 +106,7 @@ public sealed partial class MainPage
         _activeGuideX = null;
         _activeGuideY = null;
         // Axis guides are not useful for the local corners of a rotated frame.
-        if (moving.RotationDegrees != 0)
+        if (moving.RotationDegrees != 0 || moving.FlipHorizontal || moving.FlipVertical)
         {
             return ResizeAnnotation(moving, handle, point, maintainProportions);
         }
@@ -148,7 +148,7 @@ public sealed partial class MainPage
     private Rect RotatedGuideBounds(Annotation annotation)
     {
         Rect local = SelectionBounds(annotation);
-        ImageRect rotated = AnnotationRotation.RotatedBounds(annotation,
+        ImageRect rotated = AnnotationRotation.TransformedBounds(annotation,
             new ImageRect(local.X, local.Y, local.Width, local.Height));
         return new Rect(rotated.X, rotated.Y, rotated.Width, rotated.Height);
     }

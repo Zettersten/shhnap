@@ -656,7 +656,7 @@ public sealed partial class MainPage : Page
             }
             else if (_resizeHandle != ResizeHandle.None)
             {
-                ImagePoint localPoint = AnnotationRotation.Unrotate(_moving, point);
+                ImagePoint localPoint = LocalResizePoint(_moving, point);
                 Annotation resized = ResizeWithSmartGuides(_moving, _resizeHandle,
                     localPoint, IsShiftHeld());
                 _draft = PreserveResizeAnchor(_moving, resized, _resizeHandle);
@@ -1212,14 +1212,17 @@ public sealed partial class MainPage : Page
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_textBox, "Annotation text");
         Canvas.SetLeft(_textBox, position.X);
         Canvas.SetTop(_textBox, position.Y);
-        if (existing is { RotationDegrees: not 0 })
+        if (existing is not null &&
+            (existing.RotationDegrees != 0 || existing.FlipHorizontal || existing.FlipVertical))
         {
             ImagePoint pivot = AnnotationRotation.Pivot(existing);
             Vector2 canvasPivot = Vector2.Transform(new((float)pivot.X, (float)pivot.Y),
                 ImageTransform());
-            _textBox.RenderTransform = new RotateTransform
+            _textBox.RenderTransform = new CompositeTransform
             {
-                Angle = existing.RotationDegrees,
+                ScaleX = existing.FlipHorizontal ? -1 : 1,
+                ScaleY = existing.FlipVertical ? -1 : 1,
+                Rotation = existing.RotationDegrees,
                 CenterX = canvasPivot.X - position.X,
                 CenterY = canvasPivot.Y - position.Y,
             };

@@ -101,7 +101,7 @@ public sealed partial class MainPage
         CancelPhotoCrop();
         try
         {
-            _editor.UpdateAnnotation(PreserveRotatedPhotoPlacement(photo,
+            _editor.UpdateAnnotation(PreserveTransformedPhotoPlacement(photo,
                 PhotoCropGeometry.Reset(photo)));
             UpdateInspector();
             ViewModel.Status = "Photo crop reset";
@@ -142,7 +142,7 @@ public sealed partial class MainPage
             return true;
         }
 
-        ImagePoint position = AnnotationRotation.Unrotate(photo, imagePosition);
+        ImagePoint position = AnnotationRotation.UntransformContent(photo, imagePosition);
         if (!photo.Bounds.Contains(position))
         {
             ViewModel.Status = "Drag inside the selected photo to choose the part to keep";
@@ -165,7 +165,7 @@ public sealed partial class MainPage
         ImagePoint? point = ImagePosition(canvasPosition, allowOutside: true);
         if (photo is null || point is not ImagePoint imagePosition) return true;
 
-        ImagePoint position = AnnotationRotation.Unrotate(photo, imagePosition);
+        ImagePoint position = AnnotationRotation.UntransformContent(photo, imagePosition);
         ImageRect bounds = photo.Bounds;
         _photoCropEnd = new ImagePoint(
             Math.Clamp(position.X, bounds.X, bounds.Right),
@@ -195,7 +195,7 @@ public sealed partial class MainPage
 
         try
         {
-            Annotation cropped = PreserveRotatedPhotoPlacement(photo,
+            Annotation cropped = PreserveTransformedPhotoPlacement(photo,
                 PhotoCropGeometry.Crop(photo, selection));
             if (cropped != photo)
             {
@@ -213,10 +213,11 @@ public sealed partial class MainPage
     }
 
     // A crop changes the photo's destination center. Shift the new rectangle so
-    // its surviving pixels retain their world positions after rotation.
-    private static Annotation PreserveRotatedPhotoPlacement(Annotation original, Annotation changed)
+    // its surviving pixels retain their world positions after flips and rotation.
+    private static Annotation PreserveTransformedPhotoPlacement(Annotation original, Annotation changed)
     {
-        if (changed == original || original.RotationDegrees == 0)
+        if (changed == original ||
+            original.RotationDegrees == 0 && !original.FlipHorizontal && !original.FlipVertical)
         {
             return changed;
         }
@@ -224,7 +225,7 @@ public sealed partial class MainPage
         ImageRect bounds = changed.Bounds;
         ImagePoint localCenter = new(bounds.X + bounds.Width / 2,
             bounds.Y + bounds.Height / 2);
-        ImagePoint worldCenter = AnnotationRotation.Rotate(original, localCenter);
+        ImagePoint worldCenter = AnnotationRotation.TransformContent(original, localCenter);
         double dx = worldCenter.X - localCenter.X;
         double dy = worldCenter.Y - localCenter.Y;
         return changed with
@@ -243,12 +244,14 @@ public sealed partial class MainPage
         ImageRect chosen = new(Math.Min(start.X, end.X), Math.Min(start.Y, end.Y),
             Math.Abs(end.X - start.X), Math.Abs(end.Y - start.Y));
         Matrix3x2 previous = drawing.Transform;
-        if (photo.RotationDegrees != 0)
+        if (photo.RotationDegrees != 0 || photo.FlipHorizontal || photo.FlipVertical)
         {
             ImagePoint pivot = AnnotationRotation.Pivot(photo);
-            drawing.Transform = Matrix3x2.CreateRotation(
-                (float)(photo.RotationDegrees * Math.PI / 180),
-                new Vector2((float)pivot.X, (float)pivot.Y)) * previous;
+            var center = new Vector2((float)pivot.X, (float)pivot.Y);
+            drawing.Transform = Matrix3x2.CreateScale(photo.FlipHorizontal ? -1 : 1,
+                photo.FlipVertical ? -1 : 1, center) *
+                Matrix3x2.CreateRotation((float)(photo.RotationDegrees * Math.PI / 180), center) *
+                previous;
         }
         try
         {
