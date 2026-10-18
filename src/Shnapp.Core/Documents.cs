@@ -210,6 +210,14 @@ public sealed record Annotation
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public double RotationDegrees { get; init; }
 
+    /// <summary>Gets whether the element's content is mirrored across its local vertical axis.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool FlipHorizontal { get; init; }
+
+    /// <summary>Gets whether the element's content is mirrored across its local horizontal axis.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool FlipVertical { get; init; }
+
     /// <summary>Gets the foreground color as packed ARGB.</summary>
     public uint StrokeArgb { get; init; } = 0xFFE5484D;
 

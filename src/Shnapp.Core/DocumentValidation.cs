@@ -64,7 +64,7 @@ internal static class DocumentValidation
                         annotation.StepDiameter, annotation.StepDiameter)
                     : annotation.Kind == AnnotationKind.Step
                         ? annotation.Bounds
-                        : AnnotationRotation.RotatedBounds(annotation, annotation.Bounds);
+                        : AnnotationRotation.TransformedBounds(annotation, annotation.Bounds);
                 Require(Contains(canvas, content),
                     "Visible annotations must fit inside the expanded canvas.", nameof(document));
             }
@@ -114,6 +114,8 @@ internal static class DocumentValidation
             (!annotation.IsFlattened || annotation.RotationDegrees == 0),
             "An editable element needs a finite rotation, and flattened pixels cannot rotate again.",
             nameof(annotation));
+        Require(!annotation.IsFlattened || !annotation.FlipHorizontal && !annotation.FlipVertical,
+            "Flattened pixels cannot be mirrored again.", nameof(annotation));
         // New marks may extend the canvas; document validation verifies the final bounds.
         // A trim can also leave cropped-out annotations outside the visible canvas.
         ValidatePoint(annotation.Start, nameof(annotation));

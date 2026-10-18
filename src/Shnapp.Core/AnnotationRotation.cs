@@ -36,6 +36,23 @@ public static class AnnotationRotation
         return Transform(Pivot(annotation), point, -annotation.RotationDegrees);
     }
 
+    /// <summary>Maps content through its local mirrors, then its clockwise rotation.</summary>
+    public static ImagePoint TransformContent(Annotation annotation, ImagePoint point)
+    {
+        ArgumentNullException.ThrowIfNull(annotation);
+        ImagePoint pivot = Pivot(annotation);
+        ImagePoint mirrored = Mirror(annotation, pivot, point);
+        return Transform(pivot, mirrored, annotation.RotationDegrees);
+    }
+
+    /// <summary>Maps a displayed content point back through rotation and local mirrors.</summary>
+    public static ImagePoint UntransformContent(Annotation annotation, ImagePoint point)
+    {
+        ArgumentNullException.ThrowIfNull(annotation);
+        ImagePoint pivot = Pivot(annotation);
+        return Mirror(annotation, pivot, Transform(pivot, point, -annotation.RotationDegrees));
+    }
+
     /// <summary>Finds the axis-aligned bounds of a rectangle after annotation rotation.</summary>
     public static ImageRect RotatedBounds(Annotation annotation, ImageRect bounds)
     {
@@ -49,6 +66,27 @@ public static class AnnotationRotation
         ImagePoint topRight = Rotate(annotation, new ImagePoint(bounds.Right, bounds.Y));
         ImagePoint bottomRight = Rotate(annotation, new ImagePoint(bounds.Right, bounds.Bottom));
         ImagePoint bottomLeft = Rotate(annotation, new ImagePoint(bounds.X, bounds.Bottom));
+        double left = Math.Min(Math.Min(topLeft.X, topRight.X), Math.Min(bottomRight.X, bottomLeft.X));
+        double top = Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomRight.Y, bottomLeft.Y));
+        double right = Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomRight.X, bottomLeft.X));
+        double bottom = Math.Max(Math.Max(topLeft.Y, topRight.Y), Math.Max(bottomRight.Y, bottomLeft.Y));
+        return new ImageRect(left, top, right - left, bottom - top);
+    }
+
+    /// <summary>Finds the axis-aligned bounds of a rectangle after local mirrors and rotation.</summary>
+    public static ImageRect TransformedBounds(Annotation annotation, ImageRect bounds)
+    {
+        ArgumentNullException.ThrowIfNull(annotation);
+        if (!annotation.FlipHorizontal && !annotation.FlipVertical &&
+            NormalizeDegrees(annotation.RotationDegrees) == 0)
+        {
+            return bounds;
+        }
+
+        ImagePoint topLeft = TransformContent(annotation, new ImagePoint(bounds.X, bounds.Y));
+        ImagePoint topRight = TransformContent(annotation, new ImagePoint(bounds.Right, bounds.Y));
+        ImagePoint bottomRight = TransformContent(annotation, new ImagePoint(bounds.Right, bounds.Bottom));
+        ImagePoint bottomLeft = TransformContent(annotation, new ImagePoint(bounds.X, bounds.Bottom));
         double left = Math.Min(Math.Min(topLeft.X, topRight.X), Math.Min(bottomRight.X, bottomLeft.X));
         double top = Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomRight.Y, bottomLeft.Y));
         double right = Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomRight.X, bottomLeft.X));
@@ -93,6 +131,10 @@ public static class AnnotationRotation
         return new ImagePoint(pivot.X + x * cosine - y * sine,
             pivot.Y + x * sine + y * cosine);
     }
+
+    private static ImagePoint Mirror(Annotation annotation, ImagePoint pivot, ImagePoint point) =>
+        new(annotation.FlipHorizontal ? 2 * pivot.X - point.X : point.X,
+            annotation.FlipVertical ? 2 * pivot.Y - point.Y : point.Y);
 
     private static double SnapTrigonometric(double value) =>
         Math.Abs(value) < 1e-12 ? 0 :

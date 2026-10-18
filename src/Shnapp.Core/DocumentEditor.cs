@@ -144,8 +144,106 @@ public sealed class DocumentEditor(ShnappDocument document)
             annotation.TextBoxWidth != previous.TextBoxWidth ||
             annotation.TextBoxHeight != previous.TextBoxHeight ||
             annotation.RotationDegrees != previous.RotationDegrees ||
+            annotation.FlipHorizontal != previous.FlipHorizontal ||
+            annotation.FlipVertical != previous.FlipVertical ||
             annotation.VisibilityClip != previous.VisibilityClip ||
             annotation.HiddenByCrop != previous.HiddenByCrop;
+        next = boundsChanged ? TrimCanvasToContent(next) : next;
+        DocumentValidation.Validate(next);
+        Commit(next);
+    }
+
+    /// <summary>Replaces several editable elements in one undoable document edit.</summary>
+    /// <remarks>Unknown identifiers and flattened elements follow <see cref="UpdateAnnotation"/>.
+    /// Each replacement keeps its element's crop visibility and document order.</remarks>
+    public void UpdateAnnotations(IReadOnlyCollection<Annotation> replacements)
+    {
+        ArgumentNullException.ThrowIfNull(replacements);
+        if (replacements.Count == 0)
+        {
+            return;
+        }
+
+        var requested = new Dictionary<Guid, Annotation>(replacements.Count);
+        foreach (Annotation replacement in replacements)
+        {
+            ArgumentNullException.ThrowIfNull(replacement);
+            if (!requested.TryAdd(replacement.Id, replacement))
+            {
+                throw new ArgumentException("An annotation can only be updated once per edit.",
+                    nameof(replacements));
+            }
+        }
+
+        var changed = new Dictionary<Guid, Annotation>(requested.Count);
+        bool boundsChanged = false;
+        foreach (Annotation previous in Current.Annotations)
+        {
+            if (!requested.Remove(previous.Id, out Annotation? replacement) || previous.IsFlattened)
+            {
+                continue;
+            }
+
+            replacement = CarryVisibilityWithGeometry(previous, replacement);
+            if (replacement.Kind == AnnotationKind.Step &&
+                (replacement.Start != previous.Start || replacement.StepDiameter != previous.StepDiameter) &&
+                (!Contains(Current.Viewport, ContentBounds(replacement)) ||
+                 !Contains(Current.OriginalBounds, ContentBounds(replacement))))
+            {
+                replacement = replacement with { StepExpandsCanvas = true };
+            }
+            else if (replacement.Kind != AnnotationKind.Step && replacement.StepExpandsCanvas)
+            {
+                replacement = replacement with { StepExpandsCanvas = false };
+            }
+
+            if (replacement.LayerOrder == 0 && previous.LayerOrder > 0)
+            {
+                replacement = replacement with { LayerOrder = previous.LayerOrder };
+            }
+
+            if (replacement == previous)
+            {
+                continue;
+            }
+
+            boundsChanged |= replacement.Kind != previous.Kind ||
+                replacement.Start != previous.Start || replacement.End != previous.End ||
+                replacement.StepDiameter != previous.StepDiameter ||
+                replacement.StepExpandsCanvas != previous.StepExpandsCanvas ||
+                replacement.TextBoxWidth != previous.TextBoxWidth ||
+                replacement.TextBoxHeight != previous.TextBoxHeight ||
+                replacement.RotationDegrees != previous.RotationDegrees ||
+                replacement.FlipHorizontal != previous.FlipHorizontal ||
+                replacement.FlipVertical != previous.FlipVertical ||
+                replacement.VisibilityClip != previous.VisibilityClip ||
+                replacement.HiddenByCrop != previous.HiddenByCrop;
+            changed.Add(previous.Id, replacement);
+        }
+
+        foreach (Annotation unknown in requested.Values)
+        {
+            DocumentValidation.ValidateAnnotation(unknown, Current);
+        }
+
+        if (changed.Count == 0)
+        {
+            return;
+        }
+
+        ShnappDocument next = ExpandCanvasForContents(Current, [..changed.Values],
+            changed.Keys.ToHashSet());
+        var builder = next.Annotations.ToBuilder();
+        for (int index = 0; index < builder.Count; index++)
+        {
+            if (changed.TryGetValue(builder[index].Id, out Annotation? replacement))
+            {
+                DocumentValidation.ValidateAnnotation(replacement, next);
+                builder[index] = replacement;
+            }
+        }
+
+        next = next with { Annotations = RenumberSteps(builder.ToImmutable()) };
         next = boundsChanged ? TrimCanvasToContent(next) : next;
         DocumentValidation.Validate(next);
         Commit(next);
@@ -285,6 +383,8 @@ public sealed class DocumentEditor(ShnappDocument document)
             ImageSourceCrop = null,
             FlattenOrder = latestFlattenOrder + 1,
             RotationDegrees = 0,
+            FlipHorizontal = false,
+            FlipVertical = false,
         };
         DocumentValidation.ValidateAnnotation(flattened, Current);
         ShnappDocument next = Current with
@@ -334,6 +434,8 @@ public sealed class DocumentEditor(ShnappDocument document)
                 ImageSourceCrop = null,
                 FlattenOrder = ++order,
                 RotationDegrees = 0,
+                FlipHorizontal = false,
+                FlipVertical = false,
             });
         }
 
@@ -838,7 +940,7 @@ public sealed class DocumentEditor(ShnappDocument document)
 
         if (annotation.Kind == AnnotationKind.Callout)
         {
-            return AnnotationRotation.RotatedBounds(annotation,
+            return AnnotationRotation.TransformedBounds(annotation,
                 Inflate(annotation.Bounds, Math.Max(12, annotation.StrokeWidth / 2 + 2)));
         }
 
@@ -846,7 +948,7 @@ public sealed class DocumentEditor(ShnappDocument document)
         if (annotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Shape or AnnotationKind.Magnify &&
             !annotation.HideOutline)
         {
-            return AnnotationRotation.RotatedBounds(annotation,
+            return AnnotationRotation.TransformedBounds(annotation,
                 Inflate(bounds, annotation.StrokeWidth / 2 + 1));
         }
 
@@ -870,10 +972,10 @@ public sealed class DocumentEditor(ShnappDocument document)
                 }
             }
 
-            return AnnotationRotation.RotatedBounds(annotation, content);
+            return AnnotationRotation.TransformedBounds(annotation, content);
         }
 
-        return AnnotationRotation.RotatedBounds(annotation,
+        return AnnotationRotation.TransformedBounds(annotation,
             new ImageRect(bounds.X, bounds.Y, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height)));
     }
 
