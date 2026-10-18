@@ -289,7 +289,7 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
             AnnotationKind.Redaction => WholePixelBounds(annotation.Bounds),
             _ => annotation.Bounds,
         };
-        area = AnnotationRotation.RotatedBounds(annotation, area);
+        area = AnnotationRotation.TransformedBounds(annotation, area);
         area = Intersection(area, viewport);
         if (annotation.VisibilityClip is ImageRect clip)
         {
@@ -482,7 +482,7 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
 
     internal void DrawImageAnnotation(CanvasDrawingSession drawing, Annotation annotation)
     {
-        Matrix3x2 previousTransform = ApplyAnnotationRotation(drawing, annotation);
+        Matrix3x2 previousTransform = ApplyAnnotationTransform(drawing, annotation);
         try
         {
             DrawImageAnnotationCore(drawing, annotation);
@@ -523,7 +523,7 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
 
     internal static void DrawAnnotation(CanvasDrawingSession drawing, Annotation annotation)
     {
-        Matrix3x2 previousTransform = ApplyAnnotationRotation(drawing, annotation);
+        Matrix3x2 previousTransform = ApplyAnnotationTransform(drawing, annotation);
         try
         {
             DrawAnnotationCore(drawing, annotation);
@@ -751,7 +751,7 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
         }
 
         ImageRect bounds = annotation.Bounds;
-        ImageRect visualBounds = AnnotationRotation.RotatedBounds(annotation, bounds);
+        ImageRect visualBounds = AnnotationRotation.TransformedBounds(annotation, bounds);
         double left = Math.Max(sourceOrigin.X, Math.Floor(visualBounds.X));
         double top = Math.Max(sourceOrigin.Y, Math.Floor(visualBounds.Y));
         double right = Math.Min(sourceOrigin.X + source.Size.Width, Math.Ceiling(visualBounds.Right));
@@ -764,10 +764,11 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
         var destination = new Rect(left, top, right - left, bottom - top);
         var sourceRect = new Rect(left - sourceOrigin.X, top - sourceOrigin.Y,
             right - left, bottom - top);
-        // Privacy effects sample the pixels at their world positions. Rotating the
-        // drawing transform would move those pixels; rotate only their mask.
-        using CanvasGeometry? mask = AnnotationRotation.NormalizeDegrees(annotation.RotationDegrees) == 0
-            ? null : RotatedRectangle(drawing, annotation, bounds);
+        // Privacy effects sample the pixels at their world positions. Transforming
+        // the drawing session would move those pixels; transform only their mask.
+        using CanvasGeometry? mask = AnnotationRotation.NormalizeDegrees(annotation.RotationDegrees) == 0 &&
+            !annotation.FlipHorizontal && !annotation.FlipVertical
+            ? null : TransformedRectangle(drawing, annotation, bounds);
         using var maskLayer = mask is null ? null : drawing.CreateLayer(1, mask);
         if (annotation.RedactionMode == RedactionMode.Blur)
         {
@@ -797,29 +798,43 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
             1, CanvasImageInterpolation.NearestNeighbor);
     }
 
-    private static Matrix3x2 ApplyAnnotationRotation(CanvasDrawingSession drawing,
+    private static Matrix3x2 ApplyAnnotationTransform(CanvasDrawingSession drawing,
         Annotation annotation)
     {
         Matrix3x2 previous = drawing.Transform;
-        double degrees = AnnotationRotation.NormalizeDegrees(annotation.RotationDegrees);
-        if (!annotation.IsFlattened && degrees != 0)
+        if (annotation.IsFlattened)
         {
-            ImagePoint pivot = AnnotationRotation.Pivot(annotation);
-            var center = new Vector2((float)pivot.X, (float)pivot.Y);
-            drawing.Transform = Matrix3x2.CreateRotation(
-                (float)(degrees * Math.PI / 180), center) * previous;
+            // Its PNG already contains every visual transform.
+            return previous;
         }
 
+        double degrees = AnnotationRotation.NormalizeDegrees(annotation.RotationDegrees);
+        if (!annotation.FlipHorizontal && !annotation.FlipVertical && degrees == 0)
+        {
+            return previous;
+        }
+
+        ImagePoint pivot = AnnotationRotation.Pivot(annotation);
+        var center = new Vector2((float)pivot.X, (float)pivot.Y);
+        Matrix3x2 transform = Matrix3x2.CreateScale(
+            annotation.FlipHorizontal ? -1 : 1,
+            annotation.FlipVertical ? -1 : 1, center);
+        if (degrees != 0)
+        {
+            transform *= Matrix3x2.CreateRotation((float)(degrees * Math.PI / 180), center);
+        }
+
+        drawing.Transform = transform * previous;
         return previous;
     }
 
-    private static CanvasGeometry RotatedRectangle(CanvasDrawingSession drawing,
+    private static CanvasGeometry TransformedRectangle(CanvasDrawingSession drawing,
         Annotation annotation, ImageRect bounds)
     {
-        ImagePoint topLeft = AnnotationRotation.Rotate(annotation, new(bounds.X, bounds.Y));
-        ImagePoint topRight = AnnotationRotation.Rotate(annotation, new(bounds.Right, bounds.Y));
-        ImagePoint bottomRight = AnnotationRotation.Rotate(annotation, new(bounds.Right, bounds.Bottom));
-        ImagePoint bottomLeft = AnnotationRotation.Rotate(annotation, new(bounds.X, bounds.Bottom));
+        ImagePoint topLeft = AnnotationRotation.TransformContent(annotation, new(bounds.X, bounds.Y));
+        ImagePoint topRight = AnnotationRotation.TransformContent(annotation, new(bounds.Right, bounds.Y));
+        ImagePoint bottomRight = AnnotationRotation.TransformContent(annotation, new(bounds.Right, bounds.Bottom));
+        ImagePoint bottomLeft = AnnotationRotation.TransformContent(annotation, new(bounds.X, bounds.Bottom));
         using var path = new CanvasPathBuilder(drawing);
         path.BeginFigure(new Vector2((float)topLeft.X, (float)topLeft.Y));
         path.AddLine(new Vector2((float)topRight.X, (float)topRight.Y));
