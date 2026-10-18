@@ -62,7 +62,9 @@ internal static class DocumentValidation
                     ? new ImageRect(annotation.Start.X - annotation.StepDiameter / 2,
                         annotation.Start.Y - annotation.StepDiameter / 2,
                         annotation.StepDiameter, annotation.StepDiameter)
-                    : annotation.Bounds;
+                    : annotation.Kind == AnnotationKind.Step
+                        ? annotation.Bounds
+                        : AnnotationRotation.TransformedBounds(annotation, annotation.Bounds);
                 Require(Contains(canvas, content),
                     "Visible annotations must fit inside the expanded canvas.", nameof(document));
             }
@@ -108,6 +110,12 @@ internal static class DocumentValidation
             "An annotation layer order cannot be negative.", nameof(annotation));
         Require(annotation.FlattenOrder >= 0 && (annotation.IsFlattened || annotation.FlattenOrder == 0),
             "Only a flattened element can have a background order.", nameof(annotation));
+        Require(double.IsFinite(annotation.RotationDegrees) &&
+            (!annotation.IsFlattened || annotation.RotationDegrees == 0),
+            "An editable element needs a finite rotation, and flattened pixels cannot rotate again.",
+            nameof(annotation));
+        Require(!annotation.IsFlattened || !annotation.FlipHorizontal && !annotation.FlipVertical,
+            "Flattened pixels cannot be mirrored again.", nameof(annotation));
         // New marks may extend the canvas; document validation verifies the final bounds.
         // A trim can also leave cropped-out annotations outside the visible canvas.
         ValidatePoint(annotation.Start, nameof(annotation));
@@ -181,6 +189,16 @@ internal static class DocumentValidation
                 "A visibility clip must fit inside the canvas.", nameof(annotation));
             Require(!annotation.HiddenByCrop,
                 "A completely hidden annotation cannot also have a visibility clip.", nameof(annotation));
+        }
+        Require(annotation.VisibilityPolygon.IsDefaultOrEmpty ||
+            annotation.Kind == AnnotationKind.Image && !annotation.IsFlattened &&
+            annotation.VisibilityClip is not null && !annotation.HiddenByCrop &&
+            annotation.VisibilityPolygon.Length is >= 3 and <= 4096,
+            "Only a visible editable image can have a retained-pixel polygon.", nameof(annotation));
+        foreach (ImagePoint point in annotation.VisibilityPolygon.IsDefault
+            ? [] : annotation.VisibilityPolygon)
+        {
+            ValidatePoint(point, nameof(annotation));
         }
         Require(double.IsFinite(annotation.StrokeWidth) && annotation.StrokeWidth >= 0,
             "Stroke width must be finite and nonnegative.", nameof(annotation));

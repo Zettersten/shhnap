@@ -1,3 +1,4 @@
+using System.Numerics;
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI;
@@ -18,14 +19,15 @@ public sealed partial class MainPage
     private Guid? _photoCropTargetId;
     private ImagePoint? _photoCropStart;
     private ImagePoint? _photoCropEnd;
+    private bool _cameraAvailable;
 
     internal void SetCameraAvailable(bool available)
     {
-        CameraCaptureMenu.IsEnabled = available;
+        _cameraAvailable = available;
         LibraryEmptyCameraCaptureMenu.IsEnabled = available;
         QuickCameraCapture.IsEnabled = available;
-        CameraPhotoTool.IsEnabled = available;
         PhotoAddButton.IsEnabled = available;
+        CameraPhotoToolButton.IsEnabled = available && _chromeEditorAvailable;
     }
 
     private void CameraCapture_Click(object sender, RoutedEventArgs args) =>
@@ -99,7 +101,8 @@ public sealed partial class MainPage
         CancelPhotoCrop();
         try
         {
-            _editor.UpdateAnnotation(PhotoCropGeometry.Reset(photo));
+            _editor.UpdateAnnotation(PhotoCropGeometry.PreserveTransformedPlacement(photo,
+                PhotoCropGeometry.Reset(photo)));
             UpdateInspector();
             ViewModel.Status = "Photo crop reset";
         }
@@ -132,7 +135,15 @@ public sealed partial class MainPage
         }
 
         ImagePoint? point = ImagePosition(canvasPosition, allowOutside: true);
-        if (point is not ImagePoint position || !photo.Bounds.Contains(position))
+        if (point is not ImagePoint imagePosition)
+        {
+            ViewModel.Status = "Drag inside the selected photo to choose the part to keep";
+            args.Handled = true;
+            return true;
+        }
+
+        ImagePoint position = AnnotationRotation.UntransformContent(photo, imagePosition);
+        if (!photo.Bounds.Contains(position))
         {
             ViewModel.Status = "Drag inside the selected photo to choose the part to keep";
             args.Handled = true;
@@ -152,8 +163,9 @@ public sealed partial class MainPage
         if (!_photoCropMode || _photoCropStart is null) return false;
         Annotation? photo = SelectedAnnotation();
         ImagePoint? point = ImagePosition(canvasPosition, allowOutside: true);
-        if (photo is null || point is not ImagePoint position) return true;
+        if (photo is null || point is not ImagePoint imagePosition) return true;
 
+        ImagePoint position = AnnotationRotation.UntransformContent(photo, imagePosition);
         ImageRect bounds = photo.Bounds;
         _photoCropEnd = new ImagePoint(
             Math.Clamp(position.X, bounds.X, bounds.Right),
@@ -183,7 +195,8 @@ public sealed partial class MainPage
 
         try
         {
-            Annotation cropped = PhotoCropGeometry.Crop(photo, selection);
+            Annotation cropped = PhotoCropGeometry.PreserveTransformedPlacement(photo,
+                PhotoCropGeometry.Crop(photo, selection));
             if (cropped != photo)
             {
                 _editor.UpdateAnnotation(cropped);
@@ -207,19 +220,36 @@ public sealed partial class MainPage
         ImageRect bounds = photo.Bounds;
         ImageRect chosen = new(Math.Min(start.X, end.X), Math.Min(start.Y, end.Y),
             Math.Abs(end.X - start.X), Math.Abs(end.Y - start.Y));
-        Color shade = Color.FromArgb(124, 0, 0, 0);
-        drawing.FillRectangle(new Rect(bounds.X, bounds.Y, bounds.Width,
-            Math.Max(0, chosen.Y - bounds.Y)), shade);
-        drawing.FillRectangle(new Rect(bounds.X, chosen.Bottom, bounds.Width,
-            Math.Max(0, bounds.Bottom - chosen.Bottom)), shade);
-        drawing.FillRectangle(new Rect(bounds.X, chosen.Y,
-            Math.Max(0, chosen.X - bounds.X), chosen.Height), shade);
-        drawing.FillRectangle(new Rect(chosen.Right, chosen.Y,
-            Math.Max(0, bounds.Right - chosen.Right), chosen.Height), shade);
-        if (chosen.Width > 0 && chosen.Height > 0)
+        Matrix3x2 previous = drawing.Transform;
+        if (photo.RotationDegrees != 0 || photo.FlipHorizontal || photo.FlipVertical)
         {
-            drawing.DrawRectangle(new Rect(chosen.X, chosen.Y, chosen.Width, chosen.Height),
-                Colors.White, (float)(2 / _scale));
+            ImagePoint pivot = AnnotationRotation.Pivot(photo);
+            var center = new Vector2((float)pivot.X, (float)pivot.Y);
+            drawing.Transform = Matrix3x2.CreateScale(photo.FlipHorizontal ? -1 : 1,
+                photo.FlipVertical ? -1 : 1, center) *
+                Matrix3x2.CreateRotation((float)(photo.RotationDegrees * Math.PI / 180), center) *
+                previous;
+        }
+        try
+        {
+            Color shade = Color.FromArgb(124, 0, 0, 0);
+            drawing.FillRectangle(new Rect(bounds.X, bounds.Y, bounds.Width,
+                Math.Max(0, chosen.Y - bounds.Y)), shade);
+            drawing.FillRectangle(new Rect(bounds.X, chosen.Bottom, bounds.Width,
+                Math.Max(0, bounds.Bottom - chosen.Bottom)), shade);
+            drawing.FillRectangle(new Rect(bounds.X, chosen.Y,
+                Math.Max(0, chosen.X - bounds.X), chosen.Height), shade);
+            drawing.FillRectangle(new Rect(chosen.Right, chosen.Y,
+                Math.Max(0, bounds.Right - chosen.Right), chosen.Height), shade);
+            if (chosen.Width > 0 && chosen.Height > 0)
+            {
+                drawing.DrawRectangle(new Rect(chosen.X, chosen.Y, chosen.Width, chosen.Height),
+                    Colors.White, (float)(2 / _scale));
+            }
+        }
+        finally
+        {
+            drawing.Transform = previous;
         }
     }
 }

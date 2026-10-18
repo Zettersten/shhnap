@@ -37,7 +37,8 @@ public sealed class DocumentEditor(ShnappDocument document)
     {
         ArgumentNullException.ThrowIfNull(annotation);
         int index = FindAnnotation(annotation.Id);
-        return index < 0 ? annotation : CarryVisibilityWithGeometry(Current.Annotations[index], annotation);
+        return index < 0 ? annotation : CarryVisibilityWithGeometry(
+            VisibleSourceForGeometry(Current.Annotations[index]), annotation);
     }
 
     /// <summary>Occurs once after a real edit, undo, or redo, after the new state is available.</summary>
@@ -107,7 +108,7 @@ public sealed class DocumentEditor(ShnappDocument document)
         {
             return;
         }
-        annotation = CarryVisibilityWithGeometry(previous, annotation);
+        annotation = CarryVisibilityWithGeometry(VisibleSourceForGeometry(previous), annotation);
         if (annotation.Kind == AnnotationKind.Step &&
             (annotation.Start != previous.Start || annotation.StepDiameter != previous.StepDiameter) &&
             (!Contains(Current.Viewport, ContentBounds(annotation)) ||
@@ -143,8 +144,107 @@ public sealed class DocumentEditor(ShnappDocument document)
             annotation.StepExpandsCanvas != previous.StepExpandsCanvas ||
             annotation.TextBoxWidth != previous.TextBoxWidth ||
             annotation.TextBoxHeight != previous.TextBoxHeight ||
+            annotation.RotationDegrees != previous.RotationDegrees ||
+            annotation.FlipHorizontal != previous.FlipHorizontal ||
+            annotation.FlipVertical != previous.FlipVertical ||
             annotation.VisibilityClip != previous.VisibilityClip ||
             annotation.HiddenByCrop != previous.HiddenByCrop;
+        next = boundsChanged ? TrimCanvasToContent(next) : next;
+        DocumentValidation.Validate(next);
+        Commit(next);
+    }
+
+    /// <summary>Replaces several editable elements in one undoable document edit.</summary>
+    /// <remarks>Unknown identifiers and flattened elements follow <see cref="UpdateAnnotation"/>.
+    /// Each replacement keeps its element's crop visibility and document order.</remarks>
+    public void UpdateAnnotations(IReadOnlyCollection<Annotation> replacements)
+    {
+        ArgumentNullException.ThrowIfNull(replacements);
+        if (replacements.Count == 0)
+        {
+            return;
+        }
+
+        var requested = new Dictionary<Guid, Annotation>(replacements.Count);
+        foreach (Annotation replacement in replacements)
+        {
+            ArgumentNullException.ThrowIfNull(replacement);
+            if (!requested.TryAdd(replacement.Id, replacement))
+            {
+                throw new ArgumentException("An annotation can only be updated once per edit.",
+                    nameof(replacements));
+            }
+        }
+
+        var changed = new Dictionary<Guid, Annotation>(requested.Count);
+        bool boundsChanged = false;
+        foreach (Annotation previous in Current.Annotations)
+        {
+            if (!requested.Remove(previous.Id, out Annotation? replacement) || previous.IsFlattened)
+            {
+                continue;
+            }
+
+            replacement = CarryVisibilityWithGeometry(VisibleSourceForGeometry(previous), replacement);
+            if (replacement.Kind == AnnotationKind.Step &&
+                (replacement.Start != previous.Start || replacement.StepDiameter != previous.StepDiameter) &&
+                (!Contains(Current.Viewport, ContentBounds(replacement)) ||
+                 !Contains(Current.OriginalBounds, ContentBounds(replacement))))
+            {
+                replacement = replacement with { StepExpandsCanvas = true };
+            }
+            else if (replacement.Kind != AnnotationKind.Step && replacement.StepExpandsCanvas)
+            {
+                replacement = replacement with { StepExpandsCanvas = false };
+            }
+
+            if (replacement.LayerOrder == 0 && previous.LayerOrder > 0)
+            {
+                replacement = replacement with { LayerOrder = previous.LayerOrder };
+            }
+
+            if (replacement == previous)
+            {
+                continue;
+            }
+
+            boundsChanged |= replacement.Kind != previous.Kind ||
+                replacement.Start != previous.Start || replacement.End != previous.End ||
+                replacement.StepDiameter != previous.StepDiameter ||
+                replacement.StepExpandsCanvas != previous.StepExpandsCanvas ||
+                replacement.TextBoxWidth != previous.TextBoxWidth ||
+                replacement.TextBoxHeight != previous.TextBoxHeight ||
+                replacement.RotationDegrees != previous.RotationDegrees ||
+                replacement.FlipHorizontal != previous.FlipHorizontal ||
+                replacement.FlipVertical != previous.FlipVertical ||
+                replacement.VisibilityClip != previous.VisibilityClip ||
+                replacement.HiddenByCrop != previous.HiddenByCrop;
+            changed.Add(previous.Id, replacement);
+        }
+
+        foreach (Annotation unknown in requested.Values)
+        {
+            DocumentValidation.ValidateAnnotation(unknown, Current);
+        }
+
+        if (changed.Count == 0)
+        {
+            return;
+        }
+
+        ShnappDocument next = ExpandCanvasForContents(Current, [..changed.Values],
+            changed.Keys.ToHashSet());
+        var builder = next.Annotations.ToBuilder();
+        for (int index = 0; index < builder.Count; index++)
+        {
+            if (changed.TryGetValue(builder[index].Id, out Annotation? replacement))
+            {
+                DocumentValidation.ValidateAnnotation(replacement, next);
+                builder[index] = replacement;
+            }
+        }
+
+        next = next with { Annotations = RenumberSteps(builder.ToImmutable()) };
         next = boundsChanged ? TrimCanvasToContent(next) : next;
         DocumentValidation.Validate(next);
         Commit(next);
@@ -177,10 +277,7 @@ public sealed class DocumentEditor(ShnappDocument document)
 
             // A crop also masks marks that have no explicit clip yet. Carry that
             // visible part with the group when the destination widens the viewport.
-            Annotation visibleSource = Current.Crop is ImageRect viewport &&
-                source.VisibilityClip is null
-                    ? source with { VisibilityClip = viewport }
-                    : source;
+            Annotation visibleSource = VisibleSourceForGeometry(source);
             Annotation moved = CarryVisibilityWithGeometry(visibleSource,
                 ShiftGeometry(source, dx, dy));
             if (moved.Kind == AnnotationKind.Step &&
@@ -282,7 +379,11 @@ public sealed class DocumentEditor(ShnappDocument document)
             RasterizedBounds = rasterizedBounds,
             ImagePngBase64 = pngBase64,
             ImageSourceCrop = null,
+            VisibilityPolygon = default,
             FlattenOrder = latestFlattenOrder + 1,
+            RotationDegrees = 0,
+            FlipHorizontal = false,
+            FlipVertical = false,
         };
         DocumentValidation.ValidateAnnotation(flattened, Current);
         ShnappDocument next = Current with
@@ -330,7 +431,11 @@ public sealed class DocumentEditor(ShnappDocument document)
                 RasterizedBounds = rasterizedBounds,
                 ImagePngBase64 = pngBase64,
                 ImageSourceCrop = null,
+                VisibilityPolygon = default,
                 FlattenOrder = ++order,
+                RotationDegrees = 0,
+                FlipHorizontal = false,
+                FlipVertical = false,
             });
         }
 
@@ -386,7 +491,8 @@ public sealed class DocumentEditor(ShnappDocument document)
             nextId = Guid.NewGuid();
         }
 
-        Annotation clone = ShiftClone(source, nextId, dx, dy);
+        Annotation visibleSource = VisibleSourceForGeometry(source);
+        Annotation clone = ShiftClone(visibleSource, nextId, dx, dy);
         ShnappDocument next;
         try
         {
@@ -395,7 +501,7 @@ public sealed class DocumentEditor(ShnappDocument document)
         catch (ArgumentException) when (source.Kind == AnnotationKind.Image && (dx != 0 || dy != 0))
         {
             // The existing image fits even when the canvas has reached its export limit.
-            clone = ShiftClone(source, clone.Id, 0, 0);
+            clone = ShiftClone(visibleSource, clone.Id, 0, 0);
             next = ExpandCanvasForContent(Current, clone);
         }
         DocumentValidation.ValidateAnnotation(clone, next);
@@ -424,7 +530,8 @@ public sealed class DocumentEditor(ShnappDocument document)
             if (cloneIds.TryGetValue(source.Id, out Guid cloneId) &&
                 !source.IsFlattened && !source.HiddenByCrop)
             {
-                clones.Add(source.Id, ShiftClone(source, cloneId, 12, 12));
+                Annotation visibleSource = VisibleSourceForGeometry(source);
+                clones.Add(source.Id, ShiftClone(visibleSource, cloneId, 12, 12));
             }
         }
 
@@ -627,6 +734,7 @@ public sealed class DocumentEditor(ShnappDocument document)
         {
             Id = id,
             VisibilityClip = clip,
+            VisibilityPolygon = ImageVisibility.Translate(source.VisibilityPolygon, dx, dy),
         };
     }
 
@@ -737,6 +845,20 @@ public sealed class DocumentEditor(ShnappDocument document)
                 continue;
             }
 
+            // A photo source crop changes what is drawn now, but Reset can still
+            // show the rest of the pixels retained by the canvas crop. Keep that
+            // recoverable region in the viewport even when none of it is drawn.
+            bool recoverableImage = annotation.Kind == AnnotationKind.Image &&
+                !annotation.IsFlattened && !annotation.VisibilityPolygon.IsDefaultOrEmpty;
+            if (recoverableImage && crop is ImageRect activeViewport &&
+                annotation.VisibilityClip is ImageRect retainedClip &&
+                Intersection(retainedClip, activeViewport) is ImageRect recoverable)
+            {
+                ImageRect pixels = WholePixelBounds(recoverable);
+                occupied = occupied is ImageRect existing
+                    ? UnionPixelBounds(existing, pixels) : pixels;
+            }
+
             ImageRect bounds = ContentBounds(annotation);
             ImageRect? visible = bounds;
             if (visible is ImageRect unclipped && annotation.VisibilityClip is ImageRect clip)
@@ -751,20 +873,43 @@ public sealed class DocumentEditor(ShnappDocument document)
 
             if (visible is not ImageRect remainder)
             {
+                if (annotation.Kind == AnnotationKind.Image &&
+                    annotation.ImageSourceCrop is not null &&
+                    !annotation.VisibilityPolygon.IsDefaultOrEmpty &&
+                    !ImageVisibility.OverlapsSourceCrop(annotation))
+                {
+                    // The photo's source crop currently selects none of the retained
+                    // pixels. Keep its mask so Reset photo crop can recover them.
+                    continue;
+                }
+
                 if (crop is not null)
                 {
                     clippedAnnotations ??= document.Annotations.ToBuilder();
-                    clippedAnnotations[index] = annotation with { VisibilityClip = null, HiddenByCrop = true };
+                    clippedAnnotations[index] = annotation with
+                    {
+                        VisibilityClip = null,
+                        VisibilityPolygon = default,
+                        HiddenByCrop = true,
+                    };
                 }
 
                 continue;
             }
 
-            if (annotation.VisibilityClip != remainder &&
+            // The displayed photo bounds may be narrower than its recoverable
+            // mask. Only an actual canvas crop can narrow that mask.
+            ImageRect retainedRemainder = recoverableImage &&
+                annotation.VisibilityClip is ImageRect imageClip
+                    ? crop is ImageRect maskCrop
+                        ? Intersection(imageClip, maskCrop) ?? remainder
+                        : imageClip
+                    : remainder;
+            if (annotation.VisibilityClip != retainedRemainder &&
                 (annotation.VisibilityClip is not null || crop is not null && remainder != bounds))
             {
                 clippedAnnotations ??= document.Annotations.ToBuilder();
-                clippedAnnotations[index] = annotation with { VisibilityClip = remainder };
+                clippedAnnotations[index] = annotation with { VisibilityClip = retainedRemainder };
             }
 
             ImageRect canvasContent = remainder;
@@ -836,14 +981,16 @@ public sealed class DocumentEditor(ShnappDocument document)
 
         if (annotation.Kind == AnnotationKind.Callout)
         {
-            return Inflate(annotation.Bounds, Math.Max(12, annotation.StrokeWidth / 2 + 2));
+            return AnnotationRotation.TransformedBounds(annotation,
+                Inflate(annotation.Bounds, Math.Max(12, annotation.StrokeWidth / 2 + 2)));
         }
 
         ImageRect bounds = annotation.Bounds;
         if (annotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse or AnnotationKind.Shape or AnnotationKind.Magnify &&
             !annotation.HideOutline)
         {
-            return Inflate(bounds, annotation.StrokeWidth / 2 + 1);
+            return AnnotationRotation.TransformedBounds(annotation,
+                Inflate(bounds, annotation.StrokeWidth / 2 + 1));
         }
 
         if (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow)
@@ -866,10 +1013,11 @@ public sealed class DocumentEditor(ShnappDocument document)
                 }
             }
 
-            return content;
+            return AnnotationRotation.TransformedBounds(annotation, content);
         }
 
-        return new ImageRect(bounds.X, bounds.Y, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height));
+        return AnnotationRotation.TransformedBounds(annotation,
+            new ImageRect(bounds.X, bounds.Y, Math.Max(1, bounds.Width), Math.Max(1, bounds.Height)));
     }
 
     private static ImageRect Inflate(ImageRect bounds, double amount) =>
@@ -910,7 +1058,12 @@ public sealed class DocumentEditor(ShnappDocument document)
                 : visible;
             Annotation masked = clip is ImageRect area
                 ? existing with { VisibilityClip = area }
-                : existing with { VisibilityClip = null, HiddenByCrop = true };
+                : existing with
+                {
+                    VisibilityClip = null,
+                    VisibilityPolygon = default,
+                    HiddenByCrop = true,
+                };
             if (masked != existing)
             {
                 builder ??= annotations.ToBuilder();
@@ -954,17 +1107,31 @@ public sealed class DocumentEditor(ShnappDocument document)
     {
         if (previous.HiddenByCrop)
         {
-            return replacement with { VisibilityClip = null, HiddenByCrop = true };
+            return replacement with { VisibilityClip = null, VisibilityPolygon = default, HiddenByCrop = true };
         }
 
         if (previous.VisibilityClip is not ImageRect clip)
         {
-            return replacement with { VisibilityClip = null, HiddenByCrop = false };
+            return replacement with { VisibilityClip = null, VisibilityPolygon = default, HiddenByCrop = false };
         }
 
-        if (replacement.Start == previous.Start && replacement.End == previous.End)
+        if (replacement.Start == previous.Start && replacement.End == previous.End &&
+            replacement.ImageSourceCrop == previous.ImageSourceCrop &&
+            replacement.RotationDegrees == previous.RotationDegrees &&
+            replacement.FlipHorizontal == previous.FlipHorizontal &&
+            replacement.FlipVertical == previous.FlipVertical)
         {
-            return replacement with { VisibilityClip = clip, HiddenByCrop = false };
+            return replacement with
+            {
+                VisibilityClip = clip,
+                VisibilityPolygon = previous.VisibilityPolygon,
+                HiddenByCrop = false,
+            };
+        }
+
+        if (previous.Kind == AnnotationKind.Image && replacement.Kind == AnnotationKind.Image)
+        {
+            return ImageVisibility.Carry(previous, replacement);
         }
 
         ImageRect before = previous.Bounds;
@@ -981,6 +1148,25 @@ public sealed class DocumentEditor(ShnappDocument document)
             after.Y + (clip.Y - before.Y) * scaleY,
             clip.Width * scaleX, clip.Height * scaleY);
         return replacement with { VisibilityClip = movedClip, HiddenByCrop = false };
+    }
+
+    private Annotation VisibleSourceForGeometry(Annotation source)
+    {
+        if (source.HiddenByCrop || Current.Crop is not ImageRect crop)
+        {
+            return source;
+        }
+
+        ImageRect? visible = source.VisibilityClip is ImageRect prior
+            ? Intersection(prior, crop) : crop;
+        return visible is ImageRect clip
+            ? source with { VisibilityClip = clip }
+            : source with
+            {
+                VisibilityClip = null,
+                VisibilityPolygon = default,
+                HiddenByCrop = true,
+            };
     }
 
     private static ImageRect UnionPixelBounds(ImageRect area, ImageRect addition)

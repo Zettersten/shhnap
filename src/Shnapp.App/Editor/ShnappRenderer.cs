@@ -339,6 +339,7 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
             AnnotationKind.Redaction => WholePixelBounds(annotation.Bounds),
             _ => annotation.Bounds,
         };
+        area = AnnotationRotation.TransformedBounds(annotation, area);
         area = Intersection(area, viewport);
         if (annotation.VisibilityClip is ImageRect clip)
         {
@@ -532,6 +533,43 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
 
     internal void DrawImageAnnotation(CanvasDrawingSession drawing, Annotation annotation)
     {
+        // The crop is a mask over retained pixels, so establish it in canvas
+        // coordinates before applying the image's flip/rotation to its content.
+        using CanvasGeometry? visibility = VisibilityPolygonGeometry(drawing, annotation);
+        using var visibilityLayer = visibility is null ? null : drawing.CreateLayer(1, visibility);
+        Matrix3x2 previousTransform = ApplyAnnotationTransform(drawing, annotation);
+        try
+        {
+            DrawImageAnnotationCore(drawing, annotation);
+        }
+        finally
+        {
+            drawing.Transform = previousTransform;
+        }
+    }
+
+    private static CanvasGeometry? VisibilityPolygonGeometry(CanvasDrawingSession drawing,
+        Annotation annotation)
+    {
+        if (annotation.VisibilityPolygon.IsDefaultOrEmpty)
+        {
+            return null;
+        }
+
+        using var path = new CanvasPathBuilder(drawing);
+        ImagePoint first = annotation.VisibilityPolygon[0];
+        path.BeginFigure(new Vector2((float)first.X, (float)first.Y));
+        for (int index = 1; index < annotation.VisibilityPolygon.Length; index++)
+        {
+            ImagePoint point = annotation.VisibilityPolygon[index];
+            path.AddLine(new Vector2((float)point.X, (float)point.Y));
+        }
+        path.EndFigure(CanvasFigureLoop.Closed);
+        return CanvasGeometry.CreatePath(path);
+    }
+
+    private void DrawImageAnnotationCore(CanvasDrawingSession drawing, Annotation annotation)
+    {
         if (!_pastedImages.TryGetValue(annotation.Id, out var entries))
         {
             throw new InvalidDataException("This pasted image could not be loaded for rendering.");
@@ -559,6 +597,19 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
     }
 
     internal static void DrawAnnotation(CanvasDrawingSession drawing, Annotation annotation)
+    {
+        Matrix3x2 previousTransform = ApplyAnnotationTransform(drawing, annotation);
+        try
+        {
+            DrawAnnotationCore(drawing, annotation);
+        }
+        finally
+        {
+            drawing.Transform = previousTransform;
+        }
+    }
+
+    private static void DrawAnnotationCore(CanvasDrawingSession drawing, Annotation annotation)
     {
         Vector2 start = new((float)annotation.Start.X, (float)annotation.Start.Y);
         Vector2 end = new((float)annotation.End.X, (float)annotation.End.Y);
@@ -775,10 +826,11 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
         }
 
         ImageRect bounds = annotation.Bounds;
-        double left = Math.Max(sourceOrigin.X, Math.Floor(bounds.X));
-        double top = Math.Max(sourceOrigin.Y, Math.Floor(bounds.Y));
-        double right = Math.Min(sourceOrigin.X + source.Size.Width, Math.Ceiling(bounds.Right));
-        double bottom = Math.Min(sourceOrigin.Y + source.Size.Height, Math.Ceiling(bounds.Bottom));
+        ImageRect visualBounds = AnnotationRotation.TransformedBounds(annotation, bounds);
+        double left = Math.Max(sourceOrigin.X, Math.Floor(visualBounds.X));
+        double top = Math.Max(sourceOrigin.Y, Math.Floor(visualBounds.Y));
+        double right = Math.Min(sourceOrigin.X + source.Size.Width, Math.Ceiling(visualBounds.Right));
+        double bottom = Math.Min(sourceOrigin.Y + source.Size.Height, Math.Ceiling(visualBounds.Bottom));
         if (right <= left || bottom <= top)
         {
             return;
@@ -787,6 +839,12 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
         var destination = new Rect(left, top, right - left, bottom - top);
         var sourceRect = new Rect(left - sourceOrigin.X, top - sourceOrigin.Y,
             right - left, bottom - top);
+        // Privacy effects sample the pixels at their world positions. Transforming
+        // the drawing session would move those pixels; transform only their mask.
+        using CanvasGeometry? mask = AnnotationRotation.NormalizeDegrees(annotation.RotationDegrees) == 0 &&
+            !annotation.FlipHorizontal && !annotation.FlipVertical
+            ? null : TransformedRectangle(drawing, annotation, bounds);
+        using var maskLayer = mask is null ? null : drawing.CreateLayer(1, mask);
         if (annotation.RedactionMode == RedactionMode.Blur)
         {
             using var blur = new GaussianBlurEffect
@@ -813,6 +871,52 @@ internal sealed partial class ShnappRenderer(CanvasDevice device)
 
         drawing.DrawImage(reduced, destination, new Rect(0, 0, reducedWidth, reducedHeight),
             1, CanvasImageInterpolation.NearestNeighbor);
+    }
+
+    private static Matrix3x2 ApplyAnnotationTransform(CanvasDrawingSession drawing,
+        Annotation annotation)
+    {
+        Matrix3x2 previous = drawing.Transform;
+        if (annotation.IsFlattened)
+        {
+            // Its PNG already contains every visual transform.
+            return previous;
+        }
+
+        double degrees = AnnotationRotation.NormalizeDegrees(annotation.RotationDegrees);
+        if (!annotation.FlipHorizontal && !annotation.FlipVertical && degrees == 0)
+        {
+            return previous;
+        }
+
+        ImagePoint pivot = AnnotationRotation.Pivot(annotation);
+        var center = new Vector2((float)pivot.X, (float)pivot.Y);
+        Matrix3x2 transform = Matrix3x2.CreateScale(
+            annotation.FlipHorizontal ? -1 : 1,
+            annotation.FlipVertical ? -1 : 1, center);
+        if (degrees != 0)
+        {
+            transform *= Matrix3x2.CreateRotation((float)(degrees * Math.PI / 180), center);
+        }
+
+        drawing.Transform = transform * previous;
+        return previous;
+    }
+
+    private static CanvasGeometry TransformedRectangle(CanvasDrawingSession drawing,
+        Annotation annotation, ImageRect bounds)
+    {
+        ImagePoint topLeft = AnnotationRotation.TransformContent(annotation, new(bounds.X, bounds.Y));
+        ImagePoint topRight = AnnotationRotation.TransformContent(annotation, new(bounds.Right, bounds.Y));
+        ImagePoint bottomRight = AnnotationRotation.TransformContent(annotation, new(bounds.Right, bounds.Bottom));
+        ImagePoint bottomLeft = AnnotationRotation.TransformContent(annotation, new(bounds.X, bounds.Bottom));
+        using var path = new CanvasPathBuilder(drawing);
+        path.BeginFigure(new Vector2((float)topLeft.X, (float)topLeft.Y));
+        path.AddLine(new Vector2((float)topRight.X, (float)topRight.Y));
+        path.AddLine(new Vector2((float)bottomRight.X, (float)bottomRight.Y));
+        path.AddLine(new Vector2((float)bottomLeft.X, (float)bottomLeft.Y));
+        path.EndFigure(CanvasFigureLoop.Closed);
+        return CanvasGeometry.CreatePath(path);
     }
 
     private static void DrawDottedLine(CanvasDrawingSession drawing, Vector2 start, Vector2 end,

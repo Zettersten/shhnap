@@ -38,7 +38,7 @@ public sealed partial class MainPage
 
     private Rect? VisibleGuideBounds(Annotation annotation, ImageRect viewport)
     {
-        Rect bounds = SelectionBounds(annotation);
+        Rect bounds = RotatedGuideBounds(annotation);
         double left = Math.Max(bounds.X, viewport.X);
         double top = Math.Max(bounds.Y, viewport.Y);
         double right = Math.Min(bounds.Right, viewport.Right);
@@ -71,7 +71,7 @@ public sealed partial class MainPage
     {
         _activeGuideX = null;
         _activeGuideY = null;
-        Rect bounds = SelectionBounds(moving);
+        Rect bounds = RotatedGuideBounds(moving);
 
         // A fixed distance in DIPs makes guides equally easy to catch at any zoom level.
         double tolerance = 7 / Math.Max(0.01, _scale);
@@ -105,6 +105,12 @@ public sealed partial class MainPage
     {
         _activeGuideX = null;
         _activeGuideY = null;
+        // Axis guides are not useful for the local corners of a rotated frame.
+        if (moving.RotationDegrees != 0 || moving.FlipHorizontal || moving.FlipVertical)
+        {
+            return ResizeAnnotation(moving, handle, point, maintainProportions);
+        }
+
         double? xGuide = null;
         double? yGuide = null;
         double tolerance = 7 / Math.Max(0.01, _scale);
@@ -137,6 +143,14 @@ public sealed partial class MainPage
         }
 
         return resized;
+    }
+
+    private Rect RotatedGuideBounds(Annotation annotation)
+    {
+        Rect local = SelectionBounds(annotation);
+        ImageRect rotated = AnnotationRotation.TransformedBounds(annotation,
+            new ImageRect(local.X, local.Y, local.Width, local.Height));
+        return new Rect(rotated.X, rotated.Y, rotated.Width, rotated.Height);
     }
 
     private static bool TouchesGuide(double leading, double center, double trailing, double guide) =>

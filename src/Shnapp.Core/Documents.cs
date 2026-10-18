@@ -205,6 +205,19 @@ public sealed record Annotation
     /// <summary>Gets the second point for lines and regions.</summary>
     public ImagePoint End { get; init; }
 
+    /// <summary>Gets the clockwise rotation in degrees around this element's center.</summary>
+    /// <remarks>Zero preserves the appearance of documents saved before rotation was available.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double RotationDegrees { get; init; }
+
+    /// <summary>Gets whether the element's content is mirrored across its local vertical axis.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool FlipHorizontal { get; init; }
+
+    /// <summary>Gets whether the element's content is mirrored across its local horizontal axis.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool FlipVertical { get; init; }
+
     /// <summary>Gets the foreground color as packed ARGB.</summary>
     public uint StrokeArgb { get; init; } = 0xFFE5484D;
 
@@ -362,6 +375,11 @@ public sealed record Annotation
     /// <remarks>Used when a later pasted image widens the canvas without restoring cropped marks.</remarks>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImageRect? VisibilityClip { get; init; }
+
+    /// <summary>Exact retained image pixels after a crop is moved, mirrored, or rotated.</summary>
+    /// <remarks>Canvas coordinates. The rectangle above also clips this polygon when a later crop is applied.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<ImagePoint> VisibilityPolygon { get; init; }
 
     /// <summary>Gets whether a crop has completely hidden this annotation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

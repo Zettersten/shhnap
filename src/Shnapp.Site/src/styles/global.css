@@ -105,14 +105,38 @@ p { line-height: 1.6; }
 .workflow-frame { overflow: hidden; border-radius: 24px; background: #121c2c; box-shadow: 0 30px 70px rgba(14,30,61,.18); }
 .workflow-frame-head { display: flex; align-items: center; gap: .65rem; min-height: 52px; padding-inline: 1.45rem; color: #dceaff; font-size: .85rem; font-weight: 680; }
 .frame-light { width: 8px; height: 8px; border-radius: 50%; background: #62d5ff; box-shadow: 0 0 12px rgba(98,213,255,.6); }
-.frame-duration { margin-left: auto; color: #a9bbd3; font-size: .8rem; font-weight: 580; }
-.workflow-fallback { display: block; width: 100%; height: auto; }
+.workflow-video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #09152b; }
+.workflow-video:focus-visible { outline: 3px solid #83dfff; outline-offset: -3px; }
 .workflow-caption { margin: 0; padding: .9rem 1.4rem 1rem; color: #b6c9df; font-size: .8rem; }
+.workflow-caption a { color: #d7f2ff; text-underline-offset: .2em; }
+.workflow-caption a:hover { color: #fff; }
 .workflow-steps { display: grid; grid-template-columns: repeat(3,1fr); gap: 2rem; margin-top: 2.8rem; }
 .workflow-steps > div { display: grid; grid-template-columns: 42px 1fr; column-gap: .8rem; align-items: start; padding-top: 1.25rem; border-top: 1px solid #cad7e6; }
 .workflow-steps span { grid-row: span 2; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #deefff; color: var(--blue-deep); font-size: .9rem; font-weight: 750; font-variant-numeric: tabular-nums; }
 .workflow-steps h3 { font-size: 1.16rem; }
 .workflow-steps p { max-width: 27ch; margin: .3rem 0 0; color: var(--muted); font-size: .91rem; }
+
+/* V2 canvas and transform showcase */
+.canvas-section { background: #0a1a32; color: #f6faff; }
+.canvas-heading, .transform-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .74fr); align-items: end; gap: clamp(2rem, 6vw, 6rem); margin-bottom: clamp(2rem, 4vw, 3.5rem); }
+.canvas-heading h2, .transform-heading h2 { max-width: 15ch; font-size: clamp(3.1rem, 5vw, 5.2rem); line-height: 1.08; }
+.canvas-heading p, .transform-heading p { max-width: 48ch; margin: 0 0 .35rem; font-size: 1.08rem; }
+.canvas-heading p { color: #c7d9ef; }
+.canvas-gallery, .transform-gallery { display: grid; grid-template-columns: 1.15fr .85fr; align-items: start; gap: clamp(1rem, 2vw, 1.75rem); }
+.canvas-gallery figure, .transform-gallery figure { min-width: 0; margin: 0; }
+.canvas-gallery figure > a, .transform-gallery figure > a { display: block; overflow: hidden; border-radius: 14px; box-shadow: 0 22px 48px rgba(0, 5, 20, .25); }
+.canvas-gallery img, .transform-gallery img { display: block; width: 100%; }
+.canvas-gallery figcaption, .transform-gallery figcaption { margin-top: .85rem; font-size: .9rem; line-height: 1.4; }
+.canvas-gallery figcaption { color: #e0ecfb; }
+.showcase-source { margin: 1.1rem 0 0; font-size: .78rem; }
+.canvas-section .showcase-source { color: #adbfda; }
+.canvas-section .showcase-source a { color: #d7f2ff; }
+.canvas-section .showcase-source a:hover { color: #fff; }
+.transform-section { background: #edf2fb; }
+.transform-heading p { color: #415572; }
+.transform-gallery { grid-template-columns: 1fr 1fr; }
+.transform-gallery figcaption { color: #3d526f; }
+.transform-section .showcase-source { color: #53677f; }
 
 /* Product stories */
 .feature-section { overflow: hidden; }
@@ -219,6 +243,7 @@ p { line-height: 1.6; }
   .home-hero { min-height: 970px; }
   .home-hero-art { width: 130%; min-width: 0; bottom: -105px; }
   .feature-layout, .feature-layout-reverse { grid-template-columns: 1fr; }
+  .canvas-heading, .transform-heading { grid-template-columns: 1fr; gap: 1.4rem; }
   .feature-copy h2 { max-width: 15ch; }
   .capture-row { grid-template-columns: .55fr 1fr; }
   .shortcut { grid-column: 2; }
@@ -257,6 +282,8 @@ p { line-height: 1.6; }
   .feature-overview-intro p { max-width: 55ch; }
   .opening-copy, .capture-heading, .faq-layout { grid-template-columns: 1fr; gap: 1rem; }
   .opening-copy h2, .capture-heading h2, .feature-copy h2, .faq-intro h2 { font-size: clamp(2.8rem, 7.8vw, 4.2rem); }
+  .canvas-heading h2, .transform-heading h2 { font-size: clamp(2.8rem, 7.8vw, 4.2rem); }
+  .canvas-gallery, .transform-gallery { grid-template-columns: 1fr; gap: 2rem; }
   .opening-copy { margin-bottom: 2rem; }
   .workflow-frame { border-radius: 17px; }
   .workflow-steps { gap: 1rem; }
@@ -290,6 +317,8 @@ p { line-height: 1.6; }
   .fact-band-inner { gap: 1rem; }
   .fact-band p { font-size: .78rem; }
   .opening-copy h2, .capture-heading h2, .feature-copy h2, .faq-intro h2 { font-size: 2.6rem; }
+  .canvas-heading h2, .transform-heading h2 { font-size: 2.6rem; }
+  .canvas-heading p, .transform-heading p { font-size: 1rem; }
   .workflow-frame-head { min-height: 44px; padding-inline: .9rem; font-size: .73rem; }
   .workflow-caption { padding: .7rem .9rem; font-size: .72rem; }
   .workflow-steps { grid-template-columns: 1fr; gap: .6rem; margin-top: 1.4rem; }

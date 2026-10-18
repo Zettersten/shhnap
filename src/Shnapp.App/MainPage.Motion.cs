@@ -13,6 +13,7 @@ public sealed partial class MainPage
     private Storyboard? _inspectorContentStoryboard;
     private string? _inspectorRenderedIdentity;
     private bool _inspectorContentTransitioning;
+    private bool _inspectorContentEntering;
 
     private string InspectorContentIdentity()
     {
@@ -52,7 +53,18 @@ public sealed partial class MainPage
 
         if (_inspectorContentTransitioning)
         {
-            return;
+            if (requested == _inspectorRenderedIdentity)
+            {
+                RenderInspectorOptions();
+                return;
+            }
+
+            // An exit already renders the latest tool at its end. Interrupt an
+            // entrance so a newer choice does not wait behind stale controls.
+            if (!_inspectorContentEntering)
+            {
+                return;
+            }
         }
 
         if (requested == _inspectorRenderedIdentity)
@@ -62,8 +74,9 @@ public sealed partial class MainPage
         }
 
         _inspectorContentTransitioning = true;
+        _inspectorContentEntering = false;
         InspectorContent.IsHitTestVisible = false;
-        AnimateInspectorContent(0, 14, 85, EasingMode.EaseIn, () =>
+        AnimateInspectorContent(0, 10, 65, EasingMode.EaseIn, () =>
         {
             // Read the current selection here so rapid switches show the latest options.
             RenderInspectorOptions();
@@ -71,10 +84,13 @@ public sealed partial class MainPage
             InspectorScroll.ChangeView(null, 0, null, true);
 
             InspectorContent.Opacity = 0;
-            ((TranslateTransform)InspectorContent.RenderTransform).X = -14;
-            AnimateInspectorContent(1, 0, 115, EasingMode.EaseOut, () =>
+            ((TranslateTransform)InspectorContent.RenderTransform).X = -10;
+            InspectorContent.IsHitTestVisible = true;
+            _inspectorContentEntering = true;
+            AnimateInspectorContent(1, 0, 125, EasingMode.EaseOut, () =>
             {
                 _inspectorContentTransitioning = false;
+                _inspectorContentEntering = false;
                 InspectorContent.IsHitTestVisible = true;
                 if (InspectorContentIdentity() != _inspectorRenderedIdentity)
                 {
@@ -91,16 +107,20 @@ public sealed partial class MainPage
     private void AnimateInspectorContent(double opacity, double x, int milliseconds,
         EasingMode easingMode, Action completed)
     {
+        var offset = (TranslateTransform)InspectorContent.RenderTransform;
+        double startingOpacity = InspectorContent.Opacity;
+        double startingX = offset.X;
         Storyboard? previous = _inspectorContentStoryboard;
         _inspectorContentStoryboard = null;
         previous?.Stop();
+        InspectorContent.Opacity = startingOpacity;
+        offset.X = startingX;
 
-        var offset = (TranslateTransform)InspectorContent.RenderTransform;
         var storyboard = new Storyboard();
         var easing = new CubicEase { EasingMode = easingMode };
         var fade = new DoubleAnimation
         {
-            From = InspectorContent.Opacity,
+            From = startingOpacity,
             To = opacity,
             Duration = new Duration(TimeSpan.FromMilliseconds(milliseconds)),
             EasingFunction = easing,
@@ -111,7 +131,7 @@ public sealed partial class MainPage
 
         var slide = new DoubleAnimation
         {
-            From = offset.X,
+            From = startingX,
             To = x,
             Duration = new Duration(TimeSpan.FromMilliseconds(milliseconds)),
             EasingFunction = easing,
@@ -143,6 +163,7 @@ public sealed partial class MainPage
         _inspectorContentStoryboard = null;
         previous?.Stop();
         _inspectorContentTransitioning = false;
+        _inspectorContentEntering = false;
         InspectorContent.Opacity = 1;
         ((TranslateTransform)InspectorContent.RenderTransform).X = 0;
         InspectorContent.IsHitTestVisible = true;

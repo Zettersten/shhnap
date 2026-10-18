@@ -39,7 +39,7 @@ internal static class CalloutLayout
             {
                 if (item.VisibilityClip is null)
                 {
-                    occupied.Add(item.CalloutBox());
+                    occupied.Add(item.RasterizedBounds ?? item.CalloutBox());
                 }
                 continue;
             }
@@ -55,7 +55,7 @@ internal static class CalloutLayout
                 CalloutNumber = number,
             };
             builder[index] = placed;
-            occupied.Add(box);
+            occupied.Add(AnnotationRotation.TransformedBounds(placed, box));
         }
 
         return builder.ToImmutable();
@@ -196,7 +196,9 @@ internal static class CalloutLayout
 
     private static ImageRect ObstacleBounds(Annotation item)
     {
-        ImageRect bounds = item.IsFlattened ? item.RasterizedBounds ?? item.Bounds : item.Bounds;
+        ImageRect bounds = item.IsFlattened
+            ? item.RasterizedBounds ?? item.Bounds
+            : AnnotationRotation.TransformedBounds(item, item.Bounds);
         return item.Kind == AnnotationKind.Step
             ? new ImageRect(item.Start.X - item.StepDiameter / 2,
                 item.Start.Y - item.StepDiameter / 2, item.StepDiameter, item.StepDiameter)

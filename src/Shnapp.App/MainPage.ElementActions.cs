@@ -68,7 +68,10 @@ public sealed partial class MainPage
         ViewModel.Status = FooterToolHint();
         DrawingCanvas.Invalidate();
 
-        int selectedCount = SelectedAnnotations().Length;
+        DocumentEditor menuEditor = _editor;
+        ShnappDocument menuDocument = menuEditor.Current;
+        Annotation[] menuSelection = SelectedAnnotations();
+        int selectedCount = menuSelection.Length;
         bool multiple = selectedCount > 1;
         Annotation[] layers = _editor.Current.OrderedAnnotations
             .Where(annotation => !annotation.IsFlattened).ToArray();
@@ -83,18 +86,36 @@ public sealed partial class MainPage
         clone.Click += async (_, _) => await CloneSelectedAnnotationAsync();
         menu.Items.Add(clone);
 
-        MenuFlyoutItem delete = ElementMenuItem(multiple ? $"Delete {selectedCount} elements" : "Delete",
-            "Del", "DeleteElement", "\uE74D");
-        delete.Click += (_, _) => DeleteSelectedAnnotation();
-        menu.Items.Add(delete);
-        MenuFlyoutItem flatten = ElementMenuItem(multiple ? $"Flatten {selectedCount} elements" : "Flatten",
-            "", "FlattenElement", "\uE8B9");
-        flatten.Click += async (_, _) => await FlattenSelectedAnnotationAsync();
-        menu.Items.Add(flatten);
+        var transform = new MenuFlyoutSubItem
+        {
+            Text = "Transform",
+            Icon = new FontIcon { Glyph = "\uE7AD", FontSize = 16 },
+        };
+        AutomationProperties.SetAutomationId(transform, "TransformElement");
+        var flipHorizontal = new MenuFlyoutItem { Text = "Flip Horizontally" };
+        AutomationProperties.SetAutomationId(flipHorizontal, "FlipElementHorizontally");
+        flipHorizontal.Click += (_, _) => TransformSelectedAnnotations(menuEditor, menuDocument,
+            menuSelection, annotation => annotation with
+            {
+                FlipHorizontal = !annotation.FlipHorizontal,
+            }, multiple ? $"Flipped {selectedCount} elements horizontally" : "Flipped element horizontally");
+        transform.Items.Add(flipHorizontal);
+
+        var flipVertical = new MenuFlyoutItem { Text = "Flip Vertically" };
+        AutomationProperties.SetAutomationId(flipVertical, "FlipElementVertically");
+        flipVertical.Click += (_, _) => TransformSelectedAnnotations(menuEditor, menuDocument,
+            menuSelection, annotation => annotation with
+            {
+                FlipVertical = !annotation.FlipVertical,
+            }, multiple ? $"Flipped {selectedCount} elements vertically" : "Flipped element vertically");
+        transform.Items.Add(flipVertical);
+        transform.Items.Add(new MenuFlyoutSeparator());
+
+        AddRotateSubmenu(transform, clockwise: true, menuEditor, menuDocument, menuSelection);
+        AddRotateSubmenu(transform, clockwise: false, menuEditor, menuDocument, menuSelection);
+        menu.Items.Add(transform);
         if (!multiple)
         {
-            menu.Items.Add(new MenuFlyoutSeparator());
-
             MenuFlyoutItem front = ElementMenuItem("Move to front", "Ctrl+]", "MoveElementToFront", "\uE74A");
             front.IsEnabled = index < layers.Length - 1;
             front.Click += (_, _) => MoveSelectedAnnotationToFront();
@@ -105,6 +126,16 @@ public sealed partial class MainPage
             back.Click += (_, _) => MoveSelectedAnnotationToBack();
             menu.Items.Add(back);
         }
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+        MenuFlyoutItem flatten = ElementMenuItem(multiple ? $"Flatten {selectedCount} elements" : "Flatten",
+            "", "FlattenElement", "\uE8B9");
+        flatten.Click += async (_, _) => await FlattenSelectedAnnotationAsync();
+        menu.Items.Add(flatten);
+        MenuFlyoutItem delete = ElementMenuItem(multiple ? $"Delete {selectedCount} elements" : "Delete",
+            "Del", "DeleteElement", "\uE74D");
+        delete.Click += (_, _) => DeleteSelectedAnnotation();
+        menu.Items.Add(delete);
 
         menu.ShowAt(DrawingCanvas, new FlyoutShowOptions { Position = args.GetPosition(DrawingCanvas) });
         args.Handled = true;
@@ -120,6 +151,69 @@ public sealed partial class MainPage
         };
         AutomationProperties.SetAutomationId(item, automationId);
         return item;
+    }
+
+    private void AddRotateSubmenu(MenuFlyoutSubItem transform, bool clockwise,
+        DocumentEditor editor, ShnappDocument document, Annotation[] sources)
+    {
+        string direction = clockwise ? "Clockwise" : "Counterclockwise";
+        var rotate = new MenuFlyoutSubItem { Text = $"Rotate {direction}" };
+        AutomationProperties.SetAutomationId(rotate, $"RotateElement{direction}");
+        foreach (int degrees in new[] { 45, 90, 135, 180 })
+        {
+            var item = new MenuFlyoutItem { Text = $"{degrees}\u00b0" };
+            AutomationProperties.SetAutomationId(item, $"RotateElement{direction}{degrees}");
+            item.Click += (_, _) => TransformSelectedAnnotations(editor, document, sources,
+                annotation => annotation with
+                {
+                    RotationDegrees = AnnotationRotation.NormalizeDegrees(
+                        annotation.RotationDegrees + (clockwise ? degrees : -degrees)),
+                }, sources.Length > 1
+                    ? $"Rotated {sources.Length} elements {direction.ToLowerInvariant()} {degrees}\u00b0"
+                    : $"Rotated element {direction.ToLowerInvariant()} {degrees}\u00b0");
+            rotate.Items.Add(item);
+        }
+
+        transform.Items.Add(rotate);
+    }
+
+    private void TransformSelectedAnnotations(DocumentEditor editor, ShnappDocument document,
+        Annotation[] sources, Func<Annotation, Annotation> transform, string status)
+    {
+        if (!ReferenceEquals(_editor, editor))
+        {
+            return;
+        }
+
+        CommitText();
+        CancelInteraction();
+        if (!SelectionMatches(editor, document, sources))
+        {
+            return;
+        }
+
+        try
+        {
+            Annotation[] replacements = sources.Select(transform).ToArray();
+            if (replacements.Length == 1)
+            {
+                editor.UpdateAnnotation(replacements[0]);
+            }
+            else
+            {
+                editor.UpdateAnnotations(replacements);
+            }
+
+            SetSelectedAnnotations(sources.Select(annotation => annotation.Id));
+            UpdateInspector();
+            ViewModel.Status = status;
+            DrawingCanvas.Invalidate();
+            DrawingCanvas.Focus(FocusState.Programmatic);
+        }
+        catch (ArgumentException exception)
+        {
+            ShowAnnotationEditError(exception);
+        }
     }
 
     // Called from Page_KeyDown after its text-input guard. OEM 4/6 are the bracket keys.

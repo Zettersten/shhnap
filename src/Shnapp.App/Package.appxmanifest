@@ -11,7 +11,7 @@
   <Identity
     Name="B26188CE-092A-4B82-800F-5B908190A781"
     Publisher="CN=AppPublisher"
-    Version="2.0.0.0" />
+    Version="2.1.0.0" />
 
   <Properties>
     <DisplayName>Shnapp</DisplayName>

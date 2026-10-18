@@ -51,6 +51,7 @@ public sealed partial class MainPage
 
     private static InputSystemCursorShape CursorForHandle(ResizeHandle handle, Annotation annotation) => handle switch
     {
+        ResizeHandle.Rotate => InputSystemCursorShape.Hand,
         ResizeHandle.Top or ResizeHandle.Bottom => InputSystemCursorShape.SizeNorthSouth,
         ResizeHandle.Left or ResizeHandle.Right => InputSystemCursorShape.SizeWestEast,
         ResizeHandle.TopLeft or ResizeHandle.BottomRight => InputSystemCursorShape.SizeNorthwestSoutheast,
@@ -62,8 +63,10 @@ public sealed partial class MainPage
 
     private static InputSystemCursorShape LineHandleCursor(Annotation annotation)
     {
-        double dx = annotation.End.X - annotation.Start.X;
-        double dy = annotation.End.Y - annotation.Start.Y;
+        ImagePoint start = AnnotationRotation.TransformContent(annotation, annotation.Start);
+        ImagePoint end = AnnotationRotation.TransformContent(annotation, annotation.End);
+        double dx = end.X - start.X;
+        double dy = end.Y - start.Y;
         double angle = Math.Atan2(dy, dx) * 180 / Math.PI;
         int sector = (int)Math.Round(angle / 45);
         return (((sector % 4) + 4) % 4) switch

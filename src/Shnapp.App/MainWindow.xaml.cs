@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Windowing;
 using Windows.Graphics;
@@ -30,6 +32,7 @@ public sealed partial class MainWindow : Window
         SettingsOverlay.Content = page;
         SettingsOverlay.IsHitTestVisible = true;
         SettingsOverlay.Visibility = Visibility.Visible;
+        UpdateTitleBarState();
     }
 
     internal async void ShowMainPage(bool restoreFocus = false)
@@ -57,6 +60,7 @@ public sealed partial class MainWindow : Window
         SettingsOverlay.Content = null;
         RootFrame.IsEnabled = true;
         SettingsOverlay.IsHitTestVisible = true;
+        UpdateTitleBarState();
         UIElement? previousFocus = _focusBeforeSettings;
         _focusBeforeSettings = null;
         if (!wasSettingsOpen || !restoreFocus)
@@ -97,6 +101,70 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    internal void ToggleFullScreen()
+    {
+        bool fullScreen = AppWindow.Presenter.Kind == AppWindowPresenterKind.FullScreen;
+        AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.Default : AppWindowPresenterKind.FullScreen);
+        if (fullScreen && AppWindow.Presenter is OverlappedPresenter presenter)
+        {
+            double scale = Math.Max(1, Windows.NativeMethods.GetDpiForWindow(
+                WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0);
+            presenter.PreferredMinimumWidth = (int)(820 * scale);
+            presenter.PreferredMinimumHeight = 420;
+        }
+    }
+
+    private void PageStateChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName is nameof(Page.ViewModel.HasDocument) or nameof(Page.ViewModel.Title)
+            or nameof(Page.ViewModel.CanUndo) or nameof(Page.ViewModel.CanRedo))
+        {
+            UpdateTitleBarState();
+        }
+    }
+
+    private void UpdateTitleBarState()
+    {
+        bool editing = Page.ViewModel.HasDocument && Settings is null;
+        Page.SetChromeToolAvailability(editing);
+        Page.SetSettingsNavigation(Settings is not null);
+        ChromeCommandsHost.IsEnabled = Settings is null;
+        ChromeLibraryHost.IsEnabled = Settings is null;
+        TitleCaptureButton.IsEnabled = Settings is null;
+        TitleUndoButton.IsEnabled = editing && Page.ViewModel.CanUndo;
+        TitleRedoButton.IsEnabled = editing && Page.ViewModel.CanRedo;
+        Title = Settings is not null ? "Settings" :
+            editing ? Page.ViewModel.Title : "Shnapp";
+        UpdateTitleEditorVisibility();
+        AppTitleBar.RecomputeDragRegions();
+    }
+
+    private void UpdateTitleEditorVisibility()
+    {
+        TitleEditorHost.Visibility = Page.IsTitleRenameActive ? Visibility.Visible : Visibility.Collapsed;
+        AppTitleBar.RecomputeDragRegions();
+    }
+
+    private void TitleUndo_Click(object sender, RoutedEventArgs args) => Page.UndoFromChrome();
+    private void TitleRedo_Click(object sender, RoutedEventArgs args) => Page.RedoFromChrome();
+    private void TitleCapture_Click(object sender, RoutedEventArgs args) => Page.CaptureRegionFromChrome();
+
+    private void TitleBar_KeyDown(object sender, KeyRoutedEventArgs args)
+    {
+        if (Settings is null && !args.Handled)
+        {
+            Page.HandleChromeKeyDown(args);
+        }
+    }
+
+    private void TitleBar_KeyUp(object sender, KeyRoutedEventArgs args)
+    {
+        if (Settings is null)
+        {
+            Page.HandleChromeKeyUp(args);
+        }
+    }
+
     /// <summary>Creates the native shell and its document-first page.</summary>
     public MainWindow()
     {
@@ -116,7 +184,14 @@ public sealed partial class MainWindow : Window
             }
         };
         Page = new MainPage();
+        Page.AttachTitleChrome(ChromeCommandsHost, ChromeNavigationHost, ChromeToolsHost,
+            ChromeLibraryHost, TitleEditorHost);
+        AppTitleBar.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(TitleBar_KeyDown), true);
+        AppTitleBar.AddHandler(UIElement.KeyUpEvent, new KeyEventHandler(TitleBar_KeyUp), true);
         RootFrame.Content = Page;
+        Page.ViewModel.PropertyChanged += PageStateChanged;
+        Page.TitleRenameStateChanged += (_, _) => UpdateTitleEditorVisibility();
+        UpdateTitleBarState();
         RectInt32 work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
         double scale = Math.Max(1, Windows.NativeMethods.GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0);
         int width = Math.Min((int)(1120 * scale), work.Width);
@@ -125,7 +200,7 @@ public sealed partial class MainWindow : Window
             work.Y + (work.Height - height) / 2, width, height));
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
-            presenter.PreferredMinimumWidth = 560;
+            presenter.PreferredMinimumWidth = (int)(820 * scale);
             presenter.PreferredMinimumHeight = 420;
         }
     }

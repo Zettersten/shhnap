@@ -13,21 +13,67 @@
     </Window.SystemBackdrop>
 
     <Grid Background="Transparent">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+        <!-- The document frame owns the entire window so the image is painted
+             behind the title bar instead of starting below it. -->
+        <Frame x:Name="RootFrame" />
+        <ContentControl x:Name="SettingsOverlay" Visibility="Collapsed" Margin="0,36,0,0"
+            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
 
-        <TitleBar x:Name="AppTitleBar" Title="Shnapp" Background="{ThemeResource ShnappCanvasBrush}">
-            <TitleBar.IconSource>
-                <ImageIconSource ImageSource="Assets/AppIcon.ico" />
-            </TitleBar.IconSource>
+        <TitleBar x:Name="AppTitleBar" Height="36"
+            VerticalAlignment="Top" Background="{ThemeResource ShnappImageChromeBrush}">
+            <TitleBar.Resources>
+                <SolidColorBrush x:Key="ButtonBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBorderBrush" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
+            </TitleBar.Resources>
+            <!-- WinUI measures the header slots against a 48 px band. Their bottom
+                 margins center 28 px controls in this visible 36 px title bar. -->
+            <TitleBar.LeftHeader>
+                <StackPanel x:Name="TitleLeftControls" Orientation="Horizontal" Spacing="4"
+                    VerticalAlignment="Center" Margin="0,0,0,12">
+                    <Grid Width="28" Height="28" AutomationProperties.Name="Shnapp">
+                        <Image Source="Assets/AppIcon.ico" Width="12" Height="12"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                    <StackPanel x:Name="ChromeNavigationHost" Orientation="Horizontal" Spacing="4"
+                        VerticalAlignment="Center" />
+                    <Border Width="1" Height="16" Margin="5,0" VerticalAlignment="Center"
+                        Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
+                    <ContentControl x:Name="ChromeToolsHost" VerticalAlignment="Center" />
+                </StackPanel>
+            </TitleBar.LeftHeader>
+            <TitleBar.RightHeader>
+                <StackPanel x:Name="TitleRightControls" Orientation="Horizontal" Spacing="4"
+                    VerticalAlignment="Center" Margin="0,0,8,12">
+                    <local:ToolbarActionButton x:Name="TitleUndoButton" Width="28" Height="28" MinWidth="0" Padding="0"
+                        CornerRadius="6" Click="TitleUndo_Click"
+                        ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.Name="Undo" AutomationProperties.AutomationId="UndoEdit">
+                        <FontIcon Glyph="&#xE7A7;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <local:ToolbarActionButton x:Name="TitleRedoButton" Width="28" Height="28" MinWidth="0" Padding="0"
+                        CornerRadius="6" Click="TitleRedo_Click"
+                        ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.Name="Redo" AutomationProperties.AutomationId="RedoEdit">
+                        <FontIcon Glyph="&#xE7A6;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <Border Width="1" Height="16" Margin="5,0" VerticalAlignment="Center"
+                        Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
+                    <ContentControl x:Name="ChromeLibraryHost" VerticalAlignment="Center" />
+                    <local:ToolbarActionButton x:Name="TitleCaptureButton" Width="28" Height="28" MinWidth="0" Padding="0"
+                        CornerRadius="6" Click="TitleCapture_Click"
+                        ToolTipService.ToolTip="Capture region · Ctrl+Shift+2"
+                        AutomationProperties.Name="Capture region" AutomationProperties.AutomationId="CaptureRegionToolbar">
+                        <FontIcon Glyph="&#xF7ED;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <ContentControl x:Name="ChromeCommandsHost" VerticalAlignment="Center" />
+                </StackPanel>
+            </TitleBar.RightHeader>
         </TitleBar>
-
-        <Grid Grid.Row="1">
-            <Frame x:Name="RootFrame" />
-            <ContentControl x:Name="SettingsOverlay" Visibility="Collapsed"
-                HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
-        </Grid>
+        <Grid x:Name="TitleEditorHost" HorizontalAlignment="Center" VerticalAlignment="Top"
+            Margin="0,44,0,0" />
     </Grid>
 </Window>

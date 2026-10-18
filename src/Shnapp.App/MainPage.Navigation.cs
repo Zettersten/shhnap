@@ -6,6 +6,10 @@ namespace Shnapp.App;
 
 public sealed partial class MainPage
 {
+    private bool _canNavigateBack;
+    private bool _canNavigateForward;
+    private bool _settingsNavigation;
+
     private void InitializeNavigationInput()
     {
         var back = new KeyboardAccelerator
@@ -63,11 +67,29 @@ public sealed partial class MainPage
 
     internal void UpdateNavigationButtons(bool canBack, bool canForward)
     {
-        BackButton.IsEnabled = canBack;
-        ForwardButton.IsEnabled = canForward;
+        _canNavigateBack = canBack;
+        _canNavigateForward = canForward;
+        SetSettingsNavigation(_settingsNavigation);
     }
 
-    private void Back_Click(object sender, RoutedEventArgs args) => _controller?.NavigateBack();
+    internal void SetSettingsNavigation(bool settings)
+    {
+        _settingsNavigation = settings;
+        BackButton.IsEnabled = settings || _canNavigateBack;
+        ForwardButton.IsEnabled = !settings && _canNavigateForward;
+    }
+
+    private void Back_Click(object sender, RoutedEventArgs args)
+    {
+        if (_settingsNavigation)
+        {
+            ((MainWindow)App.Window).ShowMainPage(restoreFocus: true);
+        }
+        else
+        {
+            _controller?.NavigateBack();
+        }
+    }
 
     private void Forward_Click(object sender, RoutedEventArgs args) => _controller?.NavigateForward();
 }

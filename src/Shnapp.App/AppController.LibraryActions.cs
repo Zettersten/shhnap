@@ -11,6 +11,22 @@ internal sealed partial class AppController
 {
     internal void CloneDocument(Guid id) => Run(() => CloneDocumentAsync(id));
 
+    internal void CloneCurrentDocument() => Run(async () =>
+    {
+        if (_page.Document is not { } document)
+        {
+            return;
+        }
+
+        _page.CommitText();
+        _saveTimer.Stop();
+        await SaveCurrentAsync();
+        if (_page.Document?.Id == document.Id)
+        {
+            await CloneDocumentAsync(document.Id);
+        }
+    });
+
     internal void RequestRenameDocument(Guid id) => Run(() => RenameDocumentAsync(id));
 
     internal void RequestDeleteDocuments(IReadOnlyList<Guid> ids) =>

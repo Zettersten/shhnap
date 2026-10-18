@@ -78,19 +78,42 @@ const captureModes = [
   <section class="opening-section section-space" id="workflow" aria-labelledby="opening-title">
     <div class="shell">
       <div class="opening-copy">
-        <h2 id="opening-title">A little context changes everything.</h2>
-        <p>For a walkthrough, a visual note, or a quick explanation, Shnapp keeps the whole job in one place. Choose what to capture, add a mark, and get back to making.</p>
+        <h2 id="opening-title">See the whole picture.</h2>
+        <p>Watch the v2 editor in motion: an image that fills the window, tools that stay close, and an editable library for everything you keep.</p>
       </div>
       <div class="workflow-frame">
         <div class="workflow-frame-head"><span class="frame-light" aria-hidden="true"></span><span>Shnapp v2 editor</span></div>
-        <img class="workflow-fallback" src="/screenshots/editor.png" alt="The Shnapp editor with an annotated fictional launch checklist" width="1920" height="1032" loading="lazy" />
-        <p class="workflow-caption">The Shnapp v2 editor with fictional sample content.</p>
+        <video class="workflow-video" controls playsinline preload="metadata" poster="/demos/shnapp-workflow-poster.jpg" width="1600" height="900" aria-label="Shnapp v2 feature walkthrough with music and on-screen captions">
+          <source src="/demos/shnapp-workflow.mp4" type="video/mp4" />
+          Your browser cannot play this video. <a href="/demos/shnapp-workflow.mp4">Download the walkthrough</a> instead.
+        </video>
+        <p class="workflow-caption">Actual app footage with fictional sample content and a <a href="https://commons.wikimedia.org/wiki/File:Mountain_lake_in_the_autumn_(Unsplash).jpg" target="_blank" rel="noopener noreferrer">CC0 landscape photo by sayid he</a>. Music: <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN2300007" target="_blank" rel="noopener noreferrer">“Cloud Dancer” by Kevin MacLeod</a>, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>; edited to fit the demo.</p>
       </div>
       <div class="workflow-steps" aria-label="The Shnapp workflow">
         <div><span>1</span><h3>Capture</h3><p>Pick a window, display, region, or camera photo.</p></div>
         <div><span>2</span><h3>Make it clear</h3><p>Add the words, steps, shapes, or privacy cover you need.</p></div>
         <div><span>3</span><h3>Send it on</h3><p>Copy the finished image or save a PNG for later.</p></div>
       </div>
+    </div>
+  </section>
+
+  <section class="canvas-section section-space" id="canvas" aria-labelledby="canvas-title">
+    <div class="shell">
+      <div class="canvas-heading">
+        <h2 id="canvas-title">One canvas, edge to edge.</h2>
+        <p>The picture continues behind the compact title bar, footer, and acrylic options panel. Open a tool panel, zoom in, or pan around without squeezing the image into a smaller workspace.</p>
+      </div>
+      <div class="canvas-gallery">
+        <figure>
+          <a href="/screenshots/photo-canvas.png" aria-label="Open a full-size screenshot of the photo canvas with the options panel"><img src="/screenshots/photo-canvas.png" alt="Scenic photo in the Shnapp editor extending behind the translucent title bar, footer, and open options panel" width="1586" height="893" loading="lazy" /></a>
+          <figcaption>The options panel floats above the image.</figcaption>
+        </figure>
+        <figure>
+          <a href="/screenshots/photo-canvas-clean.png" aria-label="Open a full-size screenshot of the canvas without the options panel"><img src="/screenshots/photo-canvas-clean.png" alt="The same scenic photo filling the Shnapp editor with its options panel closed" width="1586" height="893" loading="lazy" /></a>
+          <figcaption>Close it and the canvas stays put.</figcaption>
+        </figure>
+      </div>
+      <p class="showcase-source">Actual Shnapp screenshots with <a href="https://commons.wikimedia.org/wiki/File:Mountain_lake_in_the_autumn_(Unsplash).jpg" target="_blank" rel="noopener noreferrer">“Mountain lake in the autumn” by sayid he</a>, <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">CC0 1.0</a>.</p>
     </div>
   </section>
 
@@ -102,15 +125,35 @@ const captureModes = [
         <ul class="feature-points">
           <li><strong>Point it out.</strong> Numbered callouts connect a detail on the capture to an explanation outside it.</li>
           <li><strong>Bring it closer.</strong> Magnify an area and adjust its zoom, size, and outline.</li>
-          <li><strong>Make your mark.</strong> Add rich text, numbered steps, lines, arrows, and shapes.</li>
-          <li><strong>Keep control.</strong> Crop, group and move marks, or nudge a selection one pixel at a time.</li>
+          <li><strong>Make your mark.</strong> Add rich text, numbered steps, lines, arrows, and shapes; style individual words with bold, italic, or underline.</li>
+          <li><strong>Keep control.</strong> Crop, group, move, flip, or rotate marks, or nudge a selection one pixel at a time.</li>
         </ul>
         <a class="arrow-link" href="/download/">{downloadsAvailable ? 'Get Shnapp' : 'See the preview'} <span aria-hidden="true">↗</span></a>
       </div>
       <figure class="feature-visual editor-visual">
-        <a href="/screenshots/editor.png" aria-label="Open a full-size screenshot of the Shnapp editor"><img src="/screenshots/editor.png" alt="Actual Shnapp editor showing a fictional launch checklist with numbered steps and the selected step's font and color options" width="1920" height="1032" loading="lazy" /></a>
+        <a href="/screenshots/editor.png" aria-label="Open a full-size screenshot of the Shnapp editor"><img src="/screenshots/editor.png" alt="Shnapp editor showing a fictional launch checklist annotated with numbered steps and selected tool options" width="1586" height="893" loading="lazy" /></a>
         <figcaption>Actual app screenshot with fictional sample content.</figcaption>
       </figure>
+    </div>
+  </section>
+
+  <section class="transform-section section-space" id="transform" aria-labelledby="transform-title">
+    <div class="shell">
+      <div class="transform-heading">
+        <h2 id="transform-title">Turn the detail until it fits.</h2>
+        <p>Select a shape, line, annotation, text element, or photo and drag its rotation handle. For exact changes, right-click the element to flip it or choose a clockwise or counterclockwise angle.</p>
+      </div>
+      <div class="transform-gallery">
+        <figure>
+          <a href="/screenshots/editor-rotation.png" aria-label="Open a full-size screenshot of an element's rotation handle"><img src="/screenshots/editor-rotation.png" alt="Selected annotation in Shnapp with a line and circular rotation handle above its top edge" width="1586" height="893" loading="lazy" /></a>
+          <figcaption>Drag the handle to rotate directly on the canvas.</figcaption>
+        </figure>
+        <figure>
+          <a href="/screenshots/rotate-transform.png" aria-label="Open a full-size screenshot of the Transform context menu"><img src="/screenshots/rotate-transform.png" alt="Shnapp right-click Transform menu with horizontal and vertical flip plus preset rotation commands" width="1600" height="900" loading="lazy" /></a>
+          <figcaption>Use Transform for flips and precise angles.</figcaption>
+        </figure>
+      </div>
+      <p class="showcase-source">Actual app screenshots with fictional sample content.</p>
     </div>
   </section>
 
@@ -149,7 +192,7 @@ const captureModes = [
   <section class="feature-section library-feature section-space" id="library" aria-labelledby="library-title">
     <div class="shell feature-layout feature-layout-reverse">
       <figure class="feature-visual library-visual">
-        <a href="/screenshots/library.png" aria-label="Open a full-size screenshot of the Shnapp library"><img src="/screenshots/library.png" alt="Actual Shnapp library showing fictional saved captures, search, sorting, and thumbnail controls" width="1106" height="793" loading="lazy" /></a>
+        <a href="/screenshots/library.png" aria-label="Open a full-size screenshot of the Shnapp library"><img src="/screenshots/library.png" alt="Actual Shnapp library showing fictional saved captures, search, sorting, and thumbnail controls" width="1586" height="893" loading="lazy" /></a>
         <figcaption>Actual app screenshot with fictional sample content.</figcaption>
       </figure>
       <div class="feature-copy">
