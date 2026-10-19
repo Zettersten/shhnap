@@ -1,6 +1,6 @@
 ---
 import SiteLayout from '../layouts/SiteLayout.astro';
-import { distribution, downloadsAvailable, issueUrls } from '../config/distribution';
+import { distribution, downloadsAvailable, issueUrls, microsoftStoreUrl } from '../config/distribution';
 
 const feedbackHref = distribution.publicRepository
   ? issueUrls.chooser
@@ -236,7 +236,7 @@ const captureModes = [
       <div class="faq-list">
         <details><summary>What can Shnapp capture?</summary><p>The main Capture button starts a rectangular region capture. Its attached arrow offers a window, the screen beneath your pointer, or a camera photo when a camera is connected. The desktop freezes during a screen selection; Camera opens a live preview.</p></details>
         <details><summary>Do I need an account?</summary><p>No. Capture, edit, copy, and save work without an account or internet connection.</p></details>
-        <details><summary>How do I install it?</summary><p>Choose the x64 or ARM64 direct download on the <a href="/download/">download page</a> and follow the steps shown for the current release. Portable ZIP packages and Scoop are also available.</p></details>
+        <details><summary>How do I install it?</summary><p>Install through the <a href={microsoftStoreUrl} target="_blank" rel="noopener noreferrer">Microsoft Store</a>, or choose the x64 or ARM64 direct download on the <a href="/download/">download page</a>. Portable ZIP packages and Scoop are also available.</p></details>
         <details><summary>Can I hide sensitive information?</summary><p>Use opaque Cover before sharing the finished PNG. Blur and Pixelate are visual obscuring tools and may leave details recognizable. The editable original remains in your local library.</p></details>
       </div>
     </div>

@@ -21,6 +21,7 @@ export const distribution = {
 
 export const releaseUrl = `${distribution.repositoryUrl}/releases`;
 export const latestReleaseUrl = `${distribution.repositoryUrl}/releases/latest`;
+export const microsoftStoreUrl = 'https://apps.microsoft.com/detail/9P7LX12F1V5L';
 export const downloadsAvailable = distribution.publicRepository && distribution.downloadsLive;
 
 export function assetUrl(fileName: string) {
@@ -77,8 +78,8 @@ export const catalogChannels: CatalogChannel[] = [
   {
     id: 'microsoft-store',
     name: 'Microsoft Store',
-    state: 'planned',
-    listingUrl: null,
+    state: 'live',
+    listingUrl: microsoftStoreUrl,
     installCommand: null,
     updateCommand: 'Update through Microsoft Store',
     description: 'A Store-managed install and update path.',
