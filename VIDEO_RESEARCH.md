@@ -1,7 +1,7 @@
 # Video capture and acrylic research
 
 Date: 2026-10-31
-Status: research complete; implementation is underway on the video feature branch.
+Status: implementation complete on the video feature branch; release validation is in progress.
 
 ## Goal and current seams
 

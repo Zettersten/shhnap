@@ -88,7 +88,7 @@ While editing, move to the canvas's left edge to reveal a small image-only galle
 
 ## Your captures stay yours
 
-Direct-download copies save their library and preferences under `%LOCALAPPDATA%\Shnapp` for your Windows user account. The Microsoft Store edition uses a separate Windows app-data folder and copies an existing default direct-download library on first launch. Capturing and editing require no account or internet connection. Copied and exported PNGs have the chosen Cover, Blur, or Pixelate effect baked in. The editable original remains in your local library, so share the finished PNG rather than a library file when something sensitive was covered. For private information, choose opaque Cover; blurred or pixelated details may still be recognizable.
+Direct-download copies save their library and preferences under `%LOCALAPPDATA%\Shnapp` for your Windows user account. The Microsoft Store edition uses a separate Windows app-data folder and copies existing photos, videos, and preferences from the default direct-download library on first launch. The originals remain in place. Capturing and editing require no account or internet connection. Copied and exported PNGs have the chosen Cover, Blur, or Pixelate effect baked in. The editable original remains in your local library, so share the finished PNG rather than a library file when something sensitive was covered. For private information, choose opaque Cover; blurred or pixelated details may still be recognizable.
 
 ## Get started
 

@@ -7,6 +7,7 @@
 - Window, display, and rectangular-region video recording with `Alt+Shift+4/3/2`, a pause/stop bar, and optional separate computer and microphone audio tracks.
 - A video library tab and a dedicated timeline editor for trimming, splitting, cutting, timed image overlays, imported audio, and MP4 export.
 - Video settings for audio, pointer visibility, and 30 or 60 fps capture.
+- One-time, validated import of portable video projects when opening the Microsoft Store edition.
 
 ### Changed
 
