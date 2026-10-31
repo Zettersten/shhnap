@@ -125,11 +125,17 @@ public sealed partial class MainPage
 
     private void FilterLibrary()
     {
+        if (_showVideoLibrary)
+        {
+            FilterVideoLibrary();
+            return;
+        }
         if (_controller is null)
         {
             return;
         }
 
+        UpdateLibraryMediaChrome();
         string query = LibrarySearch.Text.Trim();
         _restoringLibrarySelection = true;
         try
@@ -295,6 +301,8 @@ public sealed partial class MainPage
 
     private void UpdateLibraryView()
     {
+        VideoLibraryList.Visibility = Visibility.Collapsed;
+        VideoLibraryEmpty.Visibility = Visibility.Collapsed;
         bool hasResults = ViewModel.Library.Count > 0;
         LibraryGrid.Visibility = hasResults && !_libraryListMode ? Visibility.Visible : Visibility.Collapsed;
         LibraryList.Visibility = hasResults && _libraryListMode ? Visibility.Visible : Visibility.Collapsed;
@@ -308,6 +316,14 @@ public sealed partial class MainPage
 
     private void LibrarySearch_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
+        if (_showVideoLibrary)
+        {
+            if (VideoLibraryEntries.FirstOrDefault() is { } video)
+            {
+                _controller?.OpenVideoProject(video.Id);
+            }
+            return;
+        }
         if (ViewModel.Library.FirstOrDefault() is { } entry)
         {
             _controller?.OpenDocument(entry.Id);
@@ -478,6 +494,7 @@ public sealed partial class MainPage
 
     private void ToggleSelectAllVisibleLibraryEntries()
     {
+        if (_showVideoLibrary) { return; }
         // A focused list can raise both its accelerator and the bubbling key event.
         // Handle one physical Ctrl+A press once, then allow the next press to toggle.
         if (_librarySelectAllKeyActive)
@@ -572,8 +589,8 @@ public sealed partial class MainPage
         }
 
         LibrarySelectionCount.Text = $"Delete {count}";
-        LibraryDeleteSelected.Visibility = selectionMode ? Visibility.Visible : Visibility.Collapsed;
-        LibraryClearSelection.Visibility = selectionMode ? Visibility.Visible : Visibility.Collapsed;
+        LibraryDeleteSelected.Visibility = selectionMode && !_showVideoLibrary ? Visibility.Visible : Visibility.Collapsed;
+        LibraryClearSelection.Visibility = selectionMode && !_showVideoLibrary ? Visibility.Visible : Visibility.Collapsed;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(LibraryDeleteSelected,
             count == 1 ? "Delete 1 selected shnapp" : $"Delete {count} selected shnapps");
     }
