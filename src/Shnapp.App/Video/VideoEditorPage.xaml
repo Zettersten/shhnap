@@ -129,10 +129,11 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid>
                         <TextBlock x:Name="SelectedItemTitle" Text="Clip" FontSize="13"
-                            FontWeight="SemiBold" VerticalAlignment="Center"
+                            FontWeight="SemiBold" HorizontalAlignment="Left" VerticalAlignment="Center"
                             MaxWidth="132" TextTrimming="CharacterEllipsis" />
                         <local:ToolbarActionButton HorizontalAlignment="Right" Width="28" Height="28"
                             MinWidth="0" Padding="0" CornerRadius="6"
@@ -147,14 +148,21 @@
                         <StackPanel Spacing="7">
                             <TextBlock x:Name="SelectedItemDetail" FontSize="10" TextWrapping="WrapWholeWords"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                            <NumberBox x:Name="ClipStartSeconds" Header="Start · seconds"
+                            <NumberBox x:Name="ClipStartSeconds" Header="Start (s)"
+                                AutomationProperties.Name="Clip start time in seconds"
                                 Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11" />
-                            <StackPanel x:Name="SourceFields" Spacing="7">
-                                <NumberBox x:Name="ClipSourceInSeconds" Header="Source in · seconds"
-                                    Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11" />
-                                <NumberBox x:Name="ClipSourceOutSeconds" Header="Source out · seconds"
-                                    Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11" />
-                            </StackPanel>
+                            <Grid x:Name="SourceFields" ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <NumberBox x:Name="ClipSourceInSeconds" Header="In (s)"
+                                    AutomationProperties.Name="Source in time in seconds"
+                                    MinWidth="0" Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11" />
+                                <NumberBox x:Name="ClipSourceOutSeconds" Grid.Column="1" Header="Out (s)"
+                                    AutomationProperties.Name="Source out time in seconds"
+                                    MinWidth="0" Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11" />
+                            </Grid>
                             <StackPanel x:Name="AudioFields" Visibility="Collapsed" Spacing="7">
                                 <TextBlock Text="Gain" FontSize="11" />
                                 <Slider x:Name="AudioGainSlider" Minimum="0" Maximum="4"
@@ -162,41 +170,55 @@
                                 <ToggleSwitch x:Name="AudioMuteSwitch" Header="Mute this clip"
                                     OnContent="Muted" OffContent="Audible" FontSize="11" />
                             </StackPanel>
-                            <StackPanel x:Name="OverlayFields" Visibility="Collapsed" Spacing="7">
-                                <NumberBox x:Name="OverlayDurationSeconds" Header="Duration · seconds"
+                            <Grid x:Name="OverlayFields" Visibility="Collapsed" RowSpacing="7" ColumnSpacing="8">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <NumberBox x:Name="OverlayDurationSeconds" Grid.ColumnSpan="2" Header="Duration (s)"
+                                    AutomationProperties.Name="Image duration in seconds"
                                     Minimum="0.1" SpinButtonPlacementMode="Compact" FontSize="11" />
-                                <NumberBox x:Name="OverlayX" Header="Left · pixels"
-                                    SpinButtonPlacementMode="Compact" FontSize="11" />
-                                <NumberBox x:Name="OverlayY" Header="Top · pixels"
-                                    SpinButtonPlacementMode="Compact" FontSize="11" />
-                                <NumberBox x:Name="OverlayWidth" Header="Width · pixels"
-                                    Minimum="1" SpinButtonPlacementMode="Compact" FontSize="11" />
-                                <NumberBox x:Name="OverlayHeight" Header="Height · pixels"
-                                    Minimum="1" SpinButtonPlacementMode="Compact" FontSize="11" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="4"
-                                HorizontalAlignment="Right">
-                                <local:ToolbarActionButton x:Name="ApplyPropertiesButton"
-                                    Width="28" Height="28" MinWidth="0"
-                                    Padding="0" CornerRadius="6" Background="Transparent"
-                                    BorderThickness="0" Click="ApplyProperties_Click"
-                                    AutomationProperties.Name="Apply clip properties"
-                                    ToolTipService.ToolTip="Apply clip properties">
-                                    <FontIcon Glyph="&#xE73E;" FontFamily="Segoe Fluent Icons"
-                                        FontSize="12" Width="12" Height="12" />
-                                </local:ToolbarActionButton>
-                                <local:ToolbarActionButton x:Name="DeleteClipButton"
-                                    Width="28" Height="28" MinWidth="0" Padding="0"
-                                    CornerRadius="6" Background="Transparent" BorderThickness="0"
-                                    Click="DeleteSelected_Click"
-                                    AutomationProperties.Name="Remove selected clip"
-                                    ToolTipService.ToolTip="Remove selected clip">
-                                    <FontIcon Glyph="&#xE74D;" FontFamily="Segoe Fluent Icons"
-                                        FontSize="12" Width="12" Height="12" />
-                                </local:ToolbarActionButton>
-                            </StackPanel>
+                                <NumberBox x:Name="OverlayX" Grid.Row="1" Header="Left (px)"
+                                    AutomationProperties.Name="Image left position in pixels"
+                                    MinWidth="0" SpinButtonPlacementMode="Compact" FontSize="11" />
+                                <NumberBox x:Name="OverlayY" Grid.Row="1" Grid.Column="1" Header="Top (px)"
+                                    AutomationProperties.Name="Image top position in pixels"
+                                    MinWidth="0" SpinButtonPlacementMode="Compact" FontSize="11" />
+                                <NumberBox x:Name="OverlayWidth" Grid.Row="2" Header="Width (px)"
+                                    AutomationProperties.Name="Image width in pixels"
+                                    MinWidth="0" Minimum="1" SpinButtonPlacementMode="Compact" FontSize="11" />
+                                <NumberBox x:Name="OverlayHeight" Grid.Row="2" Grid.Column="1" Header="Height (px)"
+                                    AutomationProperties.Name="Image height in pixels"
+                                    MinWidth="0" Minimum="1" SpinButtonPlacementMode="Compact" FontSize="11" />
+                            </Grid>
                         </StackPanel>
                     </ScrollViewer>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4"
+                        HorizontalAlignment="Right" Margin="0,8,0,0">
+                        <local:ToolbarActionButton x:Name="ApplyPropertiesButton"
+                            Width="28" Height="28" MinWidth="0"
+                            Padding="0" CornerRadius="6" Background="Transparent"
+                            BorderThickness="0" Click="ApplyProperties_Click"
+                            AutomationProperties.Name="Apply clip properties"
+                            ToolTipService.ToolTip="Apply clip properties">
+                            <FontIcon Glyph="&#xE73E;" FontFamily="Segoe Fluent Icons"
+                                FontSize="12" Width="12" Height="12" />
+                        </local:ToolbarActionButton>
+                        <local:ToolbarActionButton x:Name="DeleteClipButton"
+                            Width="28" Height="28" MinWidth="0" Padding="0"
+                            CornerRadius="6" Background="Transparent" BorderThickness="0"
+                            Click="DeleteSelected_Click"
+                            AutomationProperties.Name="Remove selected clip"
+                            ToolTipService.ToolTip="Remove selected clip">
+                            <FontIcon Glyph="&#xE74D;" FontFamily="Segoe Fluent Icons"
+                                FontSize="12" Width="12" Height="12" />
+                        </local:ToolbarActionButton>
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>
