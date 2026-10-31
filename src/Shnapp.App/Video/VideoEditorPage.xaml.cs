@@ -15,6 +15,7 @@ public sealed partial class VideoEditorPage : Page
     private VideoProjectStore? _store;
     private VideoProjectEditor? _editor;
     private Func<Guid, Task<byte[]>>? _readGalleryImage;
+    private Func<Guid, string>? _getGalleryPreviewPath;
     private IReadOnlyList<ShnappSummary> _galleryItems = [];
     private readonly MediaPlayer _player = new();
     private readonly SemaphoreSlim _saveGate = new(1, 1);
@@ -26,8 +27,10 @@ public sealed partial class VideoEditorPage : Page
     private TimeSpan? _markIn;
     private TimeSpan? _markOut;
     private bool _updatingTransport;
+    private int _positionUpdateQueued;
     private bool _isExporting;
     private bool _closed;
+    private bool _layoutReady;
 
     public event EventHandler? BackRequested;
     public event EventHandler? LibraryRequested;
@@ -40,6 +43,7 @@ public sealed partial class VideoEditorPage : Page
     public VideoEditorPage()
     {
         InitializeComponent();
+        Loaded += Page_Loaded;
         VideoPlayer.SetMediaPlayer(_player);
         _player.PlaybackSession.PositionChanged += PlaybackSession_PositionChanged;
         _player.PlaybackSession.PlaybackStateChanged += PlaybackSession_PlaybackStateChanged;
@@ -47,11 +51,13 @@ public sealed partial class VideoEditorPage : Page
 
     public void Configure(VideoProjectStore store, VideoProject project,
         Func<Guid, Task<byte[]>> readGalleryImage,
+        Func<Guid, string> getGalleryPreviewPath,
         IReadOnlyList<ShnappSummary> galleryItems)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(readGalleryImage);
+        ArgumentNullException.ThrowIfNull(getGalleryPreviewPath);
         ArgumentNullException.ThrowIfNull(galleryItems);
 
         if (_editor is not null)
@@ -63,6 +69,7 @@ public sealed partial class VideoEditorPage : Page
         _editor = new VideoProjectEditor(project);
         _editor.Changed += Editor_Changed;
         _readGalleryImage = readGalleryImage;
+        _getGalleryPreviewPath = getGalleryPreviewPath;
         _galleryItems = galleryItems;
         _closed = false;
         _playhead = TimeSpan.Zero;
@@ -74,8 +81,10 @@ public sealed partial class VideoEditorPage : Page
         BuildGallery();
         RefreshTimeline();
         UpdateTransport();
+        UpdateEditActionState();
         UpdateState();
-        _ = RefreshPreviewAsync(++_previewRevision);
+        ++_previewRevision;
+        if (_layoutReady) _ = RefreshPreviewAsync(_previewRevision);
     }
 
     public void Undo() => _editor?.Undo();
@@ -184,6 +193,7 @@ public sealed partial class VideoEditorPage : Page
         RefreshTimeline();
         RefreshInspector();
         UpdateTransport();
+        UpdateEditActionState();
         UpdateState();
         long revision = ++_previewRevision;
         _previewCancellation?.Cancel();
@@ -224,12 +234,13 @@ public sealed partial class VideoEditorPage : Page
         PreviewProgress.IsActive = true;
         try
         {
+            VideoProject project = _editor.Current;
+            (int previewWidth, int previewHeight) = GetPreviewSize(project);
             MediaComposition composition = await VideoCompositionService.BuildAsync(
-                _editor.Current, _store, token);
+                project, _store, token, (previewWidth, previewHeight));
             token.ThrowIfCancellationRequested();
             if (revision != _previewRevision || _closed) return;
-            var stream = composition.GeneratePreviewMediaStreamSource(
-                _editor.Current.Width, _editor.Current.Height);
+            var stream = composition.GeneratePreviewMediaStreamSource(previewWidth, previewHeight);
             _player.Source = MediaSource.CreateFromMediaStreamSource(stream);
             _player.PlaybackSession.Position = position;
             if (wasPlaying) _player.Play();
@@ -246,16 +257,34 @@ public sealed partial class VideoEditorPage : Page
         }
     }
 
+    private (int Width, int Height) GetPreviewSize(VideoProject project)
+    {
+        double sourceWidth = project.Width;
+        double sourceHeight = project.Height;
+        double viewWidth = VideoPlayer.ActualWidth;
+        double viewHeight = VideoPlayer.ActualHeight;
+        double scale = viewWidth > 0 && viewHeight > 0
+            ? Math.Min(viewWidth / sourceWidth, viewHeight / sourceHeight) *
+              Math.Clamp(VideoPlayer.XamlRoot?.RasterizationScale ?? 1, 1, 2)
+            : 1280 / Math.Max(sourceWidth, sourceHeight);
+        scale = Math.Min(scale, Math.Min(1, 1920 / Math.Max(sourceWidth, sourceHeight)));
+        scale = Math.Min(scale, Math.Sqrt(1920d * 1080d / (sourceWidth * sourceHeight)));
+        return (Math.Max(2, (int)Math.Floor(sourceWidth * scale / 2) * 2),
+            Math.Max(2, (int)Math.Floor(sourceHeight * scale / 2) * 2));
+    }
+
     private void PlaybackSession_PositionChanged(MediaPlaybackSession sender, object args)
     {
-        if (_closed) return;
-        DispatcherQueue.TryEnqueue(() =>
+        if (_closed || Interlocked.Exchange(ref _positionUpdateQueued, 1) != 0) return;
+        if (!DispatcherQueue.TryEnqueue(() =>
         {
+            Interlocked.Exchange(ref _positionUpdateQueued, 0);
             if (_closed || _editor is null) return;
             _playhead = Min(sender.Position, _editor.Current.Duration);
             UpdateTransport();
             DrawPlayhead();
-        });
+            UpdateEditActionState();
+        })) Interlocked.Exchange(ref _positionUpdateQueued, 0);
     }
 
     private void PlaybackSession_PlaybackStateChanged(MediaPlaybackSession sender, object args)
@@ -291,16 +320,19 @@ public sealed partial class VideoEditorPage : Page
         _player.PlaybackSession.Position = _playhead;
         UpdateTransport();
         DrawPlayhead();
+        UpdateEditActionState();
     }
 
     private void UpdateTransport()
     {
         if (_editor is null) return;
         _updatingTransport = true;
-        TransportSlider.Maximum = Math.Max(0.01, _editor.Current.Duration.TotalSeconds);
-        TransportSlider.Value = Math.Clamp(_playhead.TotalSeconds, 0,
-            TransportSlider.Maximum);
-        CurrentTimeText.Text = FormatTime(_playhead);
+        double maximum = Math.Max(0.01, _editor.Current.Duration.TotalSeconds);
+        if (TransportSlider.Maximum != maximum) TransportSlider.Maximum = maximum;
+        double value = Math.Clamp(_playhead.TotalSeconds, 0, maximum);
+        if (Math.Abs(TransportSlider.Value - value) >= 0.001) TransportSlider.Value = value;
+        string time = FormatTime(_playhead);
+        if (CurrentTimeText.Text != time) CurrentTimeText.Text = time;
         _updatingTransport = false;
     }
 
@@ -324,8 +356,13 @@ public sealed partial class VideoEditorPage : Page
         return string.IsNullOrWhiteSpace(safe) ? "Shnapp video" : safe;
     }
 
-    private void Page_SizeChanged(object sender, SizeChangedEventArgs args) => RefreshTimeline();
-    private void Page_Unloaded(object sender, RoutedEventArgs args) { }
+    private void Page_Loaded(object sender, RoutedEventArgs args)
+    {
+        _layoutReady = true;
+        if (!_closed && _editor is not null)
+            _ = RefreshPreviewAsync(_previewRevision);
+    }
+    private void Page_Unloaded(object sender, RoutedEventArgs args) { _layoutReady = false; }
     private void Export_Click(object sender, RoutedEventArgs args) => _ = ExportAsync();
     private void Undo_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     { args.Handled = true; Undo(); }

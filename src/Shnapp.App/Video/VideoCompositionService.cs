@@ -13,13 +13,15 @@ namespace Shnapp.App.Video;
 internal static class VideoCompositionService
 {
     internal static async Task<MediaComposition> BuildAsync(
-        VideoProject project, VideoProjectStore store, CancellationToken cancellationToken = default)
+        VideoProject project, VideoProjectStore store, CancellationToken cancellationToken = default,
+        (int Width, int Height)? previewSize = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(store);
 
         var composition = new MediaComposition();
         var files = new Dictionary<Guid, StorageFile>();
+        Dictionary<Guid, VideoAsset> assets = project.Assets.ToDictionary(item => item.Id);
 
         async Task<StorageFile> FileForAsync(Guid assetId)
         {
@@ -28,7 +30,7 @@ internal static class VideoCompositionService
                 return cached;
             }
 
-            VideoAsset asset = project.Assets.First(item => item.Id == assetId);
+            VideoAsset asset = assets[assetId];
             string path = store.ResolveAssetPath(project, asset);
             StorageFile file = await StorageFile.GetFileFromPathAsync(path);
             files.Add(assetId, file);
@@ -71,6 +73,8 @@ internal static class VideoCompositionService
 
         if (!project.ImageOverlays.IsDefaultOrEmpty)
         {
+            double scaleX = previewSize?.Width / (double)project.Width ?? 1;
+            double scaleY = previewSize?.Height / (double)project.Height ?? 1;
             var layer = new MediaOverlayLayer();
             foreach (ImageOverlay image in project.ImageOverlays.OrderBy(item => item.ZIndex))
             {
@@ -80,8 +84,8 @@ internal static class VideoCompositionService
                 var overlay = new MediaOverlay(clip)
                 {
                     Delay = image.Start,
-                    Position = new Rect(image.Bounds.X, image.Bounds.Y,
-                        image.Bounds.Width, image.Bounds.Height),
+                    Position = new Rect(image.Bounds.X * scaleX, image.Bounds.Y * scaleY,
+                        image.Bounds.Width * scaleX, image.Bounds.Height * scaleY),
                     Opacity = 1,
                     AudioEnabled = false,
                 };

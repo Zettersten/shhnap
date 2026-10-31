@@ -311,7 +311,10 @@ internal sealed partial class AppController
     {
         IReadOnlyList<ShnappSummary> gallery = await ListReadySummariesAsync();
         var page = new VideoEditorPage();
-        page.Configure(VideoStore, project, ReadSavedImageForLayerAsync, gallery);
+        page.Configure(VideoStore, project, ReadSavedImageForLayerAsync,
+            id => File.Exists(Library.GetGalleryPreviewPath(id))
+                ? Library.GetGalleryPreviewPath(id)
+                : Library.GetPreviewPath(id), gallery);
         page.BackRequested += (_, _) => OpenLibrary();
         page.LibraryRequested += (_, _) => OpenLibrary();
         _window.ShowVideoEditor(page);

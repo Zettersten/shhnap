@@ -1,6 +1,9 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Media;
+using Shnapp.App.Editor;
 using Shnapp.Core;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics.Imaging;
@@ -21,14 +24,61 @@ public sealed partial class VideoEditorPage
         foreach (ShnappSummary item in _galleryItems.Take(16))
         {
             Guid id = item.Id;
+            string previewPath = _getGalleryPreviewPath?.Invoke(id) ?? string.Empty;
+            var entry = new LibraryEntry(item, previewPath, previewPixelWidth: 128);
+            var thumbnail = new Image
+            {
+                Source = entry.Preview,
+                Stretch = Stretch.UniformToFill,
+                Width = 48,
+                Height = 48,
+            };
+            var preview = new Border
+            {
+                Width = 48,
+                Height = 48,
+                CornerRadius = new CornerRadius(6),
+                Background = (Brush)Application.Current.Resources["ShnappPreviewBrush"],
+                Child = thumbnail,
+            };
+            var details = new StackPanel
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            details.Children.Add(new TextBlock
+            {
+                Text = item.Title,
+                FontSize = 11,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            });
+            details.Children.Add(new TextBlock
+            {
+                Text = item.ModifiedAt.ToLocalTime().ToString("MMM d, yyyy"),
+                FontSize = 10,
+                Foreground = (Brush)Application.Current.Resources["ShnappToolbarInactiveIconBrush"],
+            });
+            var row = new Grid
+            {
+                ColumnSpacing = 8,
+            };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(48) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Grid.SetColumn(details, 1);
+            row.Children.Add(preview);
+            row.Children.Add(details);
             var button = new Button
             {
-                Content = item.Title,
+                Content = row,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                Padding = new Thickness(9, 7, 9, 7),
-                FontSize = 11,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                Padding = new Thickness(4),
+                Height = 56,
+                CornerRadius = new CornerRadius(6),
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0),
             };
+            AutomationProperties.SetName(button, $"Add {item.Title} to the video");
+            ToolTipService.SetToolTip(button, $"Add {item.Title} at the playhead");
             button.Click += (_, _) => _ = ImportGalleryImageAsync(id);
             GalleryItemsHost.Children.Add(button);
         }
@@ -45,7 +95,13 @@ public sealed partial class VideoEditorPage
     }
 
     private void GalleryHotspot_PointerEntered(object sender, PointerRoutedEventArgs args) =>
+        OpenGallery();
+
+    private void OpenGallery()
+    {
+        if (ActualWidth < 640) InspectorPanel.Visibility = Visibility.Collapsed;
         GalleryPanel.Visibility = Visibility.Visible;
+    }
 
     private void GalleryPanel_PointerExited(object sender, PointerRoutedEventArgs args) =>
         GalleryPanel.Visibility = Visibility.Collapsed;
@@ -55,8 +111,9 @@ public sealed partial class VideoEditorPage
 
     private void AddImage_Click(object sender, RoutedEventArgs args)
     {
-        GalleryPanel.Visibility = GalleryPanel.Visibility == Visibility.Visible
-            ? Visibility.Collapsed : Visibility.Visible;
+        if (GalleryPanel.Visibility == Visibility.Visible)
+            GalleryPanel.Visibility = Visibility.Collapsed;
+        else OpenGallery();
         StatusText.Text = "Choose a recent image or press Ctrl+V to paste";
     }
 

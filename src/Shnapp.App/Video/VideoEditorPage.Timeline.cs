@@ -1,5 +1,6 @@
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -15,19 +16,36 @@ public sealed partial class VideoEditorPage
 
     private TimelineKind _selectedKind;
     private Guid _selectedId;
+    private (TimeSpan Start, TimeSpan End)? _selectedRange;
     private double _pixelsPerSecond = 28;
+    private double _lastTimelineViewportWidth = double.NaN;
+    private double _renderedWindowStartX;
+    private double _renderedWindowEndX;
+    private uint? _scrubbingPointerId;
     private Line? _playheadLine;
+    private readonly Dictionary<Guid, Button> _clipButtons = new();
+    private static readonly double[] TimelineTickIntervals =
+        [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600,
+         7200, 14400, 28800, 43200, 86400];
 
     private void RefreshTimeline()
     {
         if (_editor is null || TimelineCanvas is null) return;
         VideoProject project = _editor.Current;
+        _lastTimelineViewportWidth = TimelineScroll.ActualWidth;
         double available = Math.Max(400, TimelineScroll.ActualWidth - 18);
-        _pixelsPerSecond = Math.Clamp(available / Math.Max(1, project.Duration.TotalSeconds), 7, 42);
+        _pixelsPerSecond = Math.Clamp(available / Math.Max(1, project.Duration.TotalSeconds), .02, 42);
         double width = Math.Max(available, project.Duration.TotalSeconds * _pixelsPerSecond + 24);
         TimelineContent.Width = width;
         TimelineCanvas.Width = width;
         TimelineCanvas.Children.Clear();
+        _clipButtons.Clear();
+
+        double viewport = Math.Max(400, TimelineScroll.ActualWidth);
+        double offset = TimelineScroll.HorizontalOffset;
+        _renderedWindowStartX = Math.Max(0, offset - viewport);
+        _renderedWindowEndX = Math.Min(width, offset + viewport * 2);
+        double renderedWidth = _renderedWindowEndX - _renderedWindowStartX;
 
         var laneColors = new[]
         {
@@ -41,25 +59,48 @@ public sealed partial class VideoEditorPage
         {
             var background = new Rectangle
             {
-                Width = width,
+                Width = renderedWidth,
                 Height = 27,
-                Fill = new SolidColorBrush(Color.FromArgb(
-                    lane % 2 == 0 ? (byte)22 : (byte)12, 255, 255, 255)),
+                Fill = (Brush)Application.Current.Resources["ShnappFloatingEdgeBrush"],
+                Opacity = lane % 2 == 0 ? .12 : .07,
             };
+            Canvas.SetLeft(background, _renderedWindowStartX);
             Canvas.SetTop(background, 22 + lane * 28);
             TimelineCanvas.Children.Add(background);
         }
 
-        double tickSeconds = project.Duration.TotalMinutes > 15 ? 60 :
-            project.Duration.TotalMinutes > 4 ? 30 :
-            project.Duration.TotalSeconds > 90 ? 10 : 5;
-        for (double seconds = 0; seconds <= project.Duration.TotalSeconds; seconds += tickSeconds)
+        if (_markIn.HasValue || _markOut.HasValue)
+        {
+            double first = (_markIn ?? _markOut!.Value).TotalSeconds * _pixelsPerSecond;
+            double last = (_markOut ?? _markIn!.Value).TotalSeconds * _pixelsPerSecond;
+            var markedRange = new Rectangle
+            {
+                Width = Math.Max(2, Math.Abs(last - first)),
+                Height = 162,
+                Fill = (Brush)Application.Current.Resources["ShnappBlueBrush"],
+                Opacity = _markIn.HasValue && _markOut.HasValue ? .18 : .7,
+                IsHitTestVisible = false,
+            };
+            Canvas.SetLeft(markedRange, Math.Min(first, last));
+            TimelineCanvas.Children.Add(markedRange);
+        }
+
+        double tickSeconds = TimelineTickIntervals.FirstOrDefault(seconds =>
+            seconds * _pixelsPerSecond >= 68);
+        if (tickSeconds <= 0) tickSeconds = TimelineTickIntervals[^1];
+        double firstTick = Math.Ceiling(_renderedWindowStartX /
+            (_pixelsPerSecond * tickSeconds)) * tickSeconds;
+        for (double seconds = firstTick;
+            seconds <= project.Duration.TotalSeconds &&
+            seconds * _pixelsPerSecond <= _renderedWindowEndX;
+            seconds += tickSeconds)
         {
             double x = seconds * _pixelsPerSecond;
             var tick = new Line
             {
                 X1 = 0, X2 = 0, Y1 = 17, Y2 = 162,
-                Stroke = new SolidColorBrush(Color.FromArgb(46, 220, 234, 255)),
+                Stroke = (Brush)Application.Current.Resources["ShnappToolbarInactiveIconBrush"],
+                Opacity = .38,
                 StrokeThickness = 1,
             };
             Canvas.SetLeft(tick, x);
@@ -68,7 +109,7 @@ public sealed partial class VideoEditorPage
             {
                 Text = FormatTime(TimeSpan.FromSeconds(seconds)),
                 FontSize = 10,
-                Foreground = new SolidColorBrush(Color.FromArgb(180, 225, 235, 247)),
+                Foreground = (Brush)Application.Current.Resources["ShnappToolbarInactiveIconBrush"],
             };
             Canvas.SetLeft(label, x + 3);
             TimelineCanvas.Children.Add(label);
@@ -77,9 +118,10 @@ public sealed partial class VideoEditorPage
         foreach (VideoSegment segment in project.VideoSegments)
             AddTimelineClip(segment.Id, TimelineKind.Video, 0, segment.Start,
                 segment.Duration, "Recording", laneColors[0]);
+        Dictionary<Guid, VideoAsset> assets = project.Assets.ToDictionary(item => item.Id);
         foreach (AudioSegment segment in project.AudioSegments)
         {
-            VideoAsset asset = project.Assets.First(item => item.Id == segment.AssetId);
+            VideoAsset asset = assets[segment.AssetId];
             int lane = asset.Kind switch
             {
                 VideoAssetKind.ComputerAudio => 1,
@@ -114,18 +156,25 @@ public sealed partial class VideoEditorPage
     private void AddTimelineClip(Guid id, TimelineKind kind, int lane,
         TimeSpan start, TimeSpan duration, string title, Color fill)
     {
+        double left = start.TotalSeconds * _pixelsPerSecond;
         double width = Math.Max(3, duration.TotalSeconds * _pixelsPerSecond - 2);
+        if (left + width < _renderedWindowStartX || left > _renderedWindowEndX)
+            return;
         bool selected = _selectedId == id && _selectedKind == kind;
-        var surface = new Border
+        var surface = new Button
         {
             Width = width,
             Height = 24,
+            MinWidth = 0,
+            MinHeight = 0,
+            Padding = new Thickness(0),
             CornerRadius = new CornerRadius(4),
             Background = new SolidColorBrush(fill),
             BorderThickness = new Thickness(selected ? 2 : 0),
-            BorderBrush = new SolidColorBrush(Colors.White),
+            BorderBrush = (Brush)Application.Current.Resources["ShnappToolbarActiveIconBrush"],
+            HorizontalContentAlignment = HorizontalAlignment.Left,
             Tag = (kind, id),
-            Child = new TextBlock
+            Content = new TextBlock
             {
                 Text = title,
                 FontSize = 10,
@@ -136,27 +185,95 @@ public sealed partial class VideoEditorPage
             },
         };
         surface.PointerPressed += Clip_PointerPressed;
-        Canvas.SetLeft(surface, start.TotalSeconds * _pixelsPerSecond);
+        surface.Click += Clip_Click;
+        AutomationProperties.SetName(surface,
+            $"{title}, {FormatPreciseTime(start)} to {FormatPreciseTime(start + duration)}. Select clip.");
+        ToolTipService.SetToolTip(surface,
+            $"{title} · {FormatPreciseTime(start)}–{FormatPreciseTime(start + duration)}");
+        Canvas.SetLeft(surface, left);
         Canvas.SetTop(surface, 24 + lane * 28);
         TimelineCanvas.Children.Add(surface);
+        _clipButtons[id] = surface;
     }
 
     private void Clip_PointerPressed(object sender, PointerRoutedEventArgs args)
     {
-        if (sender is not Border { Tag: ValueTuple<TimelineKind, Guid> tag }) return;
-        _selectedKind = tag.Item1;
-        _selectedId = tag.Item2;
+        if (sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag }) return;
+        SelectClip(tag.Item1, tag.Item2);
         Seek(TimeSpan.FromSeconds(args.GetCurrentPoint(TimelineContent).Position.X /
             _pixelsPerSecond));
-        RefreshInspector();
-        RefreshTimeline();
+        BeginTimelineScrub(args);
         args.Handled = true;
+    }
+
+    private void Clip_Click(object sender, RoutedEventArgs args)
+    {
+        if (sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag }) return;
+        SelectClip(tag.Item1, tag.Item2);
+    }
+
+    private void SelectClip(TimelineKind kind, Guid id)
+    {
+        if (_selectedId == id && _selectedKind == kind) return;
+        if (_clipButtons.TryGetValue(_selectedId, out Button? previous))
+            previous.BorderThickness = new Thickness(0);
+        _selectedKind = kind;
+        _selectedId = id;
+        if (_clipButtons.TryGetValue(id, out Button? selected))
+            selected.BorderThickness = new Thickness(2);
+        RefreshInspector();
+        UpdateEditActionState();
     }
 
     private void Timeline_PointerPressed(object sender, PointerRoutedEventArgs args)
     {
         Seek(TimeSpan.FromSeconds(args.GetCurrentPoint(TimelineContent).Position.X /
             _pixelsPerSecond));
+        BeginTimelineScrub(args);
+    }
+
+    private void BeginTimelineScrub(PointerRoutedEventArgs args)
+    {
+        if (TimelineContent.CapturePointer(args.Pointer))
+            _scrubbingPointerId = args.Pointer.PointerId;
+    }
+
+    private void Timeline_PointerMoved(object sender, PointerRoutedEventArgs args)
+    {
+        if (_scrubbingPointerId != args.Pointer.PointerId) return;
+        Seek(TimeSpan.FromSeconds(args.GetCurrentPoint(TimelineContent).Position.X /
+            _pixelsPerSecond));
+        args.Handled = true;
+    }
+
+    private void Timeline_PointerReleased(object sender, PointerRoutedEventArgs args)
+    {
+        if (_scrubbingPointerId != args.Pointer.PointerId) return;
+        Seek(TimeSpan.FromSeconds(args.GetCurrentPoint(TimelineContent).Position.X /
+            _pixelsPerSecond));
+        _scrubbingPointerId = null;
+        TimelineContent.ReleasePointerCapture(args.Pointer);
+        args.Handled = true;
+    }
+
+    private void Timeline_PointerCaptureLost(object sender, PointerRoutedEventArgs args)
+    {
+        if (_scrubbingPointerId == args.Pointer.PointerId)
+            _scrubbingPointerId = null;
+    }
+
+    private void TimelineScroll_SizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        if (Math.Abs(args.NewSize.Width - _lastTimelineViewportWidth) >= 1)
+            RefreshTimeline();
+    }
+
+    private void TimelineScroll_ViewChanged(object sender, ScrollViewerViewChangedEventArgs args)
+    {
+        double left = TimelineScroll.HorizontalOffset;
+        double right = left + TimelineScroll.ActualWidth;
+        if (left < _renderedWindowStartX || right > _renderedWindowEndX)
+            RefreshTimeline();
     }
 
     private void DrawPlayhead()
@@ -180,11 +297,14 @@ public sealed partial class VideoEditorPage
         {
             _selectedKind = TimelineKind.None;
             _selectedId = Guid.Empty;
+            _selectedRange = null;
             InspectorPanel.Visibility = Visibility.Collapsed;
             SelectionHint.Text = "Select a clip to edit";
+            UpdateEditActionState();
             return;
         }
 
+        if (ActualWidth < 640) GalleryPanel.Visibility = Visibility.Collapsed;
         InspectorPanel.Visibility = Visibility.Visible;
         SourceFields.Visibility = image is null ? Visibility.Visible : Visibility.Collapsed;
         AudioFields.Visibility = audio is null ? Visibility.Collapsed : Visibility.Visible;
@@ -193,6 +313,7 @@ public sealed partial class VideoEditorPage
             image is not null ? "Image overlay" : "Audio clip";
         TimeSpan start = video?.Start ?? audio?.Start ?? image!.Start;
         TimeSpan duration = video?.Duration ?? audio?.Duration ?? image!.Duration;
+        _selectedRange = (start, start + duration);
         SelectedItemDetail.Text = $"{FormatPreciseTime(start)} — {FormatPreciseTime(start + duration)}";
         SelectionHint.Text = $"{SelectedItemTitle.Text} · {FormatPreciseTime(duration)}";
         ClipStartSeconds.Value = start.TotalSeconds;
@@ -214,6 +335,39 @@ public sealed partial class VideoEditorPage
             OverlayWidth.Value = image.Bounds.Width;
             OverlayHeight.Value = image.Bounds.Height;
         }
+        UpdateEditActionState();
+    }
+
+    private void UpdateEditActionState()
+    {
+        if (_editor is null) return;
+        bool selected = _selectedKind != TimelineKind.None;
+        bool inside = _selectedRange is { } clip && _playhead > clip.Start && _playhead < clip.End;
+        SetEnabled(SplitButton, inside);
+        SetEnabled(TrimLeftButton, inside);
+        SetEnabled(TrimRightButton, inside);
+        SetEnabled(DeleteClipButton, selected && _selectedRange.HasValue);
+        bool canCut = _markIn.HasValue && _markOut.HasValue &&
+            _markIn.Value != _markOut.Value;
+        if (canCut && _selectedKind is TimelineKind.Audio or TimelineKind.Image)
+        {
+            TimeSpan start = Min(_markIn!.Value, _markOut!.Value);
+            TimeSpan end = _markIn.Value > _markOut.Value ? _markIn.Value : _markOut.Value;
+            canCut = _selectedRange is { } selectedRange &&
+                start < selectedRange.End && end > selectedRange.Start;
+        }
+        if (canCut && _selectedKind is TimelineKind.Video or TimelineKind.None)
+        {
+            TimeSpan start = Min(_markIn!.Value, _markOut!.Value);
+            TimeSpan end = _markIn.Value > _markOut.Value ? _markIn.Value : _markOut.Value;
+            canCut = start > TimeSpan.Zero || end < _editor.Current.Duration;
+        }
+        SetEnabled(CutRangeButton, canCut);
+    }
+
+    private static void SetEnabled(Button button, bool enabled)
+    {
+        if (button.IsEnabled != enabled) button.IsEnabled = enabled;
     }
 
     private void ApplyProperties_Click(object sender, RoutedEventArgs args)
@@ -282,18 +436,7 @@ public sealed partial class VideoEditorPage
             else if (_selectedKind == TimelineKind.Audio)
                 _selectedId = _editor.SplitAudioSegment(_selectedId, _playhead);
             else if (_selectedKind == TimelineKind.Image)
-            {
-                ImageOverlay image = _editor.Current.ImageOverlays.First(item => item.Id == _selectedId);
-                if (_playhead <= image.Start || _playhead >= image.End)
-                    throw new ArgumentOutOfRangeException(nameof(_playhead), "Seek inside the image to split it.");
-                _editor.UpdateImageOverlay(image with { Duration = _playhead - image.Start });
-                var right = image with
-                {
-                    Id = Guid.NewGuid(), Start = _playhead, Duration = image.End - _playhead,
-                };
-                _editor.AddImageOverlay(right);
-                _selectedId = right.Id;
-            }
+                _selectedId = _editor.SplitImageOverlay(_selectedId, _playhead);
             RefreshInspector();
             RefreshTimeline();
         });
@@ -343,13 +486,17 @@ public sealed partial class VideoEditorPage
     private void MarkIn_Click(object sender, RoutedEventArgs args)
     {
         _markIn = _playhead;
-        SelectionHint.Text = $"In {FormatPreciseTime(_playhead)}";
+        UpdateMarkedRangeHint();
+        RefreshTimeline();
+        UpdateEditActionState();
     }
 
     private void MarkOut_Click(object sender, RoutedEventArgs args)
     {
         _markOut = _playhead;
-        SelectionHint.Text = $"Out {FormatPreciseTime(_playhead)}";
+        UpdateMarkedRangeHint();
+        RefreshTimeline();
+        UpdateEditActionState();
     }
 
     private void CutRange_Click(object sender, RoutedEventArgs args)
@@ -363,20 +510,39 @@ public sealed partial class VideoEditorPage
             TimeSpan end = _markIn.Value > _markOut.Value ? _markIn.Value : _markOut.Value;
             if (_selectedKind == TimelineKind.Audio)
                 _editor.CutAudioRange(_selectedId, start, end);
+            else if (_selectedKind == TimelineKind.Image)
+                _selectedId = _editor.CutImageRange(_selectedId, start, end) ?? Guid.Empty;
             else
                 _editor.CutRange(start, end);
             _markIn = _markOut = null;
             Seek(start);
+            RefreshInspector();
+            RefreshTimeline();
+            UpdateEditActionState();
         });
+    }
+
+    private void UpdateMarkedRangeHint()
+    {
+        SelectionHint.Text = (_markIn, _markOut) switch
+        {
+            ({ } start, { } end) =>
+                $"{FormatPreciseTime(Min(start, end))}–{FormatPreciseTime(start > end ? start : end)}",
+            ({ } start, _) => $"In {FormatPreciseTime(start)}",
+            (_, { } end) => $"Out {FormatPreciseTime(end)}",
+            _ => "Select a clip to edit",
+        };
     }
 
     private void CloseInspector_Click(object sender, RoutedEventArgs args)
     {
         _selectedKind = TimelineKind.None;
         _selectedId = Guid.Empty;
+        _selectedRange = null;
         InspectorPanel.Visibility = Visibility.Collapsed;
         SelectionHint.Text = "Select a clip to edit";
         RefreshTimeline();
+        UpdateEditActionState();
     }
 
     private void TryEdit(Action action)
