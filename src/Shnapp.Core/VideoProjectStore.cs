@@ -229,6 +229,11 @@ public sealed class VideoProjectStore(string rootPath)
             RejectDuplicateProperties(json.RootElement);
             VideoProject project = json.RootElement.Deserialize(VideoProjectJsonContext.Default.VideoProject)
                 ?? throw new InvalidDataException("The video project JSON is empty.");
+            // Projects saved before frame-rate metadata existed retain their 30 fps export rate.
+            if (!json.RootElement.TryGetProperty("frameRate", out _))
+            {
+                project = project with { FrameRate = 30 };
+            }
             VideoProjectValidation.Validate(project);
             if (project.Id != id)
             {

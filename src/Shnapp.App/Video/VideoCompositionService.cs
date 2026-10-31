@@ -129,8 +129,11 @@ internal static class VideoCompositionService
             MediaEncodingProfile profile = MediaEncodingProfile.CreateMp4(VideoEncodingQuality.HD1080p);
             profile.Video.Width = checked((uint)Math.Max(2, project.Width & ~1));
             profile.Video.Height = checked((uint)Math.Max(2, project.Height & ~1));
+            profile.Video.FrameRate.Numerator = checked((uint)project.FrameRate);
+            profile.Video.FrameRate.Denominator = 1;
             profile.Video.Bitrate = checked((uint)Math.Clamp(
-                (long)profile.Video.Width * profile.Video.Height * 8, 2_000_000, 40_000_000));
+                (long)profile.Video.Width * profile.Video.Height * 8 * project.FrameRate / 30,
+                2_000_000, 60_000_000));
 
             var operation = composition.RenderToFileAsync(target, MediaTrimmingPreference.Precise, profile);
             operation.Progress = (_, value) => progress?.Report(value);

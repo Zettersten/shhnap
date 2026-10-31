@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text;
+using System.Text.Json.Nodes;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Shnapp.Core.Tests;
@@ -113,6 +114,36 @@ public sealed class VideoProjectTests
     }
 
     [TestMethod]
+    public void CuttingMicrophoneRangeLeavesOtherTracksAndVideoClockIntact()
+    {
+        var editor = new VideoProjectEditor(CreateRecording());
+        VideoProject original = editor.Current;
+        AudioSegment microphone = original.AudioSegments.Single(segment =>
+            original.Assets.Single(asset => asset.Id == segment.AssetId).Kind ==
+                VideoAssetKind.MicrophoneAudio);
+        AudioSegment computer = original.AudioSegments.Single(segment => segment.Id != microphone.Id);
+
+        editor.CutAudioRange(microphone.Id, 3 * Second, 5 * Second);
+
+        Assert.AreEqual(original.Duration, editor.Current.Duration);
+        CollectionAssert.AreEqual(original.VideoSegments.ToArray(), editor.Current.VideoSegments.ToArray());
+        Assert.AreEqual(computer, editor.Current.AudioSegments.Single(segment => segment.Id == computer.Id));
+        AudioSegment[] microphonePieces = [.. editor.Current.AudioSegments
+            .Where(segment => segment.AssetId == microphone.AssetId).OrderBy(segment => segment.Start)];
+        Assert.AreEqual(2, microphonePieces.Length);
+        Assert.AreEqual((TimeSpan.Zero, 3 * Second, TimeSpan.Zero, 3 * Second),
+            (microphonePieces[0].Start, microphonePieces[0].End,
+                microphonePieces[0].SourceIn, microphonePieces[0].SourceOut));
+        Assert.AreEqual((5 * Second, 10 * Second, 5 * Second, 10 * Second),
+            (microphonePieces[1].Start, microphonePieces[1].End,
+                microphonePieces[1].SourceIn, microphonePieces[1].SourceOut));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+            editor.CutAudioRange(microphone.Id, 11 * Second, 12 * Second));
+        Assert.IsTrue(editor.Undo());
+        Assert.AreSame(original, editor.Current);
+    }
+
+    [TestMethod]
     public void InvalidProjectPathsAndMediaRangesAreRejected()
     {
         Assert.ThrowsExactly<ArgumentException>(() => VideoProject.CreateRecording("Bad", 2 * Second,
@@ -139,6 +170,29 @@ public sealed class VideoProjectTests
 [TestClass]
 public sealed class VideoProjectStoreTests
 {
+    [TestMethod]
+    public async Task RecordingFrameRateSurvivesSaveAndOlderProjectsDefaultToThirty()
+    {
+        using var temp = new TemporaryVideoDirectory();
+        var store = new VideoProjectStore(temp.Path);
+        VideoProject project = VideoProject.CreateRecording("Sixty fps", TimeSpan.FromSeconds(3),
+            1280, 720, "source.mp4", frameRate: 60);
+        string directory = store.PrepareProjectDirectory(project.Id);
+        await File.WriteAllBytesAsync(Path.Combine(directory, "source.mp4"), [1, 2, 3]);
+
+        await store.SaveAsync(project);
+        Assert.AreEqual(60, (await store.OpenAsync(project.Id)).FrameRate);
+
+        string metadata = Path.Combine(directory, "project.json");
+        JsonObject legacy = JsonNode.Parse(await File.ReadAllTextAsync(metadata))!.AsObject();
+        Assert.IsTrue(legacy.Remove("frameRate"));
+        await File.WriteAllTextAsync(metadata, legacy.ToJsonString());
+        Assert.AreEqual(30, (await store.OpenAsync(project.Id)).FrameRate);
+
+        Assert.ThrowsExactly<ArgumentException>(() => VideoProject.CreateRecording(
+            "Invalid rate", TimeSpan.FromSeconds(3), 1280, 720, "source.mp4", frameRate: 45));
+    }
+
     [TestMethod]
     public async Task StoreRoundTripsProjectImportsAndListsSummaries()
     {

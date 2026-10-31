@@ -98,6 +98,10 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
     /// <summary>The current project schema.</summary>
     public const int CurrentSchemaVersion = 1;
 
+    /// <summary>Requested capture rate, retained for preview and MP4 export.</summary>
+    /// <remarks>Older project JSON omits this property and opens at 30 fps.</remarks>
+    public int FrameRate { get; init; } = 30;
+
     /// <summary>End of the last primary video segment.</summary>
     [JsonIgnore]
     public TimeSpan Duration => VideoSegments.IsDefaultOrEmpty
@@ -112,10 +116,11 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
     /// <param name="computerAudioRelativePath">Optional separate computer-audio WAV path.</param>
     /// <param name="microphoneAudioRelativePath">Optional separate microphone WAV path.</param>
     /// <param name="id">Optional predetermined project identifier.</param>
+    /// <param name="frameRate">Requested capture rate in frames per second.</param>
     /// <returns>A validated project with aligned initial video and audio segments.</returns>
     public static VideoProject CreateRecording(string title, TimeSpan duration, int width, int height,
         string mp4RelativePath, string? computerAudioRelativePath = null,
-        string? microphoneAudioRelativePath = null, Guid? id = null)
+        string? microphoneAudioRelativePath = null, Guid? id = null, int frameRate = 30)
     {
         Guid recordingId = Guid.NewGuid();
         var assets = ImmutableArray.CreateBuilder<VideoAsset>();
@@ -127,7 +132,10 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
         var project = new VideoProject(CurrentSchemaVersion, id ?? Guid.NewGuid(),
             ShnappTitles.Normalize(title), DateTimeOffset.UtcNow, width, height,
             assets.ToImmutable(), [new VideoSegment(Guid.NewGuid(), recordingId,
-                TimeSpan.Zero, TimeSpan.Zero, duration)], audio.ToImmutable(), []);
+                TimeSpan.Zero, TimeSpan.Zero, duration)], audio.ToImmutable(), [])
+        {
+            FrameRate = frameRate,
+        };
         VideoProjectValidation.Validate(project);
         return project;
 
