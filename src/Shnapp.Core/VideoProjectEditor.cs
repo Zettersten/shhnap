@@ -1,0 +1,452 @@
+using System.Collections.Immutable;
+
+namespace Shnapp.Core;
+
+/// <summary>Edits immutable video-project snapshots with bounded undo and redo history.</summary>
+/// <param name="project">A valid project snapshot.</param>
+/// <remarks>Use an editor on one thread, normally the application's UI thread.</remarks>
+public sealed class VideoProjectEditor(VideoProject project)
+{
+    private const int HistoryLimit = 100;
+    private readonly List<VideoProject> _undo = [];
+    private readonly List<VideoProject> _redo = [];
+    private VideoProject _current = ValidateInitial(project);
+
+    /// <summary>The current immutable project snapshot.</summary>
+    public VideoProject Current => _current;
+
+    /// <summary>Whether an earlier edit can be restored.</summary>
+    public bool CanUndo => _undo.Count > 0;
+
+    /// <summary>Whether an undone edit can be reapplied.</summary>
+    public bool CanRedo => _redo.Count > 0;
+
+    /// <summary>Raised once after a real edit, undo, or redo.</summary>
+    public event EventHandler? Changed;
+
+    /// <summary>Changes the project title as one undoable edit.</summary>
+    /// <param name="title">A nonempty title of at most 120 characters.</param>
+    public void Rename(string title) => Commit(Current with { Title = ShnappTitles.Normalize(title) });
+
+    /// <summary>Adds an imported audio or image asset without modifying its file.</summary>
+    /// <param name="asset">A unique asset with a safe project-relative path.</param>
+    public void AddAsset(VideoAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (asset.Kind is not VideoAssetKind.ImportedAudio and not VideoAssetKind.Image)
+        {
+            throw new ArgumentException("Only imported audio and image assets can be added after recording.", nameof(asset));
+        }
+        Commit(Current with { Assets = Current.Assets.Add(asset) });
+    }
+
+    /// <summary>Adds a nonoverlapping part of the original MP4 to the video lane.</summary>
+    /// <param name="segment">A valid source interval and timeline placement.</param>
+    public void AddVideoSegment(VideoSegment segment)
+    {
+        ArgumentNullException.ThrowIfNull(segment);
+        Commit(Current with { VideoSegments = Sort(Current.VideoSegments.Add(segment)) });
+    }
+
+    /// <summary>Adds a computer, microphone, or imported audio interval.</summary>
+    /// <param name="segment">A valid audio interval and timeline placement.</param>
+    public void AddAudioSegment(AudioSegment segment)
+    {
+        ArgumentNullException.ThrowIfNull(segment);
+        Commit(Current with { AudioSegments = Sort(Current.AudioSegments.Add(segment)) });
+    }
+
+    /// <summary>Adds a timed still image to the overlay lanes.</summary>
+    /// <param name="overlay">A valid image placement and duration.</param>
+    public void AddImageOverlay(ImageOverlay overlay)
+    {
+        ArgumentNullException.ThrowIfNull(overlay);
+        Commit(Current with { ImageOverlays = Current.ImageOverlays.Add(overlay) });
+    }
+
+    /// <summary>Replaces an existing video segment, preserving its identifier.</summary>
+    /// <param name="segment">Complete replacement segment.</param>
+    /// <returns>False when the segment is absent or unchanged.</returns>
+    public bool UpdateVideoSegment(VideoSegment segment)
+    {
+        ArgumentNullException.ThrowIfNull(segment);
+        int index = Find(Current.VideoSegments, segment.Id);
+        if (index < 0 || Current.VideoSegments[index] == segment) { return false; }
+        Commit(Current with { VideoSegments = Sort(Current.VideoSegments.SetItem(index, segment)) });
+        return true;
+    }
+
+    /// <summary>Changes a video's source range while keeping its timeline start fixed.</summary>
+    /// <param name="id">Video segment identifier.</param>
+    /// <param name="sourceIn">New first source time.</param>
+    /// <param name="sourceOut">New exclusive source end time.</param>
+    /// <returns>False when the segment is absent or unchanged.</returns>
+    public bool TrimVideoSegment(Guid id, TimeSpan sourceIn, TimeSpan sourceOut)
+    {
+        int index = Find(Current.VideoSegments, id);
+        return index >= 0 && UpdateVideoSegment(Current.VideoSegments[index] with
+        {
+            SourceIn = sourceIn,
+            SourceOut = sourceOut,
+        });
+    }
+
+    /// <summary>Moves a video segment without moving other timeline items.</summary>
+    /// <param name="id">Video segment identifier.</param>
+    /// <param name="start">New timeline start; overlaps are rejected.</param>
+    /// <returns>False when the segment is absent or unchanged.</returns>
+    public bool MoveVideoSegment(Guid id, TimeSpan start)
+    {
+        int index = Find(Current.VideoSegments, id);
+        return index >= 0 && UpdateVideoSegment(Current.VideoSegments[index] with { Start = start });
+    }
+
+    /// <summary>Splits one video segment at a time strictly inside its timeline interval.</summary>
+    /// <param name="id">Video segment identifier.</param>
+    /// <param name="at">Split time on the output timeline.</param>
+    /// <returns>The new right-hand segment identifier.</returns>
+    public Guid SplitVideoSegment(Guid id, TimeSpan at)
+    {
+        int index = Find(Current.VideoSegments, id);
+        if (index < 0) { throw new ArgumentException("Video segment was not found.", nameof(id)); }
+        VideoSegment original = Current.VideoSegments[index];
+        if (at <= original.Start || at >= original.End)
+        {
+            throw new ArgumentOutOfRangeException(nameof(at), "Split time must be inside the segment.");
+        }
+        TimeSpan leftDuration = at - original.Start;
+        var left = original with { SourceOut = original.SourceIn + leftDuration };
+        var right = original with
+        {
+            Id = Guid.NewGuid(),
+            Start = at,
+            SourceIn = left.SourceOut,
+        };
+        Commit(Current with
+        {
+            VideoSegments = Sort(Current.VideoSegments.SetItem(index, left).Add(right)),
+        });
+        return right.Id;
+    }
+
+    /// <summary>Removes a video segment, optionally closing its time across every lane.</summary>
+    /// <param name="id">Video segment identifier.</param>
+    /// <param name="ripple">When true, cuts the segment's interval from all lanes.</param>
+    /// <returns>False when no matching segment exists.</returns>
+    public bool DeleteVideoSegment(Guid id, bool ripple = false)
+    {
+        int index = Find(Current.VideoSegments, id);
+        if (index < 0) { return false; }
+        VideoSegment segment = Current.VideoSegments[index];
+        if (ripple)
+        {
+            CutRange(segment.Start, segment.End);
+            return true;
+        }
+        ImmutableArray<VideoSegment> video = Current.VideoSegments.RemoveAt(index);
+        if (video.IsEmpty)
+        {
+            throw new InvalidOperationException("A video project must retain a primary video segment.");
+        }
+        TimeSpan end = video.Max(static item => item.End);
+        Commit(Current with
+        {
+            VideoSegments = video,
+            AudioSegments = TrimAudioToEnd(Current.AudioSegments, end),
+            ImageOverlays = TrimImagesToEnd(Current.ImageOverlays, end),
+        });
+        return true;
+    }
+
+    /// <summary>Replaces an existing audio interval, including its gain and mute state.</summary>
+    /// <param name="segment">Complete replacement audio segment.</param>
+    /// <returns>False when the segment is absent or unchanged.</returns>
+    public bool UpdateAudioSegment(AudioSegment segment)
+    {
+        ArgumentNullException.ThrowIfNull(segment);
+        int index = Find(Current.AudioSegments, segment.Id);
+        if (index < 0 || Current.AudioSegments[index] == segment) { return false; }
+        Commit(Current with { AudioSegments = Sort(Current.AudioSegments.SetItem(index, segment)) });
+        return true;
+    }
+
+    /// <summary>Changes an audio source range while retaining its timeline start.</summary>
+    /// <param name="id">Audio segment identifier.</param>
+    /// <param name="sourceIn">New first source time.</param>
+    /// <param name="sourceOut">New exclusive source end time.</param>
+    /// <returns>False when the segment is absent or unchanged.</returns>
+    public bool TrimAudioSegment(Guid id, TimeSpan sourceIn, TimeSpan sourceOut)
+    {
+        int index = Find(Current.AudioSegments, id);
+        return index >= 0 && UpdateAudioSegment(Current.AudioSegments[index] with
+        {
+            SourceIn = sourceIn,
+            SourceOut = sourceOut,
+        });
+    }
+
+    /// <summary>Moves one audio interval without changing its source time.</summary>
+    /// <param name="id">Audio segment identifier.</param>
+    /// <param name="start">New timeline start.</param>
+    /// <returns>False when the segment is absent or unchanged.</returns>
+    public bool MoveAudioSegment(Guid id, TimeSpan start)
+    {
+        int index = Find(Current.AudioSegments, id);
+        return index >= 0 && UpdateAudioSegment(Current.AudioSegments[index] with { Start = start });
+    }
+
+    /// <summary>Sets a linear volume multiplier from 0 to 4 for one audio interval.</summary>
+    /// <param name="id">Audio segment identifier.</param>
+    /// <param name="gain">Linear volume multiplier.</param>
+    /// <returns>False when the segment is absent or unchanged.</returns>
+    public bool SetAudioGain(Guid id, double gain)
+    {
+        int index = Find(Current.AudioSegments, id);
+        return index >= 0 && UpdateAudioSegment(Current.AudioSegments[index] with { Gain = gain });
+    }
+
+    /// <summary>Mutes or unmutes one audio interval.</summary>
+    /// <param name="id">Audio segment identifier.</param>
+    /// <param name="muted">Whether the interval should be silent.</param>
+    /// <returns>False when the segment is absent or unchanged.</returns>
+    public bool SetAudioMuted(Guid id, bool muted)
+    {
+        int index = Find(Current.AudioSegments, id);
+        return index >= 0 && UpdateAudioSegment(Current.AudioSegments[index] with { Muted = muted });
+    }
+
+    /// <summary>Splits one audio interval at a time strictly inside it.</summary>
+    /// <param name="id">Audio segment identifier.</param>
+    /// <param name="at">Split time on the output timeline.</param>
+    /// <returns>The new right-hand segment identifier.</returns>
+    public Guid SplitAudioSegment(Guid id, TimeSpan at)
+    {
+        int index = Find(Current.AudioSegments, id);
+        if (index < 0) { throw new ArgumentException("Audio segment was not found.", nameof(id)); }
+        AudioSegment original = Current.AudioSegments[index];
+        if (at <= original.Start || at >= original.End)
+        {
+            throw new ArgumentOutOfRangeException(nameof(at), "Split time must be inside the segment.");
+        }
+        TimeSpan leftDuration = at - original.Start;
+        var left = original with { SourceOut = original.SourceIn + leftDuration };
+        var right = original with
+        {
+            Id = Guid.NewGuid(),
+            Start = at,
+            SourceIn = left.SourceOut,
+        };
+        Commit(Current with { AudioSegments = Sort(Current.AudioSegments.SetItem(index, left).Add(right)) });
+        return right.Id;
+    }
+
+    /// <summary>Deletes one audio interval while retaining other timeline positions.</summary>
+    /// <param name="id">Audio segment identifier.</param>
+    /// <returns>False when no matching segment exists.</returns>
+    public bool DeleteAudioSegment(Guid id)
+    {
+        int index = Find(Current.AudioSegments, id);
+        if (index < 0) { return false; }
+        Commit(Current with { AudioSegments = Current.AudioSegments.RemoveAt(index) });
+        return true;
+    }
+
+    /// <summary>Replaces an existing image's position, duration, and z-order.</summary>
+    /// <param name="overlay">Complete replacement image overlay.</param>
+    /// <returns>False when the image is absent or unchanged.</returns>
+    public bool UpdateImageOverlay(ImageOverlay overlay)
+    {
+        ArgumentNullException.ThrowIfNull(overlay);
+        int index = Find(Current.ImageOverlays, overlay.Id);
+        if (index < 0 || Current.ImageOverlays[index] == overlay) { return false; }
+        Commit(Current with { ImageOverlays = Current.ImageOverlays.SetItem(index, overlay) });
+        return true;
+    }
+
+    /// <summary>Deletes one timed image without changing other timeline items.</summary>
+    /// <param name="id">Image overlay identifier.</param>
+    /// <returns>False when no matching overlay exists.</returns>
+    public bool DeleteImageOverlay(Guid id)
+    {
+        int index = Find(Current.ImageOverlays, id);
+        if (index < 0) { return false; }
+        Commit(Current with { ImageOverlays = Current.ImageOverlays.RemoveAt(index) });
+        return true;
+    }
+
+    /// <summary>Removes a time range from every lane and shifts later content left.</summary>
+    /// <param name="start">Inclusive start on the output timeline.</param>
+    /// <param name="end">Exclusive end on the output timeline.</param>
+    /// <remarks>Items crossing either edge are trimmed or split without changing their source files.</remarks>
+    public void CutRange(TimeSpan start, TimeSpan end)
+    {
+        if (start < TimeSpan.Zero || end <= start || end > Current.Duration)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start), "Cut range must be inside the video timeline.");
+        }
+        ImmutableArray<VideoSegment> video = CutVideo(Current.VideoSegments, start, end);
+        if (video.IsEmpty)
+        {
+            throw new InvalidOperationException("A cut cannot remove every primary video segment.");
+        }
+        Commit(Current with
+        {
+            VideoSegments = video,
+            AudioSegments = CutAudio(Current.AudioSegments, start, end),
+            ImageOverlays = CutImages(Current.ImageOverlays, start, end),
+        });
+    }
+
+    /// <summary>Restores the previous project snapshot.</summary>
+    /// <returns>False when there is no edit to undo.</returns>
+    public bool Undo()
+    {
+        if (_undo.Count == 0) { return false; }
+        _redo.Add(_current);
+        _current = _undo[^1];
+        _undo.RemoveAt(_undo.Count - 1);
+        Changed?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
+    /// <summary>Reapplies the most recently undone project snapshot.</summary>
+    /// <returns>False when there is no edit to redo.</returns>
+    public bool Redo()
+    {
+        if (_redo.Count == 0) { return false; }
+        _undo.Add(_current);
+        _current = _redo[^1];
+        _redo.RemoveAt(_redo.Count - 1);
+        Changed?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
+    private void Commit(VideoProject next)
+    {
+        VideoProjectValidation.Validate(next);
+        if (next.Title == Current.Title && next.Assets.SequenceEqual(Current.Assets) &&
+            next.VideoSegments.SequenceEqual(Current.VideoSegments) &&
+            next.AudioSegments.SequenceEqual(Current.AudioSegments) &&
+            next.ImageOverlays.SequenceEqual(Current.ImageOverlays))
+        {
+            return;
+        }
+        _undo.Add(_current);
+        if (_undo.Count > HistoryLimit) { _undo.RemoveAt(0); }
+        _redo.Clear();
+        _current = next;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static VideoProject ValidateInitial(VideoProject project)
+    {
+        VideoProjectValidation.Validate(project);
+        return project;
+    }
+
+    private static int Find(ImmutableArray<VideoSegment> items, Guid id)
+    {
+        for (int i = 0; i < items.Length; i++) { if (items[i].Id == id) { return i; } }
+        return -1;
+    }
+
+    private static int Find(ImmutableArray<AudioSegment> items, Guid id)
+    {
+        for (int i = 0; i < items.Length; i++) { if (items[i].Id == id) { return i; } }
+        return -1;
+    }
+
+    private static int Find(ImmutableArray<ImageOverlay> items, Guid id)
+    {
+        for (int i = 0; i < items.Length; i++) { if (items[i].Id == id) { return i; } }
+        return -1;
+    }
+
+    private static ImmutableArray<VideoSegment> Sort(ImmutableArray<VideoSegment> items) =>
+        [.. items.OrderBy(static item => item.Start).ThenBy(static item => item.Id)];
+
+    private static ImmutableArray<AudioSegment> Sort(ImmutableArray<AudioSegment> items) =>
+        [.. items.OrderBy(static item => item.Start).ThenBy(static item => item.Id)];
+
+    private static ImmutableArray<VideoSegment> CutVideo(ImmutableArray<VideoSegment> items,
+        TimeSpan start, TimeSpan end)
+    {
+        var result = ImmutableArray.CreateBuilder<VideoSegment>();
+        foreach (VideoSegment item in items)
+        {
+            if (item.End <= start) { result.Add(item); continue; }
+            if (item.Start >= end) { result.Add(item with { Start = item.Start - (end - start) }); continue; }
+            TimeSpan left = start > item.Start ? start - item.Start : TimeSpan.Zero;
+            TimeSpan right = item.End > end ? item.End - end : TimeSpan.Zero;
+            if (left > TimeSpan.Zero) { result.Add(item with { SourceOut = item.SourceIn + left }); }
+            if (right > TimeSpan.Zero)
+            {
+                result.Add(item with
+                {
+                    Id = left > TimeSpan.Zero ? Guid.NewGuid() : item.Id,
+                    Start = start,
+                    SourceIn = item.SourceOut - right,
+                });
+            }
+        }
+        return Sort(result.ToImmutable());
+    }
+
+    private static ImmutableArray<AudioSegment> CutAudio(ImmutableArray<AudioSegment> items,
+        TimeSpan start, TimeSpan end)
+    {
+        var result = ImmutableArray.CreateBuilder<AudioSegment>();
+        foreach (AudioSegment item in items)
+        {
+            if (item.End <= start) { result.Add(item); continue; }
+            if (item.Start >= end) { result.Add(item with { Start = item.Start - (end - start) }); continue; }
+            TimeSpan left = start > item.Start ? start - item.Start : TimeSpan.Zero;
+            TimeSpan right = item.End > end ? item.End - end : TimeSpan.Zero;
+            if (left > TimeSpan.Zero) { result.Add(item with { SourceOut = item.SourceIn + left }); }
+            if (right > TimeSpan.Zero)
+            {
+                result.Add(item with
+                {
+                    Id = left > TimeSpan.Zero ? Guid.NewGuid() : item.Id,
+                    Start = start,
+                    SourceIn = item.SourceOut - right,
+                });
+            }
+        }
+        return Sort(result.ToImmutable());
+    }
+
+    private static ImmutableArray<ImageOverlay> CutImages(ImmutableArray<ImageOverlay> items,
+        TimeSpan start, TimeSpan end)
+    {
+        var result = ImmutableArray.CreateBuilder<ImageOverlay>();
+        foreach (ImageOverlay item in items)
+        {
+            if (item.End <= start) { result.Add(item); continue; }
+            if (item.Start >= end) { result.Add(item with { Start = item.Start - (end - start) }); continue; }
+            TimeSpan left = start > item.Start ? start - item.Start : TimeSpan.Zero;
+            TimeSpan right = item.End > end ? item.End - end : TimeSpan.Zero;
+            if (left > TimeSpan.Zero) { result.Add(item with { Duration = left }); }
+            if (right > TimeSpan.Zero)
+            {
+                result.Add(item with
+                {
+                    Id = left > TimeSpan.Zero ? Guid.NewGuid() : item.Id,
+                    Start = start,
+                    Duration = right,
+                });
+            }
+        }
+        return result.ToImmutable();
+    }
+
+    private static ImmutableArray<AudioSegment> TrimAudioToEnd(ImmutableArray<AudioSegment> items,
+        TimeSpan end) =>
+        [.. items.Where(item => item.Start < end).Select(item => item.End > end
+            ? item with { SourceOut = item.SourceOut - (item.End - end) } : item)];
+
+    private static ImmutableArray<ImageOverlay> TrimImagesToEnd(ImmutableArray<ImageOverlay> items,
+        TimeSpan end) =>
+        [.. items.Where(item => item.Start < end).Select(item => item.End > end
+            ? item with { Duration = end - item.Start } : item)];
+}
