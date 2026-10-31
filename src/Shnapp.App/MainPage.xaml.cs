@@ -101,6 +101,7 @@ public sealed partial class MainPage : Page
             DrawingCanvas.Invalidate();
             LayoutLibraryEmptyScene();
             LibraryEmptySparkleHost.Refresh();
+            UpdateChromeGlassVisibility();
         };
         Loaded += MainPage_Loaded;
         Unloaded += MainPage_Unloaded;
@@ -113,6 +114,7 @@ public sealed partial class MainPage : Page
             _themeSettings = Microsoft.UI.System.ThemeSettings.CreateForWindowId(App.Window.AppWindow.Id);
             _themeSettings.Changed += ThemeSettings_Changed;
         }
+        InitializeChromeGlass();
         LayoutLibraryEmptyScene();
     }
 
@@ -123,10 +125,15 @@ public sealed partial class MainPage : Page
             _themeSettings.Changed -= ThemeSettings_Changed;
             _themeSettings = null;
         }
+        DisconnectChromeGlassSettings();
     }
 
     private void ThemeSettings_Changed(Microsoft.UI.System.ThemeSettings sender, object args) =>
-        DispatcherQueue.TryEnqueue(LayoutLibraryEmptyScene);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            LayoutLibraryEmptyScene();
+            UpdateChromeGlassVisibility();
+        });
 
     internal void Configure(AppController controller) => _controller = controller;
 

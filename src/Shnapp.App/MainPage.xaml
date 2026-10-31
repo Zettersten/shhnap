@@ -390,11 +390,14 @@
                             </StackPanel>
                         </Border>
                     </Grid>
-                    <!-- In-app acrylic must share the canvas's visual layer to sample
-                         its Win2D pixels. The toolbar and footer controls stay in
-                         their existing overlay layers above these surfaces. -->
+                    <!-- GPU backdrop blur lives behind the native acrylic tint.
+                         The chrome controls remain in their independent overlays. -->
+                    <Grid x:Name="TitleChromeGlassHost" Height="36" VerticalAlignment="Top"
+                        IsHitTestVisible="False" />
                     <Border Height="36" VerticalAlignment="Top" IsHitTestVisible="False"
                         Background="{ThemeResource ShnappImageChromeBrush}" />
+                    <Grid x:Name="FooterChromeGlassHost" Height="28" VerticalAlignment="Bottom"
+                        IsHitTestVisible="False" />
                     <Border Height="28" VerticalAlignment="Bottom" IsHitTestVisible="False"
                         Background="{ThemeResource ShnappImageChromeBrush}" />
                     <Border x:Name="InspectorPanel" Visibility="Visible"
