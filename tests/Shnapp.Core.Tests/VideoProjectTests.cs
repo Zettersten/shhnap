@@ -144,6 +144,67 @@ public sealed class VideoProjectTests
     }
 
     [TestMethod]
+    public void CuttingImageRangeChangesOnlySelectedOverlayAndUndoesInOneStep()
+    {
+        var editor = new VideoProjectEditor(CreateRecording());
+        var asset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.Image,
+            "assets/overlay.png", TimeSpan.Zero);
+        editor.AddAsset(asset);
+        var image = new ImageOverlay(Guid.NewGuid(), asset.Id, Second,
+            8 * Second, new VideoRect(120, 80, 200, 100), 0);
+        editor.AddImageOverlay(image);
+        VideoProject beforeCut = editor.Current;
+        int changes = 0;
+        editor.Changed += (_, _) => changes++;
+
+        Guid? selected = editor.CutImageRange(image.Id, 3 * Second, 5 * Second);
+
+        Assert.AreEqual(1, changes);
+        Assert.AreEqual(beforeCut.Duration, editor.Current.Duration);
+        CollectionAssert.AreEqual(beforeCut.VideoSegments.ToArray(),
+            editor.Current.VideoSegments.ToArray());
+        CollectionAssert.AreEqual(beforeCut.AudioSegments.ToArray(),
+            editor.Current.AudioSegments.ToArray());
+        Assert.AreEqual(2, editor.Current.ImageOverlays.Length);
+        Assert.AreEqual((Second, 2 * Second),
+            (editor.Current.ImageOverlays[0].Start, editor.Current.ImageOverlays[0].Duration));
+        Assert.AreEqual((5 * Second, 4 * Second),
+            (editor.Current.ImageOverlays[1].Start, editor.Current.ImageOverlays[1].Duration));
+        Assert.AreEqual(editor.Current.ImageOverlays[1].Id, selected);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+            editor.CutImageRange(image.Id, 9 * Second, 10 * Second));
+        Assert.IsTrue(editor.Undo());
+        Assert.AreSame(beforeCut, editor.Current);
+    }
+
+    [TestMethod]
+    public void SplittingImageOverlayIsOneUndoableEdit()
+    {
+        var editor = new VideoProjectEditor(CreateRecording());
+        var asset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.Image,
+            "assets/overlay.png", TimeSpan.Zero);
+        editor.AddAsset(asset);
+        var image = new ImageOverlay(Guid.NewGuid(), asset.Id, Second,
+            8 * Second, new VideoRect(120, 80, 200, 100), 0);
+        editor.AddImageOverlay(image);
+        VideoProject beforeSplit = editor.Current;
+        int changes = 0;
+        editor.Changed += (_, _) => changes++;
+
+        Guid rightId = editor.SplitImageOverlay(image.Id, 4 * Second);
+
+        Assert.AreEqual(1, changes);
+        Assert.AreEqual(2, editor.Current.ImageOverlays.Length);
+        Assert.AreEqual((Second, 3 * Second),
+            (editor.Current.ImageOverlays[0].Start, editor.Current.ImageOverlays[0].Duration));
+        Assert.AreEqual((4 * Second, 5 * Second),
+            (editor.Current.ImageOverlays[1].Start, editor.Current.ImageOverlays[1].Duration));
+        Assert.AreEqual(rightId, editor.Current.ImageOverlays[1].Id);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreSame(beforeSplit, editor.Current);
+    }
+
+    [TestMethod]
     public void InvalidProjectPathsAndMediaRangesAreRejected()
     {
         Assert.ThrowsExactly<ArgumentException>(() => VideoProject.CreateRecording("Bad", 2 * Second,

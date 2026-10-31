@@ -312,6 +312,83 @@ public sealed class VideoProjectEditor(VideoProject project)
         return true;
     }
 
+    /// <summary>Splits one image overlay at the playhead as a single undoable edit.</summary>
+    /// <returns>The new right-hand overlay identifier.</returns>
+    public Guid SplitImageOverlay(Guid id, TimeSpan at)
+    {
+        int index = Find(Current.ImageOverlays, id);
+        if (index < 0) { throw new ArgumentException("Image overlay was not found.", nameof(id)); }
+        ImageOverlay image = Current.ImageOverlays[index];
+        if (at <= image.Start || at >= image.End)
+        {
+            throw new ArgumentOutOfRangeException(nameof(at),
+                "Split time must be inside the selected image.");
+        }
+        var right = image with
+        {
+            Id = Guid.NewGuid(),
+            Start = at,
+            Duration = image.End - at,
+        };
+        Commit(Current with
+        {
+            ImageOverlays = Current.ImageOverlays
+                .SetItem(index, image with { Duration = at - image.Start })
+                .Insert(index + 1, right),
+        });
+        return right.Id;
+    }
+
+    /// <summary>Removes a marked interval from one image overlay without changing video time.</summary>
+    /// <returns>The surviving selected overlay, or null when the image was removed.</returns>
+    public Guid? CutImageRange(Guid id, TimeSpan start, TimeSpan end)
+    {
+        int index = Find(Current.ImageOverlays, id);
+        if (index < 0) { throw new ArgumentException("Image overlay was not found.", nameof(id)); }
+        ImageOverlay image = Current.ImageOverlays[index];
+        if (start < TimeSpan.Zero || end <= start || end > Current.Duration ||
+            start >= image.End || end <= image.Start)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start),
+                "Cut range must overlap the selected image inside the video timeline.");
+        }
+
+        TimeSpan cutStart = start > image.Start ? start : image.Start;
+        TimeSpan cutEnd = end < image.End ? end : image.End;
+        ImmutableArray<ImageOverlay> images = Current.ImageOverlays;
+        Guid? selected = id;
+        if (cutStart == image.Start && cutEnd == image.End)
+        {
+            images = images.RemoveAt(index);
+            selected = null;
+        }
+        else if (cutStart == image.Start)
+        {
+            images = images.SetItem(index, image with
+            {
+                Start = cutEnd,
+                Duration = image.End - cutEnd,
+            });
+        }
+        else
+        {
+            images = images.SetItem(index, image with { Duration = cutStart - image.Start });
+            if (cutEnd < image.End)
+            {
+                var right = image with
+                {
+                    Id = Guid.NewGuid(),
+                    Start = cutEnd,
+                    Duration = image.End - cutEnd,
+                };
+                images = images.Insert(index + 1, right);
+                selected = right.Id;
+            }
+        }
+        Commit(Current with { ImageOverlays = images });
+        return selected;
+    }
+
     /// <summary>Removes a time range from every lane and shifts later content left.</summary>
     /// <param name="start">Inclusive start on the output timeline.</param>
     /// <param name="end">Exclusive end on the output timeline.</param>
