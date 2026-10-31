@@ -539,6 +539,22 @@ public sealed record ShnappSettings
     /// <summary>Gets the capture mode started by the plain Print Screen key.</summary>
     public CaptureKind PrintScreenMode { get; init; } = CaptureKind.FullScreen;
 
+    /// <summary>Gets whether a video recording includes computer playback audio.</summary>
+    public bool VideoCaptureSystemAudio { get; init; }
+
+    /// <summary>Gets whether a video recording includes microphone audio.</summary>
+    public bool VideoCaptureMicrophone { get; init; }
+
+    /// <summary>Gets the target video recording frame rate.</summary>
+    public int VideoFrameRate { get; init; } = 30;
+
+    /// <summary>Gets whether the pointer appears in video recordings.</summary>
+    public bool VideoCaptureCursor { get; init; } = true;
+
+    /// <summary>Gets the microphone device identifier; null uses the Windows default.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? VideoMicrophoneSourceId { get; init; }
+
     /// <summary>Gets the selected camera device identifier; null uses the default camera.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CameraSourceId { get; init; }

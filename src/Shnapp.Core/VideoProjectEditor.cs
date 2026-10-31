@@ -251,6 +251,44 @@ public sealed class VideoProjectEditor(VideoProject project)
         return true;
     }
 
+    /// <summary>Cuts a marked interval from one audio clip without changing video time or other tracks.</summary>
+    /// <param name="id">The selected audio clip.</param>
+    /// <param name="start">First output-timeline time to silence.</param>
+    /// <param name="end">Exclusive output-timeline time to silence.</param>
+    public void CutAudioRange(Guid id, TimeSpan start, TimeSpan end)
+    {
+        int index = Find(Current.AudioSegments, id);
+        if (index < 0) { throw new ArgumentException("Audio segment was not found.", nameof(id)); }
+        AudioSegment selected = Current.AudioSegments[index];
+        if (start < TimeSpan.Zero || end <= start || end > Current.Duration ||
+            start >= selected.End || end <= selected.Start)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start),
+                "Cut range must overlap the selected audio clip inside the video timeline.");
+        }
+
+        TimeSpan cutStart = start > selected.Start ? start : selected.Start;
+        TimeSpan cutEnd = end < selected.End ? end : selected.End;
+        var audio = Current.AudioSegments.RemoveAt(index);
+        if (cutStart > selected.Start)
+        {
+            audio = audio.Add(selected with
+            {
+                SourceOut = selected.SourceIn + (cutStart - selected.Start),
+            });
+        }
+        if (cutEnd < selected.End)
+        {
+            audio = audio.Add(selected with
+            {
+                Id = cutStart > selected.Start ? Guid.NewGuid() : selected.Id,
+                Start = cutEnd,
+                SourceIn = selected.SourceIn + (cutEnd - selected.Start),
+            });
+        }
+        Commit(Current with { AudioSegments = Sort(audio) });
+    }
+
     /// <summary>Replaces an existing image's position, duration, and z-order.</summary>
     /// <param name="overlay">Complete replacement image overlay.</param>
     /// <returns>False when the image is absent or unchanged.</returns>

@@ -283,6 +283,12 @@ internal static class DocumentValidation
             "Theme must be System, Light, or Dark.", nameof(settings));
         Require(settings.PrintScreenMode is CaptureKind.Window or CaptureKind.FullScreen or CaptureKind.Region,
             "Print Screen capture mode must be a screen capture.", nameof(settings));
+        Require(settings.VideoFrameRate is 30 or 60,
+            "Video frame rate must be 30 or 60.", nameof(settings));
+        Require(settings.VideoMicrophoneSourceId is null ||
+            (settings.VideoMicrophoneSourceId.Length <= 512 &&
+             !settings.VideoMicrophoneSourceId.Contains('\0')),
+            "Microphone device identifier is invalid.", nameof(settings));
     }
 
     internal static ImageRect IntersectPixelCrop(ImageRect crop, ImageRect viewport)
