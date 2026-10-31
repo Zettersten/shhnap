@@ -1,4 +1,5 @@
 using Shnapp.Core;
+using Microsoft.UI;
 using Windows.Foundation;
 using Windows.Media.Editing;
 using Windows.Media.MediaProperties;

@@ -42,18 +42,6 @@
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4"
                 VerticalAlignment="Center">
-                <Button x:Name="UndoButton" Width="28" Height="28" Padding="0"
-                    Background="Transparent" BorderThickness="0" Click="Undo_Click"
-                    ToolTipService.ToolTip="Undo · Ctrl+Z" AutomationProperties.Name="Undo video edit">
-                    <FontIcon Glyph="&#xE7A7;" FontFamily="Segoe Fluent Icons" FontSize="12" />
-                </Button>
-                <Button x:Name="RedoButton" Width="28" Height="28" Padding="0"
-                    Background="Transparent" BorderThickness="0" Click="Redo_Click"
-                    ToolTipService.ToolTip="Redo · Ctrl+Y" AutomationProperties.Name="Redo video edit">
-                    <FontIcon Glyph="&#xE7A6;" FontFamily="Segoe Fluent Icons" FontSize="12" />
-                </Button>
-                <Border Width="1" Height="16" Margin="5,0"
-                    Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
                 <Button Padding="10,4" Click="AddImage_Click"
                     ToolTipService.ToolTip="Paste an image or choose one from your library">
                     <StackPanel Orientation="Horizontal" Spacing="6">

@@ -19,6 +19,7 @@ public sealed partial class VideoEditorPage : Page
     private readonly MediaPlayer _player = new();
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private CancellationTokenSource? _previewCancellation;
+    private CancellationTokenSource? _refreshDebounceCancellation;
     private long _previewRevision;
     private TimeSpan _playhead;
     private TimeSpan? _markIn;
@@ -73,11 +74,13 @@ public sealed partial class VideoEditorPage : Page
         RefreshTimeline();
         UpdateTransport();
         UpdateState();
-        _ = RefreshPreviewAsync();
+        _ = RefreshPreviewAsync(++_previewRevision);
     }
 
     public void Undo() => _editor?.Undo();
     public void Redo() => _editor?.Redo();
+
+    public void ShowStatus(string message) => StatusText.Text = message;
 
     /// <summary>Flushes the latest immutable project snapshot before navigating away.</summary>
     public async Task SaveAsync()
@@ -108,7 +111,7 @@ public sealed partial class VideoEditorPage : Page
         };
         picker.FileTypeChoices.Add("MP4 video", new List<string> { ".mp4" });
         WinRT.Interop.InitializeWithWindow.Initialize(picker, App.WindowHandle);
-        Windows.Storage.StorageFile? destination = await picker.PickSaveFileAsync();
+        global::Windows.Storage.StorageFile? destination = await picker.PickSaveFileAsync();
         if (destination is null) return;
 
         _isExporting = true;
@@ -140,6 +143,9 @@ public sealed partial class VideoEditorPage : Page
         if (_closed) return;
         _closed = true;
         ++_previewRevision;
+        _refreshDebounceCancellation?.Cancel();
+        _refreshDebounceCancellation?.Dispose();
+        _refreshDebounceCancellation = null;
         _previewCancellation?.Cancel();
         _previewCancellation?.Dispose();
         _previewCancellation = null;
@@ -164,26 +170,36 @@ public sealed partial class VideoEditorPage : Page
         RefreshInspector();
         UpdateTransport();
         UpdateState();
-        _ = SaveAndPreviewAsync();
+        long revision = ++_previewRevision;
+        _previewCancellation?.Cancel();
+        _refreshDebounceCancellation?.Cancel();
+        _refreshDebounceCancellation?.Dispose();
+        _refreshDebounceCancellation = new CancellationTokenSource();
+        _ = SaveAndPreviewAsync(revision, _refreshDebounceCancellation.Token);
     }
 
-    private async Task SaveAndPreviewAsync()
+    private async Task SaveAndPreviewAsync(long revision, CancellationToken token)
     {
         try
         {
+            // Multiple inspector edits and undo/redo steps share one preview rebuild.
+            await Task.Delay(160, token);
+            if (_closed || revision != _previewRevision) return;
             await SaveAsync();
-            if (!_closed) await RefreshPreviewAsync();
+            if (!_closed && revision == _previewRevision)
+                await RefreshPreviewAsync(revision);
         }
+        catch (OperationCanceledException) { }
         catch (Exception exception)
         {
-            if (!_closed) StatusText.Text = $"Save failed: {exception.Message}";
+            if (!_closed && revision == _previewRevision)
+                StatusText.Text = $"Save failed: {exception.Message}";
         }
     }
 
-    private async Task RefreshPreviewAsync()
+    private async Task RefreshPreviewAsync(long revision)
     {
-        if (_closed || _editor is null || _store is null) return;
-        long revision = ++_previewRevision;
+        if (_closed || revision != _previewRevision || _editor is null || _store is null) return;
         _previewCancellation?.Cancel();
         _previewCancellation?.Dispose();
         _previewCancellation = new CancellationTokenSource();
@@ -275,8 +291,6 @@ public sealed partial class VideoEditorPage : Page
 
     private void UpdateState()
     {
-        UndoButton.IsEnabled = CanUndo;
-        RedoButton.IsEnabled = CanRedo;
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -294,8 +308,6 @@ public sealed partial class VideoEditorPage : Page
 
     private void Page_SizeChanged(object sender, SizeChangedEventArgs args) => RefreshTimeline();
     private void Page_Unloaded(object sender, RoutedEventArgs args) { }
-    private void Undo_Click(object sender, RoutedEventArgs args) => Undo();
-    private void Redo_Click(object sender, RoutedEventArgs args) => Redo();
     private void Export_Click(object sender, RoutedEventArgs args) => _ = ExportAsync();
     private void Undo_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     { args.Handled = true; Undo(); }

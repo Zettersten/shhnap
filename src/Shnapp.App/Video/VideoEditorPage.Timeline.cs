@@ -1,3 +1,4 @@
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -89,7 +90,7 @@ public sealed partial class VideoEditorPage
             {
                 VideoAssetKind.ComputerAudio => "Computer sound",
                 VideoAssetKind.MicrophoneAudio => "Microphone",
-                _ => Path.GetFileName(asset.RelativePath),
+                _ => System.IO.Path.GetFileName(asset.RelativePath),
             };
             AddTimelineClip(segment.Id, TimelineKind.Audio, lane,
                 segment.Start, segment.Duration,
