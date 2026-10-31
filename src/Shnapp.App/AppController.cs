@@ -94,36 +94,65 @@ internal sealed partial class AppController
         {
             try
             {
-                if (!ShnappLibraryMigration.IsComplete(Library.RootPath))
+                bool photosPending = !ShnappLibraryMigration.IsComplete(Library.RootPath);
+                bool videosPending = !ShnappVideoLibraryMigration.IsComplete(Library.RootPath);
+                if (photosPending || videosPending)
                 {
                     string portableRoot = LaunchOptions.UnredirectedPortableDataRoot;
                     if (LaunchOptions.IsPortableInstanceRunning(portableRoot))
                     {
                         _page.ShowMessage("Close portable Shnapp to import",
-                            "The portable copy is running. Quit it and restart this Store copy to import your library. " +
+                            "The portable copy is running. Quit it and restart this Store copy to import your photos and videos. " +
                             "Your portable data is unchanged.", InfoBarSeverity.Warning);
                     }
                     else
                     {
-                        ShnappLibraryMigration.Result migration = await ShnappLibraryMigration.ImportOnceAsync(
-                            portableRoot, Library.RootPath, _lifetime.Token);
-                        if (!migration.Complete)
+                        ShnappLibraryMigration.Result? photos = null;
+                        ShnappVideoLibraryMigration.Result? videos = null;
+                        Exception? photoError = null;
+                        Exception? videoError = null;
+                        if (photosPending)
+                        {
+                            try
+                            {
+                                photos = await ShnappLibraryMigration.ImportOnceAsync(
+                                    portableRoot, Library.RootPath, _lifetime.Token);
+                            }
+                            catch (Exception error) when (IsPortableImportError(error))
+                            {
+                                photoError = error;
+                            }
+                        }
+                        if (videosPending)
+                        {
+                            try
+                            {
+                                videos = await ShnappVideoLibraryMigration.ImportOnceAsync(
+                                    portableRoot, Library.RootPath, _lifetime.Token);
+                            }
+                            catch (Exception error) when (IsPortableImportError(error))
+                            {
+                                videoError = error;
+                            }
+                        }
+                        if (photoError is not null || videoError is not null ||
+                            photos is { Complete: false } || videos is { Complete: false })
                         {
                             _page.ShowMessage("Portable library import incomplete",
-                                "Some portable shnapps or settings could not be copied. Your original library is unchanged. " +
+                                "Some portable shnapps, videos, or settings could not be copied. Your original library is unchanged. " +
                                 "Close the portable copy and restart Shnapp to retry.", InfoBarSeverity.Warning);
                         }
-                        else if (migration.ImportedDocuments > 0)
+                        else if ((photos?.ImportedDocuments ?? 0) + (videos?.ImportedProjects ?? 0) > 0)
                         {
                             _page.ShowMessage("Portable library imported",
-                                $"Copied {migration.ImportedDocuments} shnapp(s) into this Store library. " +
+                                $"Copied {photos?.ImportedDocuments ?? 0} shnapp(s) and " +
+                                $"{videos?.ImportedProjects ?? 0} video(s) into this Store library. " +
                                 "Your portable library is unchanged.", InfoBarSeverity.Success);
                         }
                     }
                 }
             }
-            catch (Exception exception) when (exception is IOException or InvalidDataException or
-                UnauthorizedAccessException or ArgumentException)
+            catch (Exception exception) when (IsPortableImportError(exception))
             {
                 _page.ShowMessage("Portable library import unavailable",
                     "Your portable library is unchanged. Close the portable copy and restart Shnapp to retry. " +
@@ -201,6 +230,9 @@ internal sealed partial class AppController
         if (!HasPackageIdentity) { _updateTimer.Start(); }
         _ = CleanupExpiredExportSnapshotsAsync();
     }
+
+    private static bool IsPortableImportError(Exception error) =>
+        error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException;
 
     internal void Capture(CaptureKind kind) => Run(() =>
         kind == CaptureKind.Camera ? CaptureCameraAsync() : CaptureAsync(kind));
