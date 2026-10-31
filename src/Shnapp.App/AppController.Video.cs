@@ -174,8 +174,26 @@ internal sealed partial class AppController
                 projectId,
                 _settings.VideoFrameRate);
             // Once capture has finalized, persist its metadata even if shutdown was requested.
-            await VideoStore.SaveAsync(project, CancellationToken.None);
-            await ShowVideoProjectAsync(project);
+            try
+            {
+                await VideoStore.SaveAsync(project, CancellationToken.None);
+            }
+            catch (Exception error)
+            {
+                throw new IOException(
+                    $"The recording remains at {result.VideoPath}, but it could not be added to the Library. " +
+                    error.Message, error);
+            }
+            try
+            {
+                await ShowVideoProjectAsync(project);
+            }
+            catch (Exception error)
+            {
+                throw new InvalidOperationException(
+                    "The recording is saved in the Videos library, but the editor could not open it. " +
+                    error.Message, error);
+            }
         }
         finally
         {
