@@ -6,6 +6,7 @@ param(
     [Parameter(Mandatory = $true)][string] $OutputDirectory,
     [string] $SignToolPath,
     [string] $SigningMetadataPath,
+    [string] $SigningDlibPath,
     [string] $ExpectedPublisher,
     [string] $ExpectedProfileEku,
     [switch] $Unsigned
@@ -25,6 +26,7 @@ if ($Unsigned -and $ReleaseTag -cnotin @('v1.0.12', 'v1.0.13')) {
 }
 if (-not $Unsigned -and (-not (Test-Path -LiteralPath $SignToolPath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $SigningMetadataPath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $SigningDlibPath -PathType Leaf) -or
     [string]::IsNullOrWhiteSpace($ExpectedPublisher) -or
     $ExpectedProfileEku -cnotmatch '^1\.3\.6\.1\.4\.1\.311\.97\.(?!1\.0$)[0-9]+(?:\.[0-9]+)+$')) {
     throw 'Artifact Signing metadata, SignTool, expected publisher, and profile EKU are required for Velopack packaging.'
@@ -78,6 +80,18 @@ try {
     }
     ./packaging/release/Add-ThirdPartyNotices.ps1 `
         -DepsPath $depsPath -OutputDirectory $publishDirectory
+    ./packaging/release/Add-PortableVcRuntime.ps1 `
+        -PayloadDirectory $publishDirectory -Platform $platform
+    if (-not $Unsigned) {
+        $recordingBinaries = @(Get-ChildItem -LiteralPath $publishDirectory -Filter 'NAudio*.dll' -File |
+            ForEach-Object FullName) + @(Join-Path $publishDirectory 'ScreenRecorderLib.dll')
+        foreach ($binary in $recordingBinaries) {
+            ./packaging/release/Sign-ReleaseExecutable.ps1 `
+                -Path $binary -SignToolPath $SignToolPath `
+                -DlibPath $SigningDlibPath -MetadataPath $SigningMetadataPath `
+                -ExpectedPublisher $ExpectedPublisher -ExpectedProfileEku $ExpectedProfileEku
+        }
+    }
 
     $signingArguments = @()
     if (-not $Unsigned) {
