@@ -124,6 +124,8 @@ public sealed partial class VideoEditorPage
         try
         {
             byte[] png = await _readGalleryImage(id);
+            if ((ulong)png.LongLength > MaximumImageBytes)
+                throw new InvalidDataException("Images must be 32 MB or smaller.");
             using var source = new InMemoryRandomAccessStream();
             using (var writer = new DataWriter(source))
             {
@@ -151,7 +153,9 @@ public sealed partial class VideoEditorPage
         if (_store is null || _editor is null || _closed) return;
         VideoProjectEditor editor = _editor;
         VideoProject current = editor.Current;
-        TimeSpan start = _playhead >= current.Duration ? TimeSpan.Zero : _playhead;
+        TimeSpan start = _playhead >= current.Duration
+            ? current.Duration - Min(TimeSpan.FromSeconds(5), current.Duration)
+            : _playhead;
         TimeSpan duration = Min(TimeSpan.FromSeconds(5), current.Duration - start);
         if (duration <= TimeSpan.Zero) throw new InvalidOperationException("This video has no room for an image.");
 
@@ -201,7 +205,9 @@ public sealed partial class VideoEditorPage
         {
             TimeSpan sourceDuration = await VideoCompositionService.ProbeAudioDurationAsync(file.Path);
             VideoProject current = _editor.Current;
-            TimeSpan start = _playhead >= current.Duration ? TimeSpan.Zero : _playhead;
+            TimeSpan start = _playhead >= current.Duration
+                ? current.Duration - Min(sourceDuration, current.Duration)
+                : _playhead;
             TimeSpan visible = Min(sourceDuration, current.Duration - start);
             if (visible <= TimeSpan.Zero)
                 throw new InvalidOperationException("The audio file has no time inside this video.");

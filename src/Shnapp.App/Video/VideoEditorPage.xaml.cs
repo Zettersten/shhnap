@@ -20,6 +20,7 @@ public sealed partial class VideoEditorPage : Page
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private CancellationTokenSource? _previewCancellation;
     private CancellationTokenSource? _refreshDebounceCancellation;
+    private CancellationTokenSource? _exportCancellation;
     private long _previewRevision;
     private TimeSpan _playhead;
     private TimeSpan? _markIn;
@@ -112,28 +113,39 @@ public sealed partial class VideoEditorPage : Page
         picker.FileTypeChoices.Add("MP4 video", new List<string> { ".mp4" });
         WinRT.Interop.InitializeWithWindow.Initialize(picker, App.WindowHandle);
         global::Windows.Storage.StorageFile? destination = await picker.PickSaveFileAsync();
-        if (destination is null) return;
+        if (destination is null || _closed) return;
 
         _isExporting = true;
+        var exportCancellation = new CancellationTokenSource();
+        _exportCancellation = exportCancellation;
         UpdateState();
         try
         {
             VideoProject snapshot = _editor.Current;
             StatusText.Text = "Exporting 0%";
             var progress = new Progress<double>(value =>
-                StatusText.Text = $"Exporting {Math.Clamp(value, 0, 100):F0}%");
+            {
+                if (!_closed) StatusText.Text = $"Exporting {Math.Clamp(value, 0, 100):F0}%";
+            });
             await VideoCompositionService.ExportAsync(snapshot, _store,
-                destination.Path, progress);
-            StatusText.Text = $"Exported {destination.Name}";
+                destination.Path, progress, exportCancellation.Token);
+            if (!_closed) StatusText.Text = $"Exported {destination.Name}";
+        }
+        catch (OperationCanceledException)
+        {
+            if (!_closed) StatusText.Text = "Export canceled";
         }
         catch (Exception exception)
         {
-            StatusText.Text = $"Export failed: {exception.Message}";
+            if (!_closed) StatusText.Text = $"Export failed: {exception.Message}";
         }
         finally
         {
+            if (ReferenceEquals(_exportCancellation, exportCancellation))
+                _exportCancellation = null;
+            exportCancellation.Dispose();
             _isExporting = false;
-            UpdateState();
+            if (!_closed) UpdateState();
         }
     }
 
@@ -149,13 +161,16 @@ public sealed partial class VideoEditorPage : Page
         _previewCancellation?.Cancel();
         _previewCancellation?.Dispose();
         _previewCancellation = null;
+        _exportCancellation?.Cancel();
         if (_editor is not null) _editor.Changed -= Editor_Changed;
         _player.PlaybackSession.PositionChanged -= PlaybackSession_PositionChanged;
         _player.PlaybackSession.PlaybackStateChanged -= PlaybackSession_PlaybackStateChanged;
-        _player.Pause();
-        _player.Source = null;
-        VideoPlayer.SetMediaPlayer(null);
-        _player.Dispose();
+        try { _player.Pause(); _player.Source = null; }
+        catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
+        try { VideoPlayer.SetMediaPlayer(null!); }
+        catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
+        try { _player.Dispose(); }
+        catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
     }
 
     private void Editor_Changed(object? sender, EventArgs args)

@@ -134,7 +134,11 @@ internal static class VideoCompositionService
 
             var operation = composition.RenderToFileAsync(target, MediaTrimmingPreference.Precise, profile);
             operation.Progress = (_, value) => progress?.Report(value);
-            using CancellationTokenRegistration registration = cancellationToken.Register(operation.Cancel);
+            using CancellationTokenRegistration registration = cancellationToken.Register(() =>
+            {
+                try { operation.Cancel(); }
+                catch (System.Runtime.InteropServices.COMException) { }
+            });
             TranscodeFailureReason reason = await operation;
             if (reason != TranscodeFailureReason.None)
             {

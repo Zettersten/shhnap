@@ -361,7 +361,10 @@ public sealed partial class VideoEditorPage
                 throw new InvalidOperationException("Mark both In and Out before cutting.");
             TimeSpan start = Min(_markIn.Value, _markOut.Value);
             TimeSpan end = _markIn.Value > _markOut.Value ? _markIn.Value : _markOut.Value;
-            _editor.CutRange(start, end);
+            if (_selectedKind == TimelineKind.Audio)
+                _editor.CutAudioRange(_selectedId, start, end);
+            else
+                _editor.CutRange(start, end);
             _markIn = _markOut = null;
             Seek(start);
         });

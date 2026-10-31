@@ -213,7 +213,7 @@
                     <Button Content="Out" Padding="8,3" Click="MarkOut_Click"
                         ToolTipService.ToolTip="Mark cut range end at playhead" FontSize="11" />
                     <Button Content="Cut" Padding="8,3" Click="CutRange_Click"
-                        ToolTipService.ToolTip="Remove marked range from all tracks" FontSize="11" />
+                        ToolTipService.ToolTip="Cut selected audio only, or ripple all tracks when video is selected" FontSize="11" />
                     <Border Width="1" Height="16" Margin="4,0"
                         Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
                     <Button Content="Split" Padding="8,3" Click="Split_Click"
