@@ -33,6 +33,7 @@ internal sealed class VideoRecordingSession
     private long _lastResumeQpc;
     private long _pausedQpc;
     private long _endQpc;
+    private long _finalPauseStartQpc;
     private bool _recordRequested;
     private bool _cancelRequested;
     private Exception? _audioError;
@@ -230,6 +231,7 @@ internal sealed class VideoRecordingSession
             _endQpc = NowQpc();
             if (_pauseStartQpc != 0)
             {
+                _finalPauseStartQpc = _pauseStartQpc;
                 _pausedQpc += _endQpc - _pauseStartQpc;
                 _pauseStartQpc = 0;
             }
@@ -353,8 +355,10 @@ internal sealed class VideoRecordingSession
             }
             long packetEnd = packetQpc + (long)Math.Ceiling(frameCount * (double)QpcTicksPerSecond / AudioFramesPerSecond);
             long start = Math.Max(packetQpc, Math.Max(_startQpc, _lastResumeQpc));
-            long end = Math.Min(packetEnd, _pauseStartQpc != 0 ? _pauseStartQpc :
-                _endQpc != 0 ? _endQpc : long.MaxValue);
+            long activeEnd = _pauseStartQpc != 0 ? _pauseStartQpc :
+                _finalPauseStartQpc != 0 ? _finalPauseStartQpc :
+                _endQpc != 0 ? _endQpc : long.MaxValue;
+            long end = Math.Min(packetEnd, activeEnd);
             if (end <= start)
             {
                 return null;
