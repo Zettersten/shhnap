@@ -16,9 +16,9 @@ internal sealed class VideoRecordingService
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-        if (options.FrameRate is not (30 or 60))
+        if (options.FrameRate is not (30 or 60 or 120))
         {
-            throw new ArgumentOutOfRangeException(nameof(options), "Video frame rate must be 30 or 60 fps.");
+            throw new ArgumentOutOfRangeException(nameof(options), "Video frame rate must be 30, 60, or 120 fps.");
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -53,6 +53,7 @@ internal sealed class VideoRecordingService
             Framerate = options.FrameRate,
             IsHardwareEncodingEnabled = true,
             IsThrottlingDisabled = false,
+            IsFixedFramerate = false,
             IsMp4FastStartEnabled = true
         };
         recorderOptions.AudioOptions = new AudioOptions { IsAudioEnabled = false };

@@ -21,8 +21,8 @@ internal static class VideoProjectValidation
             "A video project creation time must be UTC.");
         Require(project.Width is > 0 and <= 16_384 && project.Height is > 0 and <= 16_384,
             "Video dimensions must be between 1 and 16,384 pixels.");
-        Require(project.FrameRate is 30 or 60,
-            "Video frame rate must be 30 or 60 frames per second.");
+        Require(project.FrameRate is 30 or 60 or 120,
+            "Video frame rate must be 30, 60, or 120 frames per second.");
         Require(!project.Assets.IsDefault && project.Assets.Length is > 0 and <= MaximumAssets,
             "A video project must contain a bounded asset list.");
         Require(!project.VideoSegments.IsDefault && project.VideoSegments.Length is > 0 and <= MaximumTimelineItems,

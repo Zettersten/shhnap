@@ -183,6 +183,13 @@ public sealed class VideoProjectStoreTests
         await store.SaveAsync(project);
         Assert.AreEqual(60, (await store.OpenAsync(project.Id)).FrameRate);
 
+        VideoProject highRate = VideoProject.CreateRecording("One hundred twenty fps",
+            TimeSpan.FromSeconds(3), 1280, 720, "source.mp4", frameRate: 120);
+        string highRateDirectory = store.PrepareProjectDirectory(highRate.Id);
+        await File.WriteAllBytesAsync(Path.Combine(highRateDirectory, "source.mp4"), [1, 2, 3]);
+        await store.SaveAsync(highRate);
+        Assert.AreEqual(120, (await store.OpenAsync(highRate.Id)).FrameRate);
+
         string metadata = Path.Combine(directory, "project.json");
         JsonObject legacy = JsonNode.Parse(await File.ReadAllTextAsync(metadata))!.AsObject();
         Assert.IsTrue(legacy.Remove("frameRate"));

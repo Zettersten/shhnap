@@ -518,6 +518,17 @@ public sealed class ShnappLibraryTests
     }
 
     [TestMethod]
+    public async Task HighFrameRateSettingSurvivesSaveAndReload()
+    {
+        using var temporary = new TemporaryLibrary();
+        var settings = new ShnappSettings { VideoFrameRate = 120 };
+        await temporary.Library.SaveSettingsAsync(settings);
+        Assert.AreEqual(120, (await temporary.Library.LoadSettingsAsync()).VideoFrameRate);
+        await Assert.ThrowsExactlyAsync<ArgumentException>(() =>
+            temporary.Library.SaveSettingsAsync(settings with { VideoFrameRate = 121 }));
+    }
+
+    [TestMethod]
     public async Task InvalidSettingsDoNotOverwriteAnExistingFile()
     {
         using var temporary = new TemporaryLibrary();

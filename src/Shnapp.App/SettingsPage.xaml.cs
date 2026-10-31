@@ -62,7 +62,7 @@ public sealed partial class SettingsPage : Page
         VideoSystemAudio.IsOn = settings.VideoCaptureSystemAudio;
         VideoMicrophone.IsOn = settings.VideoCaptureMicrophone;
         VideoCursor.IsOn = settings.VideoCaptureCursor;
-        VideoFrameRatePicker.SelectedIndex = settings.VideoFrameRate == 60 ? 1 : 0;
+        VideoFrameRatePicker.SelectedIndex = FrameRateIndex(settings.VideoFrameRate);
         PrintScreenEnabled.IsOn = settings.PrintScreenEnabled;
         PrintScreenEnabled.IsEnabled = _printScreenEditable;
         PrintScreenModePicker.SelectedIndex = settings.PrintScreenMode switch
@@ -495,7 +495,7 @@ public sealed partial class SettingsPage : Page
             VideoSystemAudio.IsOn = _savedSettings.VideoCaptureSystemAudio;
             VideoMicrophone.IsOn = _savedSettings.VideoCaptureMicrophone;
             VideoCursor.IsOn = _savedSettings.VideoCaptureCursor;
-            VideoFrameRatePicker.SelectedIndex = _savedSettings.VideoFrameRate == 60 ? 1 : 0;
+            VideoFrameRatePicker.SelectedIndex = FrameRateIndex(_savedSettings.VideoFrameRate);
             PrintScreenEnabled.IsOn = _savedSettings.PrintScreenEnabled;
             PrintScreenModePicker.SelectedIndex = _savedSettings.PrintScreenMode switch
             {
@@ -524,6 +524,13 @@ public sealed partial class SettingsPage : Page
         }
     }
 
+    private static int FrameRateIndex(int frameRate) => frameRate switch
+    {
+        120 => 2,
+        60 => 1,
+        _ => 0,
+    };
+
     private ShnappSettings ReadPreferences() => new()
         {
             StartOnLogin = StartAtSignIn.IsOn,
@@ -532,7 +539,12 @@ public sealed partial class SettingsPage : Page
             VideoCaptureSystemAudio = VideoSystemAudio.IsOn,
             VideoCaptureMicrophone = VideoMicrophone.IsOn,
             VideoCaptureCursor = VideoCursor.IsOn,
-            VideoFrameRate = VideoFrameRatePicker.SelectedIndex == 1 ? 60 : 30,
+            VideoFrameRate = VideoFrameRatePicker.SelectedIndex switch
+            {
+                2 => 120,
+                1 => 60,
+                _ => 30,
+            },
             VideoMicrophoneSourceId = _savedSettings.VideoMicrophoneSourceId,
             PrintScreenEnabled = PrintScreenEnabled.IsOn,
             PrintScreenMode = PrintScreenModePicker.SelectedIndex switch
