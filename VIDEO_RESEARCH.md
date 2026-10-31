@@ -1,7 +1,7 @@
 # Video capture and acrylic research
 
 Date: 2026-10-31
-Status: implementation complete on the video feature branch; release validation is in progress.
+Status: feature implemented on the video branch; long-session and ARM64-device checks remain before release.
 
 ## Goal and current seams
 
@@ -37,6 +37,16 @@ Useful workflow patterns include a separate recording worker, a small live pause
 | Escape hatch for capture/encode | Native [Windows Graphics Capture](https://learn.microsoft.com/en-us/windows/apps/develop/media-authoring-processing/screen-capture) plus [Media Foundation sink writer](https://learn.microsoft.com/en-us/windows/win32/medfound/sink-writer-attributes), with [Vortice MediaFoundation](https://www.nuget.org/packages/Vortice.MediaFoundation) interop if useful | More control but substantially more code and device-loss/clock handling. Use only if the recorder package fails the gates. |
 
 [FFMpegCore 5.5.0](https://www.nuget.org/packages/FFMpegCore/5.5.0) wraps external FFmpeg executables; [FFmpeg.AutoGen 9.0.1.1](https://www.nuget.org/packages/FFmpeg.AutoGen/9.0.1.1) wraps native libraries. Neither supplies an editor or removes native deployment work. FFmpeg's [LGPL/GPL conditions depend on the binary build](https://ffmpeg.org/legal.html); it does not [ship official Windows binaries](https://ffmpeg.org/download.html). Start with Windows media APIs and revisit FFmpeg only for a demonstrated export gap. Do not use GDI-based gdigrab as the primary recorder when a GPU capture path is available.
+
+## Implemented design and verification
+
+The branch uses ScreenRecorderLib's persistent Windows Graphics Capture sources and Media Foundation H.264 encoder for video. It allows hardware transforms when available and retains Media Foundation's software encoder fallback. NAudio writes independent 48 kHz WAV stems for computer and microphone audio; recording pause and resume keep their active-time alignment. Windows.Media.Editing previews and renders the nondestructive timeline, including image overlays and imported audio. FFmpeg is not an application runtime dependency.
+
+The title and footer use narrow GPU compositor backdrop blur surfaces above the live Win2D canvas. The photo options panel keeps its native acrylic brush. Windows High Contrast and disabled transparency effects switch the custom blur off. A bright test image at 125% zoom confirmed that the title and footer soften image boundaries as the image moves beneath them.
+
+Local checks cover a cross-display rectangular region, a resized window, a full-screen recording opened in the editor, independent computer and microphone stems, pause/resume, trim/split/cut/undo, gallery image and imported-audio lanes, and a rendered H.264/AAC MP4. Core tests pass and x64/ARM64 portable and unsigned Store packages build. Long recordings, 4K capture, real ARM64 device playback, and Store installation still require device-level release QA; an x64 build cannot prove those behaviors.
+
+A bounded synthetic-window check at a 60 fps target ran for 30.339 seconds at 1920 × 1080. Its source painted about 41.2 frames per second and the MP4 contained 1,177 frames over 29.988 seconds, about 39.25 encoded frames per second. The recording process consumed 1.875 CPU seconds and produced a 1.13 MB file. Because the test window itself did not paint at 60 fps and the scene compressed easily, this result does not establish the recorder's frame ceiling, dropped-frame rate, or complex-scene bitrate. A shorter dual-audio smoke ended its two stems within about 31 ms of the video, but long-run audio drift remains unmeasured. Both generated Store MSIX archives were inspected for the correct architecture, recorder DLL, and VCLibs dependency; the reserved Partner Center identity validator runs in the release workflow, not against the local placeholder manifest.
 
 ## Recording flow
 
