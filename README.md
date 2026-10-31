@@ -36,6 +36,9 @@ The landscape is [“Mountain lake in the autumn” by sayid he](https://commons
 | `Ctrl+Shift+3` | The display under your pointer |
 | `Ctrl+Shift+2` | A region you drag out |
 | `Ctrl+Shift+5` | A photo from your camera |
+| `Alt+Shift+4` | Record a window you choose |
+| `Alt+Shift+3` | Record the display under your pointer |
+| `Alt+Shift+2` | Record a rectangular region |
 | `Print Screen` (optional) | Full screen by default; choose window or region in Settings |
 
 You can start any capture from the tray icon or **Capture** in the app. Enable Print Screen in **Settings → General → Keyboard shortcuts** to intercept the plain key while Shnapp is running; Alt+Print Screen keeps its Windows behavior. Region capture currently uses a rectangle; a drawn free-form selection is planned.
@@ -43,6 +46,12 @@ You can start any capture from the tray icon or **Capture** in the app. Enable P
 Choose a camera in Settings or leave it on Automatic. A camera photo opens as an editable shnapp, and the camera button in the editor adds another photo as a movable layer. Select a photo layer to crop it or reset its crop. Camera actions are disabled when no camera is connected.
 
 The grabber freezes the visible desktop when capture starts, so moving content holds still while you choose. A crosshair and live pixel measurements help you draw a region; hold Shift for a square. A bright pulse frames the window or display you are about to capture. Window shnapps use the visible pixels from that frozen moment, including anything overlapping the window.
+
+## Record and edit video
+
+Start a video from the shortcuts above, the capture menu, or the tray. Choose a window, a display, or a rectangular region with the same picker used for screenshots. A small recording bar shows elapsed time and the active audio sources; pause, resume, stop, or cancel there. Window recordings follow the selected window as it changes. **Settings → General → Video recording** controls computer audio, microphone audio, pointer visibility, and 30 or 60 fps. Both audio sources are off by default.
+
+The **Videos** tab in the local library reopens recordings in a dedicated editor. Trim, split, or cut the video and adjust the computer and microphone tracks independently. Paste an image with `Ctrl+V`, choose one from the left-edge recent-image gallery, or import your own audio; image overlays and added audio can each occupy a chosen span of the timeline. Edits keep the source files intact. Export an MP4 when ready to share.
 
 ## Explain it in a few clicks
 

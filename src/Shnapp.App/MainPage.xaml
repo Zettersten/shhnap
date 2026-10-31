@@ -248,6 +248,16 @@
                 <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Capture full screen" Icon="FullScreen"
                     Tag="FullScreen" Click="Capture_Click" AutomationProperties.AutomationId="CaptureFullScreen" />
                 <AppBarSeparator />
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Record region video" Icon="Video"
+                    Tag="Region" Click="VideoCapture_Click" AutomationProperties.AutomationId="RecordRegionVideo"
+                    ToolTipService.ToolTip="Record a rectangular region · Alt+Shift+2" />
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Record full-screen video" Icon="Video"
+                    Tag="FullScreen" Click="VideoCapture_Click" AutomationProperties.AutomationId="RecordFullScreenVideo"
+                    ToolTipService.ToolTip="Record the display under the pointer · Alt+Shift+3" />
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Record window video" Icon="Video"
+                    Tag="Window" Click="VideoCapture_Click" AutomationProperties.AutomationId="RecordWindowVideo"
+                    ToolTipService.ToolTip="Record a window · Alt+Shift+4" />
+                <AppBarSeparator />
                 <local:HandCursorAppBarButton x:Name="QuickCameraCapture" CornerRadius="8" Width="190"
                     Label="Take camera photo" Icon="Camera" Click="CameraCapture_Click" IsEnabled="False"
                     AutomationProperties.AutomationId="QuickCameraCapture"
@@ -380,6 +390,13 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+                    <!-- In-app acrylic must share the canvas's visual layer to sample
+                         its Win2D pixels. The toolbar and footer controls stay in
+                         their existing overlay layers above these surfaces. -->
+                    <Border Height="36" VerticalAlignment="Top" IsHitTestVisible="False"
+                        Background="{ThemeResource ShnappImageChromeBrush}" />
+                    <Border Height="28" VerticalAlignment="Bottom" IsHitTestVisible="False"
+                        Background="{ThemeResource ShnappImageChromeBrush}" />
                     <Border x:Name="InspectorPanel" Visibility="Visible"
                         Width="252" Margin="12,48,12,36"
                         HorizontalAlignment="Right" VerticalAlignment="Stretch"
@@ -1263,7 +1280,7 @@
         </Grid>
         <Grid Height="28" VerticalAlignment="Bottom" Canvas.ZIndex="10"
             SizeChanged="FooterBar_SizeChanged"
-            Padding="10,0" ColumnSpacing="8" Background="{ThemeResource ShnappImageChromeBrush}">
+            Padding="10,0" ColumnSpacing="8" Background="Transparent">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />

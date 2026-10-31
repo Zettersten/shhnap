@@ -269,6 +269,76 @@
                                         </Border>
                                     </StackPanel>
                                     <StackPanel Spacing="8">
+                                        <TextBlock Text="Video recording" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}">
+                                            <StackPanel>
+                                                <Grid Margin="16,12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Record computer audio" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                        <TextBlock Text="Include sound playing through your default output device."
+                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    </StackPanel>
+                                                    <ToggleSwitch x:Name="VideoSystemAudio" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                        Width="48" MinWidth="0" OnContent="" OffContent=""
+                                                        Toggled="PreferenceToggle_Changed"
+                                                        AutomationProperties.Name="Record computer audio"
+                                                        AutomationProperties.AutomationId="VideoSystemAudio" />
+                                                </Grid>
+                                                <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <Grid Margin="16,12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Record microphone" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                        <TextBlock Text="Keep your voice on a separate editable track."
+                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    </StackPanel>
+                                                    <ToggleSwitch x:Name="VideoMicrophone" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                        Width="48" MinWidth="0" OnContent="" OffContent=""
+                                                        Toggled="PreferenceToggle_Changed"
+                                                        AutomationProperties.Name="Record microphone"
+                                                        AutomationProperties.AutomationId="VideoMicrophone" />
+                                                </Grid>
+                                                <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <Grid Margin="16,12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Show pointer" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                        <TextBlock Text="Include the pointer in video recordings."
+                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    </StackPanel>
+                                                    <ToggleSwitch x:Name="VideoCursor" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                        Width="48" MinWidth="0" OnContent="" OffContent=""
+                                                        Toggled="PreferenceToggle_Changed"
+                                                        AutomationProperties.Name="Show pointer in video"
+                                                        AutomationProperties.AutomationId="VideoCursor" />
+                                                </Grid>
+                                                <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <Grid Margin="16,12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Frame rate" FontWeight="SemiBold" />
+                                                        <TextBlock Text="30 fps saves power; 60 fps captures smoother motion."
+                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    </StackPanel>
+                                                    <ComboBox x:Name="VideoFrameRatePicker" Grid.Column="1" MinWidth="112" VerticalAlignment="Center"
+                                                        SelectionChanged="VideoFrameRatePicker_Changed"
+                                                        AutomationProperties.Name="Video frame rate"
+                                                        AutomationProperties.AutomationId="VideoFrameRate">
+                                                        <ComboBoxItem Content="30 fps" />
+                                                        <ComboBoxItem Content="60 fps" />
+                                                    </ComboBox>
+                                                </Grid>
+                                                <StackPanel Margin="16,0,16,12" Spacing="2">
+                                                    <TextBlock Text="Video shortcuts" FontWeight="SemiBold" />
+                                                    <TextBlock Text="Region  Alt+Shift+2    Full screen  Alt+Shift+3    Window  Alt+Shift+4"
+                                                        FontFamily="Cascadia Mono" FontSize="11" TextWrapping="Wrap"
+                                                        Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
                                         <TextBlock Text="Appearance" Style="{StaticResource SettingsSectionTitleStyle}" />
                                         <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
                                             <StackPanel Spacing="5">

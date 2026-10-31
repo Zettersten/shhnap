@@ -57,7 +57,10 @@ internal sealed partial class AppController
         _page.Configure(this);
         _tray = new(App.WindowHandle, activationMessage);
         _tray.CaptureRequested += Capture;
+        _tray.VideoRequested += RecordVideo;
         _tray.LibraryRequested += OpenLibrary;
+        _window.VideoBackRequested += OpenLibrary;
+        _window.VideoSettingsRequested += OpenSettings;
         _tray.SettingsRequested += OpenSettings;
         _tray.UpdateNotificationClicked += OpenSettingsUpdates;
         _tray.QuitRequested += Quit;
@@ -147,6 +150,7 @@ internal sealed partial class AppController
             }
             IReadOnlyList<ShnappSummary> documents = await ListReadySummariesAsync();
             _page.ShowLibrary(documents);
+            await RefreshVideoLibraryAsync();
             UpdateNavigationButtons();
             _page.SetGalleryDocuments(documents);
             _page.ViewModel.Status = "Ready to shnapp · close returns to the tray";
@@ -327,7 +331,6 @@ internal sealed partial class AppController
         }
 
         bool wasVisible = NativeMethods.IsWindowVisible(App.WindowHandle);
-        _window.ShowMainPage();
         CanvasBitmap? bitmap = null;
         Task? previousSave = null;
         _activeCapture = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -337,6 +340,9 @@ internal sealed partial class AppController
         var watch = Stopwatch.StartNew();
         try
         {
+            if (_window.VideoPage is { } videoPage) { await videoPage.SaveAsync(); }
+            _window.ShowPhotoPage();
+            _window.ShowMainPage();
             _saveTimer.Stop();
             // Capture first: saving the current document can take longer than a changing
             // desktop frame. A visible editor must leave the screen before its first frame.
@@ -596,6 +602,8 @@ internal sealed partial class AppController
 
     private async Task OpenLibraryAsync(bool recordHistory = true)
     {
+        if (_window.VideoPage is { } videoPage) { await videoPage.SaveAsync(); }
+        _window.ShowPhotoPage();
         _window.ShowMainPage();
         _activeCapture?.Cancel();
         await _captureGate.WaitAsync(_lifetime.Token);
@@ -607,6 +615,7 @@ internal sealed partial class AppController
             _failedRecovery.Clear();
             IReadOnlyList<ShnappSummary> documents = await ListReadySummariesAsync();
             _page.ShowLibrary(documents);
+            await RefreshVideoLibraryAsync();
             if (recordHistory) { RecordNavigation(null); }
             _page.SetGalleryDocuments(documents);
             Renderer.ClearPastedImages();
@@ -621,6 +630,8 @@ internal sealed partial class AppController
 
     private async Task OpenDocumentAsync(Guid id, bool recordHistory = true)
     {
+        if (_window.VideoPage is { } videoPage) { await videoPage.SaveAsync(); }
+        _window.ShowPhotoPage();
         _window.ShowMainPage();
         if (!await _captureGate.WaitAsync(0, _lifetime.Token))
         {
@@ -678,6 +689,11 @@ internal sealed partial class AppController
             return;
         }
 
+        if (_window.VideoPage is { } videoPage)
+        {
+            await videoPage.SaveAsync();
+            _window.ShowPhotoPage();
+        }
         _page.CommitText();
         _saveTimer.Stop();
         await SaveCurrentAsync();
@@ -787,6 +803,11 @@ internal sealed partial class AppController
         {
             _page.CommitText();
             await SaveCurrentAsync();
+            if (_window.VideoPage is { } videoPage)
+            {
+                await videoPage.SaveAsync();
+                _window.ShowPhotoPage();
+            }
             _quitting = true;
             await _lifetime.CancelAsync();
             _tray.Dispose();

@@ -6,6 +6,7 @@ namespace Shnapp.App.Windows;
 
 internal sealed class TrayHost : IDisposable
 {
+    private const uint VideoModifiers = 0x4000 | 0x0001 | 0x0004; // MOD_NOREPEAT | MOD_ALT | MOD_SHIFT
     private readonly nint _hwnd;
     private readonly NativeMethods.SubclassProc _callback;
     private readonly uint _taskbarCreated = NativeMethods.RegisterWindowMessage("TaskbarCreated");
@@ -19,6 +20,7 @@ internal sealed class TrayHost : IDisposable
     private bool _disposed;
 
     internal event Action<CaptureKind>? CaptureRequested;
+    internal event Action<CaptureKind>? VideoRequested;
     internal event Action? LibraryRequested;
     internal event Action? SettingsRequested;
     internal event Action? UpdateNotificationClicked;
@@ -91,11 +93,14 @@ internal sealed class TrayHost : IDisposable
         Register(2, 0x33, "Ctrl+Shift+3");
         Register(3, 0x32, "Ctrl+Shift+2");
         Register(4, 0x35, "Ctrl+Shift+5");
+        Register(5, 0x34, "Alt+Shift+4", VideoModifiers);
+        Register(6, 0x33, "Alt+Shift+3", VideoModifiers);
+        Register(7, 0x32, "Alt+Shift+2", VideoModifiers);
     }
 
-    private void Register(int id, uint key, string label)
+    private void Register(int id, uint key, string label, uint modifiers = NativeMethods.Modifiers)
     {
-        if (NativeMethods.RegisterHotKey(_hwnd, id, NativeMethods.Modifiers, key))
+        if (NativeMethods.RegisterHotKey(_hwnd, id, modifiers, key))
         {
             _registeredHotkeys.Add(id);
         }
@@ -130,17 +135,30 @@ internal sealed class TrayHost : IDisposable
         }
         else if (message == NativeMethods.WmHotkey)
         {
-            CaptureKind? kind = (int)wParam switch
+            if ((int)wParam is >= 5 and <= 7)
             {
-                1 => CaptureKind.Window,
-                2 => CaptureKind.FullScreen,
-                3 => CaptureKind.Region,
-                4 => CaptureKind.Camera,
-                _ => null,
-            };
-            if (kind is CaptureKind captureKind)
+                CaptureKind videoKind = (int)wParam switch
+                {
+                    5 => CaptureKind.Window,
+                    6 => CaptureKind.FullScreen,
+                    _ => CaptureKind.Region,
+                };
+                VideoRequested?.Invoke(videoKind);
+            }
+            else
             {
-                CaptureRequested?.Invoke(captureKind);
+                CaptureKind? kind = (int)wParam switch
+                {
+                    1 => CaptureKind.Window,
+                    2 => CaptureKind.FullScreen,
+                    3 => CaptureKind.Region,
+                    4 => CaptureKind.Camera,
+                    _ => null,
+                };
+                if (kind is CaptureKind captureKind)
+                {
+                    CaptureRequested?.Invoke(captureKind);
+                }
             }
             return 0;
         }
@@ -183,6 +201,10 @@ internal sealed class TrayHost : IDisposable
             NativeMethods.AppendMenu(menu, _cameraAvailable ? 0u : 0x1u, 7,
                 "New camera photo\tCtrl+Shift+5");
             NativeMethods.AppendMenu(menu, 0x800, 0, null);
+            NativeMethods.AppendMenu(menu, 0, 8, "Record window video\tAlt+Shift+4");
+            NativeMethods.AppendMenu(menu, 0, 9, "Record full-screen video\tAlt+Shift+3");
+            NativeMethods.AppendMenu(menu, 0, 10, "Record region video\tAlt+Shift+2");
+            NativeMethods.AppendMenu(menu, 0x800, 0, null);
             NativeMethods.AppendMenu(menu, 0, 4, "Open Library");
             NativeMethods.AppendMenu(menu, 0, 5, "Settings");
             NativeMethods.AppendMenu(menu, 0x800, 0, null);
@@ -195,6 +217,9 @@ internal sealed class TrayHost : IDisposable
                 case 2: CaptureRequested?.Invoke(CaptureKind.FullScreen); break;
                 case 3: CaptureRequested?.Invoke(CaptureKind.Region); break;
                 case 7 when _cameraAvailable: CaptureRequested?.Invoke(CaptureKind.Camera); break;
+                case 8: VideoRequested?.Invoke(CaptureKind.Window); break;
+                case 9: VideoRequested?.Invoke(CaptureKind.FullScreen); break;
+                case 10: VideoRequested?.Invoke(CaptureKind.Region); break;
                 case 4: LibraryRequested?.Invoke(); break;
                 case 5: SettingsRequested?.Invoke(); break;
                 case 6: QuitRequested?.Invoke(); break;

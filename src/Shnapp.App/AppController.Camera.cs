@@ -105,6 +105,8 @@ internal sealed partial class AppController
         CancellationToken token = _activeCapture.Token;
         try
         {
+            if (_window.VideoPage is { } videoPage) { await videoPage.SaveAsync(); }
+            _window.ShowPhotoPage();
             _window.ShowMainPage();
             Show();
             if (!await RequireCameraAsync()) return;

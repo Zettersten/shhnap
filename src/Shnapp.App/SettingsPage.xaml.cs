@@ -59,6 +59,10 @@ public sealed partial class SettingsPage : Page
         StartAtSignIn.IsEnabled = _startupEditable;
         AutoCopy.IsOn = settings.AutoCopy;
         WindowShadow.IsOn = settings.WindowShadow;
+        VideoSystemAudio.IsOn = settings.VideoCaptureSystemAudio;
+        VideoMicrophone.IsOn = settings.VideoCaptureMicrophone;
+        VideoCursor.IsOn = settings.VideoCaptureCursor;
+        VideoFrameRatePicker.SelectedIndex = settings.VideoFrameRate == 60 ? 1 : 0;
         PrintScreenEnabled.IsOn = settings.PrintScreenEnabled;
         PrintScreenEnabled.IsEnabled = _printScreenEditable;
         PrintScreenModePicker.SelectedIndex = settings.PrintScreenMode switch
@@ -411,6 +415,10 @@ public sealed partial class SettingsPage : Page
         StartAtSignIn.IsEnabled = _startupEditable;
         PrintScreenEnabled.IsEnabled = !saving && _printScreenEditable;
         PrintScreenModePicker.IsEnabled = !saving && _printScreenEditable && PrintScreenEnabled.IsOn;
+        VideoSystemAudio.IsEnabled = !saving;
+        VideoMicrophone.IsEnabled = !saving;
+        VideoCursor.IsEnabled = !saving;
+        VideoFrameRatePicker.IsEnabled = !saving;
         CameraSourcePicker.IsEnabled = !saving && _cameraSourcesLoaded && _availableCameraSourceCount > 0;
         TakeCameraPhotoButton.IsEnabled = !saving && _cameraSourcesLoaded && _availableCameraSourceCount > 0;
     }
@@ -432,6 +440,8 @@ public sealed partial class SettingsPage : Page
     private void ThemePicker_Changed(object sender, SelectionChangedEventArgs args) => SaveChangedPreferences();
 
     private void PrintScreenModePicker_Changed(object sender, SelectionChangedEventArgs args) => SaveChangedPreferences();
+
+    private void VideoFrameRatePicker_Changed(object sender, SelectionChangedEventArgs args) => SaveChangedPreferences();
 
     private void CameraSourcePicker_Changed(object sender, SelectionChangedEventArgs args)
     {
@@ -482,6 +492,10 @@ public sealed partial class SettingsPage : Page
             StartAtSignIn.IsOn = _savedSettings.StartOnLogin;
             AutoCopy.IsOn = _savedSettings.AutoCopy;
             WindowShadow.IsOn = _savedSettings.WindowShadow;
+            VideoSystemAudio.IsOn = _savedSettings.VideoCaptureSystemAudio;
+            VideoMicrophone.IsOn = _savedSettings.VideoCaptureMicrophone;
+            VideoCursor.IsOn = _savedSettings.VideoCaptureCursor;
+            VideoFrameRatePicker.SelectedIndex = _savedSettings.VideoFrameRate == 60 ? 1 : 0;
             PrintScreenEnabled.IsOn = _savedSettings.PrintScreenEnabled;
             PrintScreenModePicker.SelectedIndex = _savedSettings.PrintScreenMode switch
             {
@@ -515,6 +529,11 @@ public sealed partial class SettingsPage : Page
             StartOnLogin = StartAtSignIn.IsOn,
             AutoCopy = AutoCopy.IsOn,
             WindowShadow = WindowShadow.IsOn,
+            VideoCaptureSystemAudio = VideoSystemAudio.IsOn,
+            VideoCaptureMicrophone = VideoMicrophone.IsOn,
+            VideoCaptureCursor = VideoCursor.IsOn,
+            VideoFrameRate = VideoFrameRatePicker.SelectedIndex == 1 ? 60 : 30,
+            VideoMicrophoneSourceId = _savedSettings.VideoMicrophoneSourceId,
             PrintScreenEnabled = PrintScreenEnabled.IsOn,
             PrintScreenMode = PrintScreenModePicker.SelectedIndex switch
             {
