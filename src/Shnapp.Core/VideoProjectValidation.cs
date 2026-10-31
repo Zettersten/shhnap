@@ -42,6 +42,11 @@ internal static class VideoProjectValidation
             Require(asset is not null && asset.Id != Guid.Empty && Enum.IsDefined(asset.Kind),
                 "A video asset is invalid.");
             Require(assets.TryAdd(asset.Id, asset), "Video asset identifiers must be unique.");
+            Require(asset.DisplayName is null ||
+                (asset.DisplayName.Length is > 0 and <= ShnappTitles.MaximumLength &&
+                 asset.DisplayName == asset.DisplayName.Trim() &&
+                 !asset.DisplayName.Any(char.IsControl)),
+                "An imported media name must be short and readable.");
             ValidateRelativePath(asset.RelativePath);
             Require(paths.Add(asset.RelativePath), "Video asset paths must be unique.");
             string extension = Path.GetExtension(asset.RelativePath);

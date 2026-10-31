@@ -215,6 +215,7 @@ public sealed partial class VideoEditorPage
                 FileShare.Read, bufferSize: 65536, FileOptions.Asynchronous);
             VideoAsset asset = await _store.ImportAssetAsync(current,
                 VideoAssetKind.ImportedAudio, file.FileType, source, sourceDuration);
+            asset = asset with { DisplayName = SafeMediaName(file.Name) };
             if (_closed) return;
             _editor.AddAsset(asset);
             var clip = new AudioSegment(Guid.NewGuid(), asset.Id, start,
@@ -243,6 +244,13 @@ public sealed partial class VideoEditorPage
         await stream.WriteAsync(buffer);
         stream.Seek(0);
         return stream;
+    }
+
+    private static string SafeMediaName(string name)
+    {
+        string readable = new(name.Select(character => char.IsControl(character) ? ' ' : character).ToArray());
+        string trimmed = readable[..Math.Min(readable.Length, ShnappTitles.MaximumLength)].Trim();
+        return trimmed.Length == 0 ? "Added audio" : trimmed;
     }
 
     private static async Task<(byte[] Bytes, uint Width, uint Height)> NormalizePngAsync(

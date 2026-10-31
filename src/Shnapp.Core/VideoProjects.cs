@@ -18,7 +18,11 @@ public enum VideoAssetKind
 /// <param name="Kind">The media's role.</param>
 /// <param name="RelativePath">Path beneath the project directory, using forward slashes.</param>
 /// <param name="Duration">Source duration; zero for still images.</param>
-public sealed record VideoAsset(Guid Id, VideoAssetKind Kind, string RelativePath, TimeSpan Duration);
+public sealed record VideoAsset(Guid Id, VideoAssetKind Kind, string RelativePath, TimeSpan Duration)
+{
+    /// <summary>Optional original file name shown for imported media; old projects may omit it.</summary>
+    public string? DisplayName { get; init; }
+}
 
 /// <summary>A source-video interval placed on the primary video lane.</summary>
 /// <param name="Id">Stable timeline identifier.</param>

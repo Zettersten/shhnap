@@ -217,6 +217,13 @@ public sealed class VideoProjectStoreTests
         editor.AddImageOverlay(new ImageOverlay(Guid.NewGuid(), imported.Id,
             TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3),
             new VideoRect(10, 20, 200, 100), 1));
+        await using var audioSource = new MemoryStream([21, 22, 23]);
+        VideoAsset audioAsset = await store.ImportAssetAsync(editor.Current,
+            VideoAssetKind.ImportedAudio, ".wav", audioSource, TimeSpan.FromSeconds(2));
+        audioAsset = audioAsset with { DisplayName = "Narration.wav" };
+        editor.AddAsset(audioAsset);
+        editor.AddAudioSegment(new AudioSegment(Guid.NewGuid(), audioAsset.Id,
+            TimeSpan.Zero, TimeSpan.Zero, TimeSpan.FromSeconds(2)));
         await store.SaveAsync(editor.Current);
 
         VideoProject reopened = await store.OpenAsync(project.Id);
@@ -232,6 +239,7 @@ public sealed class VideoProjectStoreTests
         CollectionAssert.AreEqual(editor.Current.AudioSegments.ToArray(), reopened.AudioSegments.ToArray());
         CollectionAssert.AreEqual(editor.Current.ImageOverlays.ToArray(), reopened.ImageOverlays.ToArray());
         Assert.AreEqual(1, reopened.ImageOverlays.Length);
+        Assert.AreEqual("Narration.wav", reopened.Assets.Single(asset => asset.Id == audioAsset.Id).DisplayName);
         IReadOnlyList<VideoProjectSummary> listed = await store.ListAsync();
         Assert.AreEqual(1, listed.Count);
         Assert.AreEqual(project.Id, listed[0].Id);

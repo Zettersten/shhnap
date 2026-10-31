@@ -90,7 +90,7 @@ public sealed partial class VideoEditorPage
             {
                 VideoAssetKind.ComputerAudio => "Computer sound",
                 VideoAssetKind.MicrophoneAudio => "Microphone",
-                _ => System.IO.Path.GetFileName(asset.RelativePath),
+                _ => asset.DisplayName ?? "Added audio",
             };
             AddTimelineClip(segment.Id, TimelineKind.Audio, lane,
                 segment.Start, segment.Duration,
@@ -193,8 +193,8 @@ public sealed partial class VideoEditorPage
             image is not null ? "Image overlay" : "Audio clip";
         TimeSpan start = video?.Start ?? audio?.Start ?? image!.Start;
         TimeSpan duration = video?.Duration ?? audio?.Duration ?? image!.Duration;
-        SelectedItemDetail.Text = $"{FormatTime(start)} — {FormatTime(start + duration)}";
-        SelectionHint.Text = $"{SelectedItemTitle.Text} · {FormatTime(duration)}";
+        SelectedItemDetail.Text = $"{FormatPreciseTime(start)} — {FormatPreciseTime(start + duration)}";
+        SelectionHint.Text = $"{SelectedItemTitle.Text} · {FormatPreciseTime(duration)}";
         ClipStartSeconds.Value = start.TotalSeconds;
         if (video is not null || audio is not null)
         {
@@ -343,13 +343,13 @@ public sealed partial class VideoEditorPage
     private void MarkIn_Click(object sender, RoutedEventArgs args)
     {
         _markIn = _playhead;
-        SelectionHint.Text = $"In {FormatTime(_playhead)}";
+        SelectionHint.Text = $"In {FormatPreciseTime(_playhead)}";
     }
 
     private void MarkOut_Click(object sender, RoutedEventArgs args)
     {
         _markOut = _playhead;
-        SelectionHint.Text = $"Out {FormatTime(_playhead)}";
+        SelectionHint.Text = $"Out {FormatPreciseTime(_playhead)}";
     }
 
     private void CutRange_Click(object sender, RoutedEventArgs args)
