@@ -5,7 +5,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    SizeChanged="Page_SizeChanged"
+    xmlns:local="using:Shnapp.App"
     Unloaded="Page_Unloaded">
     <Page.KeyboardAccelerators>
         <KeyboardAccelerator Key="V" Modifiers="Control" Invoked="Paste_Invoked" />
@@ -20,64 +20,75 @@
     <Grid Background="{ThemeResource ShnappCanvasBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="36" />
-            <RowDefinition Height="40" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="44" />
+            <RowDefinition Height="36" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="28" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="1" Padding="16,0" ColumnSpacing="10"
-            Background="{ThemeResource ShnappImageChromeBrush}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons" FontSize="14" />
-                <TextBlock Text="Video editor" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <TextBlock x:Name="ProjectTitleText" FontSize="11" VerticalAlignment="Center"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" MaxWidth="320"
-                    TextTrimming="CharacterEllipsis" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4"
-                VerticalAlignment="Center">
-                <Button Padding="10,4" Click="AddImage_Click"
-                    ToolTipService.ToolTip="Paste an image or choose one from your library">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xEB9F;" FontFamily="Segoe Fluent Icons" FontSize="12" />
-                        <TextBlock Text="Add image" FontSize="11" />
-                    </StackPanel>
-                </Button>
-                <Button Padding="10,4" Click="AddAudio_Click"
-                    ToolTipService.ToolTip="Add an audio track">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE189;" FontFamily="Segoe Fluent Icons" FontSize="12" />
-                        <TextBlock Text="Add audio" FontSize="11" />
-                    </StackPanel>
-                </Button>
-                <Button Padding="10,4" Click="Export_Click"
-                    ToolTipService.ToolTip="Export MP4 · Ctrl+E">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE74E;" FontFamily="Segoe Fluent Icons" FontSize="12" />
-                        <TextBlock Text="Export" FontSize="11" />
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-        </Grid>
-
-        <Grid Grid.Row="2" Background="#080F1C">
+        <Grid Grid.Row="1" Background="#080F1C">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup>
+                    <VisualState x:Name="CompactVideoPreview">
+                        <VisualState.StateTriggers>
+                            <AdaptiveTrigger MinWindowWidth="0" />
+                        </VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Target="GalleryPanel.Width" Value="192" />
+                            <Setter Target="InspectorPanel.Width" Value="192" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="WideVideoPreview">
+                        <VisualState.StateTriggers>
+                            <AdaptiveTrigger MinWindowWidth="800" />
+                        </VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Target="GalleryPanel.Width" Value="244" />
+                            <Setter Target="InspectorPanel.Width" Value="244" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
             <MediaPlayerElement x:Name="VideoPlayer" AutoPlay="False"
                 AreTransportControlsEnabled="False" Stretch="Uniform"
                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
             <ProgressRing x:Name="PreviewProgress" IsActive="False"
                 HorizontalAlignment="Center" VerticalAlignment="Center" Width="32" Height="32" />
+            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"
+                Padding="2" CornerRadius="8" Background="{ThemeResource ShnappImageChromeBrush}"
+                BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}" BorderThickness="1">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <local:ToolbarActionButton Width="28" Height="28" MinWidth="0" Padding="0"
+                        CornerRadius="6" Background="Transparent" BorderThickness="0"
+                        Click="AddImage_Click" AutomationProperties.Name="Add image to video"
+                        ToolTipService.ToolTip="Add image from the library, or paste with Ctrl+V">
+                        <FontIcon Glyph="&#xE91B;" FontFamily="Segoe Fluent Icons"
+                            FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <local:ToolbarActionButton Width="28" Height="28" MinWidth="0" Padding="0"
+                        CornerRadius="6" Background="Transparent" BorderThickness="0"
+                        Click="AddAudio_Click" AutomationProperties.Name="Add audio track"
+                        ToolTipService.ToolTip="Add an audio track">
+                        <FontIcon Glyph="&#xE8D6;" FontFamily="Segoe Fluent Icons"
+                            FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <Border Width="1" Height="16" Margin="2,0" VerticalAlignment="Center"
+                        Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
+                    <local:ToolbarActionButton Width="28" Height="28" MinWidth="0" Padding="0"
+                        CornerRadius="6" Background="Transparent" BorderThickness="0"
+                        Click="Export_Click" AutomationProperties.Name="Export video as MP4"
+                        ToolTipService.ToolTip="Export MP4 · Ctrl+E">
+                        <FontIcon Glyph="&#xEDE1;" FontFamily="Segoe Fluent Icons"
+                            FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                </StackPanel>
+            </Border>
             <Border x:Name="GalleryHotspot" Width="24" Height="84" CornerRadius="0,8,8,0"
                 Background="{ThemeResource ShnappImagePanelBrush}"
                 HorizontalAlignment="Left" VerticalAlignment="Center"
                 PointerEntered="GalleryHotspot_PointerEntered"
                 ToolTipService.ToolTip="Recent images">
-                <FontIcon Glyph="&#xEB9F;" FontFamily="Segoe Fluent Icons" FontSize="12"
+                <FontIcon Glyph="&#xE91B;" FontFamily="Segoe Fluent Icons" FontSize="12"
                     HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <Border x:Name="GalleryPanel" Visibility="Collapsed" Width="244"
@@ -94,10 +105,14 @@
                     <Grid>
                         <TextBlock Text="Recent images" FontSize="13" FontWeight="SemiBold"
                             VerticalAlignment="Center" />
-                        <Button Content="&#xE8BB;" FontFamily="Segoe Fluent Icons"
-                            HorizontalAlignment="Right" Width="26" Height="26" Padding="0"
+                        <local:ToolbarActionButton HorizontalAlignment="Right" Width="28" Height="28"
+                            MinWidth="0" Padding="0" CornerRadius="6"
                             Background="Transparent" BorderThickness="0"
-                            Click="CloseGallery_Click" AutomationProperties.Name="Close gallery" />
+                            Click="CloseGallery_Click" AutomationProperties.Name="Close recent images"
+                            ToolTipService.ToolTip="Close recent images">
+                            <FontIcon Glyph="&#xE8BB;" FontFamily="Segoe Fluent Icons"
+                                FontSize="12" Width="12" Height="12" />
+                        </local:ToolbarActionButton>
                     </Grid>
                     <ScrollViewer Grid.Row="1" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto">
                         <StackPanel x:Name="GalleryItemsHost" Spacing="6" />
@@ -117,15 +132,20 @@
                     </Grid.RowDefinitions>
                     <Grid>
                         <TextBlock x:Name="SelectedItemTitle" Text="Clip" FontSize="13"
-                            FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <Button Content="&#xE8BB;" FontFamily="Segoe Fluent Icons"
-                            HorizontalAlignment="Right" Width="26" Height="26" Padding="0"
+                            FontWeight="SemiBold" VerticalAlignment="Center"
+                            MaxWidth="132" TextTrimming="CharacterEllipsis" />
+                        <local:ToolbarActionButton HorizontalAlignment="Right" Width="28" Height="28"
+                            MinWidth="0" Padding="0" CornerRadius="6"
                             Background="Transparent" BorderThickness="0"
-                            Click="CloseInspector_Click" AutomationProperties.Name="Close clip properties" />
+                            Click="CloseInspector_Click" AutomationProperties.Name="Close clip properties"
+                            ToolTipService.ToolTip="Close clip properties">
+                            <FontIcon Glyph="&#xE8BB;" FontFamily="Segoe Fluent Icons"
+                                FontSize="12" Width="12" Height="12" />
+                        </local:ToolbarActionButton>
                     </Grid>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
                         <StackPanel Spacing="7">
-                            <TextBlock x:Name="SelectedItemDetail" FontSize="10"
+                            <TextBlock x:Name="SelectedItemDetail" FontSize="10" TextWrapping="WrapWholeWords"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <NumberBox x:Name="ClipStartSeconds" Header="Start · seconds"
                                 Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11" />
@@ -154,17 +174,34 @@
                                 <NumberBox x:Name="OverlayHeight" Header="Height · pixels"
                                     Minimum="1" SpinButtonPlacementMode="Compact" FontSize="11" />
                             </StackPanel>
-                            <Button Content="Apply" Click="ApplyProperties_Click"
-                                HorizontalAlignment="Stretch" />
-                            <Button Content="Remove clip" Click="DeleteSelected_Click"
-                                HorizontalAlignment="Stretch" />
+                            <StackPanel Orientation="Horizontal" Spacing="4"
+                                HorizontalAlignment="Right">
+                                <local:ToolbarActionButton x:Name="ApplyPropertiesButton"
+                                    Width="28" Height="28" MinWidth="0"
+                                    Padding="0" CornerRadius="6" Background="Transparent"
+                                    BorderThickness="0" Click="ApplyProperties_Click"
+                                    AutomationProperties.Name="Apply clip properties"
+                                    ToolTipService.ToolTip="Apply clip properties">
+                                    <FontIcon Glyph="&#xE73E;" FontFamily="Segoe Fluent Icons"
+                                        FontSize="12" Width="12" Height="12" />
+                                </local:ToolbarActionButton>
+                                <local:ToolbarActionButton x:Name="DeleteClipButton"
+                                    Width="28" Height="28" MinWidth="0" Padding="0"
+                                    CornerRadius="6" Background="Transparent" BorderThickness="0"
+                                    Click="DeleteSelected_Click"
+                                    AutomationProperties.Name="Remove selected clip"
+                                    ToolTipService.ToolTip="Remove selected clip">
+                                    <FontIcon Glyph="&#xE74D;" FontFamily="Segoe Fluent Icons"
+                                        FontSize="12" Width="12" Height="12" />
+                                </local:ToolbarActionButton>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
             </Border>
         </Grid>
 
-        <Grid Grid.Row="3" Padding="14,0" ColumnSpacing="10"
+        <Grid Grid.Row="2" Padding="12,0" ColumnSpacing="8"
             Background="{ThemeResource ShnappImageChromeBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -172,12 +209,14 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Button x:Name="PlayPauseButton" Width="30" Height="30" Padding="0"
-                Background="Transparent" BorderThickness="0" Click="PlayPause_Click"
-                AutomationProperties.Name="Play or pause video">
+            <local:ToolbarActionButton x:Name="PlayPauseButton" Width="28" Height="28"
+                MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                BorderThickness="0" Click="PlayPause_Click"
+                AutomationProperties.Name="Play or pause video"
+                ToolTipService.ToolTip="Play or pause video">
                 <FontIcon x:Name="PlayPauseIcon" Glyph="&#xE768;" FontFamily="Segoe Fluent Icons"
-                    FontSize="14" />
-            </Button>
+                    FontSize="12" Width="12" Height="12" />
+            </local:ToolbarActionButton>
             <TextBlock x:Name="CurrentTimeText" Grid.Column="1" Text="00:00"
                 FontSize="11" VerticalAlignment="Center" MinWidth="46" />
             <Slider x:Name="TransportSlider" Grid.Column="2" Minimum="0" Maximum="1"
@@ -189,10 +228,10 @@
                 TextAlignment="Right" />
         </Grid>
 
-        <Grid x:Name="TimelinePanel" Grid.Row="4" Height="210"
+        <Grid x:Name="TimelinePanel" Grid.Row="3" Height="210"
             Background="{ThemeResource ShnappCanvasBrush}">
             <Grid.RowDefinitions>
-                <RowDefinition Height="38" />
+                <RowDefinition Height="36" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <Grid Grid.Row="0" Padding="14,0" ColumnSpacing="5">
@@ -200,28 +239,73 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Grid ColumnSpacing="8" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
                     <TextBlock Text="TIMELINE" FontSize="10" FontWeight="SemiBold"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBlock x:Name="SelectionHint" Text="Select a clip to edit"
-                        FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                </StackPanel>
+                    <TextBlock x:Name="SelectionHint" Grid.Column="1" Text="Select a clip to edit"
+                        FontSize="10" MaxWidth="240" TextTrimming="CharacterEllipsis"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Grid>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4"
                     VerticalAlignment="Center">
-                    <Button Content="In" Padding="8,3" Click="MarkIn_Click"
-                        ToolTipService.ToolTip="Mark cut range start at playhead" FontSize="11" />
-                    <Button Content="Out" Padding="8,3" Click="MarkOut_Click"
-                        ToolTipService.ToolTip="Mark cut range end at playhead" FontSize="11" />
-                    <Button Content="Cut" Padding="8,3" Click="CutRange_Click"
-                        ToolTipService.ToolTip="Cut selected audio only, or ripple all tracks when video is selected" FontSize="11" />
+                    <local:ToolbarActionButton x:Name="MarkInButton" Width="28" Height="28"
+                        MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                        BorderThickness="0" Click="MarkIn_Click"
+                        AutomationProperties.Name="Mark range start at playhead"
+                        ToolTipService.ToolTip="Mark range start at playhead">
+                        <FontIcon Glyph="&#xE7C1;" FontFamily="Segoe Fluent Icons"
+                            FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <local:ToolbarActionButton x:Name="MarkOutButton" Width="28" Height="28"
+                        MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                        BorderThickness="0" Click="MarkOut_Click"
+                        AutomationProperties.Name="Mark range end at playhead"
+                        ToolTipService.ToolTip="Mark range end at playhead">
+                        <FontIcon Glyph="&#xE7C1;" FontFamily="Segoe Fluent Icons"
+                            FontSize="12" Width="12" Height="12" RenderTransformOrigin="0.5,0.5">
+                            <FontIcon.RenderTransform><ScaleTransform ScaleX="-1" /></FontIcon.RenderTransform>
+                        </FontIcon>
+                    </local:ToolbarActionButton>
+                    <local:ToolbarActionButton x:Name="CutRangeButton" Width="28" Height="28"
+                        MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                        BorderThickness="0" Click="CutRange_Click"
+                        AutomationProperties.Name="Remove marked range"
+                        ToolTipService.ToolTip="Remove marked range · Audio removes only that track; video ripples all tracks">
+                        <FontIcon Glyph="&#xE74D;" FontFamily="Segoe Fluent Icons"
+                            FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
                     <Border Width="1" Height="16" Margin="4,0"
                         Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
-                    <Button Content="Split" Padding="8,3" Click="Split_Click"
-                        ToolTipService.ToolTip="Split selected clip at playhead" FontSize="11" />
-                    <Button Content="Trim left" Padding="8,3" Click="TrimLeft_Click"
-                        ToolTipService.ToolTip="Trim selected clip to playhead" FontSize="11" />
-                    <Button Content="Trim right" Padding="8,3" Click="TrimRight_Click"
-                        ToolTipService.ToolTip="Trim selected clip from playhead" FontSize="11" />
+                    <local:ToolbarActionButton x:Name="SplitButton" Width="28" Height="28"
+                        MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                        BorderThickness="0" Click="Split_Click"
+                        AutomationProperties.Name="Split selected clip at playhead"
+                        ToolTipService.ToolTip="Split selected clip at playhead">
+                        <FontIcon Glyph="&#xE8C6;" FontFamily="Segoe Fluent Icons"
+                            FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <local:ToolbarActionButton x:Name="TrimLeftButton" Width="28" Height="28"
+                        MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                        BorderThickness="0" Click="TrimLeft_Click"
+                        AutomationProperties.Name="Trim selected clip start to playhead"
+                        ToolTipService.ToolTip="Trim clip start to playhead">
+                        <FontIcon Glyph="&#xE78A;" FontFamily="Segoe Fluent Icons"
+                            FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <local:ToolbarActionButton x:Name="TrimRightButton" Width="28" Height="28"
+                        MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                        BorderThickness="0" Click="TrimRight_Click"
+                        AutomationProperties.Name="Trim selected clip end to playhead"
+                        ToolTipService.ToolTip="Trim clip end to playhead">
+                        <FontIcon Glyph="&#xE78A;" FontFamily="Segoe Fluent Icons"
+                            FontSize="12" Width="12" Height="12" RenderTransformOrigin="0.5,0.5">
+                            <FontIcon.RenderTransform><ScaleTransform ScaleX="-1" /></FontIcon.RenderTransform>
+                        </FontIcon>
+                    </local:ToolbarActionButton>
                 </StackPanel>
             </Grid>
             <Grid Grid.Row="1" ColumnSpacing="0">
@@ -238,21 +322,33 @@
                     <TextBlock Text="Added audio" Height="28" FontSize="10" VerticalAlignment="Center" />
                 </StackPanel>
                 <ScrollViewer x:Name="TimelineScroll" Grid.Column="1"
+                    SizeChanged="TimelineScroll_SizeChanged" ViewChanged="TimelineScroll_ViewChanged"
                     HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                     HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
-                    <Grid x:Name="TimelineContent" Height="164" PointerPressed="Timeline_PointerPressed">
+                    <Grid x:Name="TimelineContent" Height="164" PointerPressed="Timeline_PointerPressed"
+                        PointerMoved="Timeline_PointerMoved" PointerReleased="Timeline_PointerReleased"
+                        PointerCaptureLost="Timeline_PointerCaptureLost">
                         <Canvas x:Name="TimelineCanvas" Height="164" />
                     </Grid>
                 </ScrollViewer>
             </Grid>
         </Grid>
 
-        <Grid Grid.Row="5" Height="28" Padding="10,0"
+        <Grid Grid.Row="4" Height="28" Padding="10,0"
             Background="{ThemeResource ShnappImageChromeBrush}">
-            <TextBlock x:Name="MetadataText" FontSize="10" VerticalAlignment="Center"
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="ProjectTitleText" MaxWidth="160" FontSize="10"
+                FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="MetadataText" Grid.Column="1" Margin="10,0,0,0"
+                FontSize="10" VerticalAlignment="Center"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            <TextBlock x:Name="StatusText" FontSize="10" VerticalAlignment="Center"
-                HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"
+            <TextBlock x:Name="StatusText" Grid.Column="2" Margin="10,0,0,0"
+                FontSize="10" VerticalAlignment="Center" TextAlignment="Right"
+                TextTrimming="CharacterEllipsis"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </Grid>
     </Grid>
