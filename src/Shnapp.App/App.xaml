@@ -19,7 +19,7 @@
                     <SolidColorBrush x:Key="ShnappOnBlueBrush" Color="White" />
                     <AcrylicBrush x:Key="ShnappChromeBrush" TintColor="#F0F5FC" TintOpacity="0.82" FallbackColor="#F0F5FC" />
                     <AcrylicBrush x:Key="ShnappToolbarBrush" TintColor="#DDEBFF" TintOpacity="0.72" FallbackColor="#E4F0FC" />
-                    <AcrylicBrush x:Key="ShnappImageChromeBrush" TintColor="#F0F5FC" TintOpacity="0.82" FallbackColor="#F0F5FC" Opacity="0.78" />
+                    <AcrylicBrush x:Key="ShnappImageChromeBrush" TintColor="#F0F5FC" TintOpacity="0.72" TintLuminosityOpacity="0.55" FallbackColor="#F0F5FC" />
                     <AcrylicBrush x:Key="ShnappImagePanelBrush" TintColor="#DDEBFF" TintOpacity="0.76" FallbackColor="#E4F0FC" Opacity="0.90" />
                     <AcrylicBrush x:Key="ShnappInspectorAcrylicBrush" TintColor="#DDEBFF" TintOpacity="0.55"
                         TintLuminosityOpacity="0.55" FallbackColor="#E4F0FC" />
@@ -38,7 +38,7 @@
                     <SolidColorBrush x:Key="ShnappOnBlueBrush" Color="White" />
                     <AcrylicBrush x:Key="ShnappChromeBrush" TintColor="#101C36" TintOpacity="0.82" FallbackColor="#101C36" />
                     <AcrylicBrush x:Key="ShnappToolbarBrush" TintColor="#2A4F80" TintOpacity="0.68" FallbackColor="#1C365B" />
-                    <AcrylicBrush x:Key="ShnappImageChromeBrush" TintColor="#101C36" TintOpacity="0.76" FallbackColor="#101C36" Opacity="0.68" />
+                    <AcrylicBrush x:Key="ShnappImageChromeBrush" TintColor="#101C36" TintOpacity="0.70" TintLuminosityOpacity="0.50" FallbackColor="#101C36" />
                     <AcrylicBrush x:Key="ShnappImagePanelBrush" TintColor="#2A4F80" TintOpacity="0.72" FallbackColor="#1C365B" Opacity="0.86" />
                     <AcrylicBrush x:Key="ShnappInspectorAcrylicBrush" TintColor="#203D65" TintOpacity="0.52"
                         TintLuminosityOpacity="0.45" FallbackColor="#1C365B" />
