@@ -451,14 +451,14 @@ internal sealed class VideoRecordingSession
             return;
         }
 
-        bool validMp4;
-        try { validMp4 = HasMp4Structure(_videoPath); }
+        TimeSpan? mp4Duration;
+        try { mp4Duration = ProbeMp4Duration(_videoPath); }
         catch (Exception error)
         {
             failure = error;
-            validMp4 = false;
+            mp4Duration = null;
         }
-        if (!validMp4)
+        if (mp4Duration is null)
         {
             DeletePartialFiles();
             var error = failure ?? new IOException("The video encoder did not produce a complete MP4 file.");
@@ -469,7 +469,7 @@ internal sealed class VideoRecordingSession
         }
         lock (_gate) { _state = VideoRecordingState.Completed; }
         var result = new VideoRecordingResult(_videoPath, _systemAudioPath, _microphoneAudioPath,
-            _startedAt, duration, _width, _height);
+            _startedAt, mp4Duration.Value, _width, _height);
         Publish(VideoRecordingState.Completed);
         _completion.TrySetResult(result);
     }
@@ -488,43 +488,92 @@ internal sealed class VideoRecordingSession
         }
     }
 
-    private static bool HasMp4Structure(string path)
+    private static TimeSpan? ProbeMp4Duration(string path)
     {
         if (!File.Exists(path))
         {
-            return false;
+            return null;
         }
         using var file = File.OpenRead(path);
         bool hasType = false;
         bool hasMovie = false;
         bool hasMedia = false;
-        Span<byte> header = stackalloc byte[16];
-        while (file.Position <= file.Length - 8)
+        TimeSpan? duration = null;
+        while (TryReadBox(file, file.Length, out uint type, out long boxEnd))
         {
-            file.ReadExactly(header[..8]);
-            ulong size = BinaryPrimitives.ReadUInt32BigEndian(header[..4]);
-            uint type = BinaryPrimitives.ReadUInt32BigEndian(header[4..8]);
-            int headerSize = 8;
-            if (size == 1)
-            {
-                file.ReadExactly(header[..8]);
-                size = BinaryPrimitives.ReadUInt64BigEndian(header[..8]);
-                headerSize = 16;
-            }
-            else if (size == 0)
-            {
-                size = (ulong)(file.Length - file.Position + headerSize);
-            }
-            if (size < (ulong)headerSize || size - (ulong)headerSize > (ulong)(file.Length - file.Position))
-            {
-                return false;
-            }
             hasType |= type == 0x66747970; // ftyp
-            hasMovie |= type == 0x6d6f6f76; // moov
+            if (type == 0x6d6f6f76) // moov
+            {
+                hasMovie = true;
+                duration = ReadMovieDuration(file, boxEnd);
+            }
             hasMedia |= type == 0x6d646174; // mdat
-            file.Position += (long)size - headerSize;
+            file.Position = boxEnd;
         }
-        return hasType && hasMovie && hasMedia;
+        return hasType && hasMovie && hasMedia && duration > TimeSpan.Zero ? duration : null;
+    }
+
+    private static TimeSpan? ReadMovieDuration(FileStream file, long movieEnd)
+    {
+        while (TryReadBox(file, movieEnd, out uint type, out long boxEnd))
+        {
+            if (type == 0x6d766864) // mvhd
+            {
+                Span<byte> body = stackalloc byte[32];
+                int needed = file.ReadByte() == 1 ? 31 : 19;
+                if (file.Position + needed > boxEnd)
+                {
+                    return null;
+                }
+                file.ReadExactly(body[..needed]);
+                bool versionOne = needed == 31;
+                uint scale = BinaryPrimitives.ReadUInt32BigEndian(
+                    body.Slice(versionOne ? 19 : 11, 4));
+                ulong units = versionOne
+                    ? BinaryPrimitives.ReadUInt64BigEndian(body.Slice(23, 8))
+                    : BinaryPrimitives.ReadUInt32BigEndian(body.Slice(15, 4));
+                if (scale == 0 || units == 0)
+                {
+                    return null;
+                }
+                Int128 ticks = (Int128)units * TimeSpan.TicksPerSecond / scale;
+                return ticks > 0 && ticks <= long.MaxValue ? TimeSpan.FromTicks((long)ticks) : null;
+            }
+            file.Position = boxEnd;
+        }
+        return null;
+    }
+
+    private static bool TryReadBox(FileStream file, long limit, out uint type, out long boxEnd)
+    {
+        type = 0;
+        boxEnd = 0;
+        long start = file.Position;
+        if (start > limit - 8)
+        {
+            return false;
+        }
+        Span<byte> header = stackalloc byte[8];
+        file.ReadExactly(header);
+        ulong size = BinaryPrimitives.ReadUInt32BigEndian(header[..4]);
+        type = BinaryPrimitives.ReadUInt32BigEndian(header[4..]);
+        int headerSize = 8;
+        if (size == 1)
+        {
+            file.ReadExactly(header);
+            size = BinaryPrimitives.ReadUInt64BigEndian(header);
+            headerSize = 16;
+        }
+        else if (size == 0)
+        {
+            size = (ulong)(limit - start);
+        }
+        if (size < (ulong)headerSize || size > (ulong)(limit - start))
+        {
+            return false;
+        }
+        boxEnd = start + (long)size;
+        return true;
     }
 
     private void Publish(VideoRecordingState state, Exception? error = null)
