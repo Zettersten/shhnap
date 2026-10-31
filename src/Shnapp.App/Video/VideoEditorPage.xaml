@@ -295,8 +295,8 @@
                     <local:ToolbarActionButton x:Name="CutRangeButton" Width="28" Height="28"
                         MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
                         BorderThickness="0" Click="CutRange_Click"
-                        AutomationProperties.Name="Remove marked range"
-                        ToolTipService.ToolTip="Remove marked range · Audio removes only that track; video ripples all tracks">
+                        AutomationProperties.Name="Cut marked range from selected audio or image, or all tracks"
+                        ToolTipService.ToolTip="Cut marked range · Selected audio or image only; video or no selection ripples all tracks">
                         <FontIcon Glyph="&#xE74D;" FontFamily="Segoe Fluent Icons"
                             FontSize="12" Width="12" Height="12" />
                     </local:ToolbarActionButton>
