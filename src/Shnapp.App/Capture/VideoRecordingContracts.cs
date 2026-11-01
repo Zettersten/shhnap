@@ -20,7 +20,9 @@ internal sealed record VideoCaptureOptions(
     bool CaptureCursor,
     bool CaptureSystemAudio,
     bool CaptureMicrophone,
-    string? MicrophoneSourceId);
+    string? MicrophoneSourceId,
+    bool CaptureCamera,
+    string? CameraSourceId);
 
 internal sealed record VideoRecordingResult(
     string VideoPath,
@@ -29,7 +31,11 @@ internal sealed record VideoRecordingResult(
     DateTimeOffset StartedAt,
     TimeSpan Duration,
     int PixelWidth,
-    int PixelHeight);
+    int PixelHeight,
+    string? CameraVideoPath,
+    TimeSpan CameraStart,
+    TimeSpan CameraDuration,
+    string? CameraWarning);
 
 internal enum VideoRecordingState
 {

@@ -15,6 +15,7 @@ internal sealed class VideoRecordingSession
     private readonly string _videoPath;
     private readonly string? _systemAudioPath;
     private readonly string? _microphoneAudioPath;
+    private readonly string? _cameraVideoPath;
     private readonly int _width;
     private readonly int _height;
     private readonly VideoCaptureOptions _options;
@@ -26,9 +27,12 @@ internal sealed class VideoRecordingSession
     private readonly TaskCompletionSource<VideoRecordingResult> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private VideoAudioStem? _systemAudio;
     private VideoAudioStem? _microphoneAudio;
+    private CameraVideoRecording? _cameraVideo;
+    private Task? _cameraStopTask;
     private VideoRecordingState _state = VideoRecordingState.Starting;
     private DateTimeOffset _startedAt;
     private long _startQpc;
+    private long _cameraStartQpc;
     private long _pauseStartQpc;
     private long _lastResumeQpc;
     private long _pausedQpc;
@@ -37,6 +41,7 @@ internal sealed class VideoRecordingSession
     private bool _recordRequested;
     private bool _cancelRequested;
     private Exception? _audioError;
+    private Exception? _cameraError;
     private int _finalizeWatchdogArmed;
 
     internal VideoRecordingSession(
@@ -53,6 +58,8 @@ internal sealed class VideoRecordingSession
             Path.GetDirectoryName(videoPath)!, Path.GetFileNameWithoutExtension(videoPath) + ".system.wav") : null;
         _microphoneAudioPath = options.CaptureMicrophone ? Path.Combine(
             Path.GetDirectoryName(videoPath)!, Path.GetFileNameWithoutExtension(videoPath) + ".microphone.wav") : null;
+        _cameraVideoPath = options.CaptureCamera ? Path.Combine(
+            Path.GetDirectoryName(videoPath)!, Path.GetFileNameWithoutExtension(videoPath) + ".camera.mp4") : null;
         _width = width;
         _height = height;
         _options = options;
@@ -107,6 +114,12 @@ internal sealed class VideoRecordingSession
                 _microphoneAudio = new VideoAudioStem(_microphoneAudioPath, loopback: false,
                     _options.MicrophoneSourceId, MapAudioPacket, OnAudioFailure);
             }
+            if (_cameraVideoPath is not null)
+            {
+                _cameraVideo = await CameraVideoRecording.PrepareAsync(_cameraVideoPath,
+                    _options.CameraSourceId, cancellationToken);
+                _cameraVideo.Failed += OnCameraFailure;
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
             _recordRequested = true;
@@ -123,6 +136,11 @@ internal sealed class VideoRecordingSession
             cancellationToken.ThrowIfCancellationRequested();
             _systemAudio?.Start();
             _microphoneAudio?.Start();
+            if (_cameraVideo is not null)
+            {
+                lock (_gate) { _cameraStartQpc = NowQpc(); }
+                await _cameraVideo.StartAsync();
+            }
         }
         catch (Exception error)
         {
@@ -143,13 +161,13 @@ internal sealed class VideoRecordingSession
         }
     }
 
-    internal Task PauseAsync()
+    internal async Task PauseAsync()
     {
         lock (_gate)
         {
             if (_state != VideoRecordingState.Recording)
             {
-                return Task.CompletedTask;
+                return;
             }
             _pauseStartQpc = NowQpc();
             _state = VideoRecordingState.Paused;
@@ -157,7 +175,6 @@ internal sealed class VideoRecordingSession
         try
         {
             _recorder.Pause();
-            Publish(VideoRecordingState.Paused);
         }
         catch
         {
@@ -168,16 +185,25 @@ internal sealed class VideoRecordingSession
             }
             throw;
         }
-        return Task.CompletedTask;
+        try
+        {
+            if (_cameraVideo is not null) await _cameraVideo.PauseAsync();
+        }
+        catch (Exception error)
+        {
+            OnCameraFailure(error);
+            throw;
+        }
+        Publish(VideoRecordingState.Paused);
     }
 
-    internal Task ResumeAsync()
+    internal async Task ResumeAsync()
     {
         lock (_gate)
         {
             if (_state != VideoRecordingState.Paused)
             {
-                return Task.CompletedTask;
+                return;
             }
             long resumed = NowQpc();
             _pausedQpc += resumed - _pauseStartQpc;
@@ -188,14 +214,22 @@ internal sealed class VideoRecordingSession
         try
         {
             _recorder.Resume();
-            Publish(VideoRecordingState.Recording);
         }
         catch
         {
             OnAudioFailure(new InvalidOperationException("Video recording could not resume."));
             throw;
         }
-        return Task.CompletedTask;
+        try
+        {
+            if (_cameraVideo is not null) await _cameraVideo.ResumeAsync();
+        }
+        catch (Exception error)
+        {
+            OnCameraFailure(error);
+            throw;
+        }
+        Publish(VideoRecordingState.Recording);
     }
 
     internal async Task<VideoRecordingResult> StopAsync()
@@ -236,6 +270,8 @@ internal sealed class VideoRecordingSession
                 _pauseStartQpc = 0;
             }
             _state = VideoRecordingState.Finishing;
+            if (_cameraVideo is not null)
+                _cameraStopTask = Task.Run(StopCameraWhenStartedAsync);
             shouldStop = _recordRequested;
         }
         Publish(VideoRecordingState.Finishing);
@@ -321,6 +357,19 @@ internal sealed class VideoRecordingSession
         _ = Task.Run(() => RequestStop(cancel: false));
     }
 
+    private void OnCameraFailure(Exception error)
+    {
+        lock (_gate) { _cameraError ??= error; }
+        _ = Task.Run(() => RequestStop(cancel: false));
+    }
+
+    private async Task StopCameraWhenStartedAsync()
+    {
+        await _audioStartDone.Task.ConfigureAwait(false);
+        if (_cameraVideo is not null)
+            await _cameraVideo.StopAsync().ConfigureAwait(false);
+    }
+
     private void ArmFinalizeWatchdog()
     {
         if (Interlocked.Exchange(ref _finalizeWatchdogArmed, 1) != 0)
@@ -376,6 +425,7 @@ internal sealed class VideoRecordingSession
     private async Task CompleteAsync()
     {
         Exception? failure = null;
+        Exception? cameraFailure = null;
         bool cancelled = false;
         TimeSpan duration = TimeSpan.Zero;
         try
@@ -429,6 +479,17 @@ internal sealed class VideoRecordingSession
             try { await _microphoneAudio.DisposeAsync().ConfigureAwait(false); }
             catch (Exception error) { failure ??= error; }
         }
+        if (_cameraVideo is not null)
+        {
+            _cameraVideo.Failed -= OnCameraFailure;
+            if (_cameraStopTask is not null)
+            {
+                try { await _cameraStopTask.ConfigureAwait(false); }
+                catch (Exception error) { cameraFailure ??= error; }
+            }
+            try { await _cameraVideo.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception error) { cameraFailure ??= error; }
+        }
         try
         {
             _recorder.OnStatusChanged -= OnStatusChanged;
@@ -471,16 +532,60 @@ internal sealed class VideoRecordingSession
             _completion.TrySetException(error);
             return;
         }
+        TimeSpan cameraDuration = TimeSpan.Zero;
+        TimeSpan cameraStart = TimeSpan.Zero;
+        string? cameraPath = _cameraVideoPath;
+        string? cameraWarning = null;
+        lock (_gate) { cameraFailure ??= _cameraError; }
+        if (cameraFailure is not null)
+        {
+            cameraWarning = "Camera video could not be added: " + cameraFailure.Message;
+            cameraPath = null;
+            if (_cameraVideoPath is not null)
+            {
+                try { File.Delete(_cameraVideoPath); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+        if (cameraPath is not null)
+        {
+            try
+            {
+                cameraDuration = ProbeMp4Duration(cameraPath) ??
+                    throw new IOException("The camera encoder did not produce a complete MP4 file.");
+                lock (_gate)
+                {
+                    cameraStart = TimeSpan.FromTicks(Math.Max(0,
+                        _cameraStartQpc - _startQpc));
+                }
+                if (cameraStart >= mp4Duration.Value)
+                    throw new IOException("The camera did not capture a frame before screen recording stopped.");
+            }
+            catch (Exception error)
+            {
+                // The screen MP4 is complete. Keep it usable if the separate camera
+                // encoder produced an unreadable or very short clip.
+                cameraWarning = "Camera video could not be added: " + error.Message;
+                string failedCameraPath = cameraPath;
+                cameraPath = null;
+                try { File.Delete(failedCameraPath); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
         lock (_gate) { _state = VideoRecordingState.Completed; }
         var result = new VideoRecordingResult(_videoPath, _systemAudioPath, _microphoneAudioPath,
-            _startedAt, mp4Duration.Value, _width, _height);
+            _startedAt, mp4Duration.Value, _width, _height,
+            cameraPath, cameraStart, cameraDuration, cameraWarning);
         Publish(VideoRecordingState.Completed);
         _completion.TrySetResult(result);
     }
 
     private void DeletePartialFiles()
     {
-        foreach (string? path in new[] { _videoPath, _systemAudioPath, _microphoneAudioPath })
+        foreach (string? path in new[] { _videoPath, _systemAudioPath,
+            _microphoneAudioPath, _cameraVideoPath })
         {
             if (path is null)
             {

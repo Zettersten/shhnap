@@ -4,6 +4,8 @@ using Shnapp.App.Capture;
 using Shnapp.App.Video;
 using Shnapp.App.Windows;
 using Shnapp.Core;
+using Windows.Media.Editing;
+using Windows.Storage;
 
 namespace Shnapp.App;
 
@@ -98,15 +100,15 @@ internal sealed partial class AppController
             projectId = Guid.NewGuid();
             projectDirectory = VideoStore.PrepareProjectDirectory(projectId);
             string outputPath = Path.Combine(projectDirectory, "source.mp4");
-            // Existing settings may contain 120 fps from an earlier development build.
-            // Keep those settings loadable while recording at a supported rate.
-            int recordingFrameRate = Math.Min(_settings.VideoFrameRate, 60);
+            const int recordingFrameRate = 60;
             var options = new VideoCaptureOptions(
                 recordingFrameRate,
                 _settings.VideoCaptureCursor,
                 _settings.VideoCaptureSystemAudio,
                 _settings.VideoCaptureMicrophone,
-                _settings.VideoMicrophoneSourceId);
+                _settings.VideoMicrophoneSourceId,
+                _settings.VideoCaptureCamera,
+                _settings.CameraSourceId);
             session = await new VideoRecordingService().StartAsync(selected.Target, outputPath, options, token);
 
             hud = new RecordingHudWindow(selected.Bounds,
@@ -131,7 +133,7 @@ internal sealed partial class AppController
                 }
                 catch (Exception)
                 {
-                    decision.TrySetResult(false);
+                    decision.TrySetResult(true);
                 }
             };
             clock = App.DispatcherQueue.CreateTimer();
@@ -176,6 +178,22 @@ internal sealed partial class AppController
                     ? RelativeMediaPath(projectDirectory, micPath) : null,
                 projectId,
                 recordingFrameRate);
+            string? cameraWarning = result.CameraWarning;
+            if (result.CameraVideoPath is not null)
+            {
+                try
+                {
+                    project = await AddRecordedCameraLayerAsync(project, projectDirectory,
+                        result);
+                }
+                catch (Exception error)
+                {
+                    cameraWarning = "Camera video could not be added: " + error.Message;
+                    try { File.Delete(result.CameraVideoPath); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+            }
             // Once capture has finalized, persist its metadata even if shutdown was requested.
             try
             {
@@ -190,6 +208,8 @@ internal sealed partial class AppController
             try
             {
                 await ShowVideoProjectAsync(project);
+                if (cameraWarning is not null)
+                    _window.VideoPage?.ShowStatus("Screen recording saved. " + cameraWarning);
             }
             catch (Exception error)
             {
@@ -282,6 +302,50 @@ internal sealed partial class AppController
             throw new InvalidDataException("A recording output escaped its video project directory.");
         }
         return relative;
+    }
+
+    private static async Task<VideoProject> AddRecordedCameraLayerAsync(
+        VideoProject project, string projectDirectory,
+        VideoRecordingResult result)
+    {
+        string path = result.CameraVideoPath!;
+        StorageFile file = await StorageFile.GetFileFromPathAsync(path);
+        MediaClip clip = await MediaClip.CreateFromFileAsync(file);
+        var format = clip.GetVideoEncodingProperties();
+        if (format.Width == 0 || format.Height == 0)
+            throw new InvalidDataException("The camera recording has no video frames.");
+
+        TimeSpan visibleDuration = result.Duration - result.CameraStart;
+        if (visibleDuration <= TimeSpan.Zero)
+            throw new InvalidDataException("The camera recording starts after the screen recording ends.");
+        var asset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.ImportedVideo,
+            RelativeMediaPath(projectDirectory, path), result.CameraDuration)
+        {
+            DisplayName = "Camera video",
+        };
+        var editor = new VideoProjectEditor(project);
+        Guid overlayId = editor.AddVideoOverlayAsset(asset, result.CameraStart,
+            CameraPictureInPictureBounds(project.Width, project.Height,
+                format.Width, format.Height));
+        if (result.CameraDuration > visibleDuration)
+            editor.TrimVideoOverlay(overlayId, TimeSpan.Zero, visibleDuration);
+        return editor.Current;
+    }
+
+    private static VideoRect CameraPictureInPictureBounds(int canvasWidth, int canvasHeight,
+        uint cameraWidth, uint cameraHeight)
+    {
+        double width = Math.Max(1, canvasWidth * .27);
+        double height = width * cameraHeight / cameraWidth;
+        double maximumHeight = Math.Max(1, canvasHeight * .36);
+        if (height > maximumHeight)
+        {
+            height = maximumHeight;
+            width = height * cameraWidth / cameraHeight;
+        }
+        double inset = Math.Min(24, Math.Min(canvasWidth, canvasHeight) * .02);
+        return new VideoRect(Math.Max(0, canvasWidth - width - inset),
+            Math.Max(0, canvasHeight - height - inset), width, height);
     }
 
     private async Task OpenVideoProjectAsync(Guid id)

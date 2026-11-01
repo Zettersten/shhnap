@@ -33,9 +33,10 @@ internal sealed class VideoRecordingService
         }
         string stem = Path.Combine(Path.GetDirectoryName(fullPath)!, Path.GetFileNameWithoutExtension(fullPath));
         if ((options.CaptureSystemAudio && File.Exists(stem + ".system.wav")) ||
-            (options.CaptureMicrophone && File.Exists(stem + ".microphone.wav")))
+            (options.CaptureMicrophone && File.Exists(stem + ".microphone.wav")) ||
+            (options.CaptureCamera && File.Exists(stem + ".camera.mp4")))
         {
-            throw new IOException("A recording audio track already exists at the selected output path.");
+            throw new IOException("A recording media track already exists at the selected output path.");
         }
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
 
