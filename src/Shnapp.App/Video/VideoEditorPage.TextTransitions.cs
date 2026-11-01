@@ -79,6 +79,15 @@ public sealed partial class VideoEditorPage
                 if (videos[index].End == videos[index + 1].Start)
                     cuts.Add(new TransitionCut(VideoTransitionLane.Video,
                         videos[index].Id, videos[index + 1].Id, videos[index].End));
+            foreach (var layer in project.VideoOverlays.GroupBy(item =>
+                item.LayerId == Guid.Empty ? item.Id : item.LayerId))
+            {
+                VideoOverlay[] items = [.. layer.OrderBy(item => item.Start)];
+                for (int index = 0; index + 1 < items.Length; index++)
+                    if (items[index].End == items[index + 1].Start)
+                        cuts.Add(new TransitionCut(VideoTransitionLane.VideoOverlay,
+                            items[index].Id, items[index + 1].Id, items[index].End));
+            }
             foreach (var layer in project.ImageOverlays.GroupBy(ImageLayerKey))
             {
                 ImageOverlay[] items = [.. layer.OrderBy(item => item.Start)];
@@ -116,6 +125,7 @@ public sealed partial class VideoEditorPage
         VideoTransitionLane? selectedLane = _selectedKind switch
         {
             TimelineKind.Video => VideoTransitionLane.Video,
+            TimelineKind.VideoOverlay => VideoTransitionLane.VideoOverlay,
             TimelineKind.Image => VideoTransitionLane.Image,
             TimelineKind.Text => VideoTransitionLane.Text,
             _ => null,
@@ -205,12 +215,14 @@ public sealed partial class VideoEditorPage
         double outgoing = lane switch
         {
             VideoTransitionLane.Video => project.VideoSegments.First(item => item.Id == outgoingId).Duration.TotalSeconds,
+            VideoTransitionLane.VideoOverlay => project.VideoOverlays.First(item => item.Id == outgoingId).Duration.TotalSeconds,
             VideoTransitionLane.Image => project.ImageOverlays.First(item => item.Id == outgoingId).Duration.TotalSeconds,
             _ => project.TextOverlays.First(item => item.Id == outgoingId).Duration.TotalSeconds,
         };
         double incoming = lane switch
         {
             VideoTransitionLane.Video => project.VideoSegments.First(item => item.Id == incomingId).Duration.TotalSeconds,
+            VideoTransitionLane.VideoOverlay => project.VideoOverlays.First(item => item.Id == incomingId).Duration.TotalSeconds,
             VideoTransitionLane.Image => project.ImageOverlays.First(item => item.Id == incomingId).Duration.TotalSeconds,
             _ => project.TextOverlays.First(item => item.Id == incomingId).Duration.TotalSeconds,
         };
@@ -256,6 +268,8 @@ public sealed partial class VideoEditorPage
         {
             VideoTransitionLane.Video => project.VideoSegments.First(item =>
                 item.Id == selected.OutgoingId).Duration.TotalSeconds,
+            VideoTransitionLane.VideoOverlay => project.VideoOverlays.First(item =>
+                item.Id == selected.OutgoingId).Duration.TotalSeconds,
             VideoTransitionLane.Image => project.ImageOverlays.First(item =>
                 item.Id == selected.OutgoingId).Duration.TotalSeconds,
             _ => project.TextOverlays.First(item =>
@@ -264,6 +278,8 @@ public sealed partial class VideoEditorPage
         double incoming = selected.Lane switch
         {
             VideoTransitionLane.Video => project.VideoSegments.First(item =>
+                item.Id == selected.IncomingId).Duration.TotalSeconds,
+            VideoTransitionLane.VideoOverlay => project.VideoOverlays.First(item =>
                 item.Id == selected.IncomingId).Duration.TotalSeconds,
             VideoTransitionLane.Image => project.ImageOverlays.First(item =>
                 item.Id == selected.IncomingId).Duration.TotalSeconds,

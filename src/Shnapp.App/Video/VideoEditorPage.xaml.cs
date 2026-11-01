@@ -66,7 +66,9 @@ public sealed partial class VideoEditorPage : Page
         InitializeCanvasText();
         InitializeTransitionControls();
         InitializePreviewImages();
+        InitializePausedFrame();
         InitializePreviewText();
+        InitializeCanvasMedia();
         UpdateSnapButton();
         // Windows.System.VirtualKey omits the OEM +/- names, so register their
         // standard virtual-key codes in code rather than the XAML enum parser.
@@ -121,6 +123,7 @@ public sealed partial class VideoEditorPage : Page
         UpdateVideoPlayerBounds(PreviewHost.ActualWidth, PreviewHost.ActualHeight);
         ResetPreviewImages();
         RefreshPreviewText();
+        RefreshCanvasMedia();
         _markIn = null;
         _markOut = null;
         ProjectTitleText.Text = project.Title;
@@ -241,6 +244,8 @@ public sealed partial class VideoEditorPage : Page
         catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
         try { _player.Dispose(); }
         catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
+        ReleasePausedFrame();
+        ReleaseCanvasMedia();
         ReleasePreviewImages();
         ReleasePreviewText();
     }
@@ -255,6 +260,12 @@ public sealed partial class VideoEditorPage : Page
             project.Height != previous.Height;
         bool videoChanged = previous is null ||
             !project.VideoSegments.Equals(previous.VideoSegments);
+        bool videoOverlayChanged = previous is null ||
+            !project.VideoOverlays.Equals(previous.VideoOverlays);
+        bool visibilityChanged = previous is null ||
+            !project.HiddenLayerIds.Equals(previous.HiddenLayerIds);
+        bool nativeVisibilityChanged = previous is null ||
+            visibilityChanged && NativeLayerVisibilityChanged(project, previous);
         bool textChanged = previous is null ||
             !project.TextOverlays.Equals(previous.TextOverlays);
         bool transitionsChanged = previous is null ||
@@ -262,11 +273,15 @@ public sealed partial class VideoEditorPage : Page
         bool mediaChanged = previous is null || dimensionsChanged ||
             !SameVideoMedia(project, previous) ||
             !project.AudioSegments.Equals(previous.AudioSegments) ||
-            !project.ImageOverlays.Equals(previous.ImageOverlays);
+            !project.ImageOverlays.Equals(previous.ImageOverlays) ||
+            videoOverlayChanged || nativeVisibilityChanged;
         _previousProject = project;
         if (ProjectTitleText.Text != project.Title) ProjectTitleText.Text = project.Title;
-        if (mediaChanged || videoChanged || textChanged || transitionsChanged)
+        if (mediaChanged || videoChanged || textChanged || transitionsChanged ||
+            visibilityChanged)
         {
+            if (mediaChanged || videoChanged || transitionsChanged)
+                InvalidatePausedFrame();
             if (dimensionsChanged)
                 UpdateVideoPlayerBounds(PreviewHost.ActualWidth, PreviewHost.ActualHeight);
             string metadata = $"{project.Width} × {project.Height}  ·  {FormatTime(project.Duration)}  ·  MP4";
@@ -275,9 +290,12 @@ public sealed partial class VideoEditorPage : Page
             if (DurationText.Text != duration) DurationText.Text = duration;
             _playhead = Min(_playhead, project.Duration);
             RefreshTimeline();
-            if (mediaChanged || transitionsChanged) RefreshPreviewImages();
-            if (textChanged || transitionsChanged) RefreshPreviewText();
-            if (videoChanged || transitionsChanged)
+            if (mediaChanged || transitionsChanged || visibilityChanged)
+                RefreshPreviewImages();
+            if (textChanged || transitionsChanged || visibilityChanged) RefreshPreviewText();
+            if (mediaChanged || textChanged || transitionsChanged || visibilityChanged)
+                RefreshCanvasMedia();
+            if (videoChanged || transitionsChanged || visibilityChanged)
             {
                 UpdateFadeOpacity(_playhead);
                 SetPreviewImageTick(_player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing);
@@ -313,6 +331,20 @@ public sealed partial class VideoEditorPage : Page
                 return false;
         }
         return true;
+    }
+
+    private static bool NativeLayerVisibilityChanged(VideoProject current,
+        VideoProject previous)
+    {
+        if (current.HiddenLayerIds.Contains(Guid.Empty) !=
+            previous.HiddenLayerIds.Contains(Guid.Empty)) return true;
+        foreach (VideoOverlay layer in current.VideoOverlays.Concat(previous.VideoOverlays))
+        {
+            Guid id = layer.LayerId == Guid.Empty ? layer.Id : layer.LayerId;
+            if (current.HiddenLayerIds.Contains(id) != previous.HiddenLayerIds.Contains(id))
+                return true;
+        }
+        return false;
     }
 
     private async Task SaveAndPreviewAsync(long saveRevision, CancellationToken token)
@@ -359,10 +391,12 @@ public sealed partial class VideoEditorPage : Page
             if (revision != _previewRevision || _closed) return;
             var stream = composition.GeneratePreviewMediaStreamSource(previewWidth, previewHeight);
             _player.Source = MediaSource.CreateFromMediaStreamSource(stream);
+            SetPausedPreviewComposition(composition, revision);
             _player.PlaybackSession.PlaybackRate = 1;
             _player.PlaybackSession.Position = position;
             UpdateVisiblePreviewImages(position);
             UpdateVisiblePreviewText(position);
+            UpdateCanvasMediaForPlayhead(position);
             UpdateFadeOpacity(position);
             if (wasPlaying) _player.Play();
         }
@@ -413,9 +447,11 @@ public sealed partial class VideoEditorPage : Page
         double scale = Math.Min(availableWidth / project.Width, availableHeight / project.Height);
         VideoPlayer.Width = project.Width * scale;
         VideoPlayer.Height = project.Height * scale;
+        UpdatePausedFrameBounds();
         UpdatePreviewImageBounds();
         UpdatePreviewTextBounds();
         UpdateCanvasTextBounds();
+        UpdateCanvasMediaBounds();
     }
 
     private void PlaybackSession_PositionChanged(MediaPlaybackSession sender, object args)
@@ -428,6 +464,7 @@ public sealed partial class VideoEditorPage : Page
             _playhead = Min(sender.Position, _editor.Current.Duration);
             UpdateVisiblePreviewImages(_playhead);
             UpdateVisiblePreviewText(_playhead);
+            UpdateCanvasMediaForPlayhead(_playhead);
             UpdateFadeOpacity(_playhead);
             UpdateTransport();
             DrawPlayhead();
@@ -446,6 +483,7 @@ public sealed partial class VideoEditorPage : Page
             SetPreviewImageTick(playing);
             UpdateVisiblePreviewImages(sender.Position);
             UpdateVisiblePreviewText(sender.Position);
+            UpdateCanvasMediaForPlayhead(sender.Position);
             UpdateFadeOpacity(sender.Position);
         });
     }
@@ -479,6 +517,7 @@ public sealed partial class VideoEditorPage : Page
         _player.PlaybackSession.Position = _playhead;
         UpdateVisiblePreviewImages(_playhead);
         UpdateVisiblePreviewText(_playhead);
+        UpdateCanvasMediaForPlayhead(_playhead);
         UpdateFadeOpacity(_playhead);
         UpdateTransport();
         DrawPlayhead();

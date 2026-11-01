@@ -409,23 +409,23 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <NumberBox x:Name="OverlayDurationSeconds" Grid.ColumnSpan="2" Header="Duration (s)"
-                                    AutomationProperties.Name="Image duration in seconds"
+                                    AutomationProperties.Name="Layer duration in seconds"
                                     Minimum="0.1" SpinButtonPlacementMode="Compact" FontSize="11"
                                     ValueChanged="InspectorNumber_ValueChanged" />
                                 <NumberBox x:Name="OverlayX" Grid.Row="1" Header="Left (px)"
-                                    AutomationProperties.Name="Image left position in pixels"
+                                    AutomationProperties.Name="Layer left position in pixels"
                                     MinWidth="0" SpinButtonPlacementMode="Compact" FontSize="11"
                                     ValueChanged="InspectorNumber_ValueChanged" />
                                 <NumberBox x:Name="OverlayY" Grid.Row="1" Grid.Column="1" Header="Top (px)"
-                                    AutomationProperties.Name="Image top position in pixels"
+                                    AutomationProperties.Name="Layer top position in pixels"
                                     MinWidth="0" SpinButtonPlacementMode="Compact" FontSize="11"
                                     ValueChanged="InspectorNumber_ValueChanged" />
                                 <NumberBox x:Name="OverlayWidth" Grid.Row="2" Header="Width (px)"
-                                    AutomationProperties.Name="Image width in pixels"
+                                    AutomationProperties.Name="Layer width in pixels"
                                     MinWidth="0" Minimum="1" SpinButtonPlacementMode="Compact" FontSize="11"
                                     ValueChanged="InspectorNumber_ValueChanged" />
                                 <NumberBox x:Name="OverlayHeight" Grid.Row="2" Grid.Column="1" Header="Height (px)"
-                                    AutomationProperties.Name="Image height in pixels"
+                                    AutomationProperties.Name="Layer height in pixels"
                                     MinWidth="0" Minimum="1" SpinButtonPlacementMode="Compact" FontSize="11"
                                     ValueChanged="InspectorNumber_ValueChanged" />
                                 <Grid Grid.Row="3" Grid.ColumnSpan="2" Margin="0,4,0,0">
@@ -435,8 +435,8 @@
                                             Width="28" Height="28" MinWidth="0" Padding="0"
                                             CornerRadius="6" Background="Transparent" BorderThickness="0"
                                             Click="MoveImageForward_Click"
-                                            AutomationProperties.Name="Move image layer forward"
-                                            ToolTipService.ToolTip="Move image in front of the next layer">
+                                            AutomationProperties.Name="Move selected layer forward"
+                                            ToolTipService.ToolTip="Move layer forward">
                                             <FontIcon Glyph="&#xE70E;" FontFamily="Segoe Fluent Icons"
                                                 FontSize="12" Width="12" Height="12" />
                                         </local:ToolbarActionButton>
@@ -444,14 +444,54 @@
                                             Width="28" Height="28" MinWidth="0" Padding="0"
                                             CornerRadius="6" Background="Transparent" BorderThickness="0"
                                             Click="MoveImageBack_Click"
-                                            AutomationProperties.Name="Move image layer backward"
-                                            ToolTipService.ToolTip="Move image behind the next layer">
+                                            AutomationProperties.Name="Move selected layer backward"
+                                            ToolTipService.ToolTip="Move layer backward">
                                             <FontIcon Glyph="&#xE70D;" FontFamily="Segoe Fluent Icons"
                                                 FontSize="12" Width="12" Height="12" />
                                         </local:ToolbarActionButton>
                                     </StackPanel>
                                 </Grid>
                             </Grid>
+                            <Expander x:Name="OverlayCropFields" Header="Crop source"
+                                Visibility="Collapsed" IsExpanded="False">
+                                <Grid ColumnSpacing="8" RowSpacing="7">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <NumberBox x:Name="OverlayCropLeft" Header="Left (%)"
+                                        AutomationProperties.Name="Source crop left percent"
+                                        Minimum="0" Maximum="100" SpinButtonPlacementMode="Compact"
+                                        FontSize="11" ValueChanged="InspectorNumber_ValueChanged" />
+                                    <NumberBox x:Name="OverlayCropTop" Grid.Column="1" Header="Top (%)"
+                                        AutomationProperties.Name="Source crop top percent"
+                                        Minimum="0" Maximum="100" SpinButtonPlacementMode="Compact"
+                                        FontSize="11" ValueChanged="InspectorNumber_ValueChanged" />
+                                    <NumberBox x:Name="OverlayCropWidth" Grid.Row="1" Header="Width (%)"
+                                        AutomationProperties.Name="Source crop width percent"
+                                        Minimum="0.1" Maximum="100" SpinButtonPlacementMode="Compact"
+                                        FontSize="11" ValueChanged="InspectorNumber_ValueChanged" />
+                                    <NumberBox x:Name="OverlayCropHeight" Grid.Row="1" Grid.Column="1" Header="Height (%)"
+                                        AutomationProperties.Name="Source crop height percent"
+                                        Minimum="0.1" Maximum="100" SpinButtonPlacementMode="Compact"
+                                        FontSize="11" ValueChanged="InspectorNumber_ValueChanged" />
+                                    <local:ToolbarActionButton Grid.Row="2" Grid.ColumnSpan="2"
+                                        Width="28" Height="28" MinWidth="0" Padding="0"
+                                        HorizontalAlignment="Right" Background="Transparent"
+                                        BorderThickness="0" CornerRadius="6"
+                                        Click="ResetOverlayCrop_Click"
+                                        AutomationProperties.Name="Reset source crop"
+                                        ToolTipService.ToolTip="Reset source crop">
+                                        <FontIcon Glyph="&#xE777;" FontFamily="Segoe Fluent Icons"
+                                            FontSize="12" Width="12" Height="12" />
+                                    </local:ToolbarActionButton>
+                                </Grid>
+                            </Expander>
                             <StackPanel x:Name="TextFields" Visibility="Collapsed" Spacing="7">
                                 <Expander Header="Text content" IsExpanded="False">
                                 <TextBox x:Name="TextContentBox" Header="Caption" MinHeight="66"
