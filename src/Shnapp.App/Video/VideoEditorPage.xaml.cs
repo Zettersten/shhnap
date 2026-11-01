@@ -446,8 +446,13 @@ public sealed partial class VideoEditorPage : Page
     private static string FormatTime(TimeSpan value) => value.TotalHours >= 1
         ? value.ToString(@"hh\:mm\:ss") : value.ToString(@"mm\:ss");
 
-    private static string FormatPreciseTime(TimeSpan value) => value.TotalHours >= 1
-        ? value.ToString(@"hh\:mm\:ss\.ff") : value.ToString(@"mm\:ss\.ff");
+    private static string FormatPreciseTime(TimeSpan value)
+    {
+        TimeSpan rounded = TimeSpan.FromMilliseconds(
+            Math.Round(value.TotalMilliseconds / 10, MidpointRounding.AwayFromZero) * 10);
+        return rounded.TotalHours >= 1
+            ? rounded.ToString(@"hh\:mm\:ss\.ff") : rounded.ToString(@"mm\:ss\.ff");
+    }
 
     private static string SanitizeFileName(string title)
     {

@@ -716,8 +716,10 @@ public sealed partial class VideoEditorPage
         VideoProjectEditor editor = _editor;
         VideoProject current = editor.Current;
         TimeSpan requested = at ?? _playhead;
-        TimeSpan start = requested < TimeSpan.Zero ? TimeSpan.Zero :
-            Min(requested, TimeSpan.FromDays(7));
+        double startSeconds = Math.Clamp(requested.TotalSeconds, 0,
+            TimeSpan.FromDays(7).TotalSeconds);
+        startSeconds = Math.Round(startSeconds * current.FrameRate) / current.FrameRate;
+        TimeSpan start = TimeSpan.FromSeconds(startSeconds);
         TimeSpan duration = Min(TimeSpan.FromSeconds(5), TimeSpan.FromDays(7) - start);
         if (duration <= TimeSpan.Zero)
             throw new InvalidOperationException("The timeline cannot exceed seven days.");
