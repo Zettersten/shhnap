@@ -830,6 +830,7 @@ public sealed partial class VideoEditorPage
             FocusSelectedClip();
             return;
         }
+        if (kind == TimelineKind.Text) _player.Pause();
         if (_clipButtons.TryGetValue(_selectedId, out Button? previous))
             previous.BorderThickness = new Thickness(
                 _selectedKind == TimelineKind.Transition ? 1 : 0);
@@ -1038,6 +1039,8 @@ public sealed partial class VideoEditorPage
                     TransitionEffectBox.SelectedIndex = index;
                     break;
                 }
+            TransitionDurationSeconds.Maximum = MaximumTransitionDuration(project,
+                transition, transition.Effect);
             TransitionDurationSeconds.Value = transition.Duration.TotalSeconds;
             _loadingInspector = false;
             SetEnabled(ApplyPropertiesButton, false);

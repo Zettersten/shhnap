@@ -234,10 +234,13 @@
                         HorizontalAlignment="Center" VerticalAlignment="Center"
                         IsHitTestVisible="False" />
                 </Border>
-                <Border x:Name="CanvasTextQuickBar" Width="246" Height="34"
+                <Border x:Name="CanvasTextQuickBar" Width="224" Height="34"
                     Background="{ThemeResource ShnappImagePanelBrush}"
                     BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}"
                     BorderThickness="1" CornerRadius="8" Padding="3,2">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                        HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
+                        VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal" Spacing="3">
                         <local:ToolbarActionButton Width="28" Height="28" MinWidth="0" Padding="0"
                             Background="Transparent" BorderThickness="0" CornerRadius="5"
@@ -284,6 +287,7 @@
                                 FontSize="12" Width="12" Height="12" />
                         </local:ToolbarActionButton>
                     </StackPanel>
+                    </ScrollViewer>
                 </Border>
             </Canvas>
             <Border x:Name="GalleryPanel" Visibility="Collapsed" Width="80" Opacity="0"
@@ -449,10 +453,12 @@
                                 </Grid>
                             </Grid>
                             <StackPanel x:Name="TextFields" Visibility="Collapsed" Spacing="7">
+                                <Expander Header="Text content" IsExpanded="False">
                                 <TextBox x:Name="TextContentBox" Header="Caption" MinHeight="66"
                                     AcceptsReturn="True" TextWrapping="Wrap" MaxLength="1000"
                                     AutomationProperties.Name="Overlay text"
                                     TextChanged="TextContent_Changed" />
+                                </Expander>
                                 <AutoSuggestBox x:Name="TextFontFamilyBox" Header="Font"
                                     AutomationProperties.Name="Caption font family"
                                     GotFocus="TextFontFamily_GotFocus"
@@ -475,10 +481,6 @@
                                         ToolTipService.ToolTip="Italic caption">
                                         <TextBlock Text="I" FontStyle="Italic" FontSize="12" />
                                     </ToggleButton>
-                                    <TextBlock Text="Edit on the video to position and type"
-                                        FontSize="10" VerticalAlignment="Center"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        TextWrapping="Wrap" />
                                 </StackPanel>
                                 <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
@@ -616,7 +618,7 @@
                                     SelectionChanged="TransitionEffect_Changed"
                                     AutomationProperties.Name="Transition effect" />
                                 <NumberBox x:Name="TransitionDurationSeconds" Header="Duration (s)"
-                                    Minimum="0.05" Maximum="5"
+                                    Minimum="0.001" Maximum="10"
                                     SpinButtonPlacementMode="Compact" FontSize="11"
                                     ValueChanged="TransitionDuration_Changed"
                                     AutomationProperties.Name="Transition duration in seconds" />
@@ -699,7 +701,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="TIMELINE" FontSize="10" FontWeight="SemiBold"
+                    <TextBlock Text="Timeline" FontSize="10" FontWeight="SemiBold"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     <TextBlock x:Name="SelectionHint" Grid.Column="1" Text="Select a clip to edit"
                         FontSize="10" MaxWidth="240" TextTrimming="CharacterEllipsis"

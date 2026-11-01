@@ -14,7 +14,7 @@ public sealed partial class VideoEditorPage
 {
     private readonly DispatcherTimer _canvasTextCommitTimer = new()
     {
-        Interval = TimeSpan.FromMilliseconds(180),
+        Interval = TimeSpan.FromMilliseconds(400),
     };
     private Guid _canvasTextId;
     private bool _canvasTextSyncing;
@@ -114,7 +114,7 @@ public sealed partial class VideoEditorPage
         Canvas.SetTop(CanvasTextMoveGrip, top >= 19 ? top - 18 : top + height + 3);
         Canvas.SetLeft(CanvasTextResizeGrip, left + width - 7);
         Canvas.SetTop(CanvasTextResizeGrip, top + height - 7);
-        CanvasTextQuickBar.Width = Math.Min(246, Math.Max(1, VideoPlayer.Width));
+        CanvasTextQuickBar.Width = Math.Min(224, Math.Max(1, VideoPlayer.Width));
         Canvas.SetLeft(CanvasTextQuickBar,
             Math.Clamp(left, 0, Math.Max(0, VideoPlayer.Width - CanvasTextQuickBar.Width)));
         double quickBarTop = top >= 56 ? top - 55 : top + height + 22;
@@ -380,6 +380,7 @@ public sealed partial class VideoEditorPage
     private void CanvasPosition_Click(object sender, RoutedEventArgs args)
     {
         if (_editor is null || !FlushCanvasTextEdit()) return;
+        Flyout? flyout = null;
         var grid = new Grid { RowSpacing = 3, ColumnSpacing = 3 };
         for (int index = 0; index < 3; index++)
         {
@@ -416,12 +417,16 @@ public sealed partial class VideoEditorPage
             };
             AutomationProperties.SetName(button, $"{vertical[row]} {horizontal[column]}");
             ToolTipService.SetToolTip(button, $"{vertical[row]} {horizontal[column]}");
-            button.Click += (_, _) => PlaceCanvasText(targetRow, targetColumn);
+            button.Click += (_, _) =>
+            {
+                PlaceCanvasText(targetRow, targetColumn);
+                flyout?.Hide();
+            };
             Grid.SetRow(button, row);
             Grid.SetColumn(button, column);
             grid.Children.Add(button);
         }
-        var flyout = new Flyout { Content = grid };
+        flyout = new Flyout { Content = grid };
         flyout.ShowAt((FrameworkElement)sender);
     }
 

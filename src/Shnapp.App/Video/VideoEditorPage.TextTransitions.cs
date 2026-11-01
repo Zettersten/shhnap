@@ -37,6 +37,7 @@ public sealed partial class VideoEditorPage
     private void AddText_Click(object sender, RoutedEventArgs args)
     {
         if (_editor is null || _closed) return;
+        _player.Pause();
         VideoProject project = _editor.Current;
         double width = project.Width * .8;
         double height = Math.Clamp(project.Height * .17, 64, project.Height * .3);
@@ -221,10 +222,16 @@ public sealed partial class VideoEditorPage
         if (_loadingInspector || _editor is null ||
             _selectedKind != TimelineKind.Transition ||
             TransitionEffectBox.SelectedItem is not ComboBoxItem { Tag: VideoTransitionEffect effect } ||
-            !VideoTransitionGeometry.CanRender(effect,
-                _editor.Current.Transitions.First(item => item.Id == _selectedId).Lane)) return;
-        VideoTransition selected = _editor.Current.Transitions.First(item => item.Id == _selectedId);
-        TryEdit(() => _editor.UpdateTransition(selected with { Effect = effect }));
+            _editor.Current.Transitions.FirstOrDefault(item => item.Id == _selectedId)
+                is not { } selected ||
+            !VideoTransitionGeometry.CanRender(effect, selected.Lane)) return;
+        double maximum = MaximumTransitionDuration(_editor.Current, selected, effect);
+        if (maximum <= 0) return;
+        TryEdit(() => _editor.UpdateTransition(selected with
+        {
+            Effect = effect,
+            Duration = TimeSpan.FromSeconds(Math.Min(selected.Duration.TotalSeconds, maximum)),
+        }));
     }
 
     private void TransitionDuration_Changed(NumberBox sender,
@@ -240,6 +247,46 @@ public sealed partial class VideoEditorPage
         {
             Duration = TimeSpan.FromSeconds(sender.Value),
         }));
+    }
+
+    private static double MaximumTransitionDuration(VideoProject project,
+        VideoTransition selected, VideoTransitionEffect effect)
+    {
+        double outgoing = selected.Lane switch
+        {
+            VideoTransitionLane.Video => project.VideoSegments.First(item =>
+                item.Id == selected.OutgoingId).Duration.TotalSeconds,
+            VideoTransitionLane.Image => project.ImageOverlays.First(item =>
+                item.Id == selected.OutgoingId).Duration.TotalSeconds,
+            _ => project.TextOverlays.First(item =>
+                item.Id == selected.OutgoingId).Duration.TotalSeconds,
+        };
+        double incoming = selected.Lane switch
+        {
+            VideoTransitionLane.Video => project.VideoSegments.First(item =>
+                item.Id == selected.IncomingId).Duration.TotalSeconds,
+            VideoTransitionLane.Image => project.ImageOverlays.First(item =>
+                item.Id == selected.IncomingId).Duration.TotalSeconds,
+            _ => project.TextOverlays.First(item =>
+                item.Id == selected.IncomingId).Duration.TotalSeconds,
+        };
+        foreach (VideoTransition other in project.Transitions)
+        {
+            if (other.Id == selected.Id ||
+                !VideoTransitionGeometry.TryGetSpan(project, other,
+                    out VideoTransitionSpan span)) continue;
+            if (other.OutgoingId == selected.OutgoingId)
+                outgoing -= (span.Cut - span.Start).TotalSeconds;
+            if (other.IncomingId == selected.OutgoingId)
+                outgoing -= (span.End - span.Cut).TotalSeconds;
+            if (other.OutgoingId == selected.IncomingId)
+                incoming -= (span.Cut - span.Start).TotalSeconds;
+            if (other.IncomingId == selected.IncomingId)
+                incoming -= (span.End - span.Cut).TotalSeconds;
+        }
+        double presetLimit = effect is VideoTransitionEffect.DipToBlack or
+            VideoTransitionEffect.DipToWhite ? 10 : 2;
+        return Math.Max(0, Math.Min(presetLimit, 2 * Math.Min(outgoing, incoming)));
     }
 
     private void TextContent_Changed(object sender, TextChangedEventArgs args)
