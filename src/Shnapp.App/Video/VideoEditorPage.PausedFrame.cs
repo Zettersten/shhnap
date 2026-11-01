@@ -87,8 +87,9 @@ public sealed partial class VideoEditorPage
         _pausedBackdropViews.Clear();
         _pausedActiveSources = [];
         _pausedActiveBackdrops = [];
-        _pausedFrameSurface.Visibility = _player.PlaybackSession.PlaybackState ==
-            MediaPlaybackState.Playing ? Visibility.Collapsed : Visibility.Visible;
+        _pausedFrameSurface.Visibility = _closed ||
+            _player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing
+            ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void SetPausedPreviewComposition(MediaComposition composition,
