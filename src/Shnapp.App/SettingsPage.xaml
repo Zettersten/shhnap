@@ -77,7 +77,7 @@
     </Page.Resources>
 
     <local:InteractiveCursorHost x:Name="SettingsScrim" Background="{ThemeResource SettingsScrimBrush}">
-        <Grid MaxWidth="860" MaxHeight="700" Margin="16"
+        <Grid x:Name="SettingsLayout" MaxWidth="860" MaxHeight="700" Margin="16"
             HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
             <Border x:Name="SettingsDialog" Background="{ThemeResource SettingsSurfaceBrush}"
                 BorderBrush="{ThemeResource SettingsStrokeBrush}" BorderThickness="1" CornerRadius="16"

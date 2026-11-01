@@ -518,6 +518,13 @@ public sealed partial class SettingsPage : Page
     private void SelectSection(string section)
     {
         _selectedSection = section;
+        SettingsLayout.MaxHeight = section switch
+        {
+            "general" or "feedback" => 500,
+            "recording" => 630,
+            "updates" => 620,
+            _ => 700,
+        };
         GeneralPanel.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
         GeneralContinuationPanel.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
         RecordingPanel.Visibility = section == "recording" ? Visibility.Visible : Visibility.Collapsed;
