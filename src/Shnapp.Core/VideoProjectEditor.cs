@@ -101,12 +101,19 @@ public sealed class VideoProjectEditor(VideoProject project)
                 continue;
             }
             TimeSpan leftDuration = at - segment.Start;
-            video.Add(segment with { SourceOut = segment.SourceIn + leftDuration });
+            video.Add(segment with
+            {
+                SourceOut = segment.SourceIn + leftDuration,
+                FadeIn = Min(segment.FadeIn, leftDuration),
+                FadeOut = TimeSpan.Zero,
+            });
             video.Add(segment with
             {
                 Id = Guid.NewGuid(),
                 Start = at + asset.Duration,
                 SourceIn = segment.SourceIn + leftDuration,
+                FadeIn = TimeSpan.Zero,
+                FadeOut = Min(segment.FadeOut, segment.End - at),
             });
         }
         video.Add(inserted);
@@ -158,6 +165,29 @@ public sealed class VideoProjectEditor(VideoProject project)
             });
         }
 
+        var texts = ImmutableArray.CreateBuilder<TextOverlay>();
+        foreach (TextOverlay overlay in Current.TextOverlays)
+        {
+            if (overlay.End <= at) { texts.Add(overlay); continue; }
+            if (overlay.Start >= at)
+            {
+                texts.Add(overlay with { Start = overlay.Start + asset.Duration });
+                continue;
+            }
+            texts.Add(overlay with
+            {
+                Duration = at - overlay.Start,
+                LayerId = LayerKey(overlay),
+            });
+            texts.Add(overlay with
+            {
+                Id = Guid.NewGuid(),
+                Start = at + asset.Duration,
+                Duration = overlay.End - at,
+                LayerId = LayerKey(overlay),
+            });
+        }
+
         Commit(Current with
         {
             Assets = addAsset
@@ -166,6 +196,7 @@ public sealed class VideoProjectEditor(VideoProject project)
             VideoSegments = Sort(video.ToImmutable()),
             AudioSegments = Sort(audio.ToImmutable()),
             ImageOverlays = images.ToImmutable(),
+            TextOverlays = texts.ToImmutable(),
         });
         return inserted.Id;
     }
@@ -200,6 +231,19 @@ public sealed class VideoProjectEditor(VideoProject project)
         });
     }
 
+    /// <summary>Adds an editable, timed text layer above the video.</summary>
+    public void AddTextOverlay(TextOverlay overlay)
+    {
+        ArgumentNullException.ThrowIfNull(overlay);
+        Commit(Current with
+        {
+            TextOverlays = Current.TextOverlays.Add(overlay with
+            {
+                LayerId = LayerKey(overlay),
+            }),
+        });
+    }
+
     /// <summary>Replaces an existing video segment, preserving its identifier.</summary>
     /// <param name="segment">Complete replacement segment.</param>
     /// <returns>False when the segment is absent or unchanged.</returns>
@@ -207,8 +251,53 @@ public sealed class VideoProjectEditor(VideoProject project)
     {
         ArgumentNullException.ThrowIfNull(segment);
         int index = Find(Current.VideoSegments, segment.Id);
-        if (index < 0 || Current.VideoSegments[index] == segment) { return false; }
-        Commit(Current with { VideoSegments = Sort(Current.VideoSegments.SetItem(index, segment)) });
+        if (index < 0) return false;
+        VideoSegment fitted = FitFades(segment);
+        if (Current.VideoSegments[index] == fitted) return false;
+        Commit(Current with { VideoSegments = Sort(Current.VideoSegments.SetItem(index, fitted)) });
+        return true;
+    }
+
+    /// <summary>Sets clip-edge fades, in seconds of the visible source interval.</summary>
+    public bool SetVideoFades(Guid id, TimeSpan fadeIn, TimeSpan fadeOut)
+    {
+        int index = Find(Current.VideoSegments, id);
+        if (index < 0) return false;
+        VideoSegment segment = Current.VideoSegments[index];
+        if (segment.FadeIn == fadeIn && segment.FadeOut == fadeOut) return false;
+        Commit(Current with
+        {
+            VideoSegments = Current.VideoSegments.SetItem(index, segment with
+            {
+                FadeIn = fadeIn,
+                FadeOut = fadeOut,
+            }),
+        });
+        return true;
+    }
+
+    /// <summary>Applies a dip to black at a touching cut in one undoable edit.</summary>
+    /// <remarks>The outgoing fade-out and incoming fade-in are replaced; other fades remain.</remarks>
+    public bool ApplyDipToBlackAtCut(Guid outgoingSegmentId, TimeSpan durationPerSide)
+    {
+        if (durationPerSide <= TimeSpan.Zero || durationPerSide > TimeSpan.FromSeconds(5))
+            throw new ArgumentOutOfRangeException(nameof(durationPerSide));
+        int outgoingIndex = Find(Current.VideoSegments, outgoingSegmentId);
+        if (outgoingIndex < 0) return false;
+        VideoSegment outgoing = Current.VideoSegments[outgoingIndex];
+        int incomingIndex = Find(Current.VideoSegments, outgoing.End);
+        if (incomingIndex < 0 || incomingIndex == outgoingIndex) return false;
+        VideoSegment incoming = Current.VideoSegments[incomingIndex];
+        TimeSpan fadeOut = Min(durationPerSide, outgoing.Duration - outgoing.FadeIn);
+        TimeSpan fadeIn = Min(durationPerSide, incoming.Duration - incoming.FadeOut);
+        if (fadeOut <= TimeSpan.Zero || fadeIn <= TimeSpan.Zero) return false;
+        if (outgoing.FadeOut == fadeOut && incoming.FadeIn == fadeIn) return false;
+        Commit(Current with
+        {
+            VideoSegments = Current.VideoSegments
+                .SetItem(outgoingIndex, outgoing with { FadeOut = fadeOut })
+                .SetItem(incomingIndex, incoming with { FadeIn = fadeIn }),
+        });
         return true;
     }
 
@@ -251,12 +340,19 @@ public sealed class VideoProjectEditor(VideoProject project)
             throw new ArgumentOutOfRangeException(nameof(at), "Split time must be inside the segment.");
         }
         TimeSpan leftDuration = at - original.Start;
-        var left = original with { SourceOut = original.SourceIn + leftDuration };
+        var left = original with
+        {
+            SourceOut = original.SourceIn + leftDuration,
+            FadeIn = Min(original.FadeIn, leftDuration),
+            FadeOut = TimeSpan.Zero,
+        };
         var right = original with
         {
             Id = Guid.NewGuid(),
             Start = at,
             SourceIn = left.SourceOut,
+            FadeIn = TimeSpan.Zero,
+            FadeOut = Min(original.FadeOut, original.End - at),
         };
         Commit(Current with
         {
@@ -566,6 +662,102 @@ public sealed class VideoProjectEditor(VideoProject project)
         return selected;
     }
 
+    /// <summary>Replaces an existing text layer's content, timing, bounds, or style.</summary>
+    public bool UpdateTextOverlay(TextOverlay overlay)
+    {
+        ArgumentNullException.ThrowIfNull(overlay);
+        int index = Find(Current.TextOverlays, overlay.Id);
+        if (index < 0 || Current.TextOverlays[index] == overlay) return false;
+        Commit(Current with { TextOverlays = Current.TextOverlays.SetItem(index, overlay) });
+        return true;
+    }
+
+    /// <summary>Deletes one timed text layer without changing other timeline items.</summary>
+    public bool DeleteTextOverlay(Guid id)
+    {
+        int index = Find(Current.TextOverlays, id);
+        if (index < 0) return false;
+        Commit(Current with { TextOverlays = Current.TextOverlays.RemoveAt(index) });
+        return true;
+    }
+
+    /// <summary>Splits one text layer at the playhead as one undoable edit.</summary>
+    public Guid SplitTextOverlay(Guid id, TimeSpan at)
+    {
+        int index = Find(Current.TextOverlays, id);
+        if (index < 0) throw new ArgumentException("Text overlay was not found.", nameof(id));
+        TextOverlay text = Current.TextOverlays[index];
+        if (at <= text.Start || at >= text.End)
+            throw new ArgumentOutOfRangeException(nameof(at), "Split time must be inside the selected text.");
+        var right = text with
+        {
+            Id = Guid.NewGuid(),
+            Start = at,
+            Duration = text.End - at,
+            LayerId = LayerKey(text),
+        };
+        Commit(Current with
+        {
+            TextOverlays = Current.TextOverlays
+                .SetItem(index, text with { Duration = at - text.Start, LayerId = LayerKey(text) })
+                .Insert(index + 1, right),
+        });
+        return right.Id;
+    }
+
+    /// <summary>Removes a marked interval from one text layer without changing video time.</summary>
+    public Guid? CutTextRange(Guid id, TimeSpan start, TimeSpan end)
+    {
+        int index = Find(Current.TextOverlays, id);
+        if (index < 0) throw new ArgumentException("Text overlay was not found.", nameof(id));
+        TextOverlay text = Current.TextOverlays[index];
+        if (start < TimeSpan.Zero || end <= start || end > Current.Duration ||
+            start >= text.End || end <= text.Start)
+            throw new ArgumentOutOfRangeException(nameof(start),
+                "Cut range must overlap the selected text inside the video timeline.");
+
+        TimeSpan cutStart = start > text.Start ? start : text.Start;
+        TimeSpan cutEnd = end < text.End ? end : text.End;
+        ImmutableArray<TextOverlay> texts = Current.TextOverlays;
+        Guid? selected = id;
+        if (cutStart == text.Start && cutEnd == text.End)
+        {
+            texts = texts.RemoveAt(index);
+            selected = null;
+        }
+        else if (cutStart == text.Start)
+        {
+            texts = texts.SetItem(index, text with
+            {
+                Start = cutEnd,
+                Duration = text.End - cutEnd,
+                LayerId = LayerKey(text),
+            });
+        }
+        else
+        {
+            texts = texts.SetItem(index, text with
+            {
+                Duration = cutStart - text.Start,
+                LayerId = LayerKey(text),
+            });
+            if (cutEnd < text.End)
+            {
+                var right = text with
+                {
+                    Id = Guid.NewGuid(),
+                    Start = cutEnd,
+                    Duration = text.End - cutEnd,
+                    LayerId = LayerKey(text),
+                };
+                texts = texts.Insert(index + 1, right);
+                selected = right.Id;
+            }
+        }
+        Commit(Current with { TextOverlays = texts });
+        return selected;
+    }
+
     /// <summary>Removes a time range from every lane and shifts later content left.</summary>
     /// <param name="start">Inclusive start on the output timeline.</param>
     /// <param name="end">Exclusive end on the output timeline.</param>
@@ -586,6 +778,7 @@ public sealed class VideoProjectEditor(VideoProject project)
             VideoSegments = video,
             AudioSegments = CutAudio(Current.AudioSegments, start, end),
             ImageOverlays = CutImages(Current.ImageOverlays, start, end),
+            TextOverlays = CutTexts(Current.TextOverlays, start, end),
         });
     }
 
@@ -619,7 +812,8 @@ public sealed class VideoProjectEditor(VideoProject project)
         if (next.Title == Current.Title && next.Assets.SequenceEqual(Current.Assets) &&
             next.VideoSegments.SequenceEqual(Current.VideoSegments) &&
             next.AudioSegments.SequenceEqual(Current.AudioSegments) &&
-            next.ImageOverlays.SequenceEqual(Current.ImageOverlays))
+            next.ImageOverlays.SequenceEqual(Current.ImageOverlays) &&
+            next.TextOverlays.SequenceEqual(Current.TextOverlays))
         {
             return;
         }
@@ -654,8 +848,35 @@ public sealed class VideoProjectEditor(VideoProject project)
         return -1;
     }
 
+    private static int Find(ImmutableArray<TextOverlay> items, Guid id)
+    {
+        for (int i = 0; i < items.Length; i++) { if (items[i].Id == id) return i; }
+        return -1;
+    }
+
+    private static int Find(ImmutableArray<VideoSegment> items, TimeSpan start)
+    {
+        for (int i = 0; i < items.Length; i++) { if (items[i].Start == start) return i; }
+        return -1;
+    }
+
     private static Guid LayerKey(ImageOverlay overlay) =>
         overlay.LayerId == Guid.Empty ? overlay.Id : overlay.LayerId;
+
+    private static Guid LayerKey(TextOverlay overlay) =>
+        overlay.LayerId == Guid.Empty ? overlay.Id : overlay.LayerId;
+
+    private static VideoSegment FitFades(VideoSegment segment)
+    {
+        TimeSpan fadeIn = Min(segment.FadeIn, segment.Duration);
+        return segment with
+        {
+            FadeIn = fadeIn,
+            FadeOut = Min(segment.FadeOut, segment.Duration - fadeIn),
+        };
+    }
+
+    private static TimeSpan Min(TimeSpan left, TimeSpan right) => left <= right ? left : right;
 
     private static ImmutableArray<VideoSegment> Sort(ImmutableArray<VideoSegment> items) =>
         [.. items.OrderBy(static item => item.Start).ThenBy(static item => item.Id)];
@@ -673,7 +894,15 @@ public sealed class VideoProjectEditor(VideoProject project)
             if (item.Start >= end) { result.Add(item with { Start = item.Start - (end - start) }); continue; }
             TimeSpan left = start > item.Start ? start - item.Start : TimeSpan.Zero;
             TimeSpan right = item.End > end ? item.End - end : TimeSpan.Zero;
-            if (left > TimeSpan.Zero) { result.Add(item with { SourceOut = item.SourceIn + left }); }
+            if (left > TimeSpan.Zero)
+            {
+                result.Add(item with
+                {
+                    SourceOut = item.SourceIn + left,
+                    FadeIn = Min(item.FadeIn, left),
+                    FadeOut = TimeSpan.Zero,
+                });
+            }
             if (right > TimeSpan.Zero)
             {
                 result.Add(item with
@@ -681,6 +910,8 @@ public sealed class VideoProjectEditor(VideoProject project)
                     Id = left > TimeSpan.Zero ? Guid.NewGuid() : item.Id,
                     Start = start,
                     SourceIn = item.SourceOut - right,
+                    FadeIn = TimeSpan.Zero,
+                    FadeOut = Min(item.FadeOut, right),
                 });
             }
         }
@@ -733,6 +964,32 @@ public sealed class VideoProjectEditor(VideoProject project)
                     Start = start,
                     Duration = right,
                     LayerId = left > TimeSpan.Zero ? LayerKey(item) : item.LayerId,
+                });
+            }
+        }
+        return result.ToImmutable();
+    }
+
+    private static ImmutableArray<TextOverlay> CutTexts(ImmutableArray<TextOverlay> items,
+        TimeSpan start, TimeSpan end)
+    {
+        var result = ImmutableArray.CreateBuilder<TextOverlay>();
+        foreach (TextOverlay item in items)
+        {
+            if (item.End <= start) { result.Add(item); continue; }
+            if (item.Start >= end) { result.Add(item with { Start = item.Start - (end - start) }); continue; }
+            TimeSpan left = start > item.Start ? start - item.Start : TimeSpan.Zero;
+            TimeSpan right = item.End > end ? item.End - end : TimeSpan.Zero;
+            if (left > TimeSpan.Zero)
+                result.Add(item with { Duration = left, LayerId = LayerKey(item) });
+            if (right > TimeSpan.Zero)
+            {
+                result.Add(item with
+                {
+                    Id = left > TimeSpan.Zero ? Guid.NewGuid() : item.Id,
+                    Start = start,
+                    Duration = right,
+                    LayerId = LayerKey(item),
                 });
             }
         }

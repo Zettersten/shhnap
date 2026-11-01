@@ -31,6 +31,8 @@ internal static class VideoProjectValidation
             "Audio segments must be initialized and bounded.");
         Require(!project.ImageOverlays.IsDefault && project.ImageOverlays.Length <= MaximumTimelineItems,
             "Image overlays must be initialized and bounded.");
+        Require(!project.TextOverlays.IsDefault && project.TextOverlays.Length <= MaximumTimelineItems,
+            "Text overlays must be initialized and bounded.");
 
         var assets = new Dictionary<Guid, VideoAsset>();
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -105,6 +107,11 @@ internal static class VideoProjectValidation
             ValidateSourceInterval(segment.Start, segment.SourceIn, segment.SourceOut,
                 videoAsset.Duration);
             Require(segment.Start >= previousEnd, "Primary video segments cannot overlap.");
+            Require(segment.FadeIn >= TimeSpan.Zero && segment.FadeOut >= TimeSpan.Zero &&
+                segment.FadeIn <= TimeSpan.FromSeconds(5) &&
+                segment.FadeOut <= TimeSpan.FromSeconds(5) &&
+                segment.FadeIn + segment.FadeOut <= segment.Duration,
+                "Clip-edge fades must be nonnegative, at most five seconds, and fit the clip.");
             previousEnd = segment.End;
         }
         Require(previousEnd > TimeSpan.Zero,
@@ -131,15 +138,47 @@ internal static class VideoProjectValidation
                 asset.Kind == VideoAssetKind.Image, "An image overlay must reference an image asset.");
             ValidateTimelineInterval(overlay.Start, overlay.Duration);
             Require(overlay.ZIndex is >= 0 and <= 1_000_000, "Image z-order is out of range.");
-            VideoRect bounds = overlay.Bounds;
-            Require(double.IsFinite(bounds.X) && double.IsFinite(bounds.Y) &&
-                double.IsFinite(bounds.Width) && double.IsFinite(bounds.Height) &&
-                bounds.Width is > 0 and <= 65_536 && bounds.Height is > 0 and <= 65_536 &&
-                Math.Abs(bounds.X) <= 65_536 && Math.Abs(bounds.Y) <= 65_536,
-                "Image bounds must be finite video-pixel coordinates with positive size.");
+            ValidateBounds(overlay.Bounds, "Image");
+        }
+
+        foreach (TextOverlay overlay in project.TextOverlays)
+        {
+            Require(overlay is not null && overlay.Id != Guid.Empty && itemIds.Add(overlay.Id),
+                "Text overlay identifiers must be unique and nonempty.");
+            ValidateTimelineInterval(overlay.Start, overlay.Duration);
+            Require(overlay.Text is { Length: > 0 and <= 1_024 } &&
+                !string.IsNullOrWhiteSpace(overlay.Text) &&
+                !overlay.Text.Any(static character => char.IsControl(character) &&
+                    character is not '\r' and not '\n' and not '\t'),
+                "Overlay text must be readable and at most 1,024 characters.");
+            ValidateBounds(overlay.Bounds, "Text");
+            Require(double.IsFinite(overlay.FontSize) && overlay.FontSize is >= 1 and <= 1_024,
+                "Text size must be between 1 and 1,024 pixels.");
+            Require(IsOpaqueHexColor(overlay.Color),
+                "Text color must be a six-digit RGB hex value.");
+            Require(Enum.IsDefined(overlay.Alignment), "Text alignment is invalid.");
+            Require(overlay.ZIndex is >= 0 and <= 1_000_000,
+                "Text z-order is out of range.");
         }
         Require(project.Duration <= MaximumDuration,
             "The edited timeline duration must be bounded.");
+    }
+
+    private static void ValidateBounds(VideoRect bounds, string kind)
+    {
+        Require(double.IsFinite(bounds.X) && double.IsFinite(bounds.Y) &&
+            double.IsFinite(bounds.Width) && double.IsFinite(bounds.Height) &&
+            bounds.Width is > 0 and <= 65_536 && bounds.Height is > 0 and <= 65_536 &&
+            Math.Abs(bounds.X) <= 65_536 && Math.Abs(bounds.Y) <= 65_536,
+            $"{kind} bounds must be finite video-pixel coordinates with positive size.");
+    }
+
+    private static bool IsOpaqueHexColor(string? color)
+    {
+        if (color is not { Length: 7 } || color[0] != '#') return false;
+        for (int index = 1; index < color.Length; index++)
+            if (!Uri.IsHexDigit(color[index])) return false;
+        return true;
     }
 
     internal static void ValidateRelativePath(string relativePath)

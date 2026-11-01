@@ -33,6 +33,12 @@ public sealed record VideoAsset(Guid Id, VideoAssetKind Kind, string RelativePat
 /// <param name="SourceOut">Exclusive source end time.</param>
 public sealed record VideoSegment(Guid Id, Guid AssetId, TimeSpan Start, TimeSpan SourceIn, TimeSpan SourceOut)
 {
+    /// <summary>Fade in from black at this clip's first frame; zero keeps a straight cut.</summary>
+    public TimeSpan FadeIn { get; init; }
+
+    /// <summary>Fade out to black at this clip's last frame; zero keeps a straight cut.</summary>
+    public TimeSpan FadeOut { get; init; }
+
     /// <summary>Length of the source interval.</summary>
     [JsonIgnore]
     public TimeSpan Duration => SourceOut - SourceIn;
@@ -87,6 +93,22 @@ public sealed record ImageOverlay(Guid Id, Guid AssetId, TimeSpan Start, TimeSpa
     public TimeSpan End => Start + Duration;
 }
 
+/// <summary>Horizontal alignment of text inside its video-pixel bounds.</summary>
+public enum TextOverlayAlignment { Left, Center, Right }
+
+/// <summary>Editable text displayed over a bounded interval of the video.</summary>
+public sealed record TextOverlay(Guid Id, TimeSpan Start, TimeSpan Duration, string Text,
+    VideoRect Bounds, double FontSize = 48, string Color = "#FFFFFF",
+    TextOverlayAlignment Alignment = TextOverlayAlignment.Center, int ZIndex = 0)
+{
+    /// <summary>Stable layer identity across splits and cuts; empty in older projects.</summary>
+    public Guid LayerId { get; init; }
+
+    /// <summary>Exclusive end on the output timeline.</summary>
+    [JsonIgnore]
+    public TimeSpan End => Start + Duration;
+}
+
 /// <summary>A versioned, nondestructive video edit that references immutable media assets.</summary>
 /// <param name="SchemaVersion">Version of the serialized project format.</param>
 /// <param name="Id">Stable project identifier and directory name.</param>
@@ -103,12 +125,22 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
     ImmutableArray<VideoSegment> VideoSegments, ImmutableArray<AudioSegment> AudioSegments,
     ImmutableArray<ImageOverlay> ImageOverlays)
 {
+    private ImmutableArray<TextOverlay> _textOverlays = [];
+
     /// <summary>The current project schema.</summary>
     public const int CurrentSchemaVersion = 1;
 
     /// <summary>Requested capture rate, retained for preview and MP4 export.</summary>
     /// <remarks>Older project JSON omits this property and opens at 30 fps.</remarks>
     public int FrameRate { get; init; } = 30;
+
+    /// <summary>Timed text overlays; older project JSON omits this property.</summary>
+    /// <remarks>Source-generated JSON deserialization can leave an omitted immutable array default.</remarks>
+    public ImmutableArray<TextOverlay> TextOverlays
+    {
+        get => _textOverlays.IsDefault ? [] : _textOverlays;
+        init => _textOverlays = value.IsDefault ? [] : value;
+    }
 
     /// <summary>End of the last visible or audible timeline item.</summary>
     [JsonIgnore]
@@ -122,6 +154,8 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
             foreach (AudioSegment item in AudioSegments)
                 if (item.End > end) end = item.End;
             foreach (ImageOverlay item in ImageOverlays)
+                if (item.End > end) end = item.End;
+            foreach (TextOverlay item in TextOverlays)
                 if (item.End > end) end = item.End;
             return end;
         }
