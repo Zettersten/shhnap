@@ -141,6 +141,35 @@
                     <FontIcon Glyph="&#xE7A1;" FontFamily="Segoe Fluent Icons"
                         FontSize="12" Width="12" Height="12" />
                 </local:ToolbarActionButton>
+                <Border Width="1" Height="16" Margin="5,0" VerticalAlignment="Center"
+                    Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
+                <local:ToolbarActionButton x:Name="SnapButton" Width="28" Height="28"
+                    MinWidth="0" Padding="0" CornerRadius="6"
+                    Background="{ThemeResource ShnappImagePanelBrush}" BorderThickness="0"
+                    Click="Snap_Click" AutomationProperties.Name="Timeline snapping on"
+                    AutomationProperties.AutomationId="VideoTimelineSnap"
+                    ToolTipService.ToolTip="Timeline snapping on · S">
+                    <FontIcon Glyph="&#xE8E4;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" />
+                </local:ToolbarActionButton>
+                <local:ToolbarActionButton Width="28" Height="28" MinWidth="0"
+                    Padding="0" CornerRadius="6" Background="Transparent"
+                    BorderThickness="0" Click="TimelineZoomOut_Click"
+                    AutomationProperties.Name="Zoom timeline out"
+                    AutomationProperties.AutomationId="VideoTimelineZoomOut"
+                    ToolTipService.ToolTip="Zoom timeline out · - or wheel down over timeline">
+                    <FontIcon Glyph="&#xE71F;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" />
+                </local:ToolbarActionButton>
+                <local:ToolbarActionButton Width="28" Height="28" MinWidth="0"
+                    Padding="0" CornerRadius="6" Background="Transparent"
+                    BorderThickness="0" Click="TimelineZoomIn_Click"
+                    AutomationProperties.Name="Zoom timeline in"
+                    AutomationProperties.AutomationId="VideoTimelineZoomIn"
+                    ToolTipService.ToolTip="Zoom timeline in · + or wheel up over timeline">
+                    <FontIcon Glyph="&#xE8A3;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" />
+                </local:ToolbarActionButton>
             </StackPanel>
             <local:ToolbarActionButton x:Name="VideoExportButton" Width="28" Height="28"
                 MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
@@ -728,52 +757,19 @@
         <Grid x:Name="TimelinePanel" Grid.Row="3" Height="210"
             Background="{ThemeResource ShnappCanvasBrush}">
             <Grid.RowDefinitions>
-                <RowDefinition Height="36" />
+                <RowDefinition Height="28" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <Grid Grid.Row="0" Padding="14,0" ColumnSpacing="5">
+            <Grid Grid.Row="0" Padding="14,0" ColumnSpacing="8" VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Grid ColumnSpacing="8" VerticalAlignment="Center">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="Timeline" FontSize="10" FontWeight="SemiBold"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBlock x:Name="SelectionHint" Grid.Column="1" Text="Select a clip to edit"
-                        FontSize="10" MaxWidth="240" TextTrimming="CharacterEllipsis"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                </Grid>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4"
-                    VerticalAlignment="Center">
-                    <local:ToolbarActionButton x:Name="SnapButton" Width="24" Height="24"
-                        MinWidth="0" Padding="0" CornerRadius="6"
-                        Background="{ThemeResource ShnappImagePanelBrush}" BorderThickness="0"
-                        Click="Snap_Click" AutomationProperties.Name="Timeline snapping on"
-                        ToolTipService.ToolTip="Timeline snapping on · S">
-                        <FontIcon Glyph="&#xE8E4;" FontFamily="Segoe Fluent Icons"
-                            FontSize="12" Width="12" Height="12" />
-                    </local:ToolbarActionButton>
-                    <local:ToolbarActionButton Width="24" Height="24" MinWidth="0"
-                        Padding="0" CornerRadius="6" Background="Transparent"
-                        BorderThickness="0" Click="TimelineZoomOut_Click"
-                        AutomationProperties.Name="Zoom timeline out"
-                        ToolTipService.ToolTip="Zoom timeline out · -">
-                        <FontIcon Glyph="&#xE71F;" FontFamily="Segoe Fluent Icons"
-                            FontSize="12" Width="12" Height="12" />
-                    </local:ToolbarActionButton>
-                    <local:ToolbarActionButton Width="24" Height="24" MinWidth="0"
-                        Padding="0" CornerRadius="6" Background="Transparent"
-                        BorderThickness="0" Click="TimelineZoomIn_Click"
-                        AutomationProperties.Name="Zoom timeline in"
-                        ToolTipService.ToolTip="Zoom timeline in · =">
-                        <FontIcon Glyph="&#xE8A3;" FontFamily="Segoe Fluent Icons"
-                            FontSize="12" Width="12" Height="12" />
-                    </local:ToolbarActionButton>
-                </StackPanel>
+                <TextBlock Text="Timeline" FontSize="10" FontWeight="SemiBold"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <TextBlock x:Name="SelectionHint" Grid.Column="1" Text="Select a clip to edit"
+                    FontSize="10" MaxWidth="240" TextTrimming="CharacterEllipsis"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </Grid>
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                 VerticalScrollMode="Enabled" HorizontalScrollBarVisibility="Disabled"

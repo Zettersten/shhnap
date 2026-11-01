@@ -1116,24 +1116,45 @@ public sealed partial class VideoEditorPage
             RefreshTimeline();
     }
 
-    private void ChangeTimelineZoom(int direction)
+    private void Timeline_PointerWheelChanged(object sender, PointerRoutedEventArgs args)
     {
-        if (_editor is null) return;
+        if (_editor is null || _clipDrag is not null) return;
+        var point = args.GetCurrentPoint(TimelineScroll);
+        // Let a horizontal touchpad gesture keep its normal scroll behavior.
+        if (point.Properties.IsHorizontalMouseWheel || point.Properties.MouseWheelDelta == 0)
+            return;
+
+        args.Handled = true;
+        double anchorX = Math.Clamp(point.Position.X, 0,
+            Math.Max(1, TimelineScroll.ActualWidth));
+        // Precision touchpads can emit fractions of a wheel notch. Scale by the
+        // delta rather than applying a full zoom step for every small event.
+        ChangeTimelineZoom(Math.Pow(1.25, point.Properties.MouseWheelDelta / 120.0), anchorX);
+    }
+
+    private void ChangeTimelineZoom(int direction)
+        => ChangeTimelineZoom(direction > 0 ? 1.5 : 1 / 1.5);
+
+    private void ChangeTimelineZoom(double factor, double? anchorViewportX = null)
+    {
+        if (_editor is null || !double.IsFinite(factor) || factor <= 0) return;
         double viewportWidth = Math.Max(1, TimelineScroll.ActualWidth);
         double available = Math.Max(120, viewportWidth - 18);
         double fitScale = Math.Clamp((available - TimelineAppendPixels - 8) /
             Math.Max(1, _editor.Current.Duration.TotalSeconds), .02, 42);
         double maxZoom = Math.Min(32, 672 / fitScale);
-        double next = direction == 0 ? 1 :
-            Math.Clamp(_timelineZoom * (direction > 0 ? 1.5 : 1 / 1.5), 1, maxZoom);
+        double next = Math.Clamp(_timelineZoom * factor, 1, maxZoom);
         if (Math.Abs(next - _timelineZoom) < .001) return;
 
         double oldOffset = TimelineScroll.HorizontalOffset;
         double playheadX = _playhead.TotalSeconds * _pixelsPerSecond - oldOffset;
         bool playheadVisible = playheadX >= 0 && playheadX <= viewportWidth;
-        double anchorX = playheadVisible ? playheadX : viewportWidth / 2;
-        double anchorTime = playheadVisible ? _playhead.TotalSeconds :
-            (oldOffset + anchorX) / _pixelsPerSecond;
+        double anchorX = anchorViewportX is double pointerX
+            ? Math.Clamp(pointerX, 0, viewportWidth)
+            : playheadVisible ? playheadX : viewportWidth / 2;
+        double anchorTime = anchorViewportX.HasValue || !playheadVisible
+            ? (oldOffset + anchorX) / _pixelsPerSecond
+            : _playhead.TotalSeconds;
 
         _timelineZoom = next;
         RefreshTimeline();

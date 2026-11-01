@@ -75,6 +75,11 @@ public sealed partial class VideoEditorPage : Page
         RegisterZoomAccelerator(0xBB, VirtualKeyModifiers.None);
         RegisterZoomAccelerator(0xBB, VirtualKeyModifiers.Shift);
         RegisterZoomAccelerator(0xBD, VirtualKeyModifiers.None);
+        // Receive wheel input even when the pointer is above a clip button.
+        TimelineContent.AddHandler(PointerWheelChangedEvent,
+            new PointerEventHandler(Timeline_PointerWheelChanged), true);
+        TimelineLaneHeaders.AddHandler(PointerWheelChangedEvent,
+            new PointerEventHandler(Timeline_PointerWheelChanged), true);
         Loaded += Page_Loaded;
         VideoPlayer.SetMediaPlayer(_player);
         ActualThemeChanged += (_, _) =>

@@ -122,7 +122,7 @@ Shnapp also shows a shortcut reference in **Settings → Shortcuts**. Shortcuts 
 | Mark range start / end | `I` / `O` |
 | Split at playhead / Fade at selected cut | `Ctrl+K` / `Ctrl+D` |
 | Delete clip / Delete video clip and close gap | `Delete` / `Shift+Delete` |
-| Toggle timeline snapping / Zoom timeline | `S` / `+` or `-` |
+| Toggle timeline snapping / Zoom timeline | `S` / `+` or `-`; mouse wheel over timeline zooms around pointer |
 | Add text / Paste image / Export MP4 | `Ctrl+T` / `Ctrl+V` / `Ctrl+M` |
 | Constrain selected media move / Keep resize or crop proportions | `Shift+drag` / `Shift+resize` |
 | Nudge selected media with canvas focus | `Arrow` (1 px) / `Shift+Arrow` (10 px) |
