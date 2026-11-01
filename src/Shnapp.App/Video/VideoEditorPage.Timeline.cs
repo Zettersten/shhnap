@@ -126,6 +126,7 @@ public sealed partial class VideoEditorPage
                 Height = 27,
                 Fill = (Brush)Application.Current.Resources["ShnappFloatingEdgeBrush"],
                 Opacity = lane % 2 == 0 ? .12 : .07,
+                IsHitTestVisible = false,
             };
             Canvas.SetLeft(background, _renderedWindowStartX);
             Canvas.SetTop(background, 22 + lane * 28);
@@ -165,6 +166,7 @@ public sealed partial class VideoEditorPage
                 Stroke = (Brush)Application.Current.Resources["ShnappToolbarInactiveIconBrush"],
                 Opacity = .38,
                 StrokeThickness = 1,
+                IsHitTestVisible = false,
             };
             Canvas.SetLeft(tick, x);
             TimelineCanvas.Children.Add(tick);
@@ -173,6 +175,7 @@ public sealed partial class VideoEditorPage
                 Text = FormatTime(TimeSpan.FromSeconds(seconds)),
                 FontSize = 10,
                 Foreground = (Brush)Application.Current.Resources["ShnappToolbarInactiveIconBrush"],
+                IsHitTestVisible = false,
             };
             Canvas.SetLeft(label, x + 3);
             TimelineCanvas.Children.Add(label);
@@ -234,6 +237,7 @@ public sealed partial class VideoEditorPage
             BorderBrush = (Brush)Application.Current.Resources["ShnappToolbarActiveIconBrush"],
             HorizontalContentAlignment = HorizontalAlignment.Left,
             Tag = (kind, id),
+            AllowDrop = true,
             Content = new TextBlock
             {
                 Text = title,
@@ -245,6 +249,8 @@ public sealed partial class VideoEditorPage
             },
         };
         surface.PointerPressed += Clip_PointerPressed;
+        surface.DragOver += Timeline_DragOver;
+        surface.Drop += Timeline_Drop;
         surface.Click += Clip_Click;
         AutomationProperties.SetName(surface,
             $"{title}, {FormatPreciseTime(start)} to {FormatPreciseTime(start + duration)}. Select clip.");
@@ -326,6 +332,8 @@ public sealed partial class VideoEditorPage
         string format = isVideo ? "Shnapp.GalleryVideoId" : "Shnapp.GalleryImageId";
         if (!args.DataView.Contains(format)) return;
         args.Handled = true;
+        args.AcceptedOperation = DataPackageOperation.Copy;
+        var deferral = args.GetDeferral();
         try
         {
             double seconds = args.GetPosition(TimelineContent).X / _pixelsPerSecond;
@@ -339,6 +347,10 @@ public sealed partial class VideoEditorPage
         catch (Exception exception)
         {
             StatusText.Text = $"Could not add media: {exception.Message}";
+        }
+        finally
+        {
+            deferral.Complete();
         }
     }
 

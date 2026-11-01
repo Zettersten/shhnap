@@ -63,6 +63,8 @@
                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
             <ProgressRing x:Name="PreviewProgress" IsActive="False"
                 HorizontalAlignment="Center" VerticalAlignment="Center" Width="32" Height="32" />
+            <Grid Background="Transparent" AllowDrop="True"
+                DragOver="GalleryMedia_DragOver" Drop="GalleryMedia_Drop" />
             <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"
                 Padding="2" CornerRadius="8" Background="{ThemeResource ShnappImageChromeBrush}"
                 BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}" BorderThickness="1">
@@ -392,11 +394,13 @@
                     SizeChanged="TimelineScroll_SizeChanged" ViewChanged="TimelineScroll_ViewChanged"
                     HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                     HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
-                    <Grid x:Name="TimelineContent" Height="164" PointerPressed="Timeline_PointerPressed"
+                    <Grid x:Name="TimelineContent" Height="164" Background="Transparent"
+                        PointerPressed="Timeline_PointerPressed"
                         PointerMoved="Timeline_PointerMoved" PointerReleased="Timeline_PointerReleased"
                         PointerCaptureLost="Timeline_PointerCaptureLost"
                         AllowDrop="True" DragOver="Timeline_DragOver" Drop="Timeline_Drop">
-                        <Canvas x:Name="TimelineCanvas" Height="164" />
+                        <Canvas x:Name="TimelineCanvas" Height="164" Background="Transparent"
+                            AllowDrop="True" DragOver="Timeline_DragOver" Drop="Timeline_Drop" />
                     </Grid>
                 </ScrollViewer>
             </Grid>

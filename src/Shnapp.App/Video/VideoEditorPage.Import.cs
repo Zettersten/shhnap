@@ -288,7 +288,10 @@ public sealed partial class VideoEditorPage
     {
         _galleryLastDropAt = Stopwatch.GetTimestamp();
         _galleryDragging = false;
-        CloseGallery();
+        if (args.DropResult == DataPackageOperation.Copy)
+            CloseGallery();
+        else
+            OpenGallery(pin: true);
     }
 
     private void GalleryMedia_DragOver(object sender, DragEventArgs args)
@@ -300,8 +303,22 @@ public sealed partial class VideoEditorPage
         }
     }
 
-    private void GalleryMedia_Drop(object sender, DragEventArgs args) =>
-        _ = DropGalleryMediaAsync(args.DataView, _playhead);
+    private async void GalleryMedia_Drop(object sender, DragEventArgs args)
+    {
+        if (!args.DataView.Contains(GalleryVideoFormat) &&
+            !args.DataView.Contains(GalleryImageFormat)) return;
+        args.Handled = true;
+        args.AcceptedOperation = DataPackageOperation.Copy;
+        var deferral = args.GetDeferral();
+        try
+        {
+            await DropGalleryMediaAsync(args.DataView, _playhead);
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
 
     private async Task DropGalleryMediaAsync(DataPackageView data, TimeSpan at)
     {
