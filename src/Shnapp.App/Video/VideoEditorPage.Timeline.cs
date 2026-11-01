@@ -51,6 +51,7 @@ public sealed partial class VideoEditorPage
     private static readonly double[] TimelineTickIntervals =
         [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600,
          7200, 14400, 28800, 43200, 86400];
+    private const double TimelineAppendPixels = 24;
 
     private void RefreshTimeline()
     {
@@ -218,9 +219,11 @@ public sealed partial class VideoEditorPage
 
         _lastTimelineViewportWidth = TimelineScroll.ActualWidth;
         double available = Math.Max(120, TimelineScroll.ActualWidth - 18);
-        double fitScale = Math.Clamp(available / Math.Max(1, project.Duration.TotalSeconds), .02, 42);
+        double fitScale = Math.Clamp((available - TimelineAppendPixels - 8) /
+            Math.Max(1, project.Duration.TotalSeconds), .02, 42);
         _pixelsPerSecond = Math.Clamp(fitScale * _timelineZoom, .02, 672);
-        double width = Math.Max(available, project.Duration.TotalSeconds * _pixelsPerSecond + 24);
+        double width = Math.Max(available,
+            project.Duration.TotalSeconds * _pixelsPerSecond + TimelineAppendPixels);
         TimelineContent.Width = width;
         TimelineCanvas.Width = width;
         TimelineCanvas.Children.Clear();
@@ -247,6 +250,33 @@ public sealed partial class VideoEditorPage
             Canvas.SetLeft(background, _renderedWindowStartX);
             Canvas.SetTop(background, 22 + lane * 28);
             TimelineCanvas.Children.Add(background);
+        }
+
+        double appendX = project.Duration.TotalSeconds * _pixelsPerSecond;
+        if (appendX <= _renderedWindowEndX &&
+            appendX + TimelineAppendPixels >= _renderedWindowStartX)
+        {
+            var appendArea = new Rectangle
+            {
+                Width = TimelineAppendPixels,
+                Height = contentHeight,
+                Fill = (Brush)Application.Current.Resources["ShnappBlueBrush"],
+                Opacity = .1,
+                IsHitTestVisible = false,
+            };
+            Canvas.SetLeft(appendArea, appendX);
+            TimelineCanvas.Children.Add(appendArea);
+            var endLine = new Line
+            {
+                X1 = 0, X2 = 0, Y1 = 0, Y2 = contentHeight,
+                Stroke = (Brush)Application.Current.Resources[
+                    "ShnappToolbarActiveIconBrush"],
+                StrokeThickness = 1,
+                Opacity = .38,
+                IsHitTestVisible = false,
+            };
+            Canvas.SetLeft(endLine, appendX);
+            TimelineCanvas.Children.Add(endLine);
         }
 
         if (_markIn.HasValue || _markOut.HasValue)
@@ -597,7 +627,8 @@ public sealed partial class VideoEditorPage
             {
                 VideoSegment item = project.VideoSegments.First(clip => clip.Id == tag.Item2);
                 VideoAsset asset = project.Assets.First(value => value.Id == item.AssetId);
-                minStart = item.Start - item.SourceIn;
+                minStart = item.Start >= item.SourceIn
+                    ? item.Start - item.SourceIn : TimeSpan.Zero;
                 maxEnd = Min(maxEnd, item.Start + asset.Duration - item.SourceIn);
                 foreach (VideoSegment other in project.VideoSegments)
                 {
@@ -610,7 +641,8 @@ public sealed partial class VideoEditorPage
             {
                 VideoOverlay item = project.VideoOverlays.First(clip => clip.Id == tag.Item2);
                 VideoAsset asset = project.Assets.First(value => value.Id == item.AssetId);
-                minStart = item.Start - item.SourceIn;
+                minStart = item.Start >= item.SourceIn
+                    ? item.Start - item.SourceIn : TimeSpan.Zero;
                 maxEnd = Min(maxEnd, item.Start + asset.Duration - item.SourceIn);
                 Guid layerId = VideoOverlayLayerKey(item);
                 foreach (VideoOverlay other in project.VideoOverlays.Where(other =>
@@ -624,7 +656,8 @@ public sealed partial class VideoEditorPage
             {
                 AudioSegment item = project.AudioSegments.First(clip => clip.Id == tag.Item2);
                 VideoAsset asset = project.Assets.First(value => value.Id == item.AssetId);
-                minStart = item.Start - item.SourceIn;
+                minStart = item.Start >= item.SourceIn
+                    ? item.Start - item.SourceIn : TimeSpan.Zero;
                 maxEnd = Min(maxEnd, item.Start + asset.Duration - item.SourceIn);
             }
             button.CapturePointer(args.Pointer);
@@ -1009,8 +1042,10 @@ public sealed partial class VideoEditorPage
         try
         {
             double seconds = args.GetPosition(TimelineContent).X / _pixelsPerSecond;
+            double appendEnd = _editor.Current.Duration.TotalSeconds +
+                TimelineAppendPixels / _pixelsPerSecond;
             TimeSpan at = TimeSpan.FromSeconds(Math.Clamp(seconds, 0,
-                _editor.Current.Duration.TotalSeconds));
+                Math.Min(TimeSpan.FromDays(7).TotalSeconds, appendEnd)));
             object value = await args.DataView.GetDataAsync(format);
             if (value is not string idText || !Guid.TryParse(idText, out Guid id))
                 throw new InvalidOperationException("This gallery item could not be added.");
@@ -1075,7 +1110,7 @@ public sealed partial class VideoEditorPage
         if (_editor is null) return;
         double viewportWidth = Math.Max(1, TimelineScroll.ActualWidth);
         double available = Math.Max(120, viewportWidth - 18);
-        double fitScale = Math.Clamp(available /
+        double fitScale = Math.Clamp((available - TimelineAppendPixels - 8) /
             Math.Max(1, _editor.Current.Duration.TotalSeconds), .02, 42);
         double maxZoom = Math.Min(32, 672 / fitScale);
         double next = direction == 0 ? 1 :
