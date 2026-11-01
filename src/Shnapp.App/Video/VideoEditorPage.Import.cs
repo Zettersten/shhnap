@@ -32,6 +32,7 @@ public sealed partial class VideoEditorPage
     private bool _importing;
     private bool _galleryAvailable;
     private bool _galleryDragging;
+    private bool _galleryPointerHandlersAttached;
     private Button? _galleryPressedButton;
     private Point _galleryPressedPosition;
     private Guid _galleryLastDraggedId;
@@ -56,6 +57,14 @@ public sealed partial class VideoEditorPage
 
     private void BuildGallery()
     {
+        if (!_galleryPointerHandlersAttached)
+        {
+            AddHandler(UIElement.PointerMovedEvent,
+                new PointerEventHandler(GalleryDrag_PointerMoved), true);
+            AddHandler(UIElement.PointerReleasedEvent,
+                new PointerEventHandler(GalleryDrag_PointerReleased), true);
+            _galleryPointerHandlersAttached = true;
+        }
         _galleryMedia = _galleryItems.Select(item => new GalleryMedia(item.Id,
                 item.Title, item.ModifiedAt, false))
             .Concat(_videoGalleryItems.Where(item => item.Id != _editor?.Current.Id)
@@ -126,7 +135,6 @@ public sealed partial class VideoEditorPage
                 Height = GalleryThumbSize,
                 Background = new SolidColorBrush(Colors.Transparent),
                 Tag = item,
-                CanDrag = true,
             };
             preview.Children.Add(new Border
             {
@@ -207,16 +215,11 @@ public sealed partial class VideoEditorPage
             preview.Tapped += GalleryItem_Tapped;
             button.AddHandler(UIElement.PointerPressedEvent,
                 new PointerEventHandler(GalleryItem_PointerPressed), true);
-            button.AddHandler(UIElement.PointerReleasedEvent,
-                new PointerEventHandler(GalleryItem_PointerReleased), true);
             button.PointerEntered += GalleryItem_PointerEntered;
             button.PointerExited += GalleryItem_PointerExited;
             button.GotFocus += GalleryItem_FocusChanged;
             button.LostFocus += GalleryItem_FocusChanged;
-            button.PointerMoved += GalleryPanel_PointerMoved;
             button.PointerWheelChanged += GalleryPanel_PointerWheelChanged;
-            preview.DragStarting += GalleryItem_DragStarting;
-            preview.DropCompleted += GalleryItem_DropCompleted;
             var itemHost = new Grid
             {
                 Width = GalleryThumbSize,
@@ -392,19 +395,47 @@ public sealed partial class VideoEditorPage
         if (sender is Button button && args.GetCurrentPoint(button).Properties.IsLeftButtonPressed)
         {
             _galleryPressedButton = button;
-            _galleryPressedPosition = args.GetCurrentPoint(button).Position;
+            _galleryPressedPosition = args.GetCurrentPoint(this).Position;
         }
     }
 
-    private void GalleryItem_PointerReleased(object sender, PointerRoutedEventArgs args)
+    private void GalleryDrag_PointerMoved(object sender, PointerRoutedEventArgs args)
     {
-        if (sender is not Button { Tag: GalleryMedia media } button ||
-            !ReferenceEquals(_galleryPressedButton, button)) return;
+        if (_galleryPressedButton is not Button button ||
+            !args.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+
+        Point point = args.GetCurrentPoint(this).Position;
+        if (!_galleryDragging &&
+            (Math.Abs(point.X - _galleryPressedPosition.X) >= 8 ||
+             Math.Abs(point.Y - _galleryPressedPosition.Y) >= 8))
+        {
+            _galleryDragging = true;
+            button.Opacity = 0.65;
+        }
+    }
+
+    private void GalleryDrag_PointerReleased(object sender, PointerRoutedEventArgs args)
+    {
+        if (_galleryPressedButton is not Button { Tag: GalleryMedia media } button) return;
+        bool wasDragging = _galleryDragging;
         _galleryPressedButton = null;
-        Point released = args.GetCurrentPoint(button).Position;
-        if (!_galleryDragging && Math.Abs(released.X - _galleryPressedPosition.X) < 12 &&
-            Math.Abs(released.Y - _galleryPressedPosition.Y) < 12)
-            ActivateGalleryMedia(media);
+        _galleryDragging = false;
+        button.Opacity = 1;
+        if (!wasDragging || _closed || _editor is null) return;
+
+        _galleryLastDraggedId = media.Id;
+        _galleryLastDropAt = Stopwatch.GetTimestamp();
+        Point dropPoint = args.GetCurrentPoint(TimelineContent).Position;
+        if (dropPoint.X < 0 || dropPoint.Y < 0 ||
+            dropPoint.X > TimelineContent.ActualWidth ||
+            dropPoint.Y > TimelineContent.ActualHeight) return;
+
+        double seconds = dropPoint.X / _pixelsPerSecond;
+        double appendEnd = _editor.Current.Duration.TotalSeconds +
+            TimelineAppendPixels / _pixelsPerSecond;
+        var at = TimeSpan.FromSeconds(Math.Clamp(seconds, 0,
+            Math.Min(TimeSpan.FromDays(7).TotalSeconds, appendEnd)));
+        _ = ImportGalleryMediaAsync(media.Id, media.IsVideo, at);
     }
 
     private void ActivateGalleryMedia(GalleryMedia media)
@@ -424,25 +455,6 @@ public sealed partial class VideoEditorPage
     {
         if (sender is not Button { Tag: GalleryMedia media }) return;
         _ = ImportGalleryMediaAsync(media.Id, media.IsVideo, _playhead);
-    }
-
-    private void GalleryItem_DragStarting(UIElement sender, DragStartingEventArgs args)
-    {
-        if (sender is not Grid { Tag: GalleryMedia media }) return;
-        _galleryDragging = true;
-        _galleryPressedButton = null;
-        _galleryLastDraggedId = media.Id;
-        args.Data.SetData(media.IsVideo ? GalleryVideoFormat : GalleryImageFormat,
-            media.Id.ToString("N"));
-        args.Data.RequestedOperation = DataPackageOperation.Copy;
-    }
-
-    private void GalleryItem_DropCompleted(UIElement sender, DropCompletedEventArgs args)
-    {
-        _galleryLastDropAt = Stopwatch.GetTimestamp();
-        _galleryDragging = false;
-        if (args.DropResult == DataPackageOperation.Copy) CloseGallery();
-        else OpenGallery();
     }
 
     private void GalleryItem_PointerEntered(object sender, PointerRoutedEventArgs args)
