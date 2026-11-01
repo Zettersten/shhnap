@@ -1,3 +1,4 @@
+using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -7,6 +8,7 @@ using Windows.Media.Core;
 using Windows.Media.Editing;
 using Windows.Media.Playback;
 using Windows.Storage.Pickers;
+using Windows.UI.ViewManagement;
 
 namespace Shnapp.App.Video;
 
@@ -20,6 +22,7 @@ public sealed partial class VideoEditorPage : Page
     private IReadOnlyList<ShnappSummary> _galleryItems = [];
     private IReadOnlyList<VideoProjectSummary> _videoGalleryItems = [];
     private readonly MediaPlayer _player = new();
+    private readonly AccessibilitySettings _accessibility = new();
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private CancellationTokenSource? _previewCancellation;
     private CancellationTokenSource? _refreshDebounceCancellation;
@@ -51,6 +54,7 @@ public sealed partial class VideoEditorPage : Page
         InitializeComponent();
         Loaded += Page_Loaded;
         VideoPlayer.SetMediaPlayer(_player);
+        ActualThemeChanged += (_, _) => PreviewChecker.Invalidate();
         _player.PlaybackSession.PositionChanged += PlaybackSession_PositionChanged;
         _player.PlaybackSession.PlaybackStateChanged += PlaybackSession_PlaybackStateChanged;
     }
@@ -84,6 +88,7 @@ public sealed partial class VideoEditorPage : Page
         _previousProject = project;
         _previewQueued = false;
         _playhead = TimeSpan.Zero;
+        UpdateVideoPlayerBounds(PreviewHost.ActualWidth, PreviewHost.ActualHeight);
         _markIn = null;
         _markOut = null;
         ProjectTitleText.Text = project.Title;
@@ -207,16 +212,20 @@ public sealed partial class VideoEditorPage : Page
     {
         if (_closed || _editor is null) return;
         VideoProject project = _editor.Current;
-        bool mediaChanged = _previousProject is null ||
-            project.Width != _previousProject.Width ||
-            project.Height != _previousProject.Height ||
-            !project.VideoSegments.Equals(_previousProject.VideoSegments) ||
-            !project.AudioSegments.Equals(_previousProject.AudioSegments) ||
-            !project.ImageOverlays.Equals(_previousProject.ImageOverlays);
+        VideoProject? previous = _previousProject;
+        bool dimensionsChanged = previous is null ||
+            project.Width != previous.Width ||
+            project.Height != previous.Height;
+        bool mediaChanged = previous is null || dimensionsChanged ||
+            !project.VideoSegments.Equals(previous.VideoSegments) ||
+            !project.AudioSegments.Equals(previous.AudioSegments) ||
+            !project.ImageOverlays.Equals(previous.ImageOverlays);
         _previousProject = project;
         if (ProjectTitleText.Text != project.Title) ProjectTitleText.Text = project.Title;
         if (mediaChanged)
         {
+            if (dimensionsChanged)
+                UpdateVideoPlayerBounds(PreviewHost.ActualWidth, PreviewHost.ActualHeight);
             string metadata = $"{project.Width} × {project.Height}  ·  {FormatTime(project.Duration)}  ·  MP4";
             if (MetadataText.Text != metadata) MetadataText.Text = metadata;
             string duration = FormatTime(project.Duration);
@@ -310,6 +319,27 @@ public sealed partial class VideoEditorPage : Page
         scale = Math.Min(scale, Math.Sqrt(1920d * 1080d / (sourceWidth * sourceHeight)));
         return (Math.Max(2, (int)Math.Floor(sourceWidth * scale / 2) * 2),
             Math.Max(2, (int)Math.Floor(sourceHeight * scale / 2) * 2));
+    }
+
+    private void PreviewChecker_Draw(CanvasControl sender, CanvasDrawEventArgs args)
+    {
+        string themeKey = _accessibility.HighContrast ? "HighContrast" :
+            ActualTheme == ElementTheme.Light ? "Light" : "Default";
+        var theme = (ResourceDictionary)Application.Current.Resources.ThemeDictionaries[themeKey];
+        var background = ((SolidColorBrush)theme["ShnappCanvasBrush"]).Color;
+        var alternate = ((SolidColorBrush)theme["ShnappCheckerAccentBrush"]).Color;
+        CheckerboardBackdrop.Draw(args.DrawingSession, sender.ActualWidth,
+            sender.ActualHeight, background, alternate, _accessibility.HighContrast);
+    }
+
+    private void UpdateVideoPlayerBounds(double availableWidth, double availableHeight)
+    {
+        if (_editor is null || availableWidth <= 0 || availableHeight <= 0) return;
+        VideoProject project = _editor.Current;
+        if (project.Width <= 0 || project.Height <= 0) return;
+        double scale = Math.Min(availableWidth / project.Width, availableHeight / project.Height);
+        VideoPlayer.Width = project.Width * scale;
+        VideoPlayer.Height = project.Height * scale;
     }
 
     private void PlaybackSession_PositionChanged(MediaPlaybackSession sender, object args)

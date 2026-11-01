@@ -5,6 +5,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
     xmlns:local="using:Shnapp.App"
     Unloaded="Page_Unloaded">
     <Page.KeyboardAccelerators>
@@ -33,7 +34,7 @@
             <RowDefinition Height="28" />
         </Grid.RowDefinitions>
 
-        <Grid x:Name="PreviewHost" Grid.Row="1" Background="#080F1C"
+        <Grid x:Name="PreviewHost" Grid.Row="1" Background="{ThemeResource ShnappCanvasBrush}"
             SizeChanged="PreviewHost_SizeChanged"
             PointerMoved="PreviewHost_PointerMoved"
             PointerExited="PreviewHost_PointerExited"
@@ -58,9 +59,11 @@
                     </VisualState>
                 </VisualStateGroup>
             </VisualStateManager.VisualStateGroups>
+            <canvas:CanvasControl x:Name="PreviewChecker" Draw="PreviewChecker_Draw"
+                IsHitTestVisible="False" />
             <MediaPlayerElement x:Name="VideoPlayer" AutoPlay="False"
-                AreTransportControlsEnabled="False" Stretch="Uniform"
-                HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                AreTransportControlsEnabled="False" Stretch="Fill"
+                HorizontalAlignment="Center" VerticalAlignment="Center" />
             <ProgressRing x:Name="PreviewProgress" IsActive="False"
                 HorizontalAlignment="Center" VerticalAlignment="Center" Width="32" Height="32" />
             <Grid Background="Transparent" AllowDrop="True"

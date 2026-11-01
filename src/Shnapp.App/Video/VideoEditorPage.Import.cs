@@ -57,6 +57,7 @@ public sealed partial class VideoEditorPage
 
     private void PreviewHost_SizeChanged(object sender, SizeChangedEventArgs args)
     {
+        UpdateVideoPlayerBounds(args.NewSize.Width, args.NewSize.Height);
         int pageSize = Math.Clamp((int)((args.NewSize.Height - 84) /
             (GalleryThumbSize + GalleryThumbSpacing)), 1, 6);
         if (pageSize != _galleryPageSize)
