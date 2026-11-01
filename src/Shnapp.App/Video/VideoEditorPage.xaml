@@ -383,7 +383,9 @@
                     </Grid>
                     <ScrollViewer Grid.Row="1"
                         VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
-                        <StackPanel x:Name="InspectorPropertyFields" Spacing="7">
+                        <ContentControl x:Name="InspectorPropertyFields" Padding="0"
+                            HorizontalContentAlignment="Stretch">
+                        <StackPanel Spacing="7">
                             <TextBlock x:Name="SelectedItemDetail" FontSize="10" TextWrapping="WrapWholeWords"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <NumberBox x:Name="ClipStartSeconds" Header="Start (s)"
@@ -708,6 +710,7 @@
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </StackPanel>
+                        </ContentControl>
                     </ScrollViewer>
                     <Grid Grid.Row="2" Margin="0,8,0,0">
                         <TextBlock x:Name="PendingChangesText" Text="Changes pending"
