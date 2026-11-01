@@ -258,25 +258,27 @@ public sealed partial class VideoEditorPage
 
     private void Clip_PointerPressed(object sender, PointerRoutedEventArgs args)
     {
-        if (sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag } clip) return;
+        if (sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag }) return;
         SelectClip(tag.Item1, tag.Item2);
         Seek(TimeSpan.FromSeconds(args.GetCurrentPoint(TimelineContent).Position.X /
             _pixelsPerSecond));
         BeginTimelineScrub(args);
-        clip.Focus(FocusState.Pointer);
         args.Handled = true;
     }
 
     private void Clip_Click(object sender, RoutedEventArgs args)
     {
-        if (sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag } clip) return;
+        if (sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag }) return;
         SelectClip(tag.Item1, tag.Item2);
-        clip.Focus(FocusState.Programmatic);
     }
 
     private void SelectClip(TimelineKind kind, Guid id)
     {
-        if (_selectedId == id && _selectedKind == kind) return;
+        if (_selectedId == id && _selectedKind == kind)
+        {
+            FocusSelectedClip();
+            return;
+        }
         if (_clipButtons.TryGetValue(_selectedId, out Button? previous))
             previous.BorderThickness = new Thickness(0);
         _selectedKind = kind;
@@ -290,8 +292,14 @@ public sealed partial class VideoEditorPage
 
     private void FocusSelectedClip()
     {
-        if (_clipButtons.TryGetValue(_selectedId, out Button? clip))
-            clip.Focus(FocusState.Programmatic);
+        Guid selectedId = _selectedId;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_closed || selectedId != _selectedId) return;
+            if (_clipButtons.TryGetValue(selectedId, out Button? clip) &&
+                !clip.Focus(FocusState.Programmatic))
+                PlayPauseButton.Focus(FocusState.Programmatic);
+        });
     }
 
     private void Timeline_PointerPressed(object sender, PointerRoutedEventArgs args)
