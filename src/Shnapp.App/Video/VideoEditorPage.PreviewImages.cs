@@ -14,9 +14,10 @@ public sealed partial class VideoEditorPage
     {
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
-        IsHitTestVisible = false,
+        IsHitTestVisible = true,
     };
     private readonly Dictionary<Guid, Image> _previewImageViews = [];
+    private readonly Dictionary<Guid, Border> _previewImageFrames = [];
     private readonly Dictionary<Guid, ImageOverlay> _visiblePreviewImageDefinitions = [];
     private readonly Dictionary<Guid, Guid> _previewImageViewAssets = [];
     private readonly Dictionary<Guid, BitmapImage> _previewImageSources = [];
@@ -40,6 +41,7 @@ public sealed partial class VideoEditorPage
         SetPreviewImageTick(false);
         _previewImages.Children.Clear();
         _previewImageViews.Clear();
+        _previewImageFrames.Clear();
         _visiblePreviewImageDefinitions.Clear();
         _previewImageViewAssets.Clear();
         _previewImageSources.Clear();
@@ -57,6 +59,7 @@ public sealed partial class VideoEditorPage
         SetPreviewImageTick(false);
         _previewImages.Children.Clear();
         _previewImageViews.Clear();
+        _previewImageFrames.Clear();
         _visiblePreviewImageDefinitions.Clear();
         _previewImageViewAssets.Clear();
         _previewImageSources.Clear();
@@ -90,9 +93,6 @@ public sealed partial class VideoEditorPage
             !double.IsFinite(VideoPlayer.Height) || VideoPlayer.Width <= 0 || VideoPlayer.Height <= 0)
             return;
 
-        VideoProject project = _editor.Current;
-        double scaleX = VideoPlayer.Width / project.Width;
-        double scaleY = VideoPlayer.Height / project.Height;
         _previewImages.Width = VideoPlayer.Width;
         _previewImages.Height = VideoPlayer.Height;
         _previewImages.Clip = new RectangleGeometry
@@ -100,14 +100,31 @@ public sealed partial class VideoEditorPage
             Rect = new Rect(0, 0, VideoPlayer.Width, VideoPlayer.Height),
         };
         foreach (ImageOverlay overlay in _visiblePreviewImageDefinitions.Values)
-        {
-            Image view = _previewImageViews[overlay.Id];
-            Canvas.SetLeft(view, overlay.Bounds.X * scaleX);
-            Canvas.SetTop(view, overlay.Bounds.Y * scaleY);
-            view.Width = overlay.Bounds.Width * scaleX;
-            view.Height = overlay.Bounds.Height * scaleY;
-        }
+            LayoutPreviewImage(overlay, overlay.Bounds,
+                overlay.SourceCrop ?? new VideoRect(0, 0, 1, 1));
         UpdateImageTransitionVisuals(position ?? _playhead);
+        RefreshCanvasMediaSelection();
+    }
+
+    private void LayoutPreviewImage(ImageOverlay overlay, VideoRect bounds,
+        VideoRect crop)
+    {
+        if (_editor is null || VideoPlayer.Width <= 0 || VideoPlayer.Height <= 0 ||
+            !_previewImageFrames.TryGetValue(overlay.Id, out Border? frame) ||
+            !_previewImageViews.TryGetValue(overlay.Id, out Image? view)) return;
+        double scaleX = VideoPlayer.Width / _editor.Current.Width;
+        double scaleY = VideoPlayer.Height / _editor.Current.Height;
+        double width = bounds.Width * scaleX;
+        double height = bounds.Height * scaleY;
+        Canvas.SetLeft(frame, bounds.X * scaleX);
+        Canvas.SetTop(frame, bounds.Y * scaleY);
+        frame.Width = width;
+        frame.Height = height;
+        frame.Clip = new RectangleGeometry { Rect = new Rect(0, 0, width, height) };
+        view.Width = width / crop.Width;
+        view.Height = height / crop.Height;
+        Canvas.SetLeft(view, -crop.X * view.Width);
+        Canvas.SetTop(view, -crop.Y * view.Height);
     }
 
     private void UpdateVisiblePreviewImages(TimeSpan position)
@@ -134,15 +151,17 @@ public sealed partial class VideoEditorPage
             ? _previewImageBoundaries[firstAfter] : TimeSpan.MaxValue;
 
         HashSet<Guid> activeIds = _editor.Current.ImageOverlays
-            .Where(item => item.Start <= position && position < item.End)
+            .Where(item => item.Start <= position && position < item.End &&
+                CanvasLayerVisible(_editor.Current, item.Id, item.LayerId))
             .Select(item => item.Id).ToHashSet();
         IncludeImageTransitionIds(position, activeIds);
         ImageOverlay[] active = _editor.Current.ImageOverlays
             .Where(item => activeIds.Contains(item.Id)).ToArray();
         foreach (Guid removedId in _previewImageViews.Keys.Where(id => !activeIds.Contains(id)).ToArray())
         {
-            _previewImages.Children.Remove(_previewImageViews[removedId]);
+            _previewImages.Children.Remove(_previewImageFrames[removedId]);
             _previewImageViews.Remove(removedId);
+            _previewImageFrames.Remove(removedId);
             _previewImageViewAssets.Remove(removedId);
         }
         _visiblePreviewImageDefinitions.Clear();
@@ -156,8 +175,21 @@ public sealed partial class VideoEditorPage
                     IsHitTestVisible = false,
                     Stretch = Stretch.Fill,
                 };
+                var imageCanvas = new Canvas { IsHitTestVisible = false };
+                imageCanvas.Children.Add(view);
+                var frame = new Border
+                {
+                    Background = new SolidColorBrush(global::Microsoft.UI.Colors.Transparent),
+                    Child = imageCanvas,
+                    Tag = (TimelineKind.Image, overlay.Id),
+                };
+                frame.PointerPressed += MediaSurface_PointerPressed;
+                frame.PointerMoved += MediaSurface_PointerMoved;
+                frame.PointerReleased += MediaSurface_PointerReleased;
+                frame.PointerCaptureLost += MediaSurface_PointerCaptureLost;
                 _previewImageViews.Add(overlay.Id, view);
-                _previewImages.Children.Add(view);
+                _previewImageFrames.Add(overlay.Id, frame);
+                _previewImages.Children.Add(frame);
             }
             if (!_previewImageViewAssets.TryGetValue(overlay.Id, out Guid previousAsset) ||
                 previousAsset != overlay.AssetId)
@@ -165,7 +197,7 @@ public sealed partial class VideoEditorPage
                 view.Source = null;
                 _previewImageViewAssets[overlay.Id] = overlay.AssetId;
             }
-            Canvas.SetZIndex(view, overlay.ZIndex);
+            Canvas.SetZIndex(_previewImageFrames[overlay.Id], overlay.ZIndex);
             _visiblePreviewImageDefinitions.Add(overlay.Id, overlay);
             if (_previewImageSources.TryGetValue(overlay.AssetId, out BitmapImage? source))
                 view.Source = source;
@@ -240,10 +272,13 @@ public sealed partial class VideoEditorPage
     {
         VideoProject? project = _editor?.Current;
         if (project is null ||
-            project.ImageOverlays.Length == 0 && project.TextOverlays.Length == 0 &&
-            project.Transitions.Length == 0 &&
-            !project.VideoSegments.Any(item =>
-                item.FadeIn > TimeSpan.Zero || item.FadeOut > TimeSpan.Zero))
+            !project.ImageOverlays.Any(item =>
+                CanvasLayerVisible(project, item.Id, item.LayerId)) &&
+            !project.TextOverlays.Any(item =>
+                CanvasLayerVisible(project, item.Id, item.LayerId)) &&
+            (project.HiddenLayerIds.Contains(Guid.Empty) ||
+                !project.VideoSegments.Any(item =>
+                    item.FadeIn > TimeSpan.Zero || item.FadeOut > TimeSpan.Zero)))
             playing = false;
         if (playing == _previewImageTickAttached) return;
         if (playing)

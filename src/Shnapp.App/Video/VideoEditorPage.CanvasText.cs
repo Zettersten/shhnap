@@ -91,6 +91,11 @@ public sealed partial class VideoEditorPage
         VideoProject project = _editor.Current;
         TextCanvas.Width = VideoPlayer.Width;
         TextCanvas.Height = VideoPlayer.Height;
+        TextCanvas.Clip = new RectangleGeometry
+        {
+            Rect = new global::Windows.Foundation.Rect(0, 0,
+                VideoPlayer.Width, VideoPlayer.Height),
+        };
         double scaleX = VideoPlayer.Width / project.Width;
         double scaleY = VideoPlayer.Height / project.Height;
         Canvas.SetLeft(TextSafeArea, VideoPlayer.Width * .05);
@@ -286,15 +291,13 @@ public sealed partial class VideoEditorPage
         _canvasTextDraftBounds = _canvasTextGesture == CanvasTextGesture.Move
             ? old with
             {
-                X = Math.Clamp(old.X + dx, 0, Math.Max(0, project.Width - old.Width)),
-                Y = Math.Clamp(old.Y + dy, 0, Math.Max(0, project.Height - old.Height)),
+                X = Math.Clamp(old.X + dx, -65_536, 65_536),
+                Y = Math.Clamp(old.Y + dy, -65_536, 65_536),
             }
             : old with
             {
-                Width = Math.Clamp(old.Width + dx, Math.Min(64, project.Width - old.X),
-                    project.Width - old.X),
-                Height = Math.Clamp(old.Height + dy, Math.Min(32, project.Height - old.Y),
-                    project.Height - old.Y),
+                Width = Math.Clamp(old.Width + dx, 16, 65_536),
+                Height = Math.Clamp(old.Height + dy, 16, 65_536),
             };
         UpdateCanvasTextBounds();
         args.Handled = true;

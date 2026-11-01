@@ -128,7 +128,8 @@ public sealed partial class VideoEditorPage
             ? _previewTextBoundaries[nextBoundary] : TimeSpan.MaxValue;
 
         HashSet<Guid> activeIds = _editor.Current.TextOverlays
-            .Where(item => item.Start <= position && position < item.End)
+            .Where(item => item.Start <= position && position < item.End &&
+                CanvasLayerVisible(_editor.Current, item.Id, item.LayerId))
             .Select(item => item.Id).ToHashSet();
         IncludeTextTransitionIds(position, activeIds);
         TextOverlay[] active = _editor.Current.TextOverlays

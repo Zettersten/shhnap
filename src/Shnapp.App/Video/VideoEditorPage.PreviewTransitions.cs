@@ -85,6 +85,9 @@ public sealed partial class VideoEditorPage
         foreach (ImagePreviewTransition item in _imagePreviewTransitions)
         {
             if (position < item.Span.Start || position >= item.Span.End) continue;
+            if (_editor?.Current is not { } project ||
+                !CanvasLayerVisible(project, item.Outgoing.Id, item.Outgoing.LayerId))
+                continue;
             active.Add(item.Outgoing.Id);
             active.Add(item.Incoming.Id);
         }
@@ -95,6 +98,9 @@ public sealed partial class VideoEditorPage
         foreach (TextPreviewTransition item in _textPreviewTransitions)
         {
             if (position < item.Span.Start || position >= item.Span.End) continue;
+            if (_editor?.Current is not { } project ||
+                !CanvasLayerVisible(project, item.Outgoing.Id, item.Outgoing.LayerId))
+                continue;
             active.Add(item.Outgoing.Id);
             active.Add(item.Incoming.Id);
         }
@@ -104,9 +110,11 @@ public sealed partial class VideoEditorPage
     {
         foreach (ImagePreviewTransition item in _activeImagePreviewTransitions)
             item.Backdrop.Visibility = Visibility.Collapsed;
-        foreach (Image view in _previewImageViews.Values) ResetTransitionVisual(view);
+        foreach (Border frame in _previewImageFrames.Values) ResetTransitionVisual(frame);
         _activeImagePreviewTransitions = _imagePreviewTransitions
-            .Where(item => position >= item.Span.Start && position < item.Span.End)
+            .Where(item => position >= item.Span.Start && position < item.Span.End &&
+                _editor?.Current is { } project &&
+                CanvasLayerVisible(project, item.Outgoing.Id, item.Outgoing.LayerId))
             .ToArray();
     }
 
@@ -116,7 +124,9 @@ public sealed partial class VideoEditorPage
             item.Backdrop.Visibility = Visibility.Collapsed;
         foreach (Image view in _previewTextViews.Values) ResetTransitionVisual(view);
         _activeTextPreviewTransitions = _textPreviewTransitions
-            .Where(item => position >= item.Span.Start && position < item.Span.End)
+            .Where(item => position >= item.Span.Start && position < item.Span.End &&
+                _editor?.Current is { } project &&
+                CanvasLayerVisible(project, item.Outgoing.Id, item.Outgoing.LayerId))
             .ToArray();
     }
 
@@ -127,11 +137,11 @@ public sealed partial class VideoEditorPage
         {
             VideoTransitionSample sample = SampleTransition(item.Transition,
                 item.Span, position);
-            if (_previewImageViews.TryGetValue(item.Outgoing.Id, out Image? outgoing))
+            if (_previewImageFrames.TryGetValue(item.Outgoing.Id, out Border? outgoing))
                 ApplyTransitionVisual(outgoing, sample.OutgoingOpacity,
                     sample.OutgoingOffsetX, sample.OutgoingOffsetY,
                     sample.OutgoingScale);
-            if (_previewImageViews.TryGetValue(item.Incoming.Id, out Image? incoming))
+            if (_previewImageFrames.TryGetValue(item.Incoming.Id, out Border? incoming))
                 ApplyTransitionVisual(incoming, sample.IncomingOpacity,
                     sample.IncomingOffsetX, sample.IncomingOffsetY,
                     sample.IncomingScale);
@@ -165,7 +175,7 @@ public sealed partial class VideoEditorPage
         VideoTransitionGeometry.Sample(transition.Effect,
             (position - span.Start).TotalSeconds / transition.Duration.TotalSeconds);
 
-    private static void ResetTransitionVisual(Image view)
+    private static void ResetTransitionVisual(FrameworkElement view)
     {
         if (view.Opacity != 1) view.Opacity = 1;
         if (view.RenderTransform is not CompositeTransform transform) return;
@@ -175,7 +185,7 @@ public sealed partial class VideoEditorPage
         if (transform.TranslateY != 0) transform.TranslateY = 0;
     }
 
-    private static void ApplyTransitionVisual(Image view, double opacity,
+    private static void ApplyTransitionVisual(FrameworkElement view, double opacity,
         double offsetX, double offsetY, double scale)
     {
         if (Math.Abs(view.Opacity - opacity) > .001) view.Opacity = opacity;
