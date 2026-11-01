@@ -759,25 +759,10 @@ public sealed partial class MainPage : Page
 
     private void DrawCanvasBackdrop(CanvasDrawingSession drawing, double width, double height)
     {
-        drawing.Transform = Matrix3x2.Identity;
-        drawing.FillRectangle(new Rect(0, 0, width, height), CanvasThemeColor("ShnappCanvasBrush"));
-        if (_accessibility.HighContrast)
-        {
-            return;
-        }
-
-        const int tileSize = 18;
-        Color alternate = CanvasThemeColor("ShnappCheckerAccentBrush");
-        int columns = (int)Math.Ceiling(width / tileSize);
-        int rows = (int)Math.Ceiling(height / tileSize);
-        for (int row = 0; row < rows; row++)
-        {
-            for (int column = row & 1; column < columns; column += 2)
-            {
-                drawing.FillRectangle(column * tileSize, row * tileSize,
-                    tileSize, tileSize, alternate);
-            }
-        }
+        CheckerboardBackdrop.Draw(drawing, width, height,
+            CanvasThemeColor("ShnappCanvasBrush"),
+            CanvasThemeColor("ShnappCheckerAccentBrush"),
+            _accessibility.HighContrast);
     }
 
     private void Canvas_PointerReleased(object sender, PointerRoutedEventArgs args)
