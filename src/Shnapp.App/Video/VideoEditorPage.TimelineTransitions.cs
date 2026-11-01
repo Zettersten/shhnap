@@ -14,6 +14,7 @@ public sealed partial class VideoEditorPage
         Guid OutgoingId, Guid IncomingId, Guid? TransitionId);
 
     private void AddTimelineTransitionMarkers(VideoProject project, int videoLane,
+        IReadOnlyDictionary<Guid, int> videoOverlayLanes,
         IReadOnlyDictionary<Guid, int> imageLanes,
         IReadOnlyDictionary<Guid, int> textLanes)
     {
@@ -26,6 +27,17 @@ public sealed partial class VideoEditorPage
                 AddMarker(VideoTransitionLane.Video, video[index].Id,
                     video[index + 1].Id, video[index].End, videoLane,
                     transitions);
+
+        foreach (var group in project.VideoOverlays.GroupBy(VideoOverlayLayerKey))
+        {
+            VideoOverlay[] videos = [.. group.OrderBy(item => item.Start)];
+            for (int index = 0; index + 1 < videos.Length; index++)
+                if (videos[index].End == videos[index + 1].Start &&
+                    videoOverlayLanes.TryGetValue(videos[index].Id, out int lane))
+                    AddMarker(VideoTransitionLane.VideoOverlay, videos[index].Id,
+                        videos[index + 1].Id, videos[index].End, lane,
+                        transitions);
+        }
 
         foreach (var group in project.ImageOverlays.GroupBy(ImageLayerKey))
         {
@@ -110,6 +122,7 @@ public sealed partial class VideoEditorPage
         {
             VideoTransitionLane.Image => "image",
             VideoTransitionLane.Text => "text",
+            VideoTransitionLane.VideoOverlay => "video layer",
             _ => "video",
         };
         string description = existing

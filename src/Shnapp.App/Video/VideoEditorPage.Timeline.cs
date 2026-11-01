@@ -14,8 +14,10 @@ namespace Shnapp.App.Video;
 
 public sealed partial class VideoEditorPage
 {
-    private enum TimelineKind { None, Video, Audio, Image, Text, Transition }
+    private enum TimelineKind { None, Video, VideoOverlay, Audio, Image, Text, Transition }
     private enum ClipDragMode { Move, TrimStart, TrimEnd }
+    private sealed record TimelineLane(string Label, Color Fill, string Glyph,
+        Guid VisibilityKey, TimelineKind Kind);
 
     private TimelineKind _selectedKind;
     private Guid _selectedId;
@@ -55,9 +57,10 @@ public sealed partial class VideoEditorPage
         if (_editor is null || TimelineCanvas is null) return;
         VideoProject project = _editor.Current;
         Dictionary<Guid, VideoAsset> assets = project.Assets.ToDictionary(item => item.Id);
-        var lanes = new List<(string Label, Color Fill, string Glyph)>();
+        var lanes = new List<TimelineLane>();
         var textLanes = new Dictionary<Guid, int>();
         var imageLanes = new Dictionary<Guid, int>();
+        var videoOverlayLanes = new Dictionary<Guid, int>();
         Color textColor = Color.FromArgb(255, 73, 101, 164);
         Color imageColor = Color.FromArgb(255, 125, 95, 157);
         Color videoColor = Color.FromArgb(255, 52, 112, 162);
@@ -75,8 +78,8 @@ public sealed partial class VideoEditorPage
             int lane = lanes.Count;
             string label = layer.First().item.Text.Replace('\r', ' ')
                 .Replace('\n', ' ').Trim();
-            lanes.Add((label.Length > 24 ? label[..24] + "…" : label,
-                textColor, "\uE8D2"));
+            lanes.Add(new TimelineLane(label.Length > 24 ? label[..24] + "…" : label,
+                textColor, "\uE8D2", layer.Key, TimelineKind.Text));
             foreach (var entry in layer) textLanes[entry.item.Id] = lane;
         }
 
@@ -88,11 +91,24 @@ public sealed partial class VideoEditorPage
         {
             int lane = lanes.Count;
             string name = assets[layer.First().item.AssetId].DisplayName ?? "Image";
-            lanes.Add((name, imageColor, "\uE8B9"));
+            lanes.Add(new TimelineLane(name, imageColor, "\uE8B9", layer.Key,
+                TimelineKind.Image));
             foreach (var entry in layer) imageLanes[entry.item.Id] = lane;
         }
+        foreach (var layer in project.VideoOverlays.Select((item, index) => (item, index))
+            .GroupBy(entry => VideoOverlayLayerKey(entry.item))
+            .OrderByDescending(group => group.First().item.ZIndex)
+            .ThenByDescending(group => group.Max(entry => entry.index)))
+        {
+            int lane = lanes.Count;
+            string name = assets[layer.First().item.AssetId].DisplayName ?? "Video layer";
+            lanes.Add(new TimelineLane(name, videoColor, "\uE768", layer.Key,
+                TimelineKind.VideoOverlay));
+            foreach (var entry in layer) videoOverlayLanes[entry.item.Id] = lane;
+        }
         int videoLane = lanes.Count;
-        lanes.Add(("Video", videoColor, "\uE768"));
+        lanes.Add(new TimelineLane("Original video", videoColor, "\uE768",
+            Guid.Empty, TimelineKind.Video));
 
         var audioLanes = new Dictionary<Guid, int>();
         HashSet<Guid> usedAudioAssets = [.. project.AudioSegments.Select(item => item.AssetId)];
@@ -111,12 +127,13 @@ public sealed partial class VideoEditorPage
                 _ => asset.DisplayName ?? "Added audio",
             };
             audioLanes[asset.Id] = lanes.Count;
-            lanes.Add((name, asset.Kind switch
+            lanes.Add(new TimelineLane(name, asset.Kind switch
             {
                 VideoAssetKind.ComputerAudio => systemColor,
                 VideoAssetKind.MicrophoneAudio => microphoneColor,
                 _ => addedAudioColor,
-            }, asset.Kind == VideoAssetKind.MicrophoneAudio ? "\uE720" : "\uE8D6"));
+            }, asset.Kind == VideoAssetKind.MicrophoneAudio ? "\uE720" : "\uE8D6",
+                asset.Id, TimelineKind.Audio));
         }
 
         double contentHeight = 22 + lanes.Count * 28;
@@ -127,12 +144,18 @@ public sealed partial class VideoEditorPage
         TimelineLaneHeaders.Children.Add(new TextBlock { Height = 22 });
         foreach (var lane in lanes)
         {
+            bool visible = lane.Kind == TimelineKind.Audio
+                ? project.AudioSegments.Any(item => item.AssetId == lane.VisibilityKey &&
+                    !item.Muted)
+                : !project.HiddenLayerIds.Contains(lane.VisibilityKey);
             var header = new Grid
             {
                 Height = 28,
             };
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(17) });
-            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1,
+                GridUnitType.Star) });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
             header.Children.Add(new FontIcon
             {
                 Glyph = lane.Glyph,
@@ -147,13 +170,48 @@ public sealed partial class VideoEditorPage
             {
                 Text = lane.Label,
                 FontSize = 10,
-                MaxWidth = 82,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = (Brush)Application.Current.Resources["ShnappToolbarInactiveIconBrush"],
+                Opacity = visible ? 1 : .5,
             };
             Grid.SetColumn(label, 1);
             header.Children.Add(label);
+            string action = lane.Kind == TimelineKind.Audio
+                ? visible ? "Mute" : "Unmute"
+                : visible ? "Hide" : "Show";
+            var visibilityButton = new Button
+            {
+                Width = 20,
+                Height = 20,
+                MinWidth = 0,
+                MinHeight = 0,
+                Padding = new Thickness(0),
+                CornerRadius = new CornerRadius(4),
+                Background = new SolidColorBrush(Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Tag = (lane.Kind, lane.VisibilityKey),
+                Content = new FontIcon
+                {
+                    Glyph = lane.Kind == TimelineKind.Audio
+                        ? visible ? "\uE767" : "\uE74F"
+                        : visible ? "\uE890" : "\uE8F4",
+                    FontFamily = new FontFamily("Segoe Fluent Icons"),
+                    FontSize = 12,
+                    Width = 12,
+                    Height = 12,
+                    Foreground = (Brush)Application.Current.Resources[
+                        "ShnappToolbarInactiveIconBrush"],
+                },
+            };
+            AutomationProperties.SetName(visibilityButton,
+                $"{action} {lane.Label} {(lane.Kind == TimelineKind.Audio ? "track" : "layer")}");
+            ToolTipService.SetToolTip(visibilityButton,
+                $"{action} {lane.Label} {(lane.Kind == TimelineKind.Audio ? "track" : "layer")}");
+            visibilityButton.Click += TimelineVisibility_Click;
+            Grid.SetColumn(visibilityButton, 2);
+            header.Children.Add(visibilityButton);
             ToolTipService.SetToolTip(header, lane.Label);
             TimelineLaneHeaders.Children.Add(header);
         }
@@ -275,7 +333,15 @@ public sealed partial class VideoEditorPage
             VideoAsset asset = assets[segment.AssetId];
             AddTimelineClip(segment.Id, TimelineKind.Video, videoLane, segment.Start,
                 segment.Duration, asset.DisplayName ?? "Recording", videoColor,
-                segment.AssetId);
+                segment.AssetId, !project.HiddenLayerIds.Contains(Guid.Empty));
+        }
+        foreach (VideoOverlay overlay in project.VideoOverlays)
+        {
+            int lane = videoOverlayLanes[overlay.Id];
+            VideoAsset asset = assets[overlay.AssetId];
+            AddTimelineClip(overlay.Id, TimelineKind.VideoOverlay, lane, overlay.Start,
+                overlay.Duration, lanes[lane].Label, videoColor, asset.Id,
+                !project.HiddenLayerIds.Contains(lanes[lane].VisibilityKey));
         }
         foreach (AudioSegment segment in project.AudioSegments)
         {
@@ -284,23 +350,26 @@ public sealed partial class VideoEditorPage
             string title = lanes[lane].Label;
             AddTimelineClip(segment.Id, TimelineKind.Audio, lane,
                 segment.Start, segment.Duration,
-                segment.Muted ? $"{title} · muted" : title, lanes[lane].Fill);
+                segment.Muted ? $"{title} · muted" : title, lanes[lane].Fill,
+                visible: !segment.Muted);
         }
         foreach (ImageOverlay overlay in project.ImageOverlays)
         {
             int lane = imageLanes[overlay.Id];
             AddTimelineClip(overlay.Id, TimelineKind.Image, lane,
                 overlay.Start, overlay.Duration, lanes[lane].Label, imageColor,
-                overlay.AssetId);
+                overlay.AssetId, !project.HiddenLayerIds.Contains(lanes[lane].VisibilityKey));
         }
         foreach (TextOverlay overlay in project.TextOverlays)
         {
             int lane = textLanes[overlay.Id];
             AddTimelineClip(overlay.Id, TimelineKind.Text, lane,
-                overlay.Start, overlay.Duration, lanes[lane].Label, textColor);
+                overlay.Start, overlay.Duration, lanes[lane].Label, textColor,
+                visible: !project.HiddenLayerIds.Contains(lanes[lane].VisibilityKey));
         }
 
-        AddTimelineTransitionMarkers(project, videoLane, imageLanes, textLanes);
+        AddTimelineTransitionMarkers(project, videoLane, videoOverlayLanes,
+            imageLanes, textLanes);
 
         _playheadLine = new Line
         {
@@ -327,7 +396,7 @@ public sealed partial class VideoEditorPage
 
     private void AddTimelineClip(Guid id, TimelineKind kind, int lane,
         TimeSpan start, TimeSpan duration, string title, Color fill,
-        Guid thumbnailAssetId = default)
+        Guid thumbnailAssetId = default, bool visible = true)
     {
         double left = start.TotalSeconds * _pixelsPerSecond;
         double width = Math.Max(3, duration.TotalSeconds * _pixelsPerSecond - 2);
@@ -446,6 +515,7 @@ public sealed partial class VideoEditorPage
             BorderBrush = (Brush)Application.Current.Resources["ShnappToolbarActiveIconBrush"],
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Tag = (kind, id),
+            Opacity = visible ? 1 : .46,
             AllowDrop = true,
             Content = content,
         };
@@ -532,6 +602,20 @@ public sealed partial class VideoEditorPage
                 foreach (VideoSegment other in project.VideoSegments)
                 {
                     if (other.Id == item.Id) continue;
+                    if (other.End <= item.Start && other.End > minStart) minStart = other.End;
+                    if (other.Start >= item.End && other.Start < maxEnd) maxEnd = other.Start;
+                }
+            }
+            else if (tag.Item1 == TimelineKind.VideoOverlay)
+            {
+                VideoOverlay item = project.VideoOverlays.First(clip => clip.Id == tag.Item2);
+                VideoAsset asset = project.Assets.First(value => value.Id == item.AssetId);
+                minStart = item.Start - item.SourceIn;
+                maxEnd = Min(maxEnd, item.Start + asset.Duration - item.SourceIn);
+                Guid layerId = VideoOverlayLayerKey(item);
+                foreach (VideoOverlay other in project.VideoOverlays.Where(other =>
+                    other.Id != item.Id && VideoOverlayLayerKey(other) == layerId))
+                {
                     if (other.End <= item.Start && other.End > minStart) minStart = other.End;
                     if (other.Start >= item.End && other.Start < maxEnd) maxEnd = other.Start;
                 }
@@ -627,6 +711,21 @@ public sealed partial class VideoEditorPage
             {
                 VideoSegment clip = _editor.Current.VideoSegments.First(item => item.Id == drag.Id);
                 committed = _editor.UpdateVideoSegment(drag.Mode switch
+                {
+                    ClipDragMode.Move => clip with { Start = start },
+                    ClipDragMode.TrimStart => clip with
+                    {
+                        Start = start,
+                        SourceIn = clip.SourceIn + (start - clip.Start),
+                    },
+                    _ => clip with { SourceOut = clip.SourceOut + (end - clip.End) },
+                });
+            }
+            else if (drag.Kind == TimelineKind.VideoOverlay)
+            {
+                VideoOverlay clip = _editor.Current.VideoOverlays.First(item =>
+                    item.Id == drag.Id);
+                committed = _editor.UpdateVideoOverlay(drag.Mode switch
                 {
                     ClipDragMode.Move => clip with { Start = start },
                     ClipDragMode.TrimStart => clip with
@@ -773,6 +872,11 @@ public sealed partial class VideoEditorPage
             targets.Add(item.Start.TotalSeconds);
             targets.Add(item.End.TotalSeconds);
         }
+        foreach (VideoOverlay item in project.VideoOverlays.Where(item => item.Id != movingId))
+        {
+            targets.Add(item.Start.TotalSeconds);
+            targets.Add(item.End.TotalSeconds);
+        }
         foreach (AudioSegment item in project.AudioSegments.Where(item => item.Id != movingId))
         {
             targets.Add(item.Start.TotalSeconds);
@@ -817,6 +921,23 @@ public sealed partial class VideoEditorPage
         SelectClip(tag.Item1, tag.Item2);
     }
 
+    private void TimelineVisibility_Click(object sender, RoutedEventArgs args)
+    {
+        if (_editor is null ||
+            sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag } ||
+            !ApplyPendingInspectorChanges()) return;
+        VideoProject project = _editor.Current;
+        if (tag.Item1 == TimelineKind.Audio)
+        {
+            bool audible = project.AudioSegments.Any(item =>
+                item.AssetId == tag.Item2 && !item.Muted);
+            TryEdit(() => _editor.SetAudioTrackMuted(tag.Item2, audible));
+            return;
+        }
+        bool visible = !project.HiddenLayerIds.Contains(tag.Item2);
+        TryEdit(() => _editor.SetLayerVisible(tag.Item2, !visible));
+    }
+
     private void SelectClip(TimelineKind kind, Guid id)
     {
         if (_selectedId == id && _selectedKind == kind)
@@ -830,7 +951,8 @@ public sealed partial class VideoEditorPage
             FocusSelectedClip();
             return;
         }
-        if (kind == TimelineKind.Text) _player.Pause();
+        if (kind is TimelineKind.Text or TimelineKind.Image or
+            TimelineKind.VideoOverlay) _player.Pause();
         if (_clipButtons.TryGetValue(_selectedId, out Button? previous))
             previous.BorderThickness = new Thickness(
                 _selectedKind == TimelineKind.Transition ? 1 : 0);
@@ -839,6 +961,7 @@ public sealed partial class VideoEditorPage
         if (_clipButtons.TryGetValue(id, out Button? selected))
             selected.BorderThickness = new Thickness(2);
         RefreshInspector();
+        RefreshCanvasMediaSelection();
         FocusSelectedClip();
         UpdateEditActionState();
     }
@@ -988,6 +1111,8 @@ public sealed partial class VideoEditorPage
         VideoProject project = _editor.Current;
         VideoSegment? video = _selectedKind == TimelineKind.Video
             ? project.VideoSegments.FirstOrDefault(item => item.Id == _selectedId) : null;
+        VideoOverlay? videoOverlay = _selectedKind == TimelineKind.VideoOverlay
+            ? project.VideoOverlays.FirstOrDefault(item => item.Id == _selectedId) : null;
         AudioSegment? audio = _selectedKind == TimelineKind.Audio
             ? project.AudioSegments.FirstOrDefault(item => item.Id == _selectedId) : null;
         ImageOverlay? image = _selectedKind == TimelineKind.Image
@@ -997,7 +1122,8 @@ public sealed partial class VideoEditorPage
         VideoTransition? transition = _selectedKind == TimelineKind.Transition
             ? project.Transitions.FirstOrDefault(item => item.Id == _selectedId) : null;
 
-        if (video is null && audio is null && image is null && text is null && transition is null)
+        if (video is null && videoOverlay is null && audio is null && image is null &&
+            text is null && transition is null)
         {
             _selectedKind = TimelineKind.None;
             _selectedId = Guid.Empty;
@@ -1007,17 +1133,24 @@ public sealed partial class VideoEditorPage
             PendingChangesText.Visibility = Visibility.Collapsed;
             SelectionHint.Text = "Select a clip to edit";
             RefreshCanvasTextEditor();
+            RefreshCanvasMediaSelection();
             UpdateEditActionState();
             return;
         }
 
         if (ActualWidth < 640) CloseGallery();
         InspectorPanel.Visibility = Visibility.Visible;
-        SourceFields.Visibility = video is not null || audio is not null
+        SourceFields.Visibility = video is not null || videoOverlay is not null ||
+            audio is not null
             ? Visibility.Visible : Visibility.Collapsed;
         VideoFadeFields.Visibility = video is null ? Visibility.Collapsed : Visibility.Visible;
         AudioFields.Visibility = audio is null ? Visibility.Collapsed : Visibility.Visible;
-        OverlayFields.Visibility = image is null ? Visibility.Collapsed : Visibility.Visible;
+        OverlayFields.Visibility = image is null && videoOverlay is null
+            ? Visibility.Collapsed : Visibility.Visible;
+        OverlayCropFields.Visibility = image is null && videoOverlay is null
+            ? Visibility.Collapsed : Visibility.Visible;
+        OverlayDurationSeconds.Visibility = videoOverlay is null
+            ? Visibility.Visible : Visibility.Collapsed;
         TextFields.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
         TransitionFields.Visibility = transition is null ? Visibility.Collapsed : Visibility.Visible;
         ClipStartSeconds.Visibility = transition is null ? Visibility.Visible : Visibility.Collapsed;
@@ -1049,25 +1182,32 @@ public sealed partial class VideoEditorPage
             UpdateEditActionState();
             return;
         }
-        Guid? selectedAssetId = video?.AssetId ?? audio?.AssetId ?? image?.AssetId;
+        Guid? selectedAssetId = video?.AssetId ?? videoOverlay?.AssetId ??
+            audio?.AssetId ?? image?.AssetId;
         VideoAsset? selectedAsset = selectedAssetId is { } assetId
             ? project.Assets.FirstOrDefault(asset => asset.Id == assetId) : null;
         SelectedItemTitle.Text = video is not null
             ? selectedAsset?.DisplayName ?? "Recording"
+            : videoOverlay is not null
+                ? selectedAsset?.DisplayName ?? "Video layer"
             : image is not null
                 ? selectedAsset?.DisplayName ?? "Image"
                 : text is not null ? "Text" : selectedAsset?.DisplayName ?? "Audio";
-        TimeSpan start = video?.Start ?? audio?.Start ?? image?.Start ?? text!.Start;
-        TimeSpan duration = video?.Duration ?? audio?.Duration ?? image?.Duration ?? text!.Duration;
+        TimeSpan start = video?.Start ?? videoOverlay?.Start ?? audio?.Start ??
+            image?.Start ?? text!.Start;
+        TimeSpan duration = video?.Duration ?? videoOverlay?.Duration ?? audio?.Duration ??
+            image?.Duration ?? text!.Duration;
         _selectedRange = (start, start + duration);
         SelectedItemDetail.Text = $"{FormatPreciseTime(start)} — {FormatPreciseTime(start + duration)}";
         SelectionHint.Text = $"{SelectedItemTitle.Text} · {FormatPreciseTime(duration)}";
         _loadingInspector = true;
         ClipStartSeconds.Value = start.TotalSeconds;
-        if (video is not null || audio is not null)
+        if (video is not null || videoOverlay is not null || audio is not null)
         {
-            ClipSourceInSeconds.Value = (video?.SourceIn ?? audio!.SourceIn).TotalSeconds;
-            ClipSourceOutSeconds.Value = (video?.SourceOut ?? audio!.SourceOut).TotalSeconds;
+            ClipSourceInSeconds.Value = (video?.SourceIn ?? videoOverlay?.SourceIn ??
+                audio!.SourceIn).TotalSeconds;
+            ClipSourceOutSeconds.Value = (video?.SourceOut ?? videoOverlay?.SourceOut ??
+                audio!.SourceOut).TotalSeconds;
         }
         if (video is not null)
         {
@@ -1079,22 +1219,44 @@ public sealed partial class VideoEditorPage
             AudioGainSlider.Value = audio.Gain;
             AudioMuteSwitch.IsOn = audio.Muted;
         }
-        if (image is not null)
+        if (image is not null || videoOverlay is not null)
         {
-            OverlayDurationSeconds.Value = image.Duration.TotalSeconds;
-            OverlayX.Value = image.Bounds.X;
-            OverlayY.Value = image.Bounds.Y;
-            OverlayWidth.Value = image.Bounds.Width;
-            OverlayHeight.Value = image.Bounds.Height;
-            var layers = project.ImageOverlays.Select((item, index) => (item, index))
-                .GroupBy(entry => ImageLayerKey(entry.item))
-                .OrderBy(group => group.First().item.ZIndex)
-                .ThenBy(group => group.Min(entry => entry.index))
-                .ToArray();
-            int position = Array.FindIndex(layers, layer =>
-                layer.Key == ImageLayerKey(image));
-            SetEnabled(MoveImageForwardButton, position < layers.Length - 1);
-            SetEnabled(MoveImageBackButton, position > 0);
+            VideoRect bounds = image?.Bounds ?? videoOverlay!.Bounds;
+            if (image is not null) OverlayDurationSeconds.Value = image.Duration.TotalSeconds;
+            OverlayX.Value = bounds.X;
+            OverlayY.Value = bounds.Y;
+            OverlayWidth.Value = bounds.Width;
+            OverlayHeight.Value = bounds.Height;
+            VideoRect crop = image?.SourceCrop ?? videoOverlay?.SourceCrop ??
+                new VideoRect(0, 0, 1, 1);
+            OverlayCropLeft.Value = crop.X * 100;
+            OverlayCropTop.Value = crop.Y * 100;
+            OverlayCropWidth.Value = crop.Width * 100;
+            OverlayCropHeight.Value = crop.Height * 100;
+            if (image is not null)
+            {
+                var layers = project.ImageOverlays.Select((item, index) => (item, index))
+                    .GroupBy(entry => ImageLayerKey(entry.item))
+                    .OrderBy(group => group.First().item.ZIndex)
+                    .ThenBy(group => group.Min(entry => entry.index))
+                    .ToArray();
+                int position = Array.FindIndex(layers, layer =>
+                    layer.Key == ImageLayerKey(image));
+                SetEnabled(MoveImageForwardButton, position < layers.Length - 1);
+                SetEnabled(MoveImageBackButton, position > 0);
+            }
+            else
+            {
+                var layers = project.VideoOverlays.Select((item, index) => (item, index))
+                    .GroupBy(entry => VideoOverlayLayerKey(entry.item))
+                    .OrderBy(group => group.First().item.ZIndex)
+                    .ThenBy(group => group.Min(entry => entry.index))
+                    .ToArray();
+                int position = Array.FindIndex(layers, layer =>
+                    layer.Key == VideoOverlayLayerKey(videoOverlay!));
+                SetEnabled(MoveImageForwardButton, position < layers.Length - 1);
+                SetEnabled(MoveImageBackButton, position > 0);
+            }
         }
         if (text is not null)
         {
@@ -1179,7 +1341,8 @@ public sealed partial class VideoEditorPage
         SetEnabled(DeleteClipButton, selected && _selectedRange.HasValue);
         bool canCut = _markIn.HasValue && _markOut.HasValue &&
             _markIn.Value != _markOut.Value;
-        if (canCut && _selectedKind is TimelineKind.Audio or TimelineKind.Image or TimelineKind.Text)
+        if (canCut && _selectedKind is TimelineKind.VideoOverlay or TimelineKind.Audio or
+            TimelineKind.Image or TimelineKind.Text)
         {
             TimeSpan start = Min(_markIn!.Value, _markOut!.Value);
             TimeSpan end = _markIn.Value > _markOut.Value ? _markIn.Value : _markOut.Value;
@@ -1224,6 +1387,20 @@ public sealed partial class VideoEditorPage
                     FadeOut = Seconds(VideoFadeOutSeconds.Value),
                 });
             }
+            else if (_selectedKind == TimelineKind.VideoOverlay)
+            {
+                VideoOverlay clip = _editor.Current.VideoOverlays.First(item =>
+                    item.Id == _selectedId);
+                _editor.UpdateVideoOverlay(clip with
+                {
+                    Start = start,
+                    SourceIn = Seconds(ClipSourceInSeconds.Value),
+                    SourceOut = Seconds(ClipSourceOutSeconds.Value),
+                    Bounds = new VideoRect(OverlayX.Value, OverlayY.Value,
+                        OverlayWidth.Value, OverlayHeight.Value),
+                    SourceCrop = ReadOverlayCrop(),
+                });
+            }
             else if (_selectedKind == TimelineKind.Audio)
             {
                 AudioSegment clip = _editor.Current.AudioSegments.First(item => item.Id == _selectedId);
@@ -1245,6 +1422,7 @@ public sealed partial class VideoEditorPage
                     Duration = Seconds(OverlayDurationSeconds.Value),
                     Bounds = new VideoRect(OverlayX.Value, OverlayY.Value,
                         OverlayWidth.Value, OverlayHeight.Value),
+                    SourceCrop = ReadOverlayCrop(),
                 });
             }
             else if (_selectedKind == TimelineKind.Text)
@@ -1288,6 +1466,35 @@ public sealed partial class VideoEditorPage
         return false;
     }
 
+    private VideoRect? ReadOverlayCrop()
+    {
+        var crop = new VideoRect(OverlayCropLeft.Value / 100,
+            OverlayCropTop.Value / 100, OverlayCropWidth.Value / 100,
+            OverlayCropHeight.Value / 100);
+        return Math.Abs(crop.X) < .00001 && Math.Abs(crop.Y) < .00001 &&
+            Math.Abs(crop.Width - 1) < .00001 && Math.Abs(crop.Height - 1) < .00001
+            ? null : crop;
+    }
+
+    private void ResetOverlayCrop_Click(object sender, RoutedEventArgs args)
+    {
+        if (_editor is null || !ApplyPendingInspectorChanges()) return;
+        if (_selectedKind == TimelineKind.Image)
+            TryEdit(() =>
+            {
+                ImageOverlay overlay = _editor.Current.ImageOverlays.First(item =>
+                    item.Id == _selectedId);
+                _editor.UpdateImageOverlay(overlay with { SourceCrop = null });
+            });
+        else if (_selectedKind == TimelineKind.VideoOverlay)
+            TryEdit(() =>
+            {
+                VideoOverlay overlay = _editor.Current.VideoOverlays.First(item =>
+                    item.Id == _selectedId);
+                _editor.UpdateVideoOverlay(overlay with { SourceCrop = null });
+            });
+    }
+
     private void DeleteSelected_Click(object sender, RoutedEventArgs args) =>
         DeleteSelected(ripple: false);
 
@@ -1308,6 +1515,8 @@ public sealed partial class VideoEditorPage
         {
             if (_selectedKind == TimelineKind.Video)
                 _editor.DeleteVideoSegment(_selectedId, ripple);
+            else if (_selectedKind == TimelineKind.VideoOverlay)
+                _editor.DeleteVideoOverlay(_selectedId);
             else if (_selectedKind == TimelineKind.Audio)
                 _editor.DeleteAudioSegment(_selectedId);
             else if (_selectedKind == TimelineKind.Image)
@@ -1320,15 +1529,18 @@ public sealed partial class VideoEditorPage
     }
 
     private void MoveImageForward_Click(object sender, RoutedEventArgs args) =>
-        MoveSelectedImageLayer(1);
+        MoveSelectedVisualLayer(1);
 
     private void MoveImageBack_Click(object sender, RoutedEventArgs args) =>
-        MoveSelectedImageLayer(-1);
+        MoveSelectedVisualLayer(-1);
 
-    private void MoveSelectedImageLayer(int direction)
+    private void MoveSelectedVisualLayer(int direction)
     {
-        if (_editor is null || _selectedKind != TimelineKind.Image) return;
-        TryEdit(() => _editor.MoveImageLayer(_selectedId, direction));
+        if (_editor is null) return;
+        if (_selectedKind == TimelineKind.Image)
+            TryEdit(() => _editor.MoveImageLayer(_selectedId, direction));
+        else if (_selectedKind == TimelineKind.VideoOverlay)
+            TryEdit(() => _editor.MoveVideoOverlayLayer(_selectedId, direction));
     }
 
     private void Split_Click(object sender, RoutedEventArgs args)
@@ -1346,6 +1558,8 @@ public sealed partial class VideoEditorPage
             }
             if (_selectedKind == TimelineKind.Video)
                 _selectedId = _editor.SplitVideoSegment(_selectedId, _playhead);
+            else if (_selectedKind == TimelineKind.VideoOverlay)
+                _selectedId = _editor.SplitVideoOverlay(_selectedId, _playhead);
             else if (_selectedKind == TimelineKind.Audio)
                 _selectedId = _editor.SplitAudioSegment(_selectedId, _playhead);
             else if (_selectedKind == TimelineKind.Image)
@@ -1371,6 +1585,16 @@ public sealed partial class VideoEditorPage
                 RequireInside(item.Start, item.End);
                 _editor.UpdateVideoSegment(left
                     ? item with { Start = _playhead, SourceIn = item.SourceIn + (_playhead - item.Start) }
+                    : item with { SourceOut = item.SourceIn + (_playhead - item.Start) });
+            }
+            else if (_selectedKind == TimelineKind.VideoOverlay)
+            {
+                VideoOverlay item = _editor.Current.VideoOverlays.First(value =>
+                    value.Id == _selectedId);
+                RequireInside(item.Start, item.End);
+                _editor.UpdateVideoOverlay(left
+                    ? item with { Start = _playhead,
+                        SourceIn = item.SourceIn + (_playhead - item.Start) }
                     : item with { SourceOut = item.SourceIn + (_playhead - item.Start) });
             }
             else if (_selectedKind == TimelineKind.Audio)
@@ -1433,6 +1657,9 @@ public sealed partial class VideoEditorPage
             TimeSpan end = _markIn.Value > _markOut.Value ? _markIn.Value : _markOut.Value;
             if (_selectedKind == TimelineKind.Audio)
                 _editor.CutAudioRange(_selectedId, start, end);
+            else if (_selectedKind == TimelineKind.VideoOverlay)
+                _selectedId = _editor.CutVideoOverlayRange(_selectedId, start, end) ??
+                    Guid.Empty;
             else if (_selectedKind == TimelineKind.Image)
                 _selectedId = _editor.CutImageRange(_selectedId, start, end) ?? Guid.Empty;
             else if (_selectedKind == TimelineKind.Text)
@@ -1472,6 +1699,7 @@ public sealed partial class VideoEditorPage
         PendingChangesText.Visibility = Visibility.Collapsed;
         UpdateMarkedRangeHint();
         RefreshTimeline();
+        RefreshCanvasMediaSelection();
         UpdateEditActionState();
     }
 
@@ -1491,6 +1719,7 @@ public sealed partial class VideoEditorPage
         PendingChangesText.Visibility = Visibility.Collapsed;
         SelectionHint.Text = "Select a clip to edit";
         RefreshTimeline();
+        RefreshCanvasMediaSelection();
         UpdateEditActionState();
         return true;
     }
@@ -1519,4 +1748,7 @@ public sealed partial class VideoEditorPage
 
     private static Guid ImageLayerKey(ImageOverlay image) =>
         image.LayerId == Guid.Empty ? image.Id : image.LayerId;
+
+    private static Guid VideoOverlayLayerKey(VideoOverlay overlay) =>
+        overlay.LayerId == Guid.Empty ? overlay.Id : overlay.LayerId;
 }

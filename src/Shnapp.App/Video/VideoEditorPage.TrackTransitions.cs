@@ -8,7 +8,8 @@ public sealed partial class VideoEditorPage
 {
     private void AddTimelineClipContextMenu(Button clip, TimelineKind kind, Guid id)
     {
-        if (kind is not (TimelineKind.Image or TimelineKind.Text)) return;
+        if (kind is not (TimelineKind.VideoOverlay or TimelineKind.Image or
+            TimelineKind.Text)) return;
         var menu = new MenuFlyout();
         menu.Opening += (_, _) => PopulateTimelineClipContextMenu(menu, kind, id);
         clip.ContextFlyout = menu;
@@ -19,7 +20,28 @@ public sealed partial class VideoEditorPage
         menu.Items.Clear();
         if (_editor is null) return;
         VideoProject project = _editor.Current;
-        if (kind == TimelineKind.Image)
+        if (kind == TimelineKind.VideoOverlay)
+        {
+            VideoOverlay? incoming = project.VideoOverlays.FirstOrDefault(item =>
+                item.Id == id);
+            if (incoming is null || project.Transitions.Any(item =>
+                item.IncomingId == id)) return;
+            Guid ownLayer = VideoOverlayLayerKey(incoming);
+            if (project.VideoOverlays.Count(item =>
+                VideoOverlayLayerKey(item) == ownLayer) != 1) return;
+            foreach (VideoOverlay outgoing in project.VideoOverlays.Where(item =>
+                item.Id != id && item.End == incoming.Start &&
+                VideoOverlayLayerKey(item) != ownLayer &&
+                !project.Transitions.Any(transition =>
+                    transition.OutgoingId == item.Id)))
+            {
+                string name = project.Assets.FirstOrDefault(asset =>
+                    asset.Id == outgoing.AssetId)?.DisplayName ?? "video layer";
+                AddTrackTransitionChoices(menu, kind, outgoing.Id, incoming.Id,
+                    $"Transition from {name}");
+            }
+        }
+        else if (kind == TimelineKind.Image)
         {
             ImageOverlay? incoming = project.ImageOverlays.FirstOrDefault(item => item.Id == id);
             if (incoming is null || project.Transitions.Any(item => item.IncomingId == id)) return;
@@ -65,8 +87,12 @@ public sealed partial class VideoEditorPage
     private void AddTrackTransitionChoices(MenuFlyout menu, TimelineKind kind,
         Guid outgoingId, Guid incomingId, string label)
     {
-        VideoTransitionLane lane = kind == TimelineKind.Image
-            ? VideoTransitionLane.Image : VideoTransitionLane.Text;
+        VideoTransitionLane lane = kind switch
+        {
+            TimelineKind.VideoOverlay => VideoTransitionLane.VideoOverlay,
+            TimelineKind.Image => VideoTransitionLane.Image,
+            _ => VideoTransitionLane.Text,
+        };
         var submenu = new MenuFlyoutSubItem { Text = label };
         foreach (VideoTransitionEffect effect in Enum.GetValues<VideoTransitionEffect>())
         {
@@ -85,7 +111,21 @@ public sealed partial class VideoEditorPage
         if (_editor is null || !FlushCanvasTextEdit() ||
             !ApplyPendingInspectorChanges()) return;
         VideoProject project = _editor.Current;
-        if (kind == TimelineKind.Image)
+        if (kind == TimelineKind.VideoOverlay)
+        {
+            VideoOverlay? outgoing = project.VideoOverlays.FirstOrDefault(item =>
+                item.Id == outgoingId);
+            VideoOverlay? incoming = project.VideoOverlays.FirstOrDefault(item =>
+                item.Id == incomingId);
+            if (outgoing is null || incoming is null ||
+                outgoing.End != incoming.Start) return;
+            Guid layer = VideoOverlayLayerKey(outgoing);
+            if (!TryEdit(() => _editor.UpdateVideoOverlay(incoming with
+                { LayerId = layer, ZIndex = outgoing.ZIndex }))) return;
+            ApplyTransitionChoice(VideoTransitionLane.VideoOverlay,
+                outgoingId, incomingId, effect);
+        }
+        else if (kind == TimelineKind.Image)
         {
             ImageOverlay? outgoing = project.ImageOverlays.FirstOrDefault(item =>
                 item.Id == outgoingId);

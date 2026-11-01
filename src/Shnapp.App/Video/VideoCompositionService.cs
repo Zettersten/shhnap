@@ -8,6 +8,7 @@ using Shnapp.Core;
 using Microsoft.UI;
 using Windows.Foundation;
 using Windows.Media.Editing;
+using Windows.Media.Effects;
 using Windows.Media.MediaProperties;
 using Windows.Media.Transcoding;
 using Windows.Storage;
@@ -53,6 +54,7 @@ internal static class VideoCompositionService
         }
 
         TimeSpan cursor = TimeSpan.Zero;
+        bool primaryVisible = !project.HiddenLayerIds.Contains(Guid.Empty);
         foreach (VideoSegment segment in project.VideoSegments.OrderBy(item => item.Start))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -62,10 +64,15 @@ internal static class VideoCompositionService
                 cursor = segment.Start;
             }
 
-            MediaClip clip = await MediaClip.CreateFromFileAsync(await FileForAsync(segment.AssetId));
-            Trim(clip, segment.SourceIn, segment.SourceOut);
-            // Recording audio is stored in independent stems; never double-play embedded sound.
-            clip.Volume = 0;
+            MediaClip clip;
+            if (primaryVisible)
+            {
+                clip = await MediaClip.CreateFromFileAsync(await FileForAsync(segment.AssetId));
+                Trim(clip, segment.SourceIn, segment.SourceOut);
+                // Recording audio is stored in independent stems; never double-play embedded sound.
+                clip.Volume = 0;
+            }
+            else clip = MediaClip.CreateFromColor(Colors.Black, segment.Duration);
             composition.Clips.Add(clip);
             cursor += clip.TrimmedDuration;
         }
@@ -88,7 +95,7 @@ internal static class VideoCompositionService
 
         // Clip fades affect the primary video only; image and text layers stay visible.
         // Small black slices keep the native compositor and MP4 renderer in agreement.
-        if (includeImageOverlays && project.VideoSegments.Any(item =>
+        if (primaryVisible && includeImageOverlays && project.VideoSegments.Any(item =>
                 item.FadeIn > TimeSpan.Zero || item.FadeOut > TimeSpan.Zero))
         {
             var layer = new MediaOverlayLayer();
@@ -107,7 +114,8 @@ internal static class VideoCompositionService
             composition.OverlayLayers.Add(layer);
         }
 
-        if (project.Transitions.Any(item => item.Lane == VideoTransitionLane.Video))
+        if (primaryVisible && project.Transitions.Any(item =>
+            item.Lane == VideoTransitionLane.Video))
         {
             var layer = new MediaOverlayLayer();
             double width = previewSize?.Width ?? project.Width;
@@ -139,6 +147,10 @@ internal static class VideoCompositionService
             composition.OverlayLayers.Add(layer);
         }
 
+        if (!project.VideoOverlays.IsDefaultOrEmpty)
+            await AddVideoOverlayLayersAsync(composition, project, store, assets,
+                FileForAsync, previewSize, cancellationToken);
+
         if (includeImageOverlays && !project.ImageOverlays.IsDefaultOrEmpty)
         {
             double scaleX = previewSize?.Width / (double)project.Width ?? 1;
@@ -147,11 +159,13 @@ internal static class VideoCompositionService
             foreach (ImageOverlay image in project.ImageOverlays)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                Guid layerId = image.LayerId == Guid.Empty ? image.Id : image.LayerId;
+                if (project.HiddenLayerIds.Contains(layerId)) continue;
                 items.Add(new StaticOverlayItem(image.Id,
-                    image.LayerId == Guid.Empty ? image.Id : image.LayerId,
+                    layerId,
                     image.Start, image.End, image.ZIndex,
                     ScaleBounds(image.Bounds, scaleX, scaleY),
-                    await FileForAsync(image.AssetId)));
+                    await FileForAsync(image.AssetId), image.SourceCrop));
             }
             await AddStaticOverlayLayersAsync(composition, project,
                 VideoTransitionLane.Image, items, cancellationToken);
@@ -165,12 +179,14 @@ internal static class VideoCompositionService
             foreach (TextOverlay text in project.TextOverlays)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                Guid layerId = text.LayerId == Guid.Empty ? text.Id : text.LayerId;
+                if (project.HiddenLayerIds.Contains(layerId)) continue;
                 string path = await EnsureTextOverlayPngAsync(project, text, store, cancellationToken);
                 items.Add(new StaticOverlayItem(text.Id,
-                    text.LayerId == Guid.Empty ? text.Id : text.LayerId,
+                    layerId,
                     text.Start, text.End, text.ZIndex,
                     ScaleBounds(text.Bounds, scaleX, scaleY),
-                    await StorageFile.GetFileFromPathAsync(path)));
+                    await StorageFile.GetFileFromPathAsync(path), null));
             }
             await AddStaticOverlayLayersAsync(composition, project,
                 VideoTransitionLane.Text, items, cancellationToken);
@@ -182,6 +198,7 @@ internal static class VideoCompositionService
     /// <summary>Returns the black overlay opacity used at a preview playhead position.</summary>
     internal static double GetFadeOpacity(VideoProject project, TimeSpan playhead)
     {
+        if (project.HiddenLayerIds.Contains(Guid.Empty)) return 0;
         foreach (VideoSegment segment in project.VideoSegments)
         {
             if (playhead < segment.Start || playhead >= segment.End) continue;
@@ -323,11 +340,187 @@ internal static class VideoCompositionService
     }
 
     private sealed record StaticOverlayItem(Guid Id, Guid LayerId, TimeSpan Start,
-        TimeSpan End, int ZIndex, Rect Bounds, StorageFile File);
+        TimeSpan End, int ZIndex, Rect Bounds, StorageFile File, VideoRect? SourceCrop);
 
     private static Rect ScaleBounds(VideoRect bounds, double scaleX, double scaleY) =>
         new(bounds.X * scaleX, bounds.Y * scaleY,
             bounds.Width * scaleX, bounds.Height * scaleY);
+
+    private static void ApplySourceCrop(MediaClip clip, VideoRect? sourceCrop)
+    {
+        if (sourceCrop is not { } crop) return;
+        VideoEncodingProperties format = clip.GetVideoEncodingProperties();
+        if (format.Width == 0 || format.Height == 0)
+            throw new InvalidDataException("The media has no video dimensions to crop.");
+        double width = format.Width;
+        double height = format.Height;
+        double left = Math.Clamp(Math.Floor(crop.X * width), 0, width - 1);
+        double top = Math.Clamp(Math.Floor(crop.Y * height), 0, height - 1);
+        double right = Math.Clamp(Math.Ceiling((crop.X + crop.Width) * width),
+            left + 1, width);
+        double bottom = Math.Clamp(Math.Ceiling((crop.Y + crop.Height) * height),
+            top + 1, height);
+        var source = new Rect(left, top, right - left, bottom - top);
+        clip.VideoEffectDefinitions.Add(new VideoTransformEffectDefinition
+        {
+            CropRectangle = source,
+            OutputSize = new Size(source.Width, source.Height),
+        });
+    }
+
+    private static async Task AddVideoOverlayLayersAsync(MediaComposition composition,
+        VideoProject project, VideoProjectStore store,
+        IReadOnlyDictionary<Guid, VideoAsset> assets,
+        Func<Guid, Task<StorageFile>> fileForAsync, (int Width, int Height)? previewSize,
+        CancellationToken token)
+    {
+        double scaleX = previewSize?.Width / (double)project.Width ?? 1;
+        double scaleY = previewSize?.Height / (double)project.Height ?? 1;
+        foreach (IGrouping<Guid, VideoOverlay> group in project.VideoOverlays
+            .Where(item => !project.HiddenLayerIds.Contains(
+                item.LayerId == Guid.Empty ? item.Id : item.LayerId))
+            .GroupBy(item => item.LayerId == Guid.Empty ? item.Id : item.LayerId)
+            .OrderBy(group => group.Min(item => item.ZIndex)))
+        {
+            token.ThrowIfCancellationRequested();
+            var layer = new MediaOverlayLayer();
+            Dictionary<Guid, VideoOverlay> byId = group.ToDictionary(item => item.Id);
+            var transitions = new List<(VideoTransition Transition, VideoTransitionSpan Span)>();
+            foreach (VideoTransition item in project.Transitions.Where(item =>
+                item.Lane == VideoTransitionLane.VideoOverlay &&
+                byId.ContainsKey(item.OutgoingId) &&
+                byId.ContainsKey(item.IncomingId)))
+            {
+                if (VideoTransitionGeometry.TryGetSpan(project, item,
+                    out VideoTransitionSpan span))
+                    transitions.Add((item, span));
+            }
+            foreach (VideoOverlay overlay in group.OrderBy(item => item.Start))
+            {
+                TimeSpan bodyStart = overlay.Start;
+                TimeSpan bodyEnd = overlay.End;
+                foreach ((VideoTransition transition, VideoTransitionSpan span) in transitions)
+                {
+                    if (transition.IncomingId == overlay.Id && span.End > bodyStart)
+                        bodyStart = span.End;
+                    if (transition.OutgoingId == overlay.Id && span.Start < bodyEnd)
+                        bodyEnd = span.Start;
+                }
+                if (bodyEnd > bodyStart)
+                    await AddVideoOverlaySourceAsync(layer, overlay,
+                        assets[overlay.AssetId], fileForAsync, null, bodyStart,
+                        bodyEnd - bodyStart, ScaleBounds(overlay.Bounds, scaleX, scaleY),
+                        1, token);
+            }
+            foreach ((VideoTransition transition, VideoTransitionSpan span) in transitions)
+                await AddVideoOverlayTransitionSlicesAsync(layer, project, store, assets,
+                    fileForAsync, byId[transition.OutgoingId],
+                    byId[transition.IncomingId], transition, span, scaleX, scaleY, token);
+            composition.OverlayLayers.Add(layer);
+        }
+    }
+
+    private static async Task AddVideoOverlayTransitionSlicesAsync(
+        MediaOverlayLayer layer, VideoProject project, VideoProjectStore store,
+        IReadOnlyDictionary<Guid, VideoAsset> assets,
+        Func<Guid, Task<StorageFile>> fileForAsync,
+        VideoOverlay outgoing, VideoOverlay incoming, VideoTransition transition,
+        VideoTransitionSpan span, double scaleX, double scaleY, CancellationToken token)
+    {
+        int count = TransitionSampleCount(transition.Duration, project.FrameRate);
+        StorageFile? outgoingHold = null;
+        StorageFile? incomingHold = null;
+        if (outgoing.SourceOut + (span.End - span.Cut) > assets[outgoing.AssetId].Duration)
+        {
+            StorageFile file = await fileForAsync(outgoing.AssetId);
+            VideoEncodingProperties format = (await MediaClip.CreateFromFileAsync(file))
+                .GetVideoEncodingProperties();
+            outgoingHold = await EnsureVideoEdgeFrameAsync(project, store,
+                new VideoSegment(outgoing.Id, outgoing.AssetId, outgoing.Start,
+                    outgoing.SourceIn, outgoing.SourceOut), file, outgoing: true,
+                Math.Max(1, (double)format.Width), Math.Max(1, (double)format.Height), token);
+        }
+        if (incoming.SourceIn < span.Cut - span.Start)
+        {
+            StorageFile file = await fileForAsync(incoming.AssetId);
+            VideoEncodingProperties format = (await MediaClip.CreateFromFileAsync(file))
+                .GetVideoEncodingProperties();
+            incomingHold = await EnsureVideoEdgeFrameAsync(project, store,
+                new VideoSegment(incoming.Id, incoming.AssetId, incoming.Start,
+                    incoming.SourceIn, incoming.SourceOut), file, outgoing: false,
+                Math.Max(1, (double)format.Width), Math.Max(1, (double)format.Height), token);
+        }
+        Rect outgoingBounds = ScaleBounds(outgoing.Bounds, scaleX, scaleY);
+        Rect incomingBounds = ScaleBounds(incoming.Bounds, scaleX, scaleY);
+        for (int index = 0; index < count; index++)
+        {
+            token.ThrowIfCancellationRequested();
+            TimeSpan start = SliceTime(span.Start, transition.Duration, index, count);
+            TimeSpan end = SliceTime(span.Start, transition.Duration, index + 1, count);
+            if (end <= start) continue;
+            double progress = (index + .5) / count;
+            VideoTransitionSample sample = VideoTransitionGeometry.Sample(
+                transition.Effect, progress);
+            if (sample.BackdropColor is { } backdrop)
+            {
+                Rect area = Union(outgoingBounds, incomingBounds);
+                MediaClip color = MediaClip.CreateFromColor(ParseColor(backdrop), end - start);
+                layer.Overlays.Add(new MediaOverlay(color)
+                {
+                    Delay = start,
+                    Position = area,
+                    Opacity = 1 - Math.Abs(progress * 2 - 1),
+                    AudioEnabled = false,
+                });
+            }
+            await AddVideoOverlaySourceAsync(layer, outgoing, assets[outgoing.AssetId],
+                fileForAsync, outgoingHold, start, end - start,
+                TransitionBounds(outgoingBounds, sample.OutgoingOffsetX,
+                    sample.OutgoingOffsetY, sample.OutgoingScale),
+                sample.OutgoingOpacity, token);
+            await AddVideoOverlaySourceAsync(layer, incoming, assets[incoming.AssetId],
+                fileForAsync, incomingHold, start, end - start,
+                TransitionBounds(incomingBounds, sample.IncomingOffsetX,
+                    sample.IncomingOffsetY, sample.IncomingScale),
+                sample.IncomingOpacity, token);
+        }
+    }
+
+    private static async Task AddVideoOverlaySourceAsync(MediaOverlayLayer layer,
+        VideoOverlay overlay, VideoAsset asset, Func<Guid, Task<StorageFile>> fileForAsync,
+        StorageFile? heldFrame, TimeSpan start, TimeSpan duration, Rect bounds,
+        double opacity, CancellationToken token)
+    {
+        if (opacity <= 0 || duration <= TimeSpan.Zero) return;
+        token.ThrowIfCancellationRequested();
+        TimeSpan sourceIn = overlay.SourceIn + (start - overlay.Start);
+        bool before = sourceIn < TimeSpan.Zero;
+        bool after = sourceIn + duration > asset.Duration;
+        MediaClip clip;
+        if (before || after)
+        {
+            if (heldFrame is null)
+                throw new InvalidDataException("A transition extends beyond its video source.");
+            clip = await MediaClip.CreateFromImageFileAsync(heldFrame, duration);
+        }
+        else
+        {
+            if (sourceIn < TimeSpan.Zero || sourceIn + duration > asset.Duration)
+                throw new InvalidDataException("A transition extends beyond its source file.");
+            clip = await MediaClip.CreateFromFileAsync(
+                await fileForAsync(overlay.AssetId));
+            Trim(clip, sourceIn, sourceIn + duration);
+            clip.Volume = 0;
+        }
+        ApplySourceCrop(clip, overlay.SourceCrop);
+        layer.Overlays.Add(new MediaOverlay(clip)
+        {
+            Delay = start,
+            Position = bounds,
+            Opacity = Math.Clamp(opacity, 0, 1),
+            AudioEnabled = false,
+        });
+    }
 
     private static async Task AddStaticOverlayLayersAsync(MediaComposition composition,
         VideoProject project, VideoTransitionLane lane,
@@ -420,6 +613,7 @@ internal static class VideoCompositionService
     {
         if (opacity <= 0 || duration <= TimeSpan.Zero) return;
         MediaClip clip = await MediaClip.CreateFromImageFileAsync(item.File, duration);
+        ApplySourceCrop(clip, item.SourceCrop);
         layer.Overlays.Add(new MediaOverlay(clip)
         {
             Delay = start,

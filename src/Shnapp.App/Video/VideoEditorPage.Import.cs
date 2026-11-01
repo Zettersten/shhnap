@@ -176,7 +176,7 @@ public sealed partial class VideoEditorPage
             button.Resources["ButtonBorderBrushPointerOver"] = button.BorderBrush;
             button.Resources["ButtonBorderBrushPressed"] = button.BorderBrush;
             string action = item.IsVideo
-                ? "Click to open; use + to add its original recording and audio"
+                ? "Click to open; drag or use + to add a video layer"
                 : "Click to open; use + or drag to add at the playhead";
             AutomationProperties.SetName(button, $"{item.Title}, {(item.IsVideo ? "video" : "image")}. {action}.");
             AutomationProperties.SetAutomationId(button, $"VideoGallery_{item.Id:N}");
@@ -186,7 +186,7 @@ public sealed partial class VideoEditorPage
                 var actions = new MenuFlyout();
                 var open = new MenuFlyoutItem { Text = "Open video" };
                 open.Click += (_, _) => VideoRequested?.Invoke(item.Id);
-                var insert = new MenuFlyoutItem { Text = "Add original recording at playhead" };
+                var insert = new MenuFlyoutItem { Text = "Add video layer at playhead" };
                 insert.Click += (_, _) => _ = ImportGalleryVideoAsync(item.Id, _playhead);
                 actions.Items.Add(open);
                 actions.Items.Add(insert);
@@ -248,10 +248,10 @@ public sealed partial class VideoEditorPage
                 },
             };
             AutomationProperties.SetName(addButton,
-                item.IsVideo ? $"Add original recording of {item.Title} at playhead" :
+                item.IsVideo ? $"Add {item.Title} as a video layer at playhead" :
                     $"Add {item.Title} as an image layer at playhead");
             ToolTipService.SetToolTip(addButton,
-                item.IsVideo ? "Add original recording at playhead" : "Add image layer at playhead");
+                item.IsVideo ? "Add video layer at playhead" : "Add image layer at playhead");
             addButton.Click += GalleryItem_AddClick;
             itemHost.Children.Add(addButton);
             Canvas.SetLeft(itemHost, 1);
@@ -769,8 +769,11 @@ public sealed partial class VideoEditorPage
             VideoProject source = await store.OpenAsync(id, cancellation.Token);
             VideoAsset original = source.Assets.Single(asset =>
                 asset.Kind == VideoAssetKind.Recording);
-            if (target.Duration + original.Duration > TimeSpan.FromDays(7))
-                throw new InvalidOperationException("The combined video would exceed seven days.");
+            TimeSpan insertAt = at < TimeSpan.Zero ? TimeSpan.Zero : at;
+            insertAt = TimeSpan.FromSeconds(Math.Round(insertAt.TotalSeconds *
+                target.FrameRate) / target.FrameRate);
+            if (insertAt + original.Duration > TimeSpan.FromDays(7))
+                throw new InvalidOperationException("The video layer would exceed seven days.");
             StatusText.Text = $"Adding {source.Title}…";
             VideoAsset video = await CopyAssetAsync(original, source,
                 VideoAssetKind.ImportedVideo, source.Title);
@@ -789,10 +792,15 @@ public sealed partial class VideoEditorPage
             }
             cancellation.Token.ThrowIfCancellationRequested();
             if (_closed || !ReferenceEquals(_editor, editor)) return;
-            TimeSpan insertAt = at < TimeSpan.Zero ? TimeSpan.Zero : Min(at, editor.Current.Duration);
-            Guid clipId = editor.InsertVideoAsset(video, insertAt, stems);
+            double scale = Math.Min((double)target.Width / source.Width,
+                (double)target.Height / source.Height);
+            double width = Math.Max(1, source.Width * scale);
+            double height = Math.Max(1, source.Height * scale);
+            var bounds = new VideoRect((target.Width - width) / 2,
+                (target.Height - height) / 2, width, height);
+            Guid clipId = editor.AddVideoOverlayAsset(video, insertAt, bounds, stems);
             committed = true;
-            _selectedKind = TimelineKind.Video;
+            _selectedKind = TimelineKind.VideoOverlay;
             _selectedId = clipId;
             Seek(insertAt);
             RefreshInspector();
@@ -800,7 +808,7 @@ public sealed partial class VideoEditorPage
             FocusSelectedClip();
             CloseGallery();
             await SaveAsync();
-            StatusText.Text = $"Added original recording of {source.Title} at {FormatTime(insertAt)}";
+            StatusText.Text = $"Added {source.Title} as a video layer at {FormatTime(insertAt)}";
 
             async Task<VideoAsset> CopyAssetAsync(VideoAsset asset, VideoProject owner,
                 VideoAssetKind kind, string name)
