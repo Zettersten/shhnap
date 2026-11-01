@@ -51,7 +51,9 @@ The grabber freezes the visible desktop when capture starts, so moving content h
 
 Start a video from the shortcuts above, the capture menu, or the tray. Choose a window, a display, or a rectangular region with the same picker used for screenshots. A small recording bar shows elapsed time and the active audio sources; pause, resume, stop, or cancel there. Window recordings follow the selected window as it changes. **Settings → General → Video recording** controls computer audio, microphone audio, pointer visibility, and 30 or 60 fps. Both audio sources are off by default.
 
-The **Videos** tab in the local library reopens recordings in a dedicated editor. Trim, split, or cut the video and adjust the computer and microphone tracks independently. Paste an image with `Ctrl+V`, choose one from the left-edge recent-image gallery, or import your own audio; image overlays and added audio can each occupy a chosen span of the timeline. Edits keep the source files intact. Export an MP4 when ready to share.
+The **Videos** tab in the local library reopens recordings in a dedicated editor. Trim, split, or cut the video and adjust the computer and microphone tracks independently. The left-edge media rail pages through saved images and videos: click an image to add it at the playhead, click a video to open it, or drag either onto the timeline to insert it. Dragging a video copies its original recording and available computer/microphone audio stems; edits made in that video's own project are not copied. Paste an image with `Ctrl+V` or import your own audio. Edits keep the source files intact. Export an MP4 when ready to share.
+
+In the video editor, `Space` plays or pauses, `I` and `O` mark a range, `S` splits the selected clip, and `Delete` removes it. `Escape` closes the media rail or clears the selection. `Ctrl+Shift+G` toggles the rail, `Ctrl+Z`/`Ctrl+Y` undo and redo, and `Ctrl+E` exports. Text fields and sliders keep their normal keyboard behavior.
 
 ## Explain it in a few clicks
 
