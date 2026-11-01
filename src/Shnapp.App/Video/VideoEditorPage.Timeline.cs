@@ -33,6 +33,11 @@ public sealed partial class VideoEditorPage
     private double _renderedWindowEndX;
     private uint? _scrubbingPointerId;
     private ClipDrag? _clipDrag;
+    private sealed record TrackDrag(Button Handle, uint PointerId, Guid TrackId,
+        double StartY, string Hint);
+    private TrackDrag? _trackDrag;
+    private readonly Dictionary<Guid, Grid> _trackHeaders = [];
+    private Guid? _trackDropTarget;
     private Line? _playheadLine;
     private Polygon? _playheadCap;
     private bool _loadingInspector;
@@ -142,11 +147,34 @@ public sealed partial class VideoEditorPage
                 asset.Id, TimelineKind.Audio));
         }
 
+        // Persisted order is shared by the timeline and native composition.
+        // New tracks enter above the recording or after existing audio tracks.
+        Dictionary<Guid, TimelineLane> byTrack = lanes.ToDictionary(lane => lane.VisibilityKey);
+        lanes = [.. VideoProjectTracks.OrderedIds(project).Select(id => byTrack[id])];
+        textLanes.Clear();
+        foreach (TextOverlay item in project.TextOverlays)
+            textLanes[item.Id] = lanes.FindIndex(lane => lane.VisibilityKey ==
+                VideoProjectTracks.LayerId(item));
+        imageLanes.Clear();
+        foreach (ImageOverlay item in project.ImageOverlays)
+            imageLanes[item.Id] = lanes.FindIndex(lane => lane.VisibilityKey ==
+                VideoProjectTracks.LayerId(item));
+        videoOverlayLanes.Clear();
+        foreach (VideoOverlay item in project.VideoOverlays)
+            videoOverlayLanes[item.Id] = lanes.FindIndex(lane => lane.VisibilityKey ==
+                VideoProjectTracks.LayerId(item));
+        audioLanes.Clear();
+        foreach (AudioSegment item in project.AudioSegments)
+            audioLanes[item.AssetId] = lanes.FindIndex(lane => lane.VisibilityKey == item.AssetId);
+        videoLane = lanes.FindIndex(lane => lane.Kind == TimelineKind.Video);
+
         double contentHeight = 22 + lanes.Count * 28;
-        TimelinePanel.Height = Math.Min(280, 36 + contentHeight + 14);
+        TimelinePanel.Height = Math.Min(280, 28 + contentHeight + 14);
         TimelineContent.Height = contentHeight;
         TimelineCanvas.Height = contentHeight;
         TimelineLaneHeaders.Children.Clear();
+        _trackHeaders.Clear();
+        _trackDropTarget = null;
         TimelineLaneHeaders.Children.Add(new TextBlock { Height = 22 });
         foreach (var lane in lanes)
         {
@@ -154,14 +182,18 @@ public sealed partial class VideoEditorPage
                 ? project.AudioSegments.Any(item => item.AssetId == lane.VisibilityKey &&
                     !item.Muted)
                 : !project.HiddenLayerIds.Contains(lane.VisibilityKey);
+            bool locked = project.LockedTrackIds.Contains(lane.VisibilityKey);
             var header = new Grid
             {
                 Height = 28,
+                Tag = lane.VisibilityKey,
             };
-            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(17) });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14) });
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1,
                 GridUnitType.Star) });
-            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
             header.Children.Add(new FontIcon
             {
                 Glyph = lane.Glyph,
@@ -183,12 +215,44 @@ public sealed partial class VideoEditorPage
             };
             Grid.SetColumn(label, 1);
             header.Children.Add(label);
+            var grip = new Button
+            {
+                Width = 17, Height = 20, MinWidth = 0, MinHeight = 0,
+                Padding = new Thickness(0), CornerRadius = new CornerRadius(4),
+                Background = new SolidColorBrush(Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Tag = lane.VisibilityKey,
+                IsEnabled = lane.VisibilityKey != Guid.Empty && !locked,
+                Content = new FontIcon
+                {
+                    Glyph = "\uE76F", FontFamily = new FontFamily("Segoe Fluent Icons"),
+                    FontSize = 11, Width = 11, Height = 11,
+                    Foreground = (Brush)Application.Current.Resources[
+                        "ShnappToolbarInactiveIconBrush"],
+                },
+            };
+            AutomationProperties.SetName(grip, $"Reorder {lane.Label} track");
+            ToolTipService.SetToolTip(grip, locked
+                ? "Unlock this track to reorder it"
+                : lane.VisibilityKey == Guid.Empty
+                    ? "Original video stays at the bottom of visual tracks"
+                    : $"Drag to reorder {lane.Label}");
+            grip.AddHandler(UIElement.PointerPressedEvent,
+                new PointerEventHandler(TrackGrip_PointerPressed), true);
+            grip.AddHandler(UIElement.PointerMovedEvent,
+                new PointerEventHandler(TrackGrip_PointerMoved), true);
+            grip.AddHandler(UIElement.PointerReleasedEvent,
+                new PointerEventHandler(TrackGrip_PointerReleased), true);
+            grip.PointerCaptureLost += TrackGrip_PointerCaptureLost;
+            Grid.SetColumn(grip, 2);
+            header.Children.Add(grip);
             string action = lane.Kind == TimelineKind.Audio
                 ? visible ? "Mute" : "Unmute"
                 : visible ? "Hide" : "Show";
             var visibilityButton = new Button
             {
-                Width = 20,
+                Width = 18,
                 Height = 20,
                 MinWidth = 0,
                 MinHeight = 0,
@@ -216,10 +280,35 @@ public sealed partial class VideoEditorPage
             ToolTipService.SetToolTip(visibilityButton,
                 $"{action} {lane.Label} {(lane.Kind == TimelineKind.Audio ? "track" : "layer")}");
             visibilityButton.Click += TimelineVisibility_Click;
-            Grid.SetColumn(visibilityButton, 2);
+            Grid.SetColumn(visibilityButton, 3);
             header.Children.Add(visibilityButton);
+            var lockButton = new Button
+            {
+                Width = 18, Height = 20, MinWidth = 0, MinHeight = 0,
+                Padding = new Thickness(0), CornerRadius = new CornerRadius(4),
+                Background = new SolidColorBrush(Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Tag = lane.VisibilityKey,
+                Content = new FontIcon
+                {
+                    Glyph = locked ? "\uE72E" : "\uE785",
+                    FontFamily = new FontFamily("Segoe Fluent Icons"),
+                    FontSize = 12, Width = 12, Height = 12,
+                    Foreground = (Brush)Application.Current.Resources[
+                        "ShnappToolbarInactiveIconBrush"],
+                },
+            };
+            AutomationProperties.SetName(lockButton,
+                $"{(locked ? "Unlock" : "Lock")} {lane.Label} track");
+            ToolTipService.SetToolTip(lockButton,
+                $"{(locked ? "Unlock" : "Lock")} {lane.Label} track");
+            lockButton.Click += TimelineLock_Click;
+            Grid.SetColumn(lockButton, 4);
+            header.Children.Add(lockButton);
             ToolTipService.SetToolTip(header, lane.Label);
             TimelineLaneHeaders.Children.Add(header);
+            _trackHeaders[lane.VisibilityKey] = header;
         }
 
         _lastTimelineViewportWidth = TimelineScroll.ActualWidth;
@@ -618,6 +707,12 @@ public sealed partial class VideoEditorPage
             _editor is null) return;
         if (args.GetCurrentPoint(button).Properties.IsRightButtonPressed) return;
         SelectClip(tag.Item1, tag.Item2);
+        if (IsTrackLocked(_editor.Current, tag.Item1, tag.Item2))
+        {
+            SelectionHint.Text = "Unlock the track to edit this clip";
+            args.Handled = true;
+            return;
+        }
         if (_selectedId == tag.Item2 && _selectedKind == tag.Item1 &&
             _clipButtons.TryGetValue(tag.Item2, out Button? current) &&
             ReferenceEquals(current, button) &&
@@ -976,6 +1071,95 @@ public sealed partial class VideoEditorPage
         TryEdit(() => _editor.SetLayerVisible(tag.Item2, !visible));
     }
 
+    private void TimelineLock_Click(object sender, RoutedEventArgs args)
+    {
+        if (_editor is null || sender is not Button { Tag: Guid trackId }) return;
+        bool locked = _editor.Current.LockedTrackIds.Contains(trackId);
+        if (!locked && (!FlushCanvasTextEdit() || !ApplyPendingInspectorChanges())) return;
+        TryEdit(() => _editor.SetTrackLocked(trackId, !locked));
+    }
+
+    private void TrackGrip_PointerPressed(object sender, PointerRoutedEventArgs args)
+    {
+        if (_editor is null || sender is not Button { Tag: Guid trackId } handle ||
+            args.GetCurrentPoint(handle).Properties.IsRightButtonPressed ||
+            _editor.Current.LockedTrackIds.Contains(trackId)) return;
+        handle.CapturePointer(args.Pointer);
+        _trackDrag = new TrackDrag(handle, args.Pointer.PointerId, trackId,
+            args.GetCurrentPoint(TimelineLaneHeaders).Position.Y, SelectionHint.Text);
+        args.Handled = true;
+    }
+
+    private void TrackGrip_PointerMoved(object sender, PointerRoutedEventArgs args)
+    {
+        if (_trackDrag is not { } drag || !ReferenceEquals(sender, drag.Handle) ||
+            drag.PointerId != args.Pointer.PointerId || _editor is null) return;
+        double y = args.GetCurrentPoint(TimelineLaneHeaders).Position.Y;
+        if (Math.Abs(y - drag.StartY) < 4) return;
+        (Guid? target, bool after) = TrackDropAt(y, drag.TrackId);
+        HighlightTrackDrop(target);
+        if (target.HasValue)
+        {
+            string label = _trackHeaders[target.Value].Children.OfType<TextBlock>()
+                .FirstOrDefault()?.Text ?? "track";
+            SelectionHint.Text = $"Move track {(after ? "below" : "above")} {label}";
+        }
+        else SelectionHint.Text = "Keep visual and audio tracks in their sections";
+        args.Handled = true;
+    }
+
+    private void TrackGrip_PointerReleased(object sender, PointerRoutedEventArgs args)
+    {
+        if (_trackDrag is not { } drag || !ReferenceEquals(sender, drag.Handle) ||
+            drag.PointerId != args.Pointer.PointerId || _editor is null) return;
+        double y = args.GetCurrentPoint(TimelineLaneHeaders).Position.Y;
+        _trackDrag = null;
+        drag.Handle.ReleasePointerCapture(args.Pointer);
+        HighlightTrackDrop(null);
+        SelectionHint.Text = drag.Hint;
+        if (Math.Abs(y - drag.StartY) < 4) return;
+        (Guid? target, bool after) = TrackDropAt(y, drag.TrackId);
+        if (target.HasValue)
+            TryEdit(() => _editor.MoveTrack(drag.TrackId, target.Value, after));
+        args.Handled = true;
+    }
+
+    private void TrackGrip_PointerCaptureLost(object sender, PointerRoutedEventArgs args)
+    {
+        if (_trackDrag is not { } drag || !ReferenceEquals(sender, drag.Handle) ||
+            drag.PointerId != args.Pointer.PointerId) return;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!ReferenceEquals(_trackDrag, drag)) return;
+            _trackDrag = null;
+            HighlightTrackDrop(null);
+            SelectionHint.Text = drag.Hint;
+        });
+    }
+
+    private (Guid? Target, bool After) TrackDropAt(double y, Guid source)
+    {
+        if (_editor is null || _trackHeaders.Count == 0) return (null, false);
+        int row = (int)Math.Floor((y - 22) / 28);
+        if (row < 0 || row >= _trackHeaders.Count ||
+            TimelineLaneHeaders.Children[row + 1] is not Grid { Tag: Guid target } ||
+            target == source || VideoProjectTracks.IsAudio(_editor.Current, source) !=
+            VideoProjectTracks.IsAudio(_editor.Current, target)) return (null, false);
+        bool after = target != Guid.Empty && y - (22 + row * 28) >= 14;
+        return (target, after);
+    }
+
+    private void HighlightTrackDrop(Guid? target)
+    {
+        if (_trackDropTarget == target) return;
+        if (_trackDropTarget.HasValue &&
+            _trackHeaders.TryGetValue(_trackDropTarget.Value, out Grid? old))
+            old.Background = null;
+        _trackDropTarget = target;
+        if (target.HasValue && _trackHeaders.TryGetValue(target.Value, out Grid? header))
+            header.Background = new SolidColorBrush(Color.FromArgb(42, 70, 150, 210));
+    }
+
     private void SelectClip(TimelineKind kind, Guid id, bool focusTimeline = true)
     {
         if (_selectedId == id && _selectedKind == kind)
@@ -1247,6 +1431,8 @@ public sealed partial class VideoEditorPage
         if (_inspectorOpen && ActualWidth < 640) CloseGallery();
         InspectorPanel.Visibility = _inspectorOpen
             ? Visibility.Visible : Visibility.Collapsed;
+        bool trackLocked = IsSelectedTrackLocked();
+        InspectorFieldsScroll.IsEnabled = !trackLocked;
         SourceFields.Visibility = video is not null || videoOverlay is not null ||
             audio is not null
             ? Visibility.Visible : Visibility.Collapsed;
@@ -1255,6 +1441,8 @@ public sealed partial class VideoEditorPage
         OverlayFields.Visibility = image is null && videoOverlay is null
             ? Visibility.Collapsed : Visibility.Visible;
         OverlayCropFields.Visibility = image is null && videoOverlay is null
+            ? Visibility.Collapsed : Visibility.Visible;
+        VideoShapeBox.Visibility = videoOverlay is null
             ? Visibility.Collapsed : Visibility.Visible;
         OverlayDurationSeconds.Visibility = videoOverlay is null
             ? Visibility.Visible : Visibility.Collapsed;
@@ -1340,6 +1528,8 @@ public sealed partial class VideoEditorPage
             OverlayCropTop.Value = crop.Y * 100;
             OverlayCropWidth.Value = crop.Width * 100;
             OverlayCropHeight.Value = crop.Height * 100;
+            if (videoOverlay is not null)
+                VideoShapeBox.SelectedIndex = (int)videoOverlay.Shape;
             if (image is not null)
             {
                 var layers = project.ImageOverlays.Select((item, index) => (item, index))
@@ -1399,6 +1589,7 @@ public sealed partial class VideoEditorPage
         PendingChangesText.Visibility = Visibility.Collapsed;
         ToolTipService.SetToolTip(ApplyPropertiesButton, "No clip changes to apply");
         _textInspectorDirty = false;
+        if (trackLocked) SelectionHint.Text = "Track locked · Unlock to edit";
         RefreshCanvasTextEditor();
         UpdateEditActionState();
     }
@@ -1436,7 +1627,7 @@ public sealed partial class VideoEditorPage
     private void MarkInspectorDirty()
     {
         if (_loadingInspector || _editor is null || _selectedKind == TimelineKind.None ||
-            ApplyPropertiesButton is null) return;
+            ApplyPropertiesButton is null || IsSelectedTrackLocked()) return;
         if (_selectedKind == TimelineKind.Text)
         {
             _textInspectorDirty = true;
@@ -1452,17 +1643,19 @@ public sealed partial class VideoEditorPage
     {
         if (_editor is null) return;
         bool selected = _selectedKind != TimelineKind.None;
-        bool inside = _selectedKind != TimelineKind.Transition &&
+        bool editable = !IsSelectedTrackLocked();
+        bool inside = editable && _selectedKind != TimelineKind.Transition &&
             _selectedRange is { } clip && _playhead > clip.Start && _playhead < clip.End;
         bool videoAtPlayhead = _selectedKind == TimelineKind.None &&
+            !_editor.Current.LockedTrackIds.Contains(Guid.Empty) &&
             _editor.Current.VideoSegments.Any(item =>
                 _playhead > item.Start && _playhead < item.End);
         SetEnabled(SplitButton, inside || videoAtPlayhead);
         SetEnabled(TrimLeftButton, inside);
         SetEnabled(TrimRightButton, inside);
-        SetEnabled(DeleteClipButton, selected && _selectedRange.HasValue);
+        SetEnabled(DeleteClipButton, selected && editable && _selectedRange.HasValue);
         bool canCut = _markIn.HasValue && _markOut.HasValue &&
-            _markIn.Value != _markOut.Value;
+            _markIn.Value != _markOut.Value && editable;
         if (canCut && _selectedKind is TimelineKind.VideoOverlay or TimelineKind.Audio or
             TimelineKind.Image or TimelineKind.Text)
         {
@@ -1477,8 +1670,10 @@ public sealed partial class VideoEditorPage
             TimeSpan end = _markIn.Value > _markOut.Value ? _markIn.Value : _markOut.Value;
             canCut = start > TimeSpan.Zero || end < _editor.Current.Duration;
         }
+        if (canCut && _selectedKind is (TimelineKind.Video or TimelineKind.None) &&
+            _editor.Current.LockedTrackIds.Length > 0) canCut = false;
         SetEnabled(CutRangeButton, canCut && _selectedKind != TimelineKind.Transition);
-        SetEnabled(AddTransitionButton, FindTransitionCut() is not null);
+        SetEnabled(AddTransitionButton, editable && FindTransitionCut() is not null);
     }
 
     private static void SetEnabled(Button button, bool enabled)
@@ -1658,11 +1853,17 @@ public sealed partial class VideoEditorPage
 
     private void MoveSelectedVisualLayer(int direction)
     {
-        if (_editor is null) return;
-        if (_selectedKind == TimelineKind.Image)
-            TryEdit(() => _editor.MoveImageLayer(_selectedId, direction));
-        else if (_selectedKind == TimelineKind.VideoOverlay)
-            TryEdit(() => _editor.MoveVideoOverlayLayer(_selectedId, direction));
+        if (_editor is null || _selectedKind is not
+            (TimelineKind.Image or TimelineKind.VideoOverlay or TimelineKind.Text) ||
+            IsSelectedTrackLocked()) return;
+        Guid? trackId = TrackIdForItem(_editor.Current, _selectedKind, _selectedId);
+        if (!trackId.HasValue) return;
+        var order = VideoProjectTracks.OrderedIds(_editor.Current);
+        int index = order.IndexOf(trackId.Value);
+        int target = index - direction;
+        if (target < 0 || target >= order.Length ||
+            VideoProjectTracks.IsAudio(_editor.Current, order[target])) return;
+        TryEdit(() => _editor.MoveTrack(trackId.Value, order[target], direction < 0));
     }
 
     private void Split_Click(object sender, RoutedEventArgs args)
@@ -1875,6 +2076,52 @@ public sealed partial class VideoEditorPage
 
     private static Guid ImageLayerKey(ImageOverlay image) =>
         image.LayerId == Guid.Empty ? image.Id : image.LayerId;
+
+    private bool IsSelectedTrackLocked() => _editor is not null &&
+        IsTrackLocked(_editor.Current, _selectedKind, _selectedId);
+
+    private static bool IsTrackLocked(VideoProject project, TimelineKind kind, Guid id)
+    {
+        Guid? trackId = TrackIdForItem(project, kind, id);
+        return trackId.HasValue && project.LockedTrackIds.Contains(trackId.Value);
+    }
+
+    private static Guid? TrackIdForItem(VideoProject project, TimelineKind kind, Guid id) =>
+        kind switch
+        {
+            TimelineKind.Video when project.VideoSegments.Any(item => item.Id == id)
+                => Guid.Empty,
+            TimelineKind.VideoOverlay => project.VideoOverlays.FirstOrDefault(item =>
+                item.Id == id) is { } video ? VideoProjectTracks.LayerId(video) : null,
+            TimelineKind.Image => project.ImageOverlays.FirstOrDefault(item =>
+                item.Id == id) is { } image ? VideoProjectTracks.LayerId(image) : null,
+            TimelineKind.Text => project.TextOverlays.FirstOrDefault(item =>
+                item.Id == id) is { } text ? VideoProjectTracks.LayerId(text) : null,
+            TimelineKind.Audio => project.AudioSegments.FirstOrDefault(item =>
+                item.Id == id)?.AssetId,
+            TimelineKind.Transition => TrackIdForTransition(project, id),
+            _ => null,
+        };
+
+    private static Guid? TrackIdForTransition(VideoProject project, Guid id)
+    {
+        VideoTransition? transition = project.Transitions.FirstOrDefault(item => item.Id == id);
+        if (transition is null) return null;
+        return transition.Lane switch
+        {
+            VideoTransitionLane.Video => Guid.Empty,
+            VideoTransitionLane.VideoOverlay => project.VideoOverlays.FirstOrDefault(item =>
+                item.Id == transition.OutgoingId) is { } video
+                ? VideoProjectTracks.LayerId(video) : null,
+            VideoTransitionLane.Image => project.ImageOverlays.FirstOrDefault(item =>
+                item.Id == transition.OutgoingId) is { } image
+                ? VideoProjectTracks.LayerId(image) : null,
+            VideoTransitionLane.Text => project.TextOverlays.FirstOrDefault(item =>
+                item.Id == transition.OutgoingId) is { } text
+                ? VideoProjectTracks.LayerId(text) : null,
+            _ => null,
+        };
+    }
 
     private static Guid VideoOverlayLayerKey(VideoOverlay overlay) =>
         overlay.LayerId == Guid.Empty ? overlay.Id : overlay.LayerId;

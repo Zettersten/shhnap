@@ -19,12 +19,6 @@ public sealed partial class VideoEditorPage
 {
     private enum MediaHandle { Move, NorthWest, North, NorthEast, East, SouthEast, South, SouthWest, West }
 
-    private readonly Canvas _previewVideoHits = new()
-    {
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
-        IsHitTestVisible = true,
-    };
     private readonly Canvas _canvasMedia = new()
     {
         HorizontalAlignment = HorizontalAlignment.Center,
@@ -104,6 +98,36 @@ public sealed partial class VideoEditorPage
             FontSize = 12,
         },
     };
+    private readonly Button _canvasMediaShapeButton = new()
+    {
+        Width = 28,
+        Height = 28,
+        MinWidth = 0,
+        Padding = new Thickness(0),
+        Background = new SolidColorBrush(Colors.Transparent),
+        BorderThickness = new Thickness(0),
+        Content = new FontIcon
+        {
+            Glyph = "\uE7FB",
+            FontFamily = new FontFamily("Segoe Fluent Icons"),
+            FontSize = 12,
+        },
+    };
+    private readonly Button _canvasMediaDeleteButton = new()
+    {
+        Width = 28,
+        Height = 28,
+        MinWidth = 0,
+        Padding = new Thickness(0),
+        Background = new SolidColorBrush(Colors.Transparent),
+        BorderThickness = new Thickness(0),
+        Content = new FontIcon
+        {
+            Glyph = "\uE74D",
+            FontFamily = new FontFamily("Segoe Fluent Icons"),
+            FontSize = 12,
+        },
+    };
     private readonly Border _canvasMediaQuickbar = new()
     {
         Visibility = Visibility.Collapsed,
@@ -141,9 +165,7 @@ public sealed partial class VideoEditorPage
         AutomationProperties.SetName(VideoPlayer, "Video canvas");
         AutomationProperties.SetHelpText(VideoPlayer,
             "With an image or video selected, arrow keys move it one pixel; hold Shift for ten pixels.");
-        PreviewHost.Children.Insert(PreviewHost.Children.IndexOf(_previewImages),
-            _previewVideoHits);
-        PreviewHost.Children.Insert(PreviewHost.Children.IndexOf(_previewText),
+        PreviewHost.Children.Insert(PreviewHost.Children.IndexOf(_previewImages) + 1,
             _canvasMedia);
 
         var proxyCanvas = new Canvas { IsHitTestVisible = false };
@@ -209,10 +231,16 @@ public sealed partial class VideoEditorPage
         AutomationProperties.SetAutomationId(_canvasMediaPropertiesButton,
             "ShowSelectedMediaProperties");
         _canvasMediaPropertiesButton.Click += CanvasMediaProperties_Click;
+        InitializeVideoShapeMenu();
+        ToolTipService.SetToolTip(_canvasMediaDeleteButton, "Remove selected media · Delete");
+        AutomationProperties.SetName(_canvasMediaDeleteButton, "Remove selected media");
+        _canvasMediaDeleteButton.Click += (_, _) => DeleteSelected(ripple: false);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
         actions.Children.Add(_canvasMediaCropButton);
         actions.Children.Add(_canvasMediaResetCropButton);
+        actions.Children.Add(_canvasMediaShapeButton);
         actions.Children.Add(_canvasMediaPropertiesButton);
+        actions.Children.Add(_canvasMediaDeleteButton);
         _canvasMediaQuickbar.Child = actions;
         _canvasMedia.Children.Add(_canvasMediaQuickbar);
         RegisterCanvasMediaShortcuts();
@@ -233,7 +261,8 @@ public sealed partial class VideoEditorPage
         ++_canvasProxyGeneration;
         _canvasMediaPointerId = null;
         _canvasMediaCapture = null;
-        _previewVideoHits.Children.Clear();
+        foreach (Border hit in _previewVideoHitViews.Values)
+            _previewImages.Children.Remove(hit);
         _previewVideoHitViews.Clear();
         _canvasMediaFrame.Visibility = Visibility.Collapsed;
         _canvasMediaFocusTarget.Visibility = Visibility.Collapsed;
@@ -311,7 +340,7 @@ public sealed partial class VideoEditorPage
         foreach (Guid id in _previewVideoHitViews.Keys.Where(item =>
             !activeIds.Contains(item)).ToArray())
         {
-            _previewVideoHits.Children.Remove(_previewVideoHitViews[id]);
+            _previewImages.Children.Remove(_previewVideoHitViews[id]);
             _previewVideoHitViews.Remove(id);
         }
         foreach (PausedSource visual in _activeVideoHitVisuals)
@@ -327,7 +356,7 @@ public sealed partial class VideoEditorPage
             hit.PointerReleased += MediaSurface_PointerReleased;
             hit.PointerCaptureLost += MediaSurface_PointerCaptureLost;
             _previewVideoHitViews.Add(visual.ItemId, hit);
-            _previewVideoHits.Children.Add(hit);
+            _previewImages.Children.Add(hit);
         }
     }
 
@@ -346,10 +375,9 @@ public sealed partial class VideoEditorPage
         if (_editor is null || !double.IsFinite(VideoPlayer.Width) ||
             !double.IsFinite(VideoPlayer.Height) ||
             VideoPlayer.Width <= 0 || VideoPlayer.Height <= 0) return;
-        _previewVideoHits.Width = _canvasMedia.Width = VideoPlayer.Width;
-        _previewVideoHits.Height = _canvasMedia.Height = VideoPlayer.Height;
+        _canvasMedia.Width = VideoPlayer.Width;
+        _canvasMedia.Height = VideoPlayer.Height;
         var clip = new Rect(0, 0, VideoPlayer.Width, VideoPlayer.Height);
-        _previewVideoHits.Clip = new RectangleGeometry { Rect = clip };
         _canvasMedia.Clip = new RectangleGeometry { Rect = clip };
         LayoutVideoHitTargets();
         RefreshCanvasMediaSelection();
@@ -370,7 +398,8 @@ public sealed partial class VideoEditorPage
             Canvas.SetTop(hit, visual.Bounds.Y * scaleY);
             hit.Width = visual.Bounds.Width * scaleX;
             hit.Height = visual.Bounds.Height * scaleY;
-            Canvas.SetZIndex(hit, visual.ZIndex);
+            ApplyVideoShapeClip(hit, visual.Shape, hit.Width, hit.Height);
+            Canvas.SetZIndex(hit, visual.ZIndex + 2);
         }
     }
 
@@ -418,9 +447,15 @@ public sealed partial class VideoEditorPage
         _canvasMediaFrame.Visibility = Visibility.Visible;
         _canvasMediaFocusTarget.Visibility = Visibility.Visible;
         _canvasMediaQuickbar.Visibility = Visibility.Visible;
+        bool trackLocked = IsSelectedTrackLocked();
         foreach (var (_, view) in _canvasMediaHandles)
-            view.Visibility = Visibility.Visible;
-        _canvasMediaResetCropButton.IsEnabled = crop is not null;
+            view.Visibility = trackLocked ? Visibility.Collapsed : Visibility.Visible;
+        _canvasMediaCropButton.IsEnabled = !trackLocked;
+        _canvasMediaResetCropButton.IsEnabled = !trackLocked && crop is not null;
+        _canvasMediaShapeButton.IsEnabled = !trackLocked;
+        _canvasMediaShapeButton.Visibility = _selectedKind == TimelineKind.VideoOverlay
+            ? Visibility.Visible : Visibility.Collapsed;
+        RefreshVideoShapeMenuSelection();
         LayoutCanvasMedia(_canvasMediaDraftBounds ?? bounds.Value,
             _canvasMediaDraftCrop ?? crop ?? new VideoRect(0, 0, 1, 1));
     }
@@ -456,7 +491,7 @@ public sealed partial class VideoEditorPage
             Canvas.SetLeft(view, x - view.Width / 2);
             Canvas.SetTop(view, y - view.Height / 2);
         }
-        double barWidth = 96;
+        double barWidth = _selectedKind == TimelineKind.VideoOverlay ? 162 : 131;
         Canvas.SetLeft(_canvasMediaQuickbar,
             Math.Clamp(left, 0, Math.Max(0, VideoPlayer.Width - barWidth)));
         Canvas.SetTop(_canvasMediaQuickbar,
@@ -478,10 +513,9 @@ public sealed partial class VideoEditorPage
         Canvas.SetTop(_canvasVideoProxy, bounds.Y * sy);
         _canvasVideoProxy.Width = width;
         _canvasVideoProxy.Height = height;
-        _canvasVideoProxy.Clip = new RectangleGeometry
-        {
-            Rect = new Rect(0, 0, width, height),
-        };
+        VideoOverlayShape shape = _editor.Current.VideoOverlays.FirstOrDefault(item =>
+            item.Id == _selectedId)?.Shape ?? VideoOverlayShape.Rectangle;
+        ApplyVideoShapeClip(_canvasVideoProxy, shape, width, height);
         _canvasVideoProxyImage.Width = width / crop.Width;
         _canvasVideoProxyImage.Height = height / crop.Height;
         Canvas.SetLeft(_canvasVideoProxyImage,
@@ -513,6 +547,12 @@ public sealed partial class VideoEditorPage
         MediaHandle gesture)
     {
         if (_editor is null) return;
+        if (IsSelectedTrackLocked())
+        {
+            StatusText.Text = "Unlock the track to move, resize, or crop this item.";
+            args.Handled = true;
+            return;
+        }
         if (_selectedKind == TimelineKind.VideoOverlay &&
             _editor.Current.Transitions.Any(item =>
                 item.Lane == VideoTransitionLane.VideoOverlay &&
@@ -608,6 +648,10 @@ public sealed partial class VideoEditorPage
         bool shiftHeld = (args.KeyModifiers & VirtualKeyModifiers.Shift) != 0 ||
             (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift) &
              global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
+        bool keepSquare = _selectedKind == TimelineKind.VideoOverlay &&
+            _editor.Current.VideoOverlays.FirstOrDefault(item =>
+                item.Id == _selectedId) is { } selectedVideo &&
+            VideoOverlayCropPresets.IsSquare(selectedVideo.Shape);
         VideoRect bounds;
         VideoRect crop = _canvasMediaStartCrop;
         if (_canvasMediaGesture == MediaHandle.Move)
@@ -631,12 +675,12 @@ public sealed partial class VideoEditorPage
         else if (_canvasMediaCropButton.IsChecked == true)
         {
             bounds = CropCanvasMedia(_canvasMediaStartBounds, crop,
-                _canvasMediaGesture, dx, dy, shiftHeld, out crop);
+                _canvasMediaGesture, dx, dy, shiftHeld || keepSquare, out crop);
         }
         else
         {
             bounds = ResizeCanvasMedia(_canvasMediaStartBounds,
-                _canvasMediaGesture, dx, dy, shiftHeld);
+                _canvasMediaGesture, dx, dy, shiftHeld || keepSquare);
         }
         _canvasMediaDraftBounds = bounds;
         _canvasMediaDraftCrop = crop;
@@ -646,7 +690,9 @@ public sealed partial class VideoEditorPage
             LayoutPreviewImage(image, bounds, crop);
         else if (_selectedKind == TimelineKind.VideoOverlay &&
             _pausedOverlayViews.TryGetValue(_selectedId, out var paused))
-            LayoutPausedOverlay(bounds, crop, paused.Frame, paused.Image);
+            LayoutPausedOverlay(bounds, crop, paused.Frame, paused.Image,
+                _editor.Current.VideoOverlays.FirstOrDefault(item =>
+                    item.Id == _selectedId)?.Shape ?? VideoOverlayShape.Rectangle);
     }
 
     private static VideoRect ResizeCanvasMedia(VideoRect old, MediaHandle handle,
@@ -891,7 +937,8 @@ public sealed partial class VideoEditorPage
         KeyboardAcceleratorInvokedEventArgs args)
     {
         if (_closed || _editor is null || IsTextEntryFocused() ||
-            _canvasMediaFrame.Visibility != Visibility.Visible) return;
+            _canvasMediaFrame.Visibility != Visibility.Visible ||
+            IsSelectedTrackLocked()) return;
         _canvasMediaCropButton.IsChecked = _canvasMediaCropButton.IsChecked != true;
         StatusText.Text = _canvasMediaCropButton.IsChecked == true
             ? "Crop mode · drag a handle · Shift keeps proportions"
@@ -904,7 +951,7 @@ public sealed partial class VideoEditorPage
     {
         if (_closed || _editor is null || IsTextEntryFocused() ||
             _canvasMediaFrame.Visibility != Visibility.Visible ||
-            !_canvasMediaResetCropButton.IsEnabled) return;
+            !_canvasMediaResetCropButton.IsEnabled || IsSelectedTrackLocked()) return;
         CanvasMediaResetCrop_Click(this, new RoutedEventArgs());
         StatusText.Text = "Source crop reset";
         args.Handled = true;
@@ -929,6 +976,11 @@ public sealed partial class VideoEditorPage
     private bool NudgeCanvasMedia(VirtualKey key, bool shift)
     {
         if (!CanvasMediaHasKeyboardFocus() || _editor is null) return false;
+        if (IsSelectedTrackLocked())
+        {
+            StatusText.Text = "Unlock the track to move this item.";
+            return true;
+        }
         if (_selectedKind == TimelineKind.VideoOverlay &&
             _editor.Current.Transitions.Any(item =>
                 item.Lane == VideoTransitionLane.VideoOverlay &&
@@ -1025,7 +1077,7 @@ public sealed partial class VideoEditorPage
             if (_pausedOverlayViews.TryGetValue(video.Id, out var paused))
                 LayoutPausedOverlay(bounds,
                     video.SourceCrop ?? new VideoRect(0, 0, 1, 1),
-                    paused.Frame, paused.Image);
+                    paused.Frame, paused.Image, video.Shape);
         }
         RefreshCanvasMediaSelection();
         bool loadingInspector = _loadingInspector;

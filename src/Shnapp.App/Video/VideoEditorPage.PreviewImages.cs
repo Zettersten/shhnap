@@ -39,7 +39,10 @@ public sealed partial class VideoEditorPage
     {
         ++_previewImageGeneration;
         SetPreviewImageTick(false);
-        _previewImages.Children.Clear();
+        foreach (Border frame in _previewImageFrames.Values)
+            _previewImages.Children.Remove(frame);
+        foreach (ImagePreviewTransition transition in _imagePreviewTransitions)
+            _previewImages.Children.Remove(transition.Backdrop);
         _previewImageViews.Clear();
         _previewImageFrames.Clear();
         _visiblePreviewImageDefinitions.Clear();
@@ -57,7 +60,10 @@ public sealed partial class VideoEditorPage
     {
         ++_previewImageGeneration;
         SetPreviewImageTick(false);
-        _previewImages.Children.Clear();
+        foreach (Border frame in _previewImageFrames.Values)
+            _previewImages.Children.Remove(frame);
+        foreach (ImagePreviewTransition transition in _imagePreviewTransitions)
+            _previewImages.Children.Remove(transition.Backdrop);
         _previewImageViews.Clear();
         _previewImageFrames.Clear();
         _visiblePreviewImageDefinitions.Clear();
@@ -197,7 +203,9 @@ public sealed partial class VideoEditorPage
                 view.Source = null;
                 _previewImageViewAssets[overlay.Id] = overlay.AssetId;
             }
-            Canvas.SetZIndex(_previewImageFrames[overlay.Id], overlay.ZIndex);
+            Canvas.SetZIndex(_previewImageFrames[overlay.Id],
+                VideoProjectTracks.VisualStackIndex(_editor.Current,
+                    VideoProjectTracks.LayerId(overlay)) * 100 + 10);
             _visiblePreviewImageDefinitions.Add(overlay.Id, overlay);
             if (_previewImageSources.TryGetValue(overlay.AssetId, out BitmapImage? source))
                 view.Source = source;
@@ -270,22 +278,13 @@ public sealed partial class VideoEditorPage
 
     private void SetPreviewImageTick(bool playing)
     {
-        VideoProject? project = _editor?.Current;
-        if (project is null ||
-            !project.ImageOverlays.Any(item =>
-                CanvasLayerVisible(project, item.Id, item.LayerId)) &&
-            !project.TextOverlays.Any(item =>
-                CanvasLayerVisible(project, item.Id, item.LayerId)) &&
-            (project.HiddenLayerIds.Contains(Guid.Empty) ||
-                !project.VideoSegments.Any(item =>
-                    item.FadeIn > TimeSpan.Zero || item.FadeOut > TimeSpan.Zero)))
-            playing = false;
-        if (playing == _previewImageTickAttached) return;
-        if (playing)
-            CompositionTarget.Rendering += PreviewImages_Rendering;
-        else
+        // Playback now uses the complete native composition. XAML overlay
+        // frames are only needed while paused, so avoid per-frame UI work.
+        if (_previewImageTickAttached)
+        {
             CompositionTarget.Rendering -= PreviewImages_Rendering;
-        _previewImageTickAttached = playing;
+            _previewImageTickAttached = false;
+        }
     }
 
     private void PreviewImages_Rendering(object sender, object args)

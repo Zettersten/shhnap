@@ -15,6 +15,8 @@ using Windows.Media.Transcoding;
 using Windows.Storage;
 using Windows.UI;
 using Windows.UI.Text;
+using Windows.Foundation.Collections;
+using Shnapp.VideoEffects;
 
 namespace Shnapp.App.Video;
 
@@ -150,9 +152,11 @@ internal static class VideoCompositionService
             composition.OverlayLayers.Add(layer);
         }
 
+        int baseLayerCount = composition.OverlayLayers.Count;
+        var visualLayers = new List<(Guid Id, MediaOverlayLayer Layer)>();
         if (!project.VideoOverlays.IsDefaultOrEmpty)
             await AddVideoOverlayLayersAsync(composition, project, store, assets,
-                FileForAsync, previewSize, cancellationToken);
+                FileForAsync, previewSize, visualLayers, cancellationToken);
 
         if (includeImageOverlays && !project.ImageOverlays.IsDefaultOrEmpty)
         {
@@ -176,7 +180,7 @@ internal static class VideoCompositionService
                     file));
             }
             await AddStaticOverlayLayersAsync(composition, project,
-                VideoTransitionLane.Image, items, cancellationToken);
+                VideoTransitionLane.Image, items, visualLayers, cancellationToken);
         }
 
         if (includeImageOverlays && !project.TextOverlays.IsDefaultOrEmpty)
@@ -197,7 +201,19 @@ internal static class VideoCompositionService
                     await StorageFile.GetFileFromPathAsync(path)));
             }
             await AddStaticOverlayLayersAsync(composition, project,
-                VideoTransitionLane.Text, items, cancellationToken);
+                VideoTransitionLane.Text, items, visualLayers, cancellationToken);
+        }
+
+        // Native composition layers are bottom-to-top. Respect the same order
+        // the user sees and drags in the timeline, across media types.
+        if (visualLayers.Count != 0)
+        {
+            while (composition.OverlayLayers.Count > baseLayerCount)
+                composition.OverlayLayers.RemoveAt(baseLayerCount);
+            var byId = visualLayers.ToDictionary(item => item.Id, item => item.Layer);
+            foreach (Guid id in VideoProjectTracks.OrderedIds(project).Reverse())
+                if (byId.TryGetValue(id, out MediaOverlayLayer? layer))
+                    composition.OverlayLayers.Add(layer);
         }
 
         return composition;
@@ -568,6 +584,7 @@ internal static class VideoCompositionService
         VideoProject project, VideoProjectStore store,
         IReadOnlyDictionary<Guid, VideoAsset> assets,
         Func<Guid, Task<StorageFile>> fileForAsync, (int Width, int Height)? previewSize,
+        List<(Guid Id, MediaOverlayLayer Layer)> visualLayers,
         CancellationToken token)
     {
         double scaleX = previewSize?.Width / (double)project.Width ?? 1;
@@ -575,6 +592,10 @@ internal static class VideoCompositionService
         var croppedSources = new Dictionary<Guid, StorageFile>();
         async Task<StorageFile> OverlayFileForAsync(VideoOverlay overlay)
         {
+            // Shaped video uses its GPU effect for crop and mask in one pass.
+            // Avoid transcoding an entire camera source merely for a 1:1 preset.
+            if (overlay.Shape != VideoOverlayShape.Rectangle)
+                return await fileForAsync(overlay.AssetId);
             if (overlay.SourceCrop is not { } crop)
                 return await fileForAsync(overlay.AssetId);
             if (croppedSources.TryGetValue(overlay.Id, out StorageFile? cached))
@@ -625,6 +646,7 @@ internal static class VideoCompositionService
                     OverlayFileForAsync, byId[transition.OutgoingId],
                     byId[transition.IncomingId], transition, span, scaleX, scaleY, token);
             composition.OverlayLayers.Add(layer);
+            visualLayers.Add((group.Key, layer));
         }
     }
 
@@ -721,6 +743,20 @@ internal static class VideoCompositionService
             Trim(clip, sourceIn, sourceIn + duration);
             clip.Volume = 0;
         }
+        if (overlay.Shape != VideoOverlayShape.Rectangle)
+        {
+            VideoRect crop = overlay.SourceCrop ?? new VideoRect(0, 0, 1, 1);
+            var properties = new PropertySet
+            {
+                ["Shape"] = (int)overlay.Shape,
+                ["CropX"] = crop.X,
+                ["CropY"] = crop.Y,
+                ["CropWidth"] = crop.Width,
+                ["CropHeight"] = crop.Height,
+            };
+            clip.VideoEffectDefinitions.Add(new VideoEffectDefinition(
+                typeof(VideoShapeMaskEffect).FullName!, properties));
+        }
         layer.Overlays.Add(new MediaOverlay(clip)
         {
             Delay = start,
@@ -732,7 +768,8 @@ internal static class VideoCompositionService
 
     private static async Task AddStaticOverlayLayersAsync(MediaComposition composition,
         VideoProject project, VideoTransitionLane lane,
-        IReadOnlyList<StaticOverlayItem> items, CancellationToken token)
+        IReadOnlyList<StaticOverlayItem> items,
+        List<(Guid Id, MediaOverlayLayer Layer)> visualLayers, CancellationToken token)
     {
         // Keep each logical timeline lane in one native layer so a transition
         // cannot cover unrelated overlays with a higher z-order.
@@ -812,6 +849,7 @@ internal static class VideoCompositionService
                 }
             }
             composition.OverlayLayers.Add(layer);
+            visualLayers.Add((group.Key, layer));
         }
     }
 

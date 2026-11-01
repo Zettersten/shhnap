@@ -41,6 +41,14 @@ internal static class VideoProjectValidation
             project.HiddenLayerIds.Length <= MaximumTimelineItems &&
             project.HiddenLayerIds.Distinct().Count() == project.HiddenLayerIds.Length,
             "Hidden visual layers must have unique identifiers.");
+        Require(!project.TrackOrder.IsDefault &&
+            project.TrackOrder.Length <= MaximumTimelineItems &&
+            project.TrackOrder.Distinct().Count() == project.TrackOrder.Length,
+            "Track order must contain unique identifiers.");
+        Require(!project.LockedTrackIds.IsDefault &&
+            project.LockedTrackIds.Length <= MaximumTimelineItems &&
+            project.LockedTrackIds.Distinct().Count() == project.LockedTrackIds.Length,
+            "Locked tracks must have unique identifiers.");
 
         var assets = new Dictionary<Guid, VideoAsset>();
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -140,6 +148,10 @@ internal static class VideoProjectValidation
                 "Video overlay z-order is out of range.");
             ValidateBounds(overlay.Bounds, "Video overlay");
             ValidateSourceCrop(overlay.SourceCrop);
+            Require(Enum.IsDefined(overlay.Shape), "Video overlay crop shape is invalid.");
+            if (overlay.ShapeOriginalBounds is { } originalBounds)
+                ValidateBounds(originalBounds, "Original video overlay");
+            ValidateSourceCrop(overlay.ShapeOriginalCrop);
             itemDurations.Add(overlay.Id, overlay.Duration);
         }
         foreach (IGrouping<Guid, VideoOverlay> layer in project.VideoOverlays.GroupBy(item =>
@@ -237,6 +249,19 @@ internal static class VideoProjectValidation
         foreach ((Guid id, TimeSpan used) in occupied)
             Require(used <= itemDurations[id],
                 "Transitions at both ends of a clip cannot overlap.");
+        var defaultTrackOrder = VideoProjectTracks.DefaultOrder(project);
+        HashSet<Guid> trackIds = [.. defaultTrackOrder];
+        Require(trackIds.Count == defaultTrackOrder.Length,
+            "Timeline track identifiers must be unique.");
+        Require(project.TrackOrder.All(trackIds.Contains),
+            "Track order references a missing track.");
+        Require(project.LockedTrackIds.All(trackIds.Contains),
+            "Locked track list references a missing track.");
+        var orderedTrackIds = VideoProjectTracks.OrderedIds(project);
+        int recordingPosition = orderedTrackIds.IndexOf(Guid.Empty);
+        Require(orderedTrackIds.Skip(recordingPosition + 1).All(id =>
+                VideoProjectTracks.IsAudio(project, id)),
+            "The original recording must remain below visual layers.");
         Require(project.Duration <= MaximumDuration,
             "The edited timeline duration must be bounded.");
     }

@@ -108,6 +108,8 @@ public sealed class VideoLayerTests
             VideoProjectJsonContext.Default.VideoProject))!.AsObject();
         json.Remove("videoOverlays");
         json.Remove("hiddenLayerIds");
+        json.Remove("trackOrder");
+        json.Remove("lockedTrackIds");
         VideoProject project = JsonSerializer.Deserialize(json.ToJsonString(),
             VideoProjectJsonContext.Default.VideoProject)!;
         var editor = new VideoProjectEditor(project);
@@ -115,6 +117,66 @@ public sealed class VideoLayerTests
         Assert.AreEqual(0, editor.Current.VideoOverlays.Length);
         Assert.IsFalse(editor.Current.HiddenLayerIds.IsDefault);
         Assert.AreEqual(0, editor.Current.HiddenLayerIds.Length);
+        Assert.AreEqual(0, editor.Current.TrackOrder.Length);
+        Assert.AreEqual(0, editor.Current.LockedTrackIds.Length);
+    }
+
+    [TestMethod]
+    public void DragOrderPersistsAcrossMediaTypesAndUndo()
+    {
+        var editor = new VideoProjectEditor(Recording());
+        var video = new VideoAsset(Guid.NewGuid(), VideoAssetKind.ImportedVideo,
+            "assets/upper.mp4", 5 * Second);
+        var image = new VideoAsset(Guid.NewGuid(), VideoAssetKind.Image,
+            "assets/still.png", TimeSpan.Zero);
+        editor.AddAsset(video);
+        editor.AddAsset(image);
+        Guid videoId = editor.AddVideoOverlay(video.Id, TimeSpan.Zero,
+            TimeSpan.Zero, 5 * Second, new VideoRect(0, 0, 320, 180));
+        Guid imageId = Guid.NewGuid();
+        editor.AddImageOverlay(new ImageOverlay(imageId, image.Id, TimeSpan.Zero,
+            5 * Second, new VideoRect(0, 0, 320, 180)));
+        Guid textId = Guid.NewGuid();
+        editor.AddTextOverlay(new TextOverlay(textId, TimeSpan.Zero, 5 * Second,
+            "Title", new VideoRect(0, 0, 320, 80)));
+
+        Assert.IsTrue(editor.MoveTrack(videoId, textId, after: false));
+        Assert.IsTrue(VideoProjectTracks.VisualStackIndex(editor.Current, videoId) >
+            VideoProjectTracks.VisualStackIndex(editor.Current, textId));
+        Assert.AreEqual(videoId, VideoProjectTracks.OrderedIds(editor.Current)[0]);
+        string json = JsonSerializer.Serialize(editor.Current,
+            VideoProjectJsonContext.Default.VideoProject);
+        VideoProject reopened = JsonSerializer.Deserialize(json,
+            VideoProjectJsonContext.Default.VideoProject)!;
+        Assert.AreEqual(videoId, VideoProjectTracks.OrderedIds(reopened)[0]);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreEqual(textId, VideoProjectTracks.OrderedIds(editor.Current)[0]);
+    }
+
+    [TestMethod]
+    public void LockedTrackRejectsEditsButAllowsVisibilityAndUnlock()
+    {
+        var editor = new VideoProjectEditor(Recording());
+        var asset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.ImportedVideo,
+            "assets/locked.mp4", 5 * Second);
+        editor.AddAsset(asset);
+        Guid clipId = editor.AddVideoOverlay(asset.Id, TimeSpan.Zero,
+            TimeSpan.Zero, 5 * Second, new VideoRect(0, 0, 320, 180));
+        Assert.IsTrue(editor.SetTrackLocked(clipId, true));
+        VideoProject before = editor.Current;
+
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
+            editor.UpdateVideoOverlay(before.VideoOverlays.Single() with
+            {
+                Bounds = new VideoRect(10, 10, 320, 180),
+            }));
+        Assert.ThrowsExactly<InvalidOperationException>(() => editor.DeleteVideoOverlay(clipId));
+        Assert.AreSame(before, editor.Current);
+        Assert.IsFalse(editor.MoveTrack(clipId, Guid.Empty, after: false));
+        Assert.IsTrue(editor.SetLayerVisible(clipId, false));
+        Assert.IsTrue(editor.SetTrackLocked(clipId, false));
+        Assert.IsTrue(editor.DeleteVideoOverlay(clipId));
+        Assert.AreEqual(0, editor.Current.LockedTrackIds.Length);
     }
 
     private static VideoProject Recording() =>

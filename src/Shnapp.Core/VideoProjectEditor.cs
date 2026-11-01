@@ -249,6 +249,42 @@ public sealed class VideoProjectEditor(VideoProject project)
         return true;
     }
 
+    /// <summary>Locks or unlocks one timeline track without changing its visibility.</summary>
+    public bool SetTrackLocked(Guid trackId, bool locked)
+    {
+        if (!VideoProjectTracks.Contains(Current, trackId)) return false;
+        bool wasLocked = Current.LockedTrackIds.Contains(trackId);
+        if (wasLocked == locked) return false;
+        Commit(Current with
+        {
+            LockedTrackIds = locked
+                ? Current.LockedTrackIds.Add(trackId)
+                : Current.LockedTrackIds.Remove(trackId),
+        });
+        return true;
+    }
+
+    /// <summary>Moves an unlocked track next to another track in its visual or audio section.</summary>
+    /// <remarks>The original recording remains the bottom visual track.</remarks>
+    public bool MoveTrack(Guid trackId, Guid targetId, bool after)
+    {
+        if (trackId == Guid.Empty || trackId == targetId ||
+            Current.LockedTrackIds.Contains(trackId) ||
+            !VideoProjectTracks.Contains(Current, trackId) ||
+            !VideoProjectTracks.Contains(Current, targetId) ||
+            VideoProjectTracks.IsAudio(Current, trackId) !=
+            VideoProjectTracks.IsAudio(Current, targetId)) return false;
+        if (targetId == Guid.Empty) after = false;
+        var order = VideoProjectTracks.OrderedIds(Current).ToList();
+        int from = order.IndexOf(trackId);
+        order.RemoveAt(from);
+        int target = order.IndexOf(targetId);
+        order.Insert(target + (after ? 1 : 0), trackId);
+        if (order.SequenceEqual(VideoProjectTracks.OrderedIds(Current))) return false;
+        Commit(Current with { TrackOrder = [.. order] });
+        return true;
+    }
+
     /// <summary>Inserts a new video and its separate audio stems, rippling every existing track as one undoable edit.</summary>
     /// <param name="asset">A new imported video asset.</param>
     /// <param name="at">Insertion point on the output timeline.</param>
@@ -1083,6 +1119,8 @@ public sealed class VideoProjectEditor(VideoProject project)
     {
         next = PruneHiddenLayers(next);
         next = PruneTransitions(next);
+        next = PruneTrackState(next);
+        EnsureLockedTracksUnchanged(next);
         VideoProjectValidation.Validate(next);
         if (next.Title == Current.Title && next.Assets.SequenceEqual(Current.Assets) &&
             next.VideoSegments.SequenceEqual(Current.VideoSegments) &&
@@ -1091,7 +1129,9 @@ public sealed class VideoProjectEditor(VideoProject project)
             next.ImageOverlays.SequenceEqual(Current.ImageOverlays) &&
             next.TextOverlays.SequenceEqual(Current.TextOverlays) &&
             next.Transitions.SequenceEqual(Current.Transitions) &&
-            next.HiddenLayerIds.SequenceEqual(Current.HiddenLayerIds))
+            next.HiddenLayerIds.SequenceEqual(Current.HiddenLayerIds) &&
+            next.TrackOrder.SequenceEqual(Current.TrackOrder) &&
+            next.LockedTrackIds.SequenceEqual(Current.LockedTrackIds))
         {
             return;
         }
@@ -1119,6 +1159,57 @@ public sealed class VideoProjectEditor(VideoProject project)
         return hidden.SequenceEqual(project.HiddenLayerIds)
             ? project : project with { HiddenLayerIds = hidden };
     }
+
+    private static VideoProject PruneTrackState(VideoProject project)
+    {
+        HashSet<Guid> present = [.. VideoProjectTracks.DefaultOrder(project)];
+        ImmutableArray<Guid> order = [.. project.TrackOrder.Where(present.Contains).Distinct()];
+        ImmutableArray<Guid> locked = [.. project.LockedTrackIds.Where(present.Contains).Distinct()];
+        return order.SequenceEqual(project.TrackOrder) &&
+            locked.SequenceEqual(project.LockedTrackIds) ? project : project with
+        {
+            TrackOrder = order,
+            LockedTrackIds = locked,
+        };
+    }
+
+    private void EnsureLockedTracksUnchanged(VideoProject next)
+    {
+        foreach (Guid id in Current.LockedTrackIds)
+        {
+            bool changed = id == Guid.Empty
+                ? !Current.VideoSegments.SequenceEqual(next.VideoSegments)
+                : VideoProjectTracks.IsAudio(Current, id)
+                    ? !Current.AudioSegments.Where(item => item.AssetId == id)
+                        .Select(item => item with { Muted = false })
+                        .SequenceEqual(next.AudioSegments.Where(item => item.AssetId == id)
+                            .Select(item => item with { Muted = false }))
+                    : !Current.VideoOverlays.Where(item => VideoProjectTracks.LayerId(item) == id)
+                        .SequenceEqual(next.VideoOverlays.Where(item => VideoProjectTracks.LayerId(item) == id)) ||
+                      !Current.ImageOverlays.Where(item => VideoProjectTracks.LayerId(item) == id)
+                        .SequenceEqual(next.ImageOverlays.Where(item => VideoProjectTracks.LayerId(item) == id)) ||
+                      !Current.TextOverlays.Where(item => VideoProjectTracks.LayerId(item) == id)
+                        .SequenceEqual(next.TextOverlays.Where(item => VideoProjectTracks.LayerId(item) == id));
+            if (!changed)
+                changed = !Current.Transitions.Where(item => TransitionBelongsToTrack(Current, item, id))
+                    .SequenceEqual(next.Transitions.Where(item => TransitionBelongsToTrack(next, item, id)));
+            if (changed)
+                throw new InvalidOperationException("Unlock the track before changing its clips.");
+        }
+    }
+
+    private static bool TransitionBelongsToTrack(VideoProject project,
+        VideoTransition transition, Guid trackId) => transition.Lane switch
+    {
+        VideoTransitionLane.Video => trackId == Guid.Empty,
+        VideoTransitionLane.VideoOverlay => project.VideoOverlays.Any(item =>
+            item.Id == transition.OutgoingId && VideoProjectTracks.LayerId(item) == trackId),
+        VideoTransitionLane.Image => project.ImageOverlays.Any(item =>
+            item.Id == transition.OutgoingId && VideoProjectTracks.LayerId(item) == trackId),
+        VideoTransitionLane.Text => project.TextOverlays.Any(item =>
+            item.Id == transition.OutgoingId && VideoProjectTracks.LayerId(item) == trackId),
+        _ => false,
+    };
 
     private static int Find(ImmutableArray<VideoSegment> items, Guid id)
     {

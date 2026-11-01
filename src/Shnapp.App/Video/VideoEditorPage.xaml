@@ -381,7 +381,8 @@
                                 FontSize="12" Width="12" Height="12" />
                         </local:ToolbarActionButton>
                     </Grid>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                    <ScrollViewer x:Name="InspectorFieldsScroll" Grid.Row="1"
+                        VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
                         <StackPanel Spacing="7">
                             <TextBlock x:Name="SelectedItemDetail" FontSize="10" TextWrapping="WrapWholeWords"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -481,6 +482,17 @@
                                     </StackPanel>
                                 </Grid>
                             </Grid>
+                            <ComboBox x:Name="VideoShapeBox" Header="Video shape"
+                                Visibility="Collapsed" FontSize="11"
+                                AutomationProperties.Name="Video crop shape"
+                                SelectionChanged="VideoShapeBox_SelectionChanged">
+                                <ComboBoxItem Content="Original rectangle" Tag="Rectangle" />
+                                <ComboBoxItem Content="Square · 1:1" Tag="Square" />
+                                <ComboBoxItem Content="Circle · 1:1" Tag="Circle" />
+                                <ComboBoxItem Content="Squircle · 1:1" Tag="Squircle" />
+                                <ComboBoxItem Content="Oval" Tag="Oval" />
+                                <ComboBoxItem Content="Rounded rectangle" Tag="RoundedRectangle" />
+                            </ComboBox>
                             <Expander x:Name="OverlayCropFields" Header="Crop source"
                                 Visibility="Collapsed" IsExpanded="False">
                                 <Grid ColumnSpacing="8" RowSpacing="7">
@@ -776,7 +788,7 @@
                 HorizontalScrollMode="Disabled">
             <Grid ColumnSpacing="0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="168" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <StackPanel x:Name="TimelineLaneHeaders" Grid.Column="0"

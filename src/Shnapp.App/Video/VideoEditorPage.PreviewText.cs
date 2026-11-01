@@ -19,12 +19,6 @@ public sealed partial class VideoEditorPage
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
     };
-    private readonly Canvas _previewText = new()
-    {
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
-        IsHitTestVisible = true,
-    };
     private readonly Dictionary<Guid, Image> _previewTextViews = [];
     private readonly Dictionary<Guid, TextOverlay> _visiblePreviewText = [];
     private readonly Dictionary<Guid, BitmapImage> _previewTextSources = [];
@@ -38,14 +32,18 @@ public sealed partial class VideoEditorPage
     private void InitializePreviewText()
     {
         PreviewHost.Children.Insert(PreviewHost.Children.IndexOf(_previewImages), _previewFade);
-        PreviewHost.Children.Insert(PreviewHost.Children.IndexOf(_previewImages) + 1, _previewText);
+        // Image, text, and paused video frames share one clipped canvas so
+        // timeline ordering can interleave different media types.
     }
 
     private void RefreshPreviewText()
     {
         if (_editor is null) return;
         ++_previewTextGeneration;
-        _previewText.Children.Clear();
+        foreach (Image view in _previewTextViews.Values)
+            _previewImages.Children.Remove(view);
+        foreach (TextPreviewTransition transition in _textPreviewTransitions)
+            _previewImages.Children.Remove(transition.Backdrop);
         _previewTextViews.Clear();
         _visiblePreviewText.Clear();
         _previewTextSources.Clear();
@@ -69,7 +67,10 @@ public sealed partial class VideoEditorPage
     private void ReleasePreviewText()
     {
         ++_previewTextGeneration;
-        _previewText.Children.Clear();
+        foreach (Image view in _previewTextViews.Values)
+            _previewImages.Children.Remove(view);
+        foreach (TextPreviewTransition transition in _textPreviewTransitions)
+            _previewImages.Children.Remove(transition.Backdrop);
         _previewTextViews.Clear();
         _visiblePreviewText.Clear();
         _previewTextSources.Clear();
@@ -91,12 +92,6 @@ public sealed partial class VideoEditorPage
         double scaleY = VideoPlayer.Height / project.Height;
         _previewFade.Width = VideoPlayer.Width;
         _previewFade.Height = VideoPlayer.Height;
-        _previewText.Width = VideoPlayer.Width;
-        _previewText.Height = VideoPlayer.Height;
-        _previewText.Clip = new RectangleGeometry
-        {
-            Rect = new Rect(0, 0, VideoPlayer.Width, VideoPlayer.Height),
-        };
         foreach (TextOverlay overlay in _visiblePreviewText.Values)
         {
             Image view = _previewTextViews[overlay.Id];
@@ -136,7 +131,7 @@ public sealed partial class VideoEditorPage
             .Where(item => activeIds.Contains(item.Id)).ToArray();
         foreach (Guid id in _previewTextViews.Keys.Where(id => !activeIds.Contains(id)).ToArray())
         {
-            _previewText.Children.Remove(_previewTextViews[id]);
+            _previewImages.Children.Remove(_previewTextViews[id]);
             _previewTextViews.Remove(id);
         }
         _visiblePreviewText.Clear();
@@ -152,9 +147,10 @@ public sealed partial class VideoEditorPage
                 };
                 view.Tapped += PreviewText_Tapped;
                 _previewTextViews.Add(overlay.Id, view);
-                _previewText.Children.Add(view);
+                _previewImages.Children.Add(view);
             }
-            Canvas.SetZIndex(view, overlay.ZIndex);
+            Canvas.SetZIndex(view, VideoProjectTracks.VisualStackIndex(
+                _editor.Current, VideoProjectTracks.LayerId(overlay)) * 100 + 10);
             _visiblePreviewText.Add(overlay.Id, overlay);
             if (_previewTextSources.TryGetValue(overlay.Id, out BitmapImage? source))
                 view.Source = source;
@@ -221,7 +217,9 @@ public sealed partial class VideoEditorPage
     private void UpdateFadeOpacity(TimeSpan position)
     {
         if (_closed || _editor is null) return;
-        double opacity = VideoCompositionService.GetFadeOpacity(_editor.Current, position);
+        double opacity = _player.PlaybackSession.PlaybackState ==
+            global::Windows.Media.Playback.MediaPlaybackState.Playing
+            ? 0 : VideoCompositionService.GetFadeOpacity(_editor.Current, position);
         if (Math.Abs(_previewFade.Opacity - opacity) >= .001)
             _previewFade.Opacity = opacity;
     }

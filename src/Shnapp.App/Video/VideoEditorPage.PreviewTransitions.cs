@@ -37,7 +37,8 @@ public sealed partial class VideoEditorPage
                 item.Id == transition.IncomingId);
             if (outgoing is null || incoming is null) continue;
             Border backdrop = CreateTransitionBackdrop(transition.Effect);
-            Canvas.SetZIndex(backdrop, Math.Min(outgoing.ZIndex, incoming.ZIndex) - 1);
+            Canvas.SetZIndex(backdrop, VideoProjectTracks.VisualStackIndex(project,
+                VideoProjectTracks.LayerId(outgoing)) * 100);
             _previewImages.Children.Add(backdrop);
             entries.Add(new ImagePreviewTransition(transition, span, outgoing,
                 incoming, backdrop));
@@ -49,7 +50,7 @@ public sealed partial class VideoEditorPage
     private void RebuildTextPreviewTransitions(VideoProject project)
     {
         foreach (TextPreviewTransition old in _textPreviewTransitions)
-            _previewText.Children.Remove(old.Backdrop);
+            _previewImages.Children.Remove(old.Backdrop);
         var entries = new List<TextPreviewTransition>();
         foreach (VideoTransition transition in project.Transitions)
         {
@@ -62,8 +63,9 @@ public sealed partial class VideoEditorPage
                 item.Id == transition.IncomingId);
             if (outgoing is null || incoming is null) continue;
             Border backdrop = CreateTransitionBackdrop(transition.Effect);
-            Canvas.SetZIndex(backdrop, Math.Min(outgoing.ZIndex, incoming.ZIndex) - 1);
-            _previewText.Children.Add(backdrop);
+            Canvas.SetZIndex(backdrop, VideoProjectTracks.VisualStackIndex(project,
+                VideoProjectTracks.LayerId(outgoing)) * 100);
+            _previewImages.Children.Add(backdrop);
             entries.Add(new TextPreviewTransition(transition, span, outgoing,
                 incoming, backdrop));
         }

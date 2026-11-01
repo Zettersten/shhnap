@@ -29,7 +29,6 @@ public sealed partial class VideoEditorPage
         Stretch = Stretch.Fill,
         IsHitTestVisible = false,
     };
-    private readonly Canvas _pausedOverlayFrames = new() { IsHitTestVisible = false };
     private readonly Dictionary<Guid, (Border Frame, Image Image)> _pausedOverlayViews = [];
     private readonly Dictionary<Guid, Border> _pausedBackdropViews = [];
     private PausedSource[] _pausedActiveSources = [];
@@ -51,14 +50,14 @@ public sealed partial class VideoEditorPage
 
     private readonly record struct PausedSource(Guid ItemId, Guid AssetId,
         TimeSpan SourceAt, VideoRect Bounds, VideoRect Crop, int ZIndex,
-        double Opacity = 1);
+        double Opacity = 1,
+        VideoOverlayShape Shape = VideoOverlayShape.Rectangle);
     private readonly record struct PausedBackdrop(Guid Id, VideoRect Bounds,
         bool White, double Opacity, int ZIndex);
 
     private void InitializePausedFrame()
     {
         _pausedFrameSurface.Children.Add(_pausedVideoFrame);
-        _pausedFrameSurface.Children.Add(_pausedOverlayFrames);
         PreviewHost.Children.Insert(PreviewHost.Children.IndexOf(VideoPlayer) + 1,
             _pausedFrameSurface);
         _pausedFrameDebounce.Tick += PausedFrameDebounce_Tick;
@@ -82,7 +81,10 @@ public sealed partial class VideoEditorPage
         _pausedSourceCompositions.Clear();
         _pausedSourceOrder.Clear();
         _pausedVideoFrame.Source = null;
-        _pausedOverlayFrames.Children.Clear();
+        foreach (var view in _pausedOverlayViews.Values)
+            _previewImages.Children.Remove(view.Frame);
+        foreach (Border backdrop in _pausedBackdropViews.Values)
+            _previewImages.Children.Remove(backdrop);
         _pausedOverlayViews.Clear();
         _pausedBackdropViews.Clear();
         _pausedActiveSources = [];
@@ -111,8 +113,8 @@ public sealed partial class VideoEditorPage
     private void UpdatePausedFrameBounds()
     {
         if (VideoPlayer.Width <= 0 || VideoPlayer.Height <= 0) return;
-        _pausedFrameSurface.Width = _pausedOverlayFrames.Width = VideoPlayer.Width;
-        _pausedFrameSurface.Height = _pausedOverlayFrames.Height = VideoPlayer.Height;
+        _pausedFrameSurface.Width = VideoPlayer.Width;
+        _pausedFrameSurface.Height = VideoPlayer.Height;
         _pausedVideoFrame.Width = VideoPlayer.Width;
         _pausedVideoFrame.Height = VideoPlayer.Height;
         _pausedFrameSurface.Clip = new RectangleGeometry
@@ -122,7 +124,7 @@ public sealed partial class VideoEditorPage
         foreach (PausedSource source in _pausedActiveSources)
             if (_pausedOverlayViews.TryGetValue(source.ItemId, out var view))
                 LayoutPausedOverlay(source.Bounds, source.Crop,
-                    view.Frame, view.Image);
+                    view.Frame, view.Image, source.Shape);
         foreach (PausedBackdrop backdrop in _pausedActiveBackdrops)
             if (_pausedBackdropViews.TryGetValue(backdrop.Id, out Border? view))
                 LayoutPausedBackdrop(backdrop, view);
@@ -219,7 +221,7 @@ public sealed partial class VideoEditorPage
         foreach (Guid id in _pausedOverlayViews.Keys.Where(item =>
             !active.Contains(item)).ToArray())
         {
-            _pausedOverlayFrames.Children.Remove(_pausedOverlayViews[id].Frame);
+            _previewImages.Children.Remove(_pausedOverlayViews[id].Frame);
             _pausedOverlayViews.Remove(id);
         }
         foreach (PausedSource overlay in overlays)
@@ -240,12 +242,12 @@ public sealed partial class VideoEditorPage
                 };
                 view = (border, image);
                 _pausedOverlayViews.Add(overlay.ItemId, view);
-                _pausedOverlayFrames.Children.Add(border);
+                _previewImages.Children.Add(border);
             }
             Canvas.SetZIndex(view.Frame, overlay.ZIndex);
             view.Frame.Opacity = overlay.Opacity;
             LayoutPausedOverlay(overlay.Bounds, overlay.Crop,
-                view.Frame, view.Image);
+                view.Frame, view.Image, overlay.Shape);
         }
     }
 
@@ -255,7 +257,7 @@ public sealed partial class VideoEditorPage
         foreach (Guid id in _pausedBackdropViews.Keys.Where(item =>
             !active.Contains(item)).ToArray())
         {
-            _pausedOverlayFrames.Children.Remove(_pausedBackdropViews[id]);
+            _previewImages.Children.Remove(_pausedBackdropViews[id]);
             _pausedBackdropViews.Remove(id);
         }
         foreach (PausedBackdrop backdrop in backdrops)
@@ -264,7 +266,7 @@ public sealed partial class VideoEditorPage
             {
                 view = new Border { IsHitTestVisible = false };
                 _pausedBackdropViews.Add(backdrop.Id, view);
-                _pausedOverlayFrames.Children.Add(view);
+                _previewImages.Children.Add(view);
             }
             view.Background = new SolidColorBrush(backdrop.White
                 ? Colors.White : Colors.Black);
@@ -287,7 +289,7 @@ public sealed partial class VideoEditorPage
     }
 
     private void LayoutPausedOverlay(VideoRect bounds, VideoRect crop,
-        Border frame, Image image)
+        Border frame, Image image, VideoOverlayShape shape)
     {
         if (_editor is null || VideoPlayer.Width <= 0 || VideoPlayer.Height <= 0)
             return;
@@ -299,7 +301,7 @@ public sealed partial class VideoEditorPage
         Canvas.SetTop(frame, bounds.Y * sy);
         frame.Width = width;
         frame.Height = height;
-        frame.Clip = new RectangleGeometry { Rect = new Rect(0, 0, width, height) };
+        ApplyVideoShapeClip(frame, shape, width, height);
         image.Width = width / crop.Width;
         image.Height = height / crop.Height;
         Canvas.SetLeft(image, -crop.X * image.Width);

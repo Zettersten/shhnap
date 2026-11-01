@@ -60,6 +60,7 @@ public sealed partial class VideoEditorPage
     private void RefreshCanvasTextEditor()
     {
         if (_closed || _editor is null || _selectedKind != TimelineKind.Text ||
+            IsSelectedTrackLocked() ||
             !_visiblePreviewText.TryGetValue(_selectedId, out TextOverlay? overlay))
         {
             TextCanvas.Visibility = Visibility.Collapsed;

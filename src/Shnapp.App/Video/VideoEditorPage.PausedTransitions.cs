@@ -97,13 +97,13 @@ public sealed partial class VideoEditorPage
             sources.Add(new PausedSource(overlay.Id, overlay.AssetId,
                 overlay.SourceIn + position - overlay.Start, overlay.Bounds,
                 overlay.SourceCrop ?? fullCrop,
-                OverlayPausedZ(overlay.ZIndex) + 1));
+                OverlayPausedZ(project, overlay) + 1, Shape: overlay.Shape));
         }
 
         foreach (var (transition, span, outgoing, incoming) in transitions)
         {
             VideoTransitionSample sample = SampleAt(transition, span, position);
-            int z = OverlayPausedZ(outgoing.ZIndex);
+            int z = OverlayPausedZ(project, outgoing);
             if (sample.OutgoingOpacity > .001)
                 sources.Add(new PausedSource(outgoing.Id, outgoing.AssetId,
                     TransitionSourceTime(project, outgoing.AssetId,
@@ -112,7 +112,7 @@ public sealed partial class VideoEditorPage
                     TransformPausedBounds(outgoing.Bounds, sample.OutgoingOffsetX,
                         sample.OutgoingOffsetY, sample.OutgoingScale),
                     outgoing.SourceCrop ?? fullCrop, z + 1,
-                    sample.OutgoingOpacity));
+                    sample.OutgoingOpacity, outgoing.Shape));
             if (sample.IncomingOpacity > .001)
                 sources.Add(new PausedSource(incoming.Id, incoming.AssetId,
                     TransitionSourceTime(project, incoming.AssetId,
@@ -121,7 +121,7 @@ public sealed partial class VideoEditorPage
                     TransformPausedBounds(incoming.Bounds, sample.IncomingOffsetX,
                         sample.IncomingOffsetY, sample.IncomingScale),
                     incoming.SourceCrop ?? fullCrop, z + 2,
-                    sample.IncomingOpacity));
+                    sample.IncomingOpacity, incoming.Shape));
         }
         return [.. sources.OrderBy(item => item.ZIndex)];
     }
@@ -160,7 +160,7 @@ public sealed partial class VideoEditorPage
                 UnionPausedBounds(outgoing.Bounds, incoming.Bounds),
                 transition.Effect == VideoTransitionEffect.DipToWhite,
                 DipBackdropOpacity(transition, span, position),
-                OverlayPausedZ(outgoing.ZIndex)));
+                OverlayPausedZ(project, outgoing)));
         }
         return [.. backdrops];
     }
@@ -179,7 +179,9 @@ public sealed partial class VideoEditorPage
         return Math.Clamp(1 - Math.Abs(progress * 2 - 1), 0, 1);
     }
 
-    private static int OverlayPausedZ(int zIndex) => 100 + zIndex * 10;
+    private static int OverlayPausedZ(VideoProject project, VideoOverlay overlay) =>
+        VideoProjectTracks.VisualStackIndex(project,
+            VideoProjectTracks.LayerId(overlay)) * 100;
 
     private static TimeSpan TransitionSourceTime(VideoProject project,
         Guid assetId, TimeSpan sourceIn, TimeSpan sourceOut, TimeSpan start,

@@ -287,6 +287,10 @@ public sealed partial class VideoEditorPage : Page
             !project.VideoOverlays.Equals(previous.VideoOverlays);
         bool visibilityChanged = previous is null ||
             !project.HiddenLayerIds.Equals(previous.HiddenLayerIds);
+        bool trackOrderChanged = previous is null ||
+            !project.TrackOrder.Equals(previous.TrackOrder);
+        bool trackLocksChanged = previous is null ||
+            !project.LockedTrackIds.Equals(previous.LockedTrackIds);
         bool nativeVisibilityChanged = previous is null ||
             visibilityChanged && NativeLayerVisibilityChanged(project, previous);
         bool textChanged = previous is null ||
@@ -297,11 +301,11 @@ public sealed partial class VideoEditorPage : Page
             !SameVideoMedia(project, previous) ||
             !project.AudioSegments.Equals(previous.AudioSegments) ||
             !project.ImageOverlays.Equals(previous.ImageOverlays) ||
-            videoOverlayChanged || nativeVisibilityChanged;
+            videoOverlayChanged || nativeVisibilityChanged || trackOrderChanged;
         _previousProject = project;
         if (ProjectTitleText.Text != project.Title) ProjectTitleText.Text = project.Title;
         if (mediaChanged || videoChanged || textChanged || transitionsChanged ||
-            visibilityChanged)
+            visibilityChanged || trackLocksChanged)
         {
             if (mediaChanged || videoChanged || transitionsChanged)
                 InvalidatePausedFrame();
@@ -315,7 +319,8 @@ public sealed partial class VideoEditorPage : Page
             RefreshTimeline();
             if (mediaChanged || transitionsChanged || visibilityChanged)
                 RefreshPreviewImages();
-            if (textChanged || transitionsChanged || visibilityChanged) RefreshPreviewText();
+            if (textChanged || transitionsChanged || visibilityChanged || trackOrderChanged)
+                RefreshPreviewText();
             if (mediaChanged || textChanged || transitionsChanged || visibilityChanged)
                 RefreshCanvasMedia();
             if (videoChanged || transitionsChanged || visibilityChanged)
@@ -324,9 +329,10 @@ public sealed partial class VideoEditorPage : Page
                 SetPreviewImageTick(_player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing);
             }
             RefreshInspector();
+            if (trackLocksChanged) RefreshCanvasMediaSelection();
             UpdateTransport();
             UpdateEditActionState();
-            if (mediaChanged || transitionsChanged)
+            if (mediaChanged || textChanged || transitionsChanged || visibilityChanged)
             {
                 _previewQueued = true;
                 ++_previewRevision;
@@ -414,7 +420,7 @@ public sealed partial class VideoEditorPage : Page
             (int previewWidth, int previewHeight) = GetPreviewSize(project);
             MediaComposition composition = await VideoCompositionService.BuildAsync(
                 project, _store, token, (previewWidth, previewHeight),
-                includeImageOverlays: false);
+                includeImageOverlays: true);
             token.ThrowIfCancellationRequested();
             if (revision != _previewRevision || _closed) return;
             var stream = composition.GeneratePreviewMediaStreamSource(previewWidth, previewHeight);
@@ -508,6 +514,7 @@ public sealed partial class VideoEditorPage : Page
             if (_closed) return;
             bool playing = sender.PlaybackState == MediaPlaybackState.Playing;
             PlayPauseIcon.Glyph = playing ? "\uE769" : "\uE768";
+            _previewImages.Opacity = playing ? 0 : 1;
             SetPreviewImageTick(playing);
             UpdateVisiblePreviewImages(sender.Position);
             UpdateVisiblePreviewText(sender.Position);

@@ -59,11 +59,30 @@ public sealed record VideoOverlay(Guid Id, Guid AssetId, TimeSpan Start, TimeSpa
     /// <summary>Optional source crop in normalized coordinates; null uses the full frame.</summary>
     public VideoRect? SourceCrop { get; init; }
 
+    /// <summary>Mask applied after the source crop; square presets retain a 1:1 canvas footprint.</summary>
+    public VideoOverlayShape Shape { get; init; }
+
+    /// <summary>Unmasked frame restored when leaving a 1:1 crop preset.</summary>
+    public VideoRect? ShapeOriginalBounds { get; init; }
+
+    /// <summary>Source crop before the first 1:1 preset was applied.</summary>
+    public VideoRect? ShapeOriginalCrop { get; init; }
+
     [JsonIgnore]
     public TimeSpan Duration => SourceOut - SourceIn;
 
     [JsonIgnore]
     public TimeSpan End => Start + Duration;
+}
+
+public enum VideoOverlayShape
+{
+    Rectangle,
+    Square,
+    Circle,
+    Squircle,
+    Oval,
+    RoundedRectangle,
 }
 
 /// <summary>An independently editable computer, microphone, or imported audio interval.</summary>
@@ -197,6 +216,8 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
     private ImmutableArray<VideoTransition> _transitions = [];
     private ImmutableArray<VideoOverlay> _videoOverlays = [];
     private ImmutableArray<Guid> _hiddenLayerIds = [];
+    private ImmutableArray<Guid> _trackOrder = [];
+    private ImmutableArray<Guid> _lockedTrackIds = [];
 
     /// <summary>The current project schema.</summary>
     public const int CurrentSchemaVersion = 1;
@@ -232,6 +253,20 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
     {
         get => _hiddenLayerIds.IsDefault ? [] : _hiddenLayerIds;
         init => _hiddenLayerIds = value.IsDefault ? [] : value;
+    }
+
+    /// <summary>Explicit track order from top to bottom; empty preserves older projects' order.</summary>
+    public ImmutableArray<Guid> TrackOrder
+    {
+        get => _trackOrder.IsDefault ? [] : _trackOrder;
+        init => _trackOrder = value.IsDefault ? [] : value;
+    }
+
+    /// <summary>Tracks protected from clip, transition, and property edits.</summary>
+    public ImmutableArray<Guid> LockedTrackIds
+    {
+        get => _lockedTrackIds.IsDefault ? [] : _lockedTrackIds;
+        init => _lockedTrackIds = value.IsDefault ? [] : value;
     }
 
     /// <summary>End of the last visible or audible timeline item.</summary>
