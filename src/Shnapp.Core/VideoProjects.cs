@@ -48,6 +48,24 @@ public sealed record VideoSegment(Guid Id, Guid AssetId, TimeSpan Start, TimeSpa
     public TimeSpan End => Start + Duration;
 }
 
+/// <summary>An independently positioned video clip above the primary video lane.</summary>
+/// <remarks>Bounds use output-video pixels, while SourceCrop uses normalized source coordinates.</remarks>
+public sealed record VideoOverlay(Guid Id, Guid AssetId, TimeSpan Start, TimeSpan SourceIn,
+    TimeSpan SourceOut, VideoRect Bounds, int ZIndex = 0)
+{
+    /// <summary>Stable layer identity across splits; empty in older project files.</summary>
+    public Guid LayerId { get; init; }
+
+    /// <summary>Optional source crop in normalized coordinates; null uses the full frame.</summary>
+    public VideoRect? SourceCrop { get; init; }
+
+    [JsonIgnore]
+    public TimeSpan Duration => SourceOut - SourceIn;
+
+    [JsonIgnore]
+    public TimeSpan End => Start + Duration;
+}
+
 /// <summary>An independently editable computer, microphone, or imported audio interval.</summary>
 /// <param name="Id">Stable timeline identifier.</param>
 /// <param name="AssetId">Identifier of an audio asset.</param>
@@ -87,6 +105,9 @@ public sealed record ImageOverlay(Guid Id, Guid AssetId, TimeSpan Start, TimeSpa
 {
     /// <summary>Stable layer identity across splits and cuts; empty in older projects.</summary>
     public Guid LayerId { get; init; }
+
+    /// <summary>Optional source crop in normalized coordinates; null uses the full image.</summary>
+    public VideoRect? SourceCrop { get; init; }
 
     /// <summary>Exclusive end on the output timeline.</summary>
     [JsonIgnore]
@@ -136,7 +157,7 @@ public sealed record TextOverlay(Guid Id, TimeSpan Start, TimeSpan Duration, str
 }
 
 /// <summary>The timeline lane whose adjacent clips share a transition.</summary>
-public enum VideoTransitionLane { Video, Image, Text }
+public enum VideoTransitionLane { Video, Image, Text, VideoOverlay }
 
 /// <summary>Visual treatment applied across a cut between two adjacent clips.</summary>
 public enum VideoTransitionEffect
@@ -174,6 +195,8 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
 {
     private ImmutableArray<TextOverlay> _textOverlays = [];
     private ImmutableArray<VideoTransition> _transitions = [];
+    private ImmutableArray<VideoOverlay> _videoOverlays = [];
+    private ImmutableArray<Guid> _hiddenLayerIds = [];
 
     /// <summary>The current project schema.</summary>
     public const int CurrentSchemaVersion = 1;
@@ -197,6 +220,20 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
         init => _transitions = value.IsDefault ? [] : value;
     }
 
+    /// <summary>Additional video layers, independent of the original recording lane.</summary>
+    public ImmutableArray<VideoOverlay> VideoOverlays
+    {
+        get => _videoOverlays.IsDefault ? [] : _videoOverlays;
+        init => _videoOverlays = value.IsDefault ? [] : value;
+    }
+
+    /// <summary>Hidden visual layers; Guid.Empty is the primary video lane.</summary>
+    public ImmutableArray<Guid> HiddenLayerIds
+    {
+        get => _hiddenLayerIds.IsDefault ? [] : _hiddenLayerIds;
+        init => _hiddenLayerIds = value.IsDefault ? [] : value;
+    }
+
     /// <summary>End of the last visible or audible timeline item.</summary>
     [JsonIgnore]
     public TimeSpan Duration
@@ -205,6 +242,8 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
         {
             TimeSpan end = TimeSpan.Zero;
             foreach (VideoSegment item in VideoSegments)
+                if (item.End > end) end = item.End;
+            foreach (VideoOverlay item in VideoOverlays)
                 if (item.End > end) end = item.End;
             foreach (AudioSegment item in AudioSegments)
                 if (item.End > end) end = item.End;

@@ -94,6 +94,19 @@ public static class VideoTransitionGeometry
                 incomingStart = incomingImage.Start;
                 incomingEnd = incomingImage.End;
                 break;
+            case VideoTransitionLane.VideoOverlay:
+                VideoOverlay? outgoingOverlay = project.VideoOverlays.FirstOrDefault(item =>
+                    item.Id == transition.OutgoingId);
+                VideoOverlay? incomingOverlay = project.VideoOverlays.FirstOrDefault(item =>
+                    item.Id == transition.IncomingId);
+                if (outgoingOverlay is null || incomingOverlay is null ||
+                    LayerKey(outgoingOverlay.Id, outgoingOverlay.LayerId) !=
+                    LayerKey(incomingOverlay.Id, incomingOverlay.LayerId)) return false;
+                outgoingStart = outgoingOverlay.Start;
+                outgoingEnd = outgoingOverlay.End;
+                incomingStart = incomingOverlay.Start;
+                incomingEnd = incomingOverlay.End;
+                break;
             case VideoTransitionLane.Text:
                 TextOverlay? outgoingText = project.TextOverlays.FirstOrDefault(item =>
                     item.Id == transition.OutgoingId);

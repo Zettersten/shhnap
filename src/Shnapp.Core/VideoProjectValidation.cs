@@ -31,10 +31,16 @@ internal static class VideoProjectValidation
             "Audio segments must be initialized and bounded.");
         Require(!project.ImageOverlays.IsDefault && project.ImageOverlays.Length <= MaximumTimelineItems,
             "Image overlays must be initialized and bounded.");
+        Require(!project.VideoOverlays.IsDefault && project.VideoOverlays.Length <= MaximumTimelineItems,
+            "Video overlays must be initialized and bounded.");
         Require(!project.TextOverlays.IsDefault && project.TextOverlays.Length <= MaximumTimelineItems,
             "Text overlays must be initialized and bounded.");
         Require(!project.Transitions.IsDefault && project.Transitions.Length <= MaximumTimelineItems,
             "Transitions must be initialized and bounded.");
+        Require(!project.HiddenLayerIds.IsDefault &&
+            project.HiddenLayerIds.Length <= MaximumTimelineItems &&
+            project.HiddenLayerIds.Distinct().Count() == project.HiddenLayerIds.Length,
+            "Hidden visual layers must have unique identifiers.");
 
         var assets = new Dictionary<Guid, VideoAsset>();
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -121,6 +127,32 @@ internal static class VideoProjectValidation
         Require(previousEnd > TimeSpan.Zero,
             "A video project must retain a primary video segment.");
 
+        foreach (VideoOverlay overlay in project.VideoOverlays)
+        {
+            Require(overlay is not null && overlay.Id != Guid.Empty && itemIds.Add(overlay.Id),
+                "Video overlay identifiers must be unique and nonempty.");
+            Require(assets.TryGetValue(overlay.AssetId, out VideoAsset? asset) &&
+                asset.Kind is VideoAssetKind.Recording or VideoAssetKind.ImportedVideo,
+                "Video overlays must reference a video asset.");
+            ValidateSourceInterval(overlay.Start, overlay.SourceIn, overlay.SourceOut,
+                asset.Duration);
+            Require(overlay.ZIndex is >= 0 and <= 1_000_000,
+                "Video overlay z-order is out of range.");
+            ValidateBounds(overlay.Bounds, "Video overlay");
+            ValidateSourceCrop(overlay.SourceCrop);
+            itemDurations.Add(overlay.Id, overlay.Duration);
+        }
+        foreach (IGrouping<Guid, VideoOverlay> layer in project.VideoOverlays.GroupBy(item =>
+            item.LayerId == Guid.Empty ? item.Id : item.LayerId))
+        {
+            TimeSpan end = TimeSpan.Zero;
+            foreach (VideoOverlay overlay in layer.OrderBy(item => item.Start))
+            {
+                Require(overlay.Start >= end, "Video clips on one overlay layer cannot overlap.");
+                end = overlay.End;
+            }
+        }
+
         foreach (AudioSegment segment in project.AudioSegments)
         {
             Require(segment is not null && segment.Id != Guid.Empty && itemIds.Add(segment.Id),
@@ -143,6 +175,7 @@ internal static class VideoProjectValidation
             ValidateTimelineInterval(overlay.Start, overlay.Duration);
             Require(overlay.ZIndex is >= 0 and <= 1_000_000, "Image z-order is out of range.");
             ValidateBounds(overlay.Bounds, "Image");
+            ValidateSourceCrop(overlay.SourceCrop);
             itemDurations.Add(overlay.Id, overlay.Duration);
         }
 
@@ -215,6 +248,18 @@ internal static class VideoProjectValidation
             bounds.Width is > 0 and <= 65_536 && bounds.Height is > 0 and <= 65_536 &&
             Math.Abs(bounds.X) <= 65_536 && Math.Abs(bounds.Y) <= 65_536,
             $"{kind} bounds must be finite video-pixel coordinates with positive size.");
+    }
+
+    private static void ValidateSourceCrop(VideoRect? crop)
+    {
+        if (crop is not { } value) return;
+        const double tolerance = 0.000000001;
+        Require(double.IsFinite(value.X) && double.IsFinite(value.Y) &&
+            double.IsFinite(value.Width) && double.IsFinite(value.Height) &&
+            value.X >= 0 && value.Y >= 0 && value.Width > 0 && value.Height > 0 &&
+            value.X + value.Width <= 1 + tolerance &&
+            value.Y + value.Height <= 1 + tolerance,
+            "Source crop must fit inside the original media frame.");
     }
 
     private static bool IsOpaqueHexColor(string? color)

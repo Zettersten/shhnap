@@ -40,6 +40,215 @@ public sealed class VideoProjectEditor(VideoProject project)
         Commit(Current with { Assets = Current.Assets.Add(asset) });
     }
 
+    /// <summary>Adds imported video as one independent visual layer without rippling other clips.</summary>
+    /// <remarks>Copied audio stems start relative to the video and are added in the same undo step.</remarks>
+    public Guid AddVideoOverlayAsset(VideoAsset asset, TimeSpan at, VideoRect bounds,
+        IReadOnlyList<(VideoAsset Asset, AudioSegment Segment)>? audioStems = null)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (asset.Kind != VideoAssetKind.ImportedVideo)
+            throw new ArgumentException("The overlay asset must be an imported video.", nameof(asset));
+        var overlay = new VideoOverlay(Guid.NewGuid(), asset.Id, at, TimeSpan.Zero,
+            asset.Duration, bounds);
+        overlay = overlay with { LayerId = overlay.Id };
+        var assets = Current.Assets.Add(asset);
+        var audio = Current.AudioSegments;
+        if (audioStems is not null)
+        {
+            foreach ((VideoAsset audioAsset, AudioSegment segment) in audioStems)
+            {
+                if (audioAsset.Kind != VideoAssetKind.ImportedAudio ||
+                    segment.AssetId != audioAsset.Id || segment.Start < TimeSpan.Zero ||
+                    segment.End > asset.Duration)
+                    throw new ArgumentException("Audio stems must fit the imported video.",
+                        nameof(audioStems));
+                assets = assets.Add(audioAsset);
+                audio = audio.Add(segment with { Start = at + segment.Start });
+            }
+        }
+        Commit(Current with
+        {
+            Assets = assets,
+            VideoOverlays = Current.VideoOverlays.Add(overlay),
+            AudioSegments = Sort(audio),
+        });
+        return overlay.Id;
+    }
+
+    /// <summary>Adds a clip from an existing video asset on a separate visual layer.</summary>
+    public Guid AddVideoOverlay(Guid assetId, TimeSpan start, TimeSpan sourceIn,
+        TimeSpan sourceOut, VideoRect bounds, int zIndex = 0)
+    {
+        var overlay = new VideoOverlay(Guid.NewGuid(), assetId, start, sourceIn,
+            sourceOut, bounds, zIndex);
+        overlay = overlay with { LayerId = overlay.Id };
+        Commit(Current with { VideoOverlays = Current.VideoOverlays.Add(overlay) });
+        return overlay.Id;
+    }
+
+    /// <summary>Replaces an overlay video's timing, geometry, crop, or layer.</summary>
+    public bool UpdateVideoOverlay(VideoOverlay overlay)
+    {
+        ArgumentNullException.ThrowIfNull(overlay);
+        int index = Find(Current.VideoOverlays, overlay.Id);
+        if (index < 0) return false;
+        overlay = overlay with { LayerId = LayerKey(overlay) };
+        if (Current.VideoOverlays[index] == overlay) return false;
+        Commit(Current with { VideoOverlays = Sort(Current.VideoOverlays.SetItem(index, overlay)) });
+        return true;
+    }
+
+    public bool MoveVideoOverlay(Guid id, TimeSpan start)
+    {
+        int index = Find(Current.VideoOverlays, id);
+        return index >= 0 &&
+            UpdateVideoOverlay(Current.VideoOverlays[index] with { Start = start });
+    }
+
+    public bool TrimVideoOverlay(Guid id, TimeSpan sourceIn, TimeSpan sourceOut)
+    {
+        int index = Find(Current.VideoOverlays, id);
+        return index >= 0 && UpdateVideoOverlay(Current.VideoOverlays[index] with
+        {
+            SourceIn = sourceIn,
+            SourceOut = sourceOut,
+        });
+    }
+
+    public Guid SplitVideoOverlay(Guid id, TimeSpan at)
+    {
+        int index = Find(Current.VideoOverlays, id);
+        if (index < 0) throw new ArgumentException("Video overlay was not found.", nameof(id));
+        VideoOverlay original = Current.VideoOverlays[index];
+        if (at <= original.Start || at >= original.End)
+            throw new ArgumentOutOfRangeException(nameof(at), "Split time must be inside the clip.");
+        var left = original with
+        {
+            SourceOut = original.SourceIn + (at - original.Start),
+            LayerId = LayerKey(original),
+        };
+        var right = original with
+        {
+            Id = Guid.NewGuid(),
+            Start = at,
+            SourceIn = left.SourceOut,
+            LayerId = LayerKey(original),
+        };
+        Commit(Current with
+        {
+            VideoOverlays = Sort(Current.VideoOverlays.SetItem(index, left).Add(right)),
+        });
+        return right.Id;
+    }
+
+    public bool DeleteVideoOverlay(Guid id)
+    {
+        int index = Find(Current.VideoOverlays, id);
+        if (index < 0) return false;
+        Commit(Current with { VideoOverlays = Current.VideoOverlays.RemoveAt(index) });
+        return true;
+    }
+
+    /// <summary>Moves an entire video overlay row forward or backward in the visual stack.</summary>
+    public bool MoveVideoOverlayLayer(Guid id, int direction)
+    {
+        if (direction is not 1 and not -1)
+            throw new ArgumentOutOfRangeException(nameof(direction));
+        VideoOverlay? selected = Current.VideoOverlays.FirstOrDefault(item => item.Id == id);
+        if (selected is null) return false;
+        var layers = Current.VideoOverlays.Select((item, index) => (item, index))
+            .GroupBy(entry => LayerKey(entry.item))
+            .OrderBy(group => group.First().item.ZIndex)
+            .ThenBy(group => group.Min(entry => entry.index))
+            .ToArray();
+        int selectedIndex = Array.FindIndex(layers, group =>
+            group.Key == LayerKey(selected));
+        int nextIndex = selectedIndex + direction;
+        if (nextIndex < 0 || nextIndex >= layers.Length) return false;
+        var order = layers.Select((group, index) => (group.Key, index))
+            .ToDictionary(entry => entry.Key, entry => entry.index);
+        order[layers[selectedIndex].Key] = nextIndex;
+        order[layers[nextIndex].Key] = selectedIndex;
+        Commit(Current with
+        {
+            VideoOverlays = Sort([.. Current.VideoOverlays.Select(item => item with
+            {
+                ZIndex = order[LayerKey(item)],
+            })]),
+        });
+        return true;
+    }
+
+    /// <summary>Removes a marked interval from one video overlay without rippling other lanes.</summary>
+    public Guid? CutVideoOverlayRange(Guid id, TimeSpan start, TimeSpan end)
+    {
+        int index = Find(Current.VideoOverlays, id);
+        if (index < 0)
+            throw new ArgumentException("Video overlay was not found.", nameof(id));
+        VideoOverlay item = Current.VideoOverlays[index];
+        if (start < TimeSpan.Zero || end <= start || end > Current.Duration ||
+            start >= item.End || end <= item.Start)
+            throw new ArgumentOutOfRangeException(nameof(start),
+                "Cut range must overlap the clip inside the project timeline.");
+        TimeSpan cutStart = start > item.Start ? start : item.Start;
+        TimeSpan cutEnd = end < item.End ? end : item.End;
+        ImmutableArray<VideoOverlay> overlays = Current.VideoOverlays;
+        Guid? selected = id;
+        if (cutStart == item.Start && cutEnd == item.End)
+        {
+            overlays = overlays.RemoveAt(index);
+            selected = null;
+        }
+        else if (cutStart == item.Start)
+            overlays = overlays.SetItem(index, item with
+            {
+                Start = cutEnd,
+                SourceIn = item.SourceIn + (cutEnd - item.Start),
+                LayerId = LayerKey(item),
+            });
+        else
+        {
+            overlays = overlays.SetItem(index, item with
+            {
+                SourceOut = item.SourceIn + (cutStart - item.Start),
+                LayerId = LayerKey(item),
+            });
+            if (cutEnd < item.End)
+            {
+                var right = item with
+                {
+                    Id = Guid.NewGuid(),
+                    Start = cutEnd,
+                    SourceIn = item.SourceIn + (cutEnd - item.Start),
+                    LayerId = LayerKey(item),
+                };
+                overlays = overlays.Insert(index + 1, right);
+                selected = right.Id;
+            }
+        }
+        Commit(Current with { VideoOverlays = Sort(overlays) });
+        return selected;
+    }
+
+    /// <summary>Shows or hides a visual track; Guid.Empty is the original recording lane.</summary>
+    public bool SetLayerVisible(Guid layerId, bool visible)
+    {
+        if (layerId != Guid.Empty &&
+            !Current.VideoOverlays.Any(item => LayerKey(item) == layerId) &&
+            !Current.ImageOverlays.Any(item => LayerKey(item) == layerId) &&
+            !Current.TextOverlays.Any(item => LayerKey(item) == layerId))
+            return false;
+        bool hidden = Current.HiddenLayerIds.Contains(layerId);
+        if (hidden == !visible) return false;
+        Commit(Current with
+        {
+            HiddenLayerIds = visible
+                ? Current.HiddenLayerIds.Remove(layerId)
+                : Current.HiddenLayerIds.Add(layerId),
+        });
+        return true;
+    }
+
     /// <summary>Inserts a new video and its separate audio stems, rippling every existing track as one undoable edit.</summary>
     /// <param name="asset">A new imported video asset.</param>
     /// <param name="at">Insertion point on the output timeline.</param>
@@ -197,6 +406,8 @@ public sealed class VideoProjectEditor(VideoProject project)
             AudioSegments = Sort(audio.ToImmutable()),
             ImageOverlays = images.ToImmutable(),
             TextOverlays = texts.ToImmutable(),
+            VideoOverlays = RippleInsertVideoOverlays(Current.VideoOverlays, at,
+                asset.Duration),
         });
         return inserted.Id;
     }
@@ -487,6 +698,19 @@ public sealed class VideoProjectEditor(VideoProject project)
     {
         int index = Find(Current.AudioSegments, id);
         return index >= 0 && UpdateAudioSegment(Current.AudioSegments[index] with { Muted = muted });
+    }
+
+    /// <summary>Mutes every split piece of one audio asset in a single undo step.</summary>
+    public bool SetAudioTrackMuted(Guid assetId, bool muted)
+    {
+        if (!Current.AudioSegments.Any(item => item.AssetId == assetId &&
+            item.Muted != muted)) return false;
+        Commit(Current with
+        {
+            AudioSegments = [.. Current.AudioSegments.Select(item =>
+                item.AssetId == assetId ? item with { Muted = muted } : item)],
+        });
+        return true;
     }
 
     /// <summary>Splits one audio interval at a time strictly inside it.</summary>
@@ -827,6 +1051,7 @@ public sealed class VideoProjectEditor(VideoProject project)
             AudioSegments = CutAudio(Current.AudioSegments, start, end),
             ImageOverlays = CutImages(Current.ImageOverlays, start, end),
             TextOverlays = CutTexts(Current.TextOverlays, start, end),
+            VideoOverlays = CutVideoOverlays(Current.VideoOverlays, start, end),
         });
     }
 
@@ -856,14 +1081,17 @@ public sealed class VideoProjectEditor(VideoProject project)
 
     private void Commit(VideoProject next)
     {
+        next = PruneHiddenLayers(next);
         next = PruneTransitions(next);
         VideoProjectValidation.Validate(next);
         if (next.Title == Current.Title && next.Assets.SequenceEqual(Current.Assets) &&
             next.VideoSegments.SequenceEqual(Current.VideoSegments) &&
+            next.VideoOverlays.SequenceEqual(Current.VideoOverlays) &&
             next.AudioSegments.SequenceEqual(Current.AudioSegments) &&
             next.ImageOverlays.SequenceEqual(Current.ImageOverlays) &&
             next.TextOverlays.SequenceEqual(Current.TextOverlays) &&
-            next.Transitions.SequenceEqual(Current.Transitions))
+            next.Transitions.SequenceEqual(Current.Transitions) &&
+            next.HiddenLayerIds.SequenceEqual(Current.HiddenLayerIds))
         {
             return;
         }
@@ -880,9 +1108,27 @@ public sealed class VideoProjectEditor(VideoProject project)
         return project;
     }
 
+    private static VideoProject PruneHiddenLayers(VideoProject project)
+    {
+        if (project.HiddenLayerIds.IsDefaultOrEmpty) return project;
+        var present = new HashSet<Guid> { Guid.Empty };
+        foreach (VideoOverlay item in project.VideoOverlays) present.Add(LayerKey(item));
+        foreach (ImageOverlay item in project.ImageOverlays) present.Add(LayerKey(item));
+        foreach (TextOverlay item in project.TextOverlays) present.Add(LayerKey(item));
+        ImmutableArray<Guid> hidden = [.. project.HiddenLayerIds.Where(present.Contains).Distinct()];
+        return hidden.SequenceEqual(project.HiddenLayerIds)
+            ? project : project with { HiddenLayerIds = hidden };
+    }
+
     private static int Find(ImmutableArray<VideoSegment> items, Guid id)
     {
         for (int i = 0; i < items.Length; i++) { if (items[i].Id == id) { return i; } }
+        return -1;
+    }
+
+    private static int Find(ImmutableArray<VideoOverlay> items, Guid id)
+    {
+        for (int i = 0; i < items.Length; i++) { if (items[i].Id == id) return i; }
         return -1;
     }
 
@@ -946,6 +1192,7 @@ public sealed class VideoProjectEditor(VideoProject project)
         lane switch
         {
             VideoTransitionLane.Video => project.VideoSegments.First(item => item.Id == id).Duration,
+            VideoTransitionLane.VideoOverlay => project.VideoOverlays.First(item => item.Id == id).Duration,
             VideoTransitionLane.Image => project.ImageOverlays.First(item => item.Id == id).Duration,
             VideoTransitionLane.Text => project.TextOverlays.First(item => item.Id == id).Duration,
             _ => TimeSpan.Zero,
@@ -958,6 +1205,9 @@ public sealed class VideoProjectEditor(VideoProject project)
     }
 
     private static Guid LayerKey(ImageOverlay overlay) =>
+        overlay.LayerId == Guid.Empty ? overlay.Id : overlay.LayerId;
+
+    private static Guid LayerKey(VideoOverlay overlay) =>
         overlay.LayerId == Guid.Empty ? overlay.Id : overlay.LayerId;
 
     private static Guid LayerKey(TextOverlay overlay) =>
@@ -978,8 +1228,41 @@ public sealed class VideoProjectEditor(VideoProject project)
     private static ImmutableArray<VideoSegment> Sort(ImmutableArray<VideoSegment> items) =>
         [.. items.OrderBy(static item => item.Start).ThenBy(static item => item.Id)];
 
+    private static ImmutableArray<VideoOverlay> Sort(ImmutableArray<VideoOverlay> items) =>
+        [.. items.OrderBy(static item => item.ZIndex).ThenBy(static item => item.Start)
+            .ThenBy(static item => item.Id)];
+
     private static ImmutableArray<AudioSegment> Sort(ImmutableArray<AudioSegment> items) =>
         [.. items.OrderBy(static item => item.Start).ThenBy(static item => item.Id)];
+
+    private static ImmutableArray<VideoOverlay> RippleInsertVideoOverlays(
+        ImmutableArray<VideoOverlay> items, TimeSpan at, TimeSpan duration)
+    {
+        var result = ImmutableArray.CreateBuilder<VideoOverlay>();
+        foreach (VideoOverlay item in items)
+        {
+            if (item.End <= at) { result.Add(item); continue; }
+            if (item.Start >= at)
+            {
+                result.Add(item with { Start = item.Start + duration });
+                continue;
+            }
+            TimeSpan left = at - item.Start;
+            result.Add(item with
+            {
+                SourceOut = item.SourceIn + left,
+                LayerId = LayerKey(item),
+            });
+            result.Add(item with
+            {
+                Id = Guid.NewGuid(),
+                Start = at + duration,
+                SourceIn = item.SourceIn + left,
+                LayerId = LayerKey(item),
+            });
+        }
+        return Sort(result.ToImmutable());
+    }
 
     private static ImmutableArray<VideoSegment> CutVideo(ImmutableArray<VideoSegment> items,
         TimeSpan start, TimeSpan end)
@@ -1035,6 +1318,38 @@ public sealed class VideoProjectEditor(VideoProject project)
                     SourceIn = item.SourceOut - right,
                 });
             }
+        }
+        return Sort(result.ToImmutable());
+    }
+
+    private static ImmutableArray<VideoOverlay> CutVideoOverlays(
+        ImmutableArray<VideoOverlay> items, TimeSpan start, TimeSpan end)
+    {
+        var result = ImmutableArray.CreateBuilder<VideoOverlay>();
+        foreach (VideoOverlay item in items)
+        {
+            if (item.End <= start) { result.Add(item); continue; }
+            if (item.Start >= end)
+            {
+                result.Add(item with { Start = item.Start - (end - start) });
+                continue;
+            }
+            TimeSpan left = start > item.Start ? start - item.Start : TimeSpan.Zero;
+            TimeSpan right = item.End > end ? item.End - end : TimeSpan.Zero;
+            if (left > TimeSpan.Zero)
+                result.Add(item with
+                {
+                    SourceOut = item.SourceIn + left,
+                    LayerId = LayerKey(item),
+                });
+            if (right > TimeSpan.Zero)
+                result.Add(item with
+                {
+                    Id = left > TimeSpan.Zero ? Guid.NewGuid() : item.Id,
+                    Start = start,
+                    SourceIn = item.SourceOut - right,
+                    LayerId = LayerKey(item),
+                });
         }
         return Sort(result.ToImmutable());
     }
