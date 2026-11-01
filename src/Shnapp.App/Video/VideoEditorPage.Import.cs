@@ -100,11 +100,19 @@ public sealed partial class VideoEditorPage
                 _ = LoadVideoThumbnailAsync(item.Id, thumbnail, token);
             }
 
-            var preview = new Grid { Width = GalleryThumbSize, Height = GalleryThumbSize };
+            var preview = new Grid
+            {
+                Width = GalleryThumbSize,
+                Height = GalleryThumbSize,
+                Background = new SolidColorBrush(Colors.Transparent),
+                Tag = item,
+                CanDrag = true,
+            };
             preview.Children.Add(new Border
             {
                 Background = (Brush)Application.Current.Resources["ShnappPreviewBrush"],
                 CornerRadius = new CornerRadius(8),
+                IsHitTestVisible = false,
             });
             preview.Children.Add(thumbnail);
             if (item.IsVideo)
@@ -118,6 +126,7 @@ public sealed partial class VideoEditorPage
                     HorizontalAlignment = HorizontalAlignment.Right,
                     VerticalAlignment = VerticalAlignment.Bottom,
                     Margin = new Thickness(0, 0, 3, 3),
+                    IsHitTestVisible = false,
                     Child = new FontIcon
                     {
                         Glyph = "\uE768",
@@ -132,7 +141,6 @@ public sealed partial class VideoEditorPage
             {
                 Content = preview,
                 Tag = item,
-                CanDrag = true,
                 Width = GalleryThumbSize,
                 Height = GalleryThumbSize,
                 Padding = new Thickness(0),
@@ -158,8 +166,8 @@ public sealed partial class VideoEditorPage
                 button.ContextFlyout = actions;
             }
             button.Click += GalleryItem_Click;
-            button.DragStarting += GalleryItem_DragStarting;
-            button.DropCompleted += GalleryItem_DropCompleted;
+            preview.DragStarting += GalleryItem_DragStarting;
+            preview.DropCompleted += GalleryItem_DropCompleted;
             GalleryItemsHost.Children.Add(button);
         }
         GalleryPrevious.IsEnabled = _galleryPage > 0;
@@ -268,7 +276,7 @@ public sealed partial class VideoEditorPage
 
     private void GalleryItem_DragStarting(UIElement sender, DragStartingEventArgs args)
     {
-        if (sender is not Button { Tag: GalleryMedia media }) return;
+        if (sender is not Grid { Tag: GalleryMedia media }) return;
         _galleryDragging = true;
         _galleryLastDraggedId = media.Id;
         args.Data.SetData(media.IsVideo ? GalleryVideoFormat : GalleryImageFormat,
