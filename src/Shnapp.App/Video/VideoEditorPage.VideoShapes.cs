@@ -97,10 +97,6 @@ public sealed partial class VideoEditorPage
     private void ApplyVideoShapeClip(UIElement element, VideoOverlayShape shape,
         double width, double height)
     {
-        element.Clip = new RectangleGeometry
-        {
-            Rect = new Rect(0, 0, width, height),
-        };
         ShapeClipState state = _shapeClipStates.GetOrCreateValue(element);
         if (state.Shape == shape && state.Width == width &&
             state.Height == height) return;
@@ -114,8 +110,15 @@ public sealed partial class VideoEditorPage
         if (shape is VideoOverlayShape.Rectangle or VideoOverlayShape.Square)
         {
             visual.Clip = null;
+            element.Clip = new RectangleGeometry
+            {
+                Rect = new Rect(0, 0, width, height),
+            };
             return;
         }
+        // WinUI fails during layout if XAML and Composition both clip the same
+        // element. Use the Composition shape as its sole clip.
+        element.Clip = null;
         Compositor compositor = visual.Compositor;
         CompositionGeometry geometry;
         if (shape is VideoOverlayShape.Circle or VideoOverlayShape.Oval)
