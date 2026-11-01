@@ -63,7 +63,8 @@ internal sealed class CameraVideoRecording : IAsyncDisposable
                 SharingMode = MediaCaptureSharingMode.ExclusiveControl,
                 MemoryPreference = MediaCaptureMemoryPreference.Auto,
             }).AsTask(token);
-            await SelectEfficientRecordFormatAsync(capture, token);
+            VideoEncodingProperties recordFormat =
+                await SelectEfficientRecordFormatAsync(capture, token);
 
             StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(
                 System.IO.Path.GetDirectoryName(path)!).AsTask(token);
@@ -71,9 +72,7 @@ internal sealed class CameraVideoRecording : IAsyncDisposable
                 System.IO.Path.GetFileName(path), CreationCollisionOption.FailIfExists)
                 .AsTask(token);
             fileCreated = true;
-            MediaEncodingProfile profile = MediaEncodingProfile.CreateMp4(
-                VideoEncodingQuality.Auto);
-            profile.Audio = null;
+            MediaEncodingProfile profile = CreateBoundedRecordingProfile(recordFormat);
             recording = await capture.PrepareLowLagRecordToStorageFileAsync(
                 profile, file).AsTask(token);
             return new CameraVideoRecording(capture, recording, path);
@@ -96,49 +95,111 @@ internal sealed class CameraVideoRecording : IAsyncDisposable
         }
     }
 
-    private static async Task SelectEfficientRecordFormatAsync(MediaCapture capture,
+    private static async Task<VideoEncodingProperties> SelectEfficientRecordFormatAsync(MediaCapture capture,
         CancellationToken token)
     {
-        // Use a format the camera itself advertises. Auto encoding then follows
-        // this input instead of choosing an expensive 4K camera default.
+        // Limit camera input as well as output. Width/height can be portrait,
+        // so compare the long and short edges instead of assuming landscape.
+        VideoEncodingProperties? applied = null;
         try
         {
             VideoEncodingProperties[] formats = capture.VideoDeviceController
                 .GetAvailableMediaStreamProperties(MediaStreamType.VideoRecord)
                 .OfType<VideoEncodingProperties>()
                 .Where(format => format.Width > 0 && format.Height > 0 &&
+                    double.IsFinite(FramesPerSecond(format)) &&
                     FramesPerSecond(format) > 0)
                 .ToArray();
             VideoEncodingProperties? selected = formats
-                .Where(format => format.Width is >= 640 and <= 1280 &&
-                    format.Height is >= 360 and <= 720 &&
+                .Where(format => IsBounded(format) && IsUsefulSize(format) &&
                     FramesPerSecond(format) <= 30.5)
-                .OrderByDescending(format => (ulong)format.Width * format.Height)
+                .OrderByDescending(PixelCount)
                 .ThenByDescending(FramesPerSecond)
                 .FirstOrDefault()
-                ?? formats.Where(format => format.Width is >= 640 and <= 1280 &&
-                        format.Height is >= 360 and <= 720)
-                    .OrderByDescending(format => (ulong)format.Width * format.Height)
+                ?? formats.Where(format => IsBounded(format) && IsUsefulSize(format))
+                    .OrderByDescending(PixelCount)
                     .ThenBy(FramesPerSecond)
                     .FirstOrDefault()
-                ?? formats.Where(format => format.Width <= 1280 && format.Height <= 720)
-                    .OrderByDescending(format => (ulong)format.Width * format.Height)
+                ?? formats.Where(IsBounded)
+                    .OrderByDescending(PixelCount)
                     .ThenBy(FramesPerSecond)
                     .FirstOrDefault()
-                ?? formats.OrderBy(format => (ulong)format.Width * format.Height)
+                ?? formats.OrderBy(PixelCount)
+                    .ThenBy(IsNativeH264)
                     .ThenBy(FramesPerSecond)
                     .FirstOrDefault();
             if (selected is not null)
+            {
                 await capture.VideoDeviceController.SetMediaStreamPropertiesAsync(
                     MediaStreamType.VideoRecord, selected).AsTask(token);
+                applied = selected;
+            }
         }
         catch (Exception error) when (error is COMException or ArgumentException or
             InvalidOperationException)
         {
             // Some drivers do not expose a settable record pin. Their default
-            // format remains available through MediaEncodingProfile.Auto.
+            // record format is still inspected before choosing the encoder.
         }
+        try
+        {
+            if (capture.VideoDeviceController.GetMediaStreamProperties(
+                MediaStreamType.VideoRecord) is VideoEncodingProperties current &&
+                current.Width > 0 && current.Height > 0)
+                return current;
+        }
+        catch (Exception error) when (error is COMException or ArgumentException or
+            InvalidOperationException) { }
+        return applied ?? throw new InvalidOperationException(
+            "The camera did not report a usable video recording format.");
     }
+
+    private static MediaEncodingProfile CreateBoundedRecordingProfile(
+        VideoEncodingProperties input)
+    {
+        // A bounded native H.264 stream can be passed through without an extra
+        // encode. Other inputs need an explicit output profile: Auto may restore
+        // the camera's 1080p or 4K default despite selecting a smaller input.
+        if (IsBounded(input) && IsNativeH264(input) &&
+            FramesPerSecond(input) <= 30.5)
+        {
+            MediaEncodingProfile native = MediaEncodingProfile.CreateMp4(
+                VideoEncodingQuality.Auto);
+            native.Audio = null;
+            return native;
+        }
+
+        MediaEncodingProfile profile = MediaEncodingProfile.CreateMp4(
+            VideoEncodingQuality.HD720p);
+        uint longEdge = Math.Max(input.Width, input.Height);
+        uint shortEdge = Math.Min(input.Width, input.Height);
+        double scale = Math.Min(1d, Math.Min(1280d / longEdge, 720d / shortEdge));
+        uint width = Math.Max(2u, (uint)(Math.Floor(input.Width * scale / 2) * 2));
+        uint height = Math.Max(2u, (uint)(Math.Floor(input.Height * scale / 2) * 2));
+        profile.Video.Width = width;
+        profile.Video.Height = height;
+        uint bitrate = (uint)Math.Clamp(4_000_000d * width * height / (1280 * 720),
+            750_000d, 4_000_000d);
+        profile.Video.Bitrate = profile.Video.Bitrate == 0
+            ? bitrate : Math.Min(profile.Video.Bitrate, bitrate);
+        profile.Audio = null;
+        return profile;
+    }
+
+    private static bool IsBounded(VideoEncodingProperties format) =>
+        Math.Max(format.Width, format.Height) <= 1280 &&
+        Math.Min(format.Width, format.Height) <= 720;
+
+    private static bool IsUsefulSize(VideoEncodingProperties format) =>
+        Math.Max(format.Width, format.Height) >= 640 &&
+        Math.Min(format.Width, format.Height) >= 360;
+
+    private static bool IsNativeH264(VideoEncodingProperties format) =>
+        string.Equals(format.Subtype, "H264", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(format.Subtype, "AVC1", StringComparison.OrdinalIgnoreCase);
+
+    private static ulong PixelCount(VideoEncodingProperties format) =>
+        (ulong)format.Width * format.Height;
 
     private static double FramesPerSecond(VideoEncodingProperties format) =>
         format.FrameRate.Denominator == 0 ? double.PositiveInfinity :
