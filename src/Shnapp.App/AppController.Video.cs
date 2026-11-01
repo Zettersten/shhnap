@@ -324,6 +324,7 @@ internal sealed partial class AppController
                 : Library.GetPreviewPath(id), gallery, videos);
         page.BackRequested += (_, _) => OpenLibrary();
         page.LibraryRequested += (_, _) => OpenLibrary();
+        page.ImageRequested += OpenDocument;
         page.VideoRequested += OpenVideoProject;
         _window.ShowVideoEditor(page);
         _window.ApplyTheme(_settings.Theme switch

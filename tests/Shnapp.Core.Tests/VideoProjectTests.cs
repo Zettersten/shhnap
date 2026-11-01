@@ -28,6 +28,40 @@ public sealed class VideoProjectTests
     }
 
     [TestMethod]
+    public void ImportedMediaExtendsTimelineBeyondRecordingWithoutDiscardingAudio()
+    {
+        var editor = new VideoProjectEditor(CreateRecording());
+        var audioAsset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.ImportedAudio,
+            "assets/long-music.wav", 20 * Second);
+        editor.AddAsset(audioAsset);
+        var music = new AudioSegment(Guid.NewGuid(), audioAsset.Id,
+            2 * Second, TimeSpan.Zero, 20 * Second);
+        editor.AddAudioSegment(music);
+        Assert.AreEqual(22 * Second, editor.Current.Duration);
+
+        var imageAsset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.Image,
+            "assets/end-card.png", TimeSpan.Zero);
+        editor.AddAsset(imageAsset);
+        var image = new ImageOverlay(Guid.NewGuid(), imageAsset.Id,
+            20 * Second, 5 * Second, new VideoRect(0, 0, 100, 100));
+        editor.AddImageOverlay(image);
+        Assert.AreEqual(25 * Second, editor.Current.Duration);
+
+        Assert.IsTrue(editor.UpdateAudioSegment(music with { SourceOut = 15 * Second }));
+        Assert.AreEqual(25 * Second, editor.Current.Duration);
+        Assert.IsTrue(editor.DeleteImageOverlay(image.Id));
+        Assert.AreEqual(17 * Second, editor.Current.Duration);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreEqual(25 * Second, editor.Current.Duration);
+
+        Guid firstVideo = editor.Current.VideoSegments[0].Id;
+        editor.SplitVideoSegment(firstVideo, 5 * Second);
+        Assert.IsTrue(editor.DeleteVideoSegment(firstVideo));
+        Assert.AreEqual(25 * Second, editor.Current.Duration);
+        Assert.AreEqual(15 * Second, editor.Current.AudioSegments.Single(item => item.Id == music.Id).SourceOut);
+    }
+
+    [TestMethod]
     public void InsertingImportedVideoRipplesAllTracksAndUndoesAtomically()
     {
         var editor = new VideoProjectEditor(CreateRecording());

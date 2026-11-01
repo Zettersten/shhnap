@@ -107,9 +107,8 @@ internal static class VideoProjectValidation
             Require(segment.Start >= previousEnd, "Primary video segments cannot overlap.");
             previousEnd = segment.End;
         }
-        TimeSpan timelineEnd = previousEnd;
-        Require(timelineEnd > TimeSpan.Zero && timelineEnd <= MaximumDuration,
-            "The edited video duration must be positive and bounded.");
+        Require(previousEnd > TimeSpan.Zero,
+            "A video project must retain a primary video segment.");
 
         foreach (AudioSegment segment in project.AudioSegments)
         {
@@ -120,7 +119,6 @@ internal static class VideoProjectValidation
                     VideoAssetKind.ImportedAudio,
                 "An audio segment must reference an audio asset.");
             ValidateSourceInterval(segment.Start, segment.SourceIn, segment.SourceOut, asset.Duration);
-            Require(segment.End <= timelineEnd, "Audio cannot extend beyond the primary video.");
             Require(double.IsFinite(segment.Gain) && segment.Gain is >= 0 and <= 4,
                 "Audio gain must be a finite multiplier from 0 to 4.");
         }
@@ -132,7 +130,6 @@ internal static class VideoProjectValidation
             Require(assets.TryGetValue(overlay.AssetId, out VideoAsset? asset) &&
                 asset.Kind == VideoAssetKind.Image, "An image overlay must reference an image asset.");
             ValidateTimelineInterval(overlay.Start, overlay.Duration);
-            Require(overlay.End <= timelineEnd, "An image cannot extend beyond the primary video.");
             Require(overlay.ZIndex is >= 0 and <= 1_000_000, "Image z-order is out of range.");
             VideoRect bounds = overlay.Bounds;
             Require(double.IsFinite(bounds.X) && double.IsFinite(bounds.Y) &&
@@ -141,6 +138,8 @@ internal static class VideoProjectValidation
                 Math.Abs(bounds.X) <= 65_536 && Math.Abs(bounds.Y) <= 65_536,
                 "Image bounds must be finite video-pixel coordinates with positive size.");
         }
+        Require(project.Duration <= MaximumDuration,
+            "The edited timeline duration must be bounded.");
     }
 
     internal static void ValidateRelativePath(string relativePath)

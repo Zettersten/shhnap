@@ -1,4 +1,5 @@
 using Microsoft.UI;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -14,6 +15,7 @@ namespace Shnapp.App.Video;
 public sealed partial class VideoEditorPage
 {
     private enum TimelineKind { None, Video, Audio, Image }
+    private enum ClipDragMode { Move, TrimStart, TrimEnd }
 
     private TimelineKind _selectedKind;
     private Guid _selectedId;
@@ -29,9 +31,20 @@ public sealed partial class VideoEditorPage
     private Line? _playheadLine;
     private bool _loadingInspector;
     private readonly Dictionary<Guid, Button> _clipButtons = new();
+    private readonly Dictionary<Guid, (bool Start, bool End)> _clipVisibleEdges = new();
+    private readonly InputCursor _clipMoveCursor = InputSystemCursor.Create(InputSystemCursorShape.SizeAll);
+    private readonly InputCursor _clipTrimCursor = InputSystemCursor.Create(InputSystemCursorShape.SizeWestEast);
+    private sealed class TimelineClipButton : Button
+    {
+        public void SetClipCursor(InputCursor cursor) => ProtectedCursor = cursor;
+    }
     private sealed record ClipDrag(Button Surface, uint PointerId, TimelineKind Kind, Guid Id,
-        TimeSpan Start, TimeSpan Duration, double PressX, double CanvasLeft, string Hint,
-        int FrameRate, double[] SnapTargets);
+        ClipDragMode Mode, TimeSpan Start, TimeSpan Duration, TimeSpan MinStart,
+        TimeSpan MaxEnd, double PressX, double CanvasLeft, double CanvasWidth, string Hint,
+        int FrameRate, double[] SnapTargets)
+    {
+        public TimeSpan End => Start + Duration;
+    }
     private static readonly double[] TimelineTickIntervals =
         [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600,
          7200, 14400, 28800, 43200, 86400];
@@ -118,6 +131,7 @@ public sealed partial class VideoEditorPage
         TimelineCanvas.Width = width;
         TimelineCanvas.Children.Clear();
         _clipButtons.Clear();
+        _clipVisibleEdges.Clear();
 
         double viewport = Math.Max(120, TimelineScroll.ActualWidth);
         double offset = TimelineScroll.HorizontalOffset;
@@ -231,7 +245,41 @@ public sealed partial class VideoEditorPage
         double visibleLeft = Math.Max(left, _renderedWindowStartX);
         double visibleRight = Math.Min(left + width, _renderedWindowEndX);
         bool selected = _selectedId == id && _selectedKind == kind;
-        var surface = new Button
+        bool startVisible = visibleLeft <= left;
+        bool endVisible = visibleRight >= left + width;
+        var content = new Grid { Height = 24, IsHitTestVisible = false };
+        content.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 10,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Colors.White),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(9, 4, 9, 0),
+        });
+        if (visibleRight - visibleLeft >= 18)
+        {
+            var handleBrush = new SolidColorBrush(Colors.White);
+            if (startVisible)
+                content.Children.Add(new Border
+                {
+                    Width = 2, Height = 14, CornerRadius = new CornerRadius(1),
+                    Background = handleBrush, Opacity = selected ? .9 : .6,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(3, 0, 0, 0),
+                });
+            if (endVisible)
+                content.Children.Add(new Border
+                {
+                    Width = 2, Height = 14, CornerRadius = new CornerRadius(1),
+                    Background = handleBrush, Opacity = selected ? .9 : .6,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 3, 0),
+                });
+        }
+        var surface = new TimelineClipButton
         {
             Width = Math.Max(3, visibleRight - visibleLeft),
             Height = 24,
@@ -242,18 +290,10 @@ public sealed partial class VideoEditorPage
             Background = new SolidColorBrush(fill),
             BorderThickness = new Thickness(selected ? 2 : 0),
             BorderBrush = (Brush)Application.Current.Resources["ShnappToolbarActiveIconBrush"],
-            HorizontalContentAlignment = HorizontalAlignment.Left,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Tag = (kind, id),
             AllowDrop = true,
-            Content = new TextBlock
-            {
-                Text = title,
-                FontSize = 10,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Colors.White),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                Margin = new Thickness(7, 4, 7, 0),
-            },
+            Content = content,
         };
         // ButtonBase consumes pointer input before ordinary event handlers run.
         surface.AddHandler(UIElement.PointerPressedEvent,
@@ -270,13 +310,14 @@ public sealed partial class VideoEditorPage
         surface.Drop += Timeline_Drop;
         surface.Click += Clip_Click;
         AutomationProperties.SetName(surface,
-            $"{title}, {FormatPreciseTime(start)} to {FormatPreciseTime(start + duration)}. Select or drag to move clip.");
+            $"{title}, {FormatPreciseTime(start)} to {FormatPreciseTime(start + duration)}. Drag the middle to move, or either edge to trim.");
         ToolTipService.SetToolTip(surface,
-            $"{title} · {FormatPreciseTime(start)}–{FormatPreciseTime(start + duration)} · Drag to move");
+            $"{title} · {FormatPreciseTime(start)}–{FormatPreciseTime(start + duration)} · Drag middle to move · Drag edge to trim");
         Canvas.SetLeft(surface, visibleLeft);
         Canvas.SetTop(surface, 24 + lane * 28);
         TimelineCanvas.Children.Add(surface);
         _clipButtons[id] = surface;
+        _clipVisibleEdges[id] = (startVisible, endVisible);
     }
 
     private void Clip_PointerPressed(object sender, PointerRoutedEventArgs args)
@@ -289,10 +330,35 @@ public sealed partial class VideoEditorPage
             ReferenceEquals(current, button) &&
             _selectedRange is { } range)
         {
+            ClipDragMode mode = ClipModeAt(button, tag.Item2,
+                args.GetCurrentPoint(button).Position.X);
+            TimeSpan minStart = TimeSpan.Zero;
+            TimeSpan maxEnd = TimeSpan.FromDays(7);
+            VideoProject project = _editor.Current;
+            if (tag.Item1 == TimelineKind.Video)
+            {
+                VideoSegment item = project.VideoSegments.First(clip => clip.Id == tag.Item2);
+                VideoAsset asset = project.Assets.First(value => value.Id == item.AssetId);
+                minStart = item.Start - item.SourceIn;
+                maxEnd = Min(maxEnd, item.Start + asset.Duration - item.SourceIn);
+                foreach (VideoSegment other in project.VideoSegments)
+                {
+                    if (other.Id == item.Id) continue;
+                    if (other.End <= item.Start && other.End > minStart) minStart = other.End;
+                    if (other.Start >= item.End && other.Start < maxEnd) maxEnd = other.Start;
+                }
+            }
+            else if (tag.Item1 == TimelineKind.Audio)
+            {
+                AudioSegment item = project.AudioSegments.First(clip => clip.Id == tag.Item2);
+                VideoAsset asset = project.Assets.First(value => value.Id == item.AssetId);
+                minStart = item.Start - item.SourceIn;
+                maxEnd = Min(maxEnd, item.Start + asset.Duration - item.SourceIn);
+            }
             button.CapturePointer(args.Pointer);
             _clipDrag = new ClipDrag(button, args.Pointer.PointerId, tag.Item1, tag.Item2,
-                range.Start, range.End - range.Start,
-                args.GetCurrentPoint(TimelineContent).Position.X, Canvas.GetLeft(button),
+                mode, range.Start, range.End - range.Start, minStart, maxEnd,
+                args.GetCurrentPoint(TimelineContent).Position.X, Canvas.GetLeft(button), button.Width,
                 SelectionHint.Text, Math.Max(1, _editor.Current.FrameRate),
                 CollectSnapTargets(tag.Item2));
         }
@@ -301,23 +367,43 @@ public sealed partial class VideoEditorPage
 
     private void Clip_PointerMoved(object sender, PointerRoutedEventArgs args)
     {
+        if (_clipDrag is null && sender is TimelineClipButton
+            { Tag: ValueTuple<TimelineKind, Guid> tag } hovered)
+        {
+            hovered.SetClipCursor(ClipModeAt(hovered, tag.Item2,
+                args.GetCurrentPoint(hovered).Position.X) == ClipDragMode.Move
+                ? _clipMoveCursor : _clipTrimCursor);
+            return;
+        }
         if (_clipDrag is not { } drag || !ReferenceEquals(sender, drag.Surface) ||
             drag.PointerId != args.Pointer.PointerId || _editor is null) return;
-        TimeSpan start = DraggedClipStart(drag, args.GetCurrentPoint(TimelineContent).Position.X);
-        double delta = (start - drag.Start).TotalSeconds * _pixelsPerSecond;
-        if (Math.Abs(delta) < 3)
+        (TimeSpan start, TimeSpan end) = DraggedClipRange(drag,
+            args.GetCurrentPoint(TimelineContent).Position.X);
+        double edgeDelta = (drag.Mode == ClipDragMode.TrimEnd
+            ? end - drag.End : start - drag.Start).TotalSeconds * _pixelsPerSecond;
+        if (Math.Abs(edgeDelta) < 3)
         {
             if (drag.Surface.Opacity < 1)
             {
                 Canvas.SetLeft(drag.Surface, drag.CanvasLeft);
+                drag.Surface.Width = drag.CanvasWidth;
                 drag.Surface.Opacity = 1;
                 SelectionHint.Text = drag.Hint;
             }
             return;
         }
-        Canvas.SetLeft(drag.Surface, drag.CanvasLeft + delta);
+        double left = drag.CanvasLeft + (start - drag.Start).TotalSeconds * _pixelsPerSecond;
+        double width = drag.CanvasWidth +
+            ((end - start) - drag.Duration).TotalSeconds * _pixelsPerSecond;
+        Canvas.SetLeft(drag.Surface, left);
+        drag.Surface.Width = Math.Max(3, width);
         drag.Surface.Opacity = .78;
-        SelectionHint.Text = $"Move to {FormatPreciseTime(start)}";
+        SelectionHint.Text = drag.Mode switch
+        {
+            ClipDragMode.Move => $"Move to {FormatPreciseTime(start)}",
+            ClipDragMode.TrimStart => $"Trim in to {FormatPreciseTime(start)}",
+            _ => $"Trim out to {FormatPreciseTime(end)}",
+        };
         args.Handled = true;
     }
 
@@ -325,13 +411,15 @@ public sealed partial class VideoEditorPage
     {
         if (_clipDrag is not { } drag || !ReferenceEquals(sender, drag.Surface) ||
             drag.PointerId != args.Pointer.PointerId || _editor is null) return;
-        TimeSpan requested = DraggedClipStart(drag,
+        (TimeSpan start, TimeSpan end) = DraggedClipRange(drag,
             args.GetCurrentPoint(TimelineContent).Position.X);
-        bool moved = requested != drag.Start &&
-            Math.Abs((requested - drag.Start).TotalSeconds * _pixelsPerSecond) >= 3;
+        double edgeDelta = (drag.Mode == ClipDragMode.TrimEnd
+            ? end - drag.End : start - drag.Start).TotalSeconds * _pixelsPerSecond;
+        bool moved = Math.Abs(edgeDelta) >= 3;
         _clipDrag = null;
         drag.Surface.ReleasePointerCapture(args.Pointer);
         Canvas.SetLeft(drag.Surface, drag.CanvasLeft);
+        drag.Surface.Width = drag.CanvasWidth;
         drag.Surface.Opacity = 1;
         if (!moved)
         {
@@ -344,24 +432,45 @@ public sealed partial class VideoEditorPage
             return;
         }
 
-        TimeSpan delta = requested - drag.Start;
         bool committed = false;
         bool valid = TryEdit(() =>
         {
             if (drag.Kind == TimelineKind.Video)
             {
                 VideoSegment clip = _editor.Current.VideoSegments.First(item => item.Id == drag.Id);
-                committed = _editor.MoveVideoSegment(drag.Id, clip.Start + delta);
+                committed = _editor.UpdateVideoSegment(drag.Mode switch
+                {
+                    ClipDragMode.Move => clip with { Start = start },
+                    ClipDragMode.TrimStart => clip with
+                    {
+                        Start = start,
+                        SourceIn = clip.SourceIn + (start - clip.Start),
+                    },
+                    _ => clip with { SourceOut = clip.SourceOut + (end - clip.End) },
+                });
             }
             else if (drag.Kind == TimelineKind.Audio)
             {
                 AudioSegment clip = _editor.Current.AudioSegments.First(item => item.Id == drag.Id);
-                committed = _editor.MoveAudioSegment(drag.Id, clip.Start + delta);
+                committed = _editor.UpdateAudioSegment(drag.Mode switch
+                {
+                    ClipDragMode.Move => clip with { Start = start },
+                    ClipDragMode.TrimStart => clip with
+                    {
+                        Start = start,
+                        SourceIn = clip.SourceIn + (start - clip.Start),
+                    },
+                    _ => clip with { SourceOut = clip.SourceOut + (end - clip.End) },
+                });
             }
             else if (drag.Kind == TimelineKind.Image)
             {
                 ImageOverlay clip = _editor.Current.ImageOverlays.First(item => item.Id == drag.Id);
-                committed = _editor.UpdateImageOverlay(clip with { Start = clip.Start + delta });
+                committed = _editor.UpdateImageOverlay(clip with
+                {
+                    Start = start,
+                    Duration = end - start,
+                });
             }
         });
         if (!valid || !committed) SelectionHint.Text = drag.Hint;
@@ -380,6 +489,7 @@ public sealed partial class VideoEditorPage
             if (!ReferenceEquals(_clipDrag, drag)) return;
             _clipDrag = null;
             Canvas.SetLeft(drag.Surface, drag.CanvasLeft);
+            drag.Surface.Width = drag.CanvasWidth;
             drag.Surface.Opacity = 1;
             SelectionHint.Text = drag.Hint;
         });
@@ -391,6 +501,46 @@ public sealed partial class VideoEditorPage
         args.Handled = true;
         if (args.KeyStatus.WasKeyDown) return;
         TogglePlayback();
+    }
+
+    private ClipDragMode ClipModeAt(Button surface, Guid id, double pointerX)
+    {
+        if (surface.Width < 18 || !_clipVisibleEdges.TryGetValue(id, out var visible))
+            return ClipDragMode.Move;
+        double edgeWidth = Math.Min(9, surface.Width / 3);
+        if (visible.Start && pointerX <= edgeWidth) return ClipDragMode.TrimStart;
+        if (visible.End && pointerX >= surface.Width - edgeWidth) return ClipDragMode.TrimEnd;
+        return ClipDragMode.Move;
+    }
+
+    private (TimeSpan Start, TimeSpan End) DraggedClipRange(ClipDrag drag, double pointerX)
+    {
+        if (drag.Mode == ClipDragMode.Move)
+        {
+            TimeSpan start = DraggedClipStart(drag, pointerX);
+            return (start, start + drag.Duration);
+        }
+
+        double pointerDelta = pointerX - drag.PressX;
+        if (Math.Abs(pointerDelta) < 3) return (drag.Start, drag.End);
+        double seconds = (drag.Mode == ClipDragMode.TrimStart
+            ? drag.Start : drag.End).TotalSeconds + pointerDelta / _pixelsPerSecond;
+        seconds = Math.Round(seconds * drag.FrameRate) / drag.FrameRate;
+        if (_timelineSnapEnabled && drag.SnapTargets.Length > 0)
+        {
+            double snapped = NearestSnapTarget(drag.SnapTargets, seconds);
+            if (Math.Abs(snapped - seconds) * _pixelsPerSecond <= 8) seconds = snapped;
+        }
+        double minimumLength = Math.Min(drag.Duration.TotalSeconds, 1.0 / drag.FrameRate);
+        if (drag.Mode == ClipDragMode.TrimStart)
+        {
+            seconds = Math.Clamp(seconds, drag.MinStart.TotalSeconds,
+                drag.End.TotalSeconds - minimumLength);
+            return (TimeSpan.FromSeconds(seconds), drag.End);
+        }
+        seconds = Math.Clamp(seconds, drag.Start.TotalSeconds + minimumLength,
+            drag.MaxEnd.TotalSeconds);
+        return (drag.Start, TimeSpan.FromSeconds(seconds));
     }
 
     private TimeSpan DraggedClipStart(ClipDrag drag, double pointerX)
@@ -411,9 +561,8 @@ public sealed partial class VideoEditorPage
             if (Math.Abs(offset) * _pixelsPerSecond <= 8)
                 seconds = Math.Max(0, seconds + offset);
         }
-        if (drag.Kind != TimelineKind.Video)
-            seconds = Math.Min(seconds, Math.Max(0,
-                _editor.Current.Duration.TotalSeconds - drag.Duration.TotalSeconds));
+        seconds = Math.Min(seconds, TimeSpan.FromDays(7).TotalSeconds -
+            drag.Duration.TotalSeconds);
         return TimeSpan.FromSeconds(seconds);
     }
 
@@ -650,7 +799,7 @@ public sealed partial class VideoEditorPage
             return;
         }
 
-        if (ActualWidth < 640) GalleryPanel.Visibility = Visibility.Collapsed;
+        if (ActualWidth < 640) CloseGallery();
         InspectorPanel.Visibility = Visibility.Visible;
         SourceFields.Visibility = image is null ? Visibility.Visible : Visibility.Collapsed;
         AudioFields.Visibility = audio is null ? Visibility.Collapsed : Visibility.Visible;

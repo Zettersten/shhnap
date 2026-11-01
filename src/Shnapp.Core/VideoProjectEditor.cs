@@ -284,13 +284,7 @@ public sealed class VideoProjectEditor(VideoProject project)
         {
             throw new InvalidOperationException("A video project must retain a primary video segment.");
         }
-        TimeSpan end = video.Max(static item => item.End);
-        Commit(Current with
-        {
-            VideoSegments = video,
-            AudioSegments = TrimAudioToEnd(Current.AudioSegments, end),
-            ImageOverlays = TrimImagesToEnd(Current.ImageOverlays, end),
-        });
+        Commit(Current with { VideoSegments = video });
         return true;
     }
 
@@ -745,13 +739,4 @@ public sealed class VideoProjectEditor(VideoProject project)
         return result.ToImmutable();
     }
 
-    private static ImmutableArray<AudioSegment> TrimAudioToEnd(ImmutableArray<AudioSegment> items,
-        TimeSpan end) =>
-        [.. items.Where(item => item.Start < end).Select(item => item.End > end
-            ? item with { SourceOut = item.SourceOut - (item.End - end) } : item)];
-
-    private static ImmutableArray<ImageOverlay> TrimImagesToEnd(ImmutableArray<ImageOverlay> items,
-        TimeSpan end) =>
-        [.. items.Where(item => item.Start < end).Select(item => item.End > end
-            ? item with { Duration = end - item.Start } : item)];
 }

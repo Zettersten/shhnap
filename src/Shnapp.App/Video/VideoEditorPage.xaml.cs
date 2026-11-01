@@ -54,6 +54,7 @@ public sealed partial class VideoEditorPage : Page
     public VideoEditorPage()
     {
         InitializeComponent();
+        InitializePreviewImages();
         UpdateSnapButton();
         // Windows.System.VirtualKey omits the OEM +/- names, so register their
         // standard virtual-key codes in code rather than the XAML enum parser.
@@ -62,7 +63,11 @@ public sealed partial class VideoEditorPage : Page
         RegisterZoomAccelerator(0xBD, VirtualKeyModifiers.None);
         Loaded += Page_Loaded;
         VideoPlayer.SetMediaPlayer(_player);
-        ActualThemeChanged += (_, _) => PreviewChecker.Invalidate();
+        ActualThemeChanged += (_, _) =>
+        {
+            PreviewChecker.Invalidate();
+            UpdateInspectorGlassVisibility();
+        };
         _player.PlaybackSession.PositionChanged += PlaybackSession_PositionChanged;
         _player.PlaybackSession.PlaybackStateChanged += PlaybackSession_PlaybackStateChanged;
     }
@@ -97,6 +102,7 @@ public sealed partial class VideoEditorPage : Page
         _previewQueued = false;
         _playhead = TimeSpan.Zero;
         UpdateVideoPlayerBounds(PreviewHost.ActualWidth, PreviewHost.ActualHeight);
+        ResetPreviewImages();
         _markIn = null;
         _markOut = null;
         ProjectTitleText.Text = project.Title;
@@ -214,6 +220,7 @@ public sealed partial class VideoEditorPage : Page
         catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
         try { _player.Dispose(); }
         catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
+        ReleasePreviewImages();
     }
 
     private void Editor_Changed(object? sender, EventArgs args)
@@ -240,6 +247,7 @@ public sealed partial class VideoEditorPage : Page
             if (DurationText.Text != duration) DurationText.Text = duration;
             _playhead = Min(_playhead, project.Duration);
             RefreshTimeline();
+            RefreshPreviewImages();
             RefreshInspector();
             UpdateTransport();
             UpdateEditActionState();
@@ -293,13 +301,15 @@ public sealed partial class VideoEditorPage : Page
             VideoProject project = _editor.Current;
             (int previewWidth, int previewHeight) = GetPreviewSize(project);
             MediaComposition composition = await VideoCompositionService.BuildAsync(
-                project, _store, token, (previewWidth, previewHeight));
+                project, _store, token, (previewWidth, previewHeight),
+                includeImageOverlays: false);
             token.ThrowIfCancellationRequested();
             if (revision != _previewRevision || _closed) return;
             var stream = composition.GeneratePreviewMediaStreamSource(previewWidth, previewHeight);
             _player.Source = MediaSource.CreateFromMediaStreamSource(stream);
             _player.PlaybackSession.PlaybackRate = 1;
             _player.PlaybackSession.Position = position;
+            UpdateVisiblePreviewImages(position);
             if (wasPlaying) _player.Play();
         }
         catch (OperationCanceledException) { }
@@ -349,6 +359,7 @@ public sealed partial class VideoEditorPage : Page
         double scale = Math.Min(availableWidth / project.Width, availableHeight / project.Height);
         VideoPlayer.Width = project.Width * scale;
         VideoPlayer.Height = project.Height * scale;
+        UpdatePreviewImageBounds();
     }
 
     private void PlaybackSession_PositionChanged(MediaPlaybackSession sender, object args)
@@ -359,6 +370,7 @@ public sealed partial class VideoEditorPage : Page
             Interlocked.Exchange(ref _positionUpdateQueued, 0);
             if (_closed || _editor is null) return;
             _playhead = Min(sender.Position, _editor.Current.Duration);
+            UpdateVisiblePreviewImages(_playhead);
             UpdateTransport();
             DrawPlayhead();
             UpdateEditActionState();
@@ -370,8 +382,11 @@ public sealed partial class VideoEditorPage : Page
         if (_closed) return;
         DispatcherQueue.TryEnqueue(() =>
         {
-            if (!_closed) PlayPauseIcon.Glyph = sender.PlaybackState == MediaPlaybackState.Playing
-                ? "\uE769" : "\uE768";
+            if (_closed) return;
+            bool playing = sender.PlaybackState == MediaPlaybackState.Playing;
+            PlayPauseIcon.Glyph = playing ? "\uE769" : "\uE768";
+            SetPreviewImageTick(playing);
+            UpdateVisiblePreviewImages(sender.Position);
         });
     }
 
@@ -402,6 +417,7 @@ public sealed partial class VideoEditorPage : Page
         if (_editor is null) return;
         _playhead = Min(time, _editor.Current.Duration);
         _player.PlaybackSession.Position = _playhead;
+        UpdateVisiblePreviewImages(_playhead);
         UpdateTransport();
         DrawPlayhead();
         UpdateEditActionState();

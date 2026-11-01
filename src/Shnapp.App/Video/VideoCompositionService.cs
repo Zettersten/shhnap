@@ -14,7 +14,7 @@ internal static class VideoCompositionService
 {
     internal static async Task<MediaComposition> BuildAsync(
         VideoProject project, VideoProjectStore store, CancellationToken cancellationToken = default,
-        (int Width, int Height)? previewSize = null)
+        (int Width, int Height)? previewSize = null, bool includeImageOverlays = true)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(store);
@@ -71,7 +71,7 @@ internal static class VideoCompositionService
             composition.BackgroundAudioTracks.Add(track);
         }
 
-        if (!project.ImageOverlays.IsDefaultOrEmpty)
+        if (includeImageOverlays && !project.ImageOverlays.IsDefaultOrEmpty)
         {
             double scaleX = previewSize?.Width / (double)project.Width ?? 1;
             double scaleY = previewSize?.Height / (double)project.Height ?? 1;

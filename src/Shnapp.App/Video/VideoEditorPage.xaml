@@ -67,7 +67,7 @@
                             <AdaptiveTrigger MinWindowWidth="800" />
                         </VisualState.StateTriggers>
                         <VisualState.Setters>
-                            <Setter Target="InspectorPanel.Width" Value="244" />
+                            <Setter Target="InspectorPanel.Width" Value="252" />
                         </VisualState.Setters>
                     </VisualState>
                 </VisualStateGroup>
@@ -110,54 +110,55 @@
                     </local:ToolbarActionButton>
                 </StackPanel>
             </Border>
-            <local:ToolbarActionButton x:Name="GalleryHotspot" Width="24" Height="48"
-                MinWidth="0" Padding="0" CornerRadius="0,8,8,0"
-                Background="{ThemeResource ShnappImagePanelBrush}" BorderThickness="0"
-                HorizontalAlignment="Left" VerticalAlignment="Center"
-                Click="GalleryHotspot_Click" PointerEntered="GalleryHotspot_PointerEntered"
-                AutomationProperties.Name="Browse saved videos and images"
-                ToolTipService.ToolTip="Browse saved videos and images · Ctrl+Shift+G">
-                <FontIcon Glyph="&#xE8B9;" FontFamily="Segoe Fluent Icons" FontSize="12"
-                    Width="12" Height="12" />
-            </local:ToolbarActionButton>
-            <Border x:Name="GalleryPanel" Visibility="Collapsed" Width="80"
+            <Border x:Name="GalleryPanel" Visibility="Collapsed" Width="80" Opacity="0"
                 HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,0,0,0"
                 Padding="8" CornerRadius="12"
                 BorderThickness="1" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                 Background="{ThemeResource ShnappImagePanelBrush}"
-                PointerExited="GalleryPanel_PointerExited"
+                PointerMoved="GalleryPanel_PointerMoved" PointerExited="GalleryPanel_PointerExited"
                 PointerWheelChanged="GalleryPanel_PointerWheelChanged"
-                AutomationProperties.Name="Saved videos and images. Click a video to open it, or drag media onto the timeline to add it.">
+                Unloaded="GalleryPanel_Unloaded"
+                AutomationProperties.Name="Recent captures gallery. Click a capture to open it, or drag it onto the timeline to add it.">
+                <Border.RenderTransform>
+                    <TranslateTransform X="-96" />
+                </Border.RenderTransform>
                 <StackPanel Spacing="4">
-                    <local:ToolbarActionButton x:Name="GalleryPrevious" Width="58" Height="28"
-                        MinWidth="0" Padding="0" CornerRadius="8"
+                    <Button x:Name="GalleryPrevious" Width="58" Height="32" Padding="0"
+                        HorizontalAlignment="Center" CornerRadius="8"
                         Background="Transparent" BorderThickness="0"
-                        Click="GalleryPrevious_Click" AutomationProperties.Name="Previous saved media">
-                        <FontIcon Glyph="&#xE70E;" FontFamily="Segoe Fluent Icons" FontSize="12"
-                            Width="12" Height="12" />
-                    </local:ToolbarActionButton>
-                    <StackPanel x:Name="GalleryItemsHost" Spacing="6" />
-                    <local:ToolbarActionButton x:Name="GalleryNext" Width="58" Height="28"
-                        MinWidth="0" Padding="0" CornerRadius="8"
+                        Click="GalleryPrevious_Click" PointerWheelChanged="GalleryPanel_PointerWheelChanged"
+                        AutomationProperties.Name="Previous gallery captures" AutomationProperties.AutomationId="VideoGalleryPrevious">
+                        <FontIcon Glyph="&#xE70E;" FontSize="14" />
+                    </Button>
+                    <Canvas x:Name="GalleryItemsHost" Width="58" />
+                    <Button x:Name="GalleryNext" Width="58" Height="32" Padding="0"
+                        HorizontalAlignment="Center" CornerRadius="8"
                         Background="Transparent" BorderThickness="0"
-                        Click="GalleryNext_Click" AutomationProperties.Name="More saved media">
-                        <FontIcon Glyph="&#xE70D;" FontFamily="Segoe Fluent Icons" FontSize="12"
-                            Width="12" Height="12" />
-                    </local:ToolbarActionButton>
+                        Click="GalleryNext_Click" PointerWheelChanged="GalleryPanel_PointerWheelChanged"
+                        AutomationProperties.Name="More gallery captures" AutomationProperties.AutomationId="VideoGalleryNext">
+                        <FontIcon Glyph="&#xE70D;" FontSize="14" />
+                    </Button>
                 </StackPanel>
             </Border>
 
-            <Border x:Name="InspectorPanel" Visibility="Collapsed" Width="244"
-                HorizontalAlignment="Right" VerticalAlignment="Stretch" Margin="8"
-                Padding="12" CornerRadius="10"
+            <Border x:Name="InspectorPanel" Visibility="Collapsed" Width="252"
+                HorizontalAlignment="Right" VerticalAlignment="Stretch" Margin="12"
+                Padding="12" CornerRadius="12" Translation="0,0,20"
                 BorderThickness="1" BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}"
-                Background="{ThemeResource ShnappInspectorAcrylicBrush}">
+                Background="Transparent">
+                <Border.Shadow><ThemeShadow /></Border.Shadow>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
+                    <Grid x:Name="InspectorGlassHost" Grid.RowSpan="3" Margin="-12"
+                        IsHitTestVisible="False" Loaded="InspectorGlassHost_Loaded"
+                        Unloaded="InspectorGlassHost_Unloaded" />
+                    <Border Grid.RowSpan="3" Margin="-12" CornerRadius="12" Opacity="0.82"
+                        IsHitTestVisible="False"
+                        Background="{ThemeResource ShnappInspectorAcrylicBrush}" />
                     <Grid>
                         <TextBlock x:Name="SelectedItemTitle" Text="Clip" FontSize="13"
                             FontWeight="SemiBold" HorizontalAlignment="Left" VerticalAlignment="Center"

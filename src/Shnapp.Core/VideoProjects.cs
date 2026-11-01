@@ -110,10 +110,22 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
     /// <remarks>Older project JSON omits this property and opens at 30 fps.</remarks>
     public int FrameRate { get; init; } = 30;
 
-    /// <summary>End of the last primary video segment.</summary>
+    /// <summary>End of the last visible or audible timeline item.</summary>
     [JsonIgnore]
-    public TimeSpan Duration => VideoSegments.IsDefaultOrEmpty
-        ? TimeSpan.Zero : VideoSegments.Max(static segment => segment.End);
+    public TimeSpan Duration
+    {
+        get
+        {
+            TimeSpan end = TimeSpan.Zero;
+            foreach (VideoSegment item in VideoSegments)
+                if (item.End > end) end = item.End;
+            foreach (AudioSegment item in AudioSegments)
+                if (item.End > end) end = item.End;
+            foreach (ImageOverlay item in ImageOverlays)
+                if (item.End > end) end = item.End;
+            return end;
+        }
+    }
 
     /// <summary>Creates a project from a finished MP4 and optional separate WAV stems.</summary>
     /// <param name="title">User-facing title.</param>

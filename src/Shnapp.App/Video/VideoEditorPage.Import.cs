@@ -10,10 +10,12 @@ using Shnapp.App.Editor;
 using Shnapp.Core;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics.Imaging;
+using Windows.Foundation;
 using Windows.Storage;
 using Windows.Storage.FileProperties;
 using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
+using Windows.UI.ViewManagement;
 
 namespace Shnapp.App.Video;
 
@@ -24,20 +26,33 @@ public sealed partial class VideoEditorPage
     private const string GalleryVideoFormat = "Shnapp.GalleryVideoId";
     private const double GalleryThumbSize = 56;
     private const double GalleryThumbSpacing = 6;
+    private const double GalleryHiddenOffset = -96;
+    private const double GalleryRevealDistance = 28;
+    private const double GalleryHideDistance = 122;
     private bool _importing;
     private bool _galleryAvailable;
-    private bool _galleryPinned;
     private bool _galleryDragging;
+    private Button? _galleryPressedButton;
+    private Point _galleryPressedPosition;
     private Guid _galleryLastDraggedId;
     private long _galleryLastDropAt;
+    private Guid _galleryLastOpenedId;
+    private long _galleryLastOpenedAt;
     private int _galleryPage;
     private int _galleryPageSize = 1;
     private double _galleryWheelDelta;
+    private double _galleryRevealTarget;
+    private long _galleryAnimationTimestamp;
+    private bool _galleryAnimationRunning;
+    private readonly Dictionary<Grid, double> _galleryTargets = [];
+    private readonly UISettings _galleryMotionSettings = new();
+    private Button? _galleryHoveredButton;
     private IReadOnlyList<GalleryMedia> _galleryMedia = [];
     private CancellationTokenSource? _galleryThumbnailCancellation;
     private CancellationTokenSource? _galleryImportCancellation;
 
     private sealed record GalleryMedia(Guid Id, string Title, DateTimeOffset Date, bool IsVideo);
+    public event Action<Guid>? ImageRequested;
 
     private void BuildGallery()
     {
@@ -49,16 +64,16 @@ public sealed partial class VideoEditorPage
             .ThenBy(item => item.Title, StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
         _galleryAvailable = _galleryMedia.Count > 0;
-        GalleryHotspot.Visibility = _galleryAvailable ? Visibility.Visible : Visibility.Collapsed;
         if (!_galleryAvailable) CloseGallery();
         _galleryPage = 0;
+        _galleryWheelDelta = 0;
         RefreshGalleryPage();
     }
 
     private void PreviewHost_SizeChanged(object sender, SizeChangedEventArgs args)
     {
         UpdateVideoPlayerBounds(args.NewSize.Width, args.NewSize.Height);
-        int pageSize = Math.Clamp((int)((args.NewSize.Height - 84) /
+        int pageSize = Math.Clamp((int)((args.NewSize.Height - 88) /
             (GalleryThumbSize + GalleryThumbSpacing)), 1, 6);
         if (pageSize != _galleryPageSize)
         {
@@ -69,13 +84,17 @@ public sealed partial class VideoEditorPage
         }
     }
 
-    private void RefreshGalleryPage()
+    private void RefreshGalleryPage(bool animatePage = false)
     {
+        StopGalleryAnimation();
         _galleryThumbnailCancellation?.Cancel();
         _galleryThumbnailCancellation?.Dispose();
         _galleryThumbnailCancellation = new CancellationTokenSource();
         CancellationToken token = _galleryThumbnailCancellation.Token;
         GalleryItemsHost.Children.Clear();
+        _galleryTargets.Clear();
+        _galleryHoveredButton = null;
+        int index = 0;
         foreach (GalleryMedia item in _galleryMedia.Skip(_galleryPage * _galleryPageSize)
             .Take(_galleryPageSize))
         {
@@ -147,11 +166,18 @@ public sealed partial class VideoEditorPage
                 Padding = new Thickness(0),
                 CornerRadius = new CornerRadius(8),
                 Background = new SolidColorBrush(Colors.Transparent),
+                BorderBrush = (Brush)Application.Current.Resources["ShnappBlueBrush"],
                 BorderThickness = new Thickness(0),
             };
+            var transparent = new SolidColorBrush(Colors.Transparent);
+            button.Resources["ButtonBackgroundPointerOver"] = transparent;
+            button.Resources["ButtonBackgroundPressed"] = transparent;
+            button.Resources["ButtonBackgroundDisabled"] = transparent;
+            button.Resources["ButtonBorderBrushPointerOver"] = button.BorderBrush;
+            button.Resources["ButtonBorderBrushPressed"] = button.BorderBrush;
             string action = item.IsVideo
                 ? "Click to open; use + to add its original recording and audio"
-                : "Click or use + to add at the playhead";
+                : "Click to open; use + or drag to add at the playhead";
             AutomationProperties.SetName(button, $"{item.Title}, {(item.IsVideo ? "video" : "image")}. {action}.");
             AutomationProperties.SetAutomationId(button, $"VideoGallery_{item.Id:N}");
             ToolTipService.SetToolTip(button, $"{item.Title}\n{action}");
@@ -166,13 +192,37 @@ public sealed partial class VideoEditorPage
                 actions.Items.Add(insert);
                 button.ContextFlyout = actions;
             }
+            else
+            {
+                var actions = new MenuFlyout();
+                var open = new MenuFlyoutItem { Text = "Open image" };
+                open.Click += (_, _) => ImageRequested?.Invoke(item.Id);
+                var insert = new MenuFlyoutItem { Text = "Add image layer at playhead" };
+                insert.Click += (_, _) => _ = ImportGalleryImageAsync(item.Id);
+                actions.Items.Add(open);
+                actions.Items.Add(insert);
+                button.ContextFlyout = actions;
+            }
             button.Click += GalleryItem_Click;
+            preview.Tapped += GalleryItem_Tapped;
+            button.AddHandler(UIElement.PointerPressedEvent,
+                new PointerEventHandler(GalleryItem_PointerPressed), true);
+            button.AddHandler(UIElement.PointerReleasedEvent,
+                new PointerEventHandler(GalleryItem_PointerReleased), true);
+            button.PointerEntered += GalleryItem_PointerEntered;
+            button.PointerExited += GalleryItem_PointerExited;
+            button.GotFocus += GalleryItem_FocusChanged;
+            button.LostFocus += GalleryItem_FocusChanged;
+            button.PointerMoved += GalleryPanel_PointerMoved;
+            button.PointerWheelChanged += GalleryPanel_PointerWheelChanged;
             preview.DragStarting += GalleryItem_DragStarting;
             preview.DropCompleted += GalleryItem_DropCompleted;
             var itemHost = new Grid
             {
                 Width = GalleryThumbSize,
                 Height = GalleryThumbSize,
+                RenderTransformOrigin = new Point(0.5, 0.5),
+                RenderTransform = new ScaleTransform { ScaleX = 1, ScaleY = 1 },
             };
             itemHost.Children.Add(button);
             var addButton = new Button
@@ -204,10 +254,22 @@ public sealed partial class VideoEditorPage
                 item.IsVideo ? "Add original recording at playhead" : "Add image layer at playhead");
             addButton.Click += GalleryItem_AddClick;
             itemHost.Children.Add(addButton);
+            Canvas.SetLeft(itemHost, 1);
+            Canvas.SetTop(itemHost, index * (GalleryThumbSize + GalleryThumbSpacing));
             GalleryItemsHost.Children.Add(itemHost);
+            _galleryTargets[itemHost] = 1;
+            index++;
         }
+        GalleryItemsHost.Height = Math.Max(0,
+            index * (GalleryThumbSize + GalleryThumbSpacing) - GalleryThumbSpacing);
         GalleryPrevious.IsEnabled = _galleryPage > 0;
+        GalleryPrevious.Opacity = GalleryPrevious.IsEnabled ? 1 : .3;
         GalleryNext.IsEnabled = (_galleryPage + 1) * _galleryPageSize < _galleryMedia.Count;
+        GalleryNext.Opacity = GalleryNext.IsEnabled ? 1 : .3;
+        GalleryPanel.Visibility = _galleryRevealTarget > 0 ? Visibility.Visible : Visibility.Collapsed;
+        GalleryItemsHost.Opacity = animatePage && _galleryMotionSettings.AnimationsEnabled ? .55 : 1;
+        if (GalleryPanel.Visibility == Visibility.Visible)
+            AnimateGalleryTowardTargets();
     }
 
     private async Task LoadVideoThumbnailAsync(Guid id, Image target, CancellationToken token)
@@ -231,45 +293,39 @@ public sealed partial class VideoEditorPage
         catch (Exception) { /* A missing shell thumbnail leaves the video badge visible. */ }
     }
 
-    private void GalleryHotspot_PointerEntered(object sender, PointerRoutedEventArgs args) =>
-        OpenGallery();
-
-    private void GalleryHotspot_Click(object sender, RoutedEventArgs args) => OpenGallery(pin: true);
-
     private void PreviewHost_PointerMoved(object sender, PointerRoutedEventArgs args)
     {
         if (!_galleryAvailable || _galleryDragging) return;
         double x = args.GetCurrentPoint(PreviewHost).Position.X;
-        if (x <= 28) OpenGallery();
-        else if (x > 122 && !_galleryPinned) CloseGallery();
+        if (x <= GalleryRevealDistance) OpenGallery();
+        else if (x > GalleryHideDistance && !GalleryHasKeyboardFocus()) CloseGallery();
     }
 
     private void PreviewHost_PointerExited(object sender, PointerRoutedEventArgs args)
     {
-        if (!_galleryPinned && !_galleryDragging) CloseGallery();
+        if (!GalleryHasKeyboardFocus() && !_galleryDragging) CloseGallery();
     }
 
-    private void OpenGallery(bool pin = false)
+    private void OpenGallery()
     {
         if (!_galleryAvailable) return;
         if (ActualWidth < 640) InspectorPanel.Visibility = Visibility.Collapsed;
-        if (pin) _galleryPinned = true;
-        GalleryPanel.Visibility = Visibility.Visible;
+        SetGalleryReveal(true);
     }
 
-    private void CloseGallery()
-    {
-        _galleryPinned = false;
-        GalleryPanel.Visibility = Visibility.Collapsed;
-    }
+    private void CloseGallery() => SetGalleryReveal(false);
 
     private void ToggleGallery()
     {
         if (!_galleryAvailable) return;
-        if (GalleryPanel.Visibility == Visibility.Visible) CloseGallery();
+        if (_galleryRevealTarget > 0)
+        {
+            CloseGallery();
+            VideoPlayer.Focus(FocusState.Programmatic);
+        }
         else
         {
-            OpenGallery(pin: true);
+            OpenGallery();
             if (GalleryItemsHost.Children.FirstOrDefault() is Grid first)
                 first.Children.OfType<Button>().FirstOrDefault()?.Focus(FocusState.Keyboard);
         }
@@ -277,7 +333,21 @@ public sealed partial class VideoEditorPage
 
     private void GalleryPanel_PointerExited(object sender, PointerRoutedEventArgs args)
     {
-        if (!_galleryPinned && !_galleryDragging) CloseGallery();
+        foreach (Grid item in _galleryTargets.Keys)
+            _galleryTargets[item] = 1;
+        AnimateGalleryTowardTargets();
+        if (!GalleryHasKeyboardFocus() && !_galleryDragging) CloseGallery();
+    }
+
+    private bool GalleryHasKeyboardFocus()
+    {
+        DependencyObject? focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
+        while (focused is not null)
+        {
+            if (ReferenceEquals(focused, GalleryPanel)) return true;
+            focused = VisualTreeHelper.GetParent(focused);
+        }
+        return false;
     }
 
     private void GalleryPrevious_Click(object sender, RoutedEventArgs args) => ChangeGalleryPage(-1);
@@ -289,26 +359,65 @@ public sealed partial class VideoEditorPage
             Math.Max(0, (_galleryMedia.Count - 1) / _galleryPageSize));
         if (next == _galleryPage) return;
         _galleryPage = next;
-        RefreshGalleryPage();
+        RefreshGalleryPage(animatePage: true);
     }
 
     private void GalleryPanel_PointerWheelChanged(object sender, PointerRoutedEventArgs args)
     {
         args.Handled = true;
+        if (_galleryMedia.Count <= _galleryPageSize) return;
         _galleryWheelDelta += args.GetCurrentPoint(GalleryPanel).Properties.MouseWheelDelta;
         if (Math.Abs(_galleryWheelDelta) < 100) return;
         int direction = _galleryWheelDelta < 0 ? 1 : -1;
         _galleryWheelDelta = 0;
         ChangeGalleryPage(direction);
+        GalleryPanel_PointerMoved(sender, args);
     }
 
     private void GalleryItem_Click(object sender, RoutedEventArgs args)
     {
         if (_galleryDragging || sender is not Button { Tag: GalleryMedia media }) return;
+        ActivateGalleryMedia(media);
+    }
+
+    private void GalleryItem_Tapped(object sender, TappedRoutedEventArgs args)
+    {
+        if (_galleryDragging || sender is not Grid { Tag: GalleryMedia media }) return;
+        ActivateGalleryMedia(media);
+        args.Handled = true;
+    }
+
+    private void GalleryItem_PointerPressed(object sender, PointerRoutedEventArgs args)
+    {
+        if (sender is Button button && args.GetCurrentPoint(button).Properties.IsLeftButtonPressed)
+        {
+            _galleryPressedButton = button;
+            _galleryPressedPosition = args.GetCurrentPoint(button).Position;
+        }
+    }
+
+    private void GalleryItem_PointerReleased(object sender, PointerRoutedEventArgs args)
+    {
+        if (sender is not Button { Tag: GalleryMedia media } button ||
+            !ReferenceEquals(_galleryPressedButton, button)) return;
+        _galleryPressedButton = null;
+        Point released = args.GetCurrentPoint(button).Position;
+        if (!_galleryDragging && Math.Abs(released.X - _galleryPressedPosition.X) < 12 &&
+            Math.Abs(released.Y - _galleryPressedPosition.Y) < 12)
+            ActivateGalleryMedia(media);
+    }
+
+    private void ActivateGalleryMedia(GalleryMedia media)
+    {
+        long now = Stopwatch.GetTimestamp();
+        if (_galleryLastOpenedId == media.Id && _galleryLastOpenedAt != 0 &&
+            Stopwatch.GetElapsedTime(_galleryLastOpenedAt, now).TotalMilliseconds < 600) return;
         if (media.Id == _galleryLastDraggedId && _galleryLastDropAt != 0 &&
             Stopwatch.GetElapsedTime(_galleryLastDropAt).TotalMilliseconds < 500) return;
+        _galleryLastOpenedId = media.Id;
+        _galleryLastOpenedAt = now;
         if (media.IsVideo) VideoRequested?.Invoke(media.Id);
-        else _ = ImportGalleryImageAsync(media.Id);
+        else ImageRequested?.Invoke(media.Id);
     }
 
     private void GalleryItem_AddClick(object sender, RoutedEventArgs args)
@@ -321,6 +430,7 @@ public sealed partial class VideoEditorPage
     {
         if (sender is not Grid { Tag: GalleryMedia media }) return;
         _galleryDragging = true;
+        _galleryPressedButton = null;
         _galleryLastDraggedId = media.Id;
         args.Data.SetData(media.IsVideo ? GalleryVideoFormat : GalleryImageFormat,
             media.Id.ToString("N"));
@@ -331,11 +441,134 @@ public sealed partial class VideoEditorPage
     {
         _galleryLastDropAt = Stopwatch.GetTimestamp();
         _galleryDragging = false;
-        if (args.DropResult == DataPackageOperation.Copy)
-            CloseGallery();
-        else
-            OpenGallery(pin: true);
+        if (args.DropResult == DataPackageOperation.Copy) CloseGallery();
+        else OpenGallery();
     }
+
+    private void GalleryItem_PointerEntered(object sender, PointerRoutedEventArgs args)
+    {
+        if (sender is not Button button) return;
+        _galleryHoveredButton = button;
+        UpdateGalleryButtonBorder(button);
+    }
+
+    private void GalleryItem_PointerExited(object sender, PointerRoutedEventArgs args)
+    {
+        if (sender is not Button button) return;
+        if (ReferenceEquals(_galleryHoveredButton, button)) _galleryHoveredButton = null;
+        UpdateGalleryButtonBorder(button);
+    }
+
+    private void GalleryItem_FocusChanged(object sender, RoutedEventArgs args)
+    {
+        if (sender is Button button) UpdateGalleryButtonBorder(button);
+    }
+
+    private void UpdateGalleryButtonBorder(Button button)
+    {
+        bool highlighted = ReferenceEquals(_galleryHoveredButton, button) ||
+            button.FocusState != FocusState.Unfocused;
+        button.BorderThickness = new Thickness(highlighted ? 2 : 0);
+    }
+
+    private void GalleryPanel_PointerMoved(object sender, PointerRoutedEventArgs args)
+    {
+        if (_galleryMedia.Count <= 2 || _galleryDragging) return;
+        double pointerY = args.GetCurrentPoint(GalleryItemsHost).Position.Y;
+        for (int index = 0; index < GalleryItemsHost.Children.Count; index++)
+        {
+            if (GalleryItemsHost.Children[index] is not Grid item) continue;
+            double centerY = index * (GalleryThumbSize + GalleryThumbSpacing) +
+                GalleryThumbSize / 2;
+            double distance = (pointerY - centerY) / (GalleryThumbSize + GalleryThumbSpacing);
+            double scale = 1 + .32 * Math.Exp(-distance * distance / 1.6);
+            Canvas.SetZIndex(item, (int)Math.Round(scale * 100));
+            _galleryTargets[item] = scale;
+        }
+        AnimateGalleryTowardTargets();
+    }
+
+    private void SetGalleryReveal(bool reveal)
+    {
+        if (reveal && !_galleryAvailable) return;
+        double target = reveal ? 1 : 0;
+        if (_galleryRevealTarget == target) return;
+        _galleryRevealTarget = target;
+        if (reveal) GalleryPanel.Visibility = Visibility.Visible;
+        AnimateGalleryTowardTargets();
+    }
+
+    private void AnimateGalleryTowardTargets()
+    {
+        if (!_galleryMotionSettings.AnimationsEnabled)
+        {
+            StopGalleryAnimation();
+            foreach ((Grid item, double target) in _galleryTargets)
+            {
+                if (item.RenderTransform is not ScaleTransform scale) continue;
+                scale.ScaleX = target;
+                scale.ScaleY = target;
+            }
+            GalleryItemsHost.Opacity = 1;
+            GalleryPanel.Opacity = _galleryRevealTarget;
+            if (GalleryPanel.RenderTransform is TranslateTransform translation)
+                translation.X = GalleryHiddenOffset * (1 - _galleryRevealTarget);
+            if (_galleryRevealTarget == 0) GalleryPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+        if (_galleryAnimationRunning) return;
+        _galleryAnimationTimestamp = Stopwatch.GetTimestamp();
+        CompositionTarget.Rendering += GalleryAnimation_Rendering;
+        _galleryAnimationRunning = true;
+    }
+
+    private void GalleryAnimation_Rendering(object? sender, object args)
+    {
+        long now = Stopwatch.GetTimestamp();
+        double elapsed = Math.Clamp(
+            Stopwatch.GetElapsedTime(_galleryAnimationTimestamp, now).TotalMilliseconds, 0, 50);
+        _galleryAnimationTimestamp = now;
+        double step = 1 - Math.Exp(-elapsed / 42);
+        bool settled = true;
+        foreach ((Grid item, double target) in _galleryTargets)
+        {
+            if (item.RenderTransform is not ScaleTransform scale) continue;
+            double next = scale.ScaleX + (target - scale.ScaleX) * step;
+            if (Math.Abs(next - target) < .005) next = target;
+            else settled = false;
+            scale.ScaleX = next;
+            scale.ScaleY = next;
+        }
+
+        if (GalleryItemsHost.Opacity < .995)
+        {
+            GalleryItemsHost.Opacity += (1 - GalleryItemsHost.Opacity) * step;
+            settled = false;
+        }
+        else GalleryItemsHost.Opacity = 1;
+
+        double reveal = GalleryPanel.Opacity +
+            (_galleryRevealTarget - GalleryPanel.Opacity) * step;
+        if (Math.Abs(reveal - _galleryRevealTarget) < .005)
+            reveal = _galleryRevealTarget;
+        else settled = false;
+        GalleryPanel.Opacity = reveal;
+        if (GalleryPanel.RenderTransform is TranslateTransform translation)
+            translation.X = GalleryHiddenOffset * (1 - reveal);
+        if (!settled) return;
+        if (_galleryRevealTarget == 0) GalleryPanel.Visibility = Visibility.Collapsed;
+        StopGalleryAnimation();
+    }
+
+    private void StopGalleryAnimation()
+    {
+        if (!_galleryAnimationRunning) return;
+        CompositionTarget.Rendering -= GalleryAnimation_Rendering;
+        _galleryAnimationRunning = false;
+    }
+
+    private void GalleryPanel_Unloaded(object sender, RoutedEventArgs args) =>
+        StopGalleryAnimation();
 
     private void GalleryMedia_DragOver(object sender, DragEventArgs args)
     {
@@ -483,11 +716,11 @@ public sealed partial class VideoEditorPage
         VideoProjectEditor editor = _editor;
         VideoProject current = editor.Current;
         TimeSpan requested = at ?? _playhead;
-        TimeSpan start = requested >= current.Duration
-            ? current.Duration - Min(TimeSpan.FromSeconds(5), current.Duration)
-            : requested < TimeSpan.Zero ? TimeSpan.Zero : requested;
-        TimeSpan duration = Min(TimeSpan.FromSeconds(5), current.Duration - start);
-        if (duration <= TimeSpan.Zero) throw new InvalidOperationException("This video has no room for an image.");
+        TimeSpan start = requested < TimeSpan.Zero ? TimeSpan.Zero :
+            Min(requested, TimeSpan.FromDays(7));
+        TimeSpan duration = Min(TimeSpan.FromSeconds(5), TimeSpan.FromDays(7) - start);
+        if (duration <= TimeSpan.Zero)
+            throw new InvalidOperationException("The timeline cannot exceed seven days.");
 
         await using var source = new MemoryStream(png, writable: false);
         VideoAsset asset = await _store.ImportAssetAsync(current, VideoAssetKind.Image,
@@ -631,12 +864,9 @@ public sealed partial class VideoEditorPage
         {
             TimeSpan sourceDuration = await VideoCompositionService.ProbeAudioDurationAsync(file.Path);
             VideoProject current = _editor.Current;
-            TimeSpan start = _playhead >= current.Duration
-                ? current.Duration - Min(sourceDuration, current.Duration)
-                : _playhead;
-            TimeSpan visible = Min(sourceDuration, current.Duration - start);
-            if (visible <= TimeSpan.Zero)
-                throw new InvalidOperationException("The audio file has no time inside this video.");
+            TimeSpan start = Min(_playhead, current.Duration);
+            if (start + sourceDuration > TimeSpan.FromDays(7))
+                throw new InvalidOperationException("Audio would make the timeline longer than seven days.");
             await using FileStream source = new(file.Path, FileMode.Open, FileAccess.Read,
                 FileShare.Read, bufferSize: 65536, FileOptions.Asynchronous);
             VideoAsset asset = await _store.ImportAssetAsync(current,
@@ -645,7 +875,7 @@ public sealed partial class VideoEditorPage
             if (_closed) return;
             _editor.AddAsset(asset);
             var clip = new AudioSegment(Guid.NewGuid(), asset.Id, start,
-                TimeSpan.Zero, visible);
+                TimeSpan.Zero, sourceDuration);
             _editor.AddAudioSegment(clip);
             _selectedKind = TimelineKind.Audio;
             _selectedId = clip.Id;
