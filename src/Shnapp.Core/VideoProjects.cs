@@ -101,6 +101,32 @@ public sealed record TextOverlay(Guid Id, TimeSpan Start, TimeSpan Duration, str
     VideoRect Bounds, double FontSize = 48, string Color = "#FFFFFF",
     TextOverlayAlignment Alignment = TextOverlayAlignment.Center, int ZIndex = 0)
 {
+    private string? _fontFamily = "Segoe UI Variable Display";
+
+    /// <summary>Font used for the text bitmap shared by preview and export.</summary>
+    public string FontFamily
+    {
+        get => _fontFamily ?? "Segoe UI Variable Display";
+        init => _fontFamily = value;
+    }
+
+    public bool Bold { get; init; }
+
+    public bool Italic { get; init; }
+
+    /// <summary>Optional RGB or ARGB fill behind the text.</summary>
+    public string? BackgroundColor { get; init; }
+
+    /// <summary>Uniform inset between the box edge and its text, in video pixels.</summary>
+    public double Padding { get; init; }
+
+    /// <summary>Optional RGB or ARGB border around the text box.</summary>
+    public string? BorderColor { get; init; }
+
+    public double BorderThickness { get; init; }
+
+    public double CornerRadius { get; init; }
+
     /// <summary>Stable layer identity across splits and cuts; empty in older projects.</summary>
     public Guid LayerId { get; init; }
 
@@ -108,6 +134,27 @@ public sealed record TextOverlay(Guid Id, TimeSpan Start, TimeSpan Duration, str
     [JsonIgnore]
     public TimeSpan End => Start + Duration;
 }
+
+/// <summary>The timeline lane whose adjacent clips share a transition.</summary>
+public enum VideoTransitionLane { Video, Image, Text }
+
+/// <summary>Visual treatment applied across a cut between two adjacent clips.</summary>
+public enum VideoTransitionEffect
+{
+    Fade,
+    DipToBlack,
+    DipToWhite,
+    SlideLeft,
+    SlideRight,
+    SlideUp,
+    SlideDown,
+    ZoomIn,
+    ZoomOut,
+}
+
+/// <summary>One editable transition centered on a touching cut.</summary>
+public sealed record VideoTransition(Guid Id, VideoTransitionLane Lane, Guid OutgoingId,
+    Guid IncomingId, VideoTransitionEffect Effect, TimeSpan Duration);
 
 /// <summary>A versioned, nondestructive video edit that references immutable media assets.</summary>
 /// <param name="SchemaVersion">Version of the serialized project format.</param>
@@ -126,6 +173,7 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
     ImmutableArray<ImageOverlay> ImageOverlays)
 {
     private ImmutableArray<TextOverlay> _textOverlays = [];
+    private ImmutableArray<VideoTransition> _transitions = [];
 
     /// <summary>The current project schema.</summary>
     public const int CurrentSchemaVersion = 1;
@@ -140,6 +188,13 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
     {
         get => _textOverlays.IsDefault ? [] : _textOverlays;
         init => _textOverlays = value.IsDefault ? [] : value;
+    }
+
+    /// <summary>Transitions between touching items; omitted in older project files.</summary>
+    public ImmutableArray<VideoTransition> Transitions
+    {
+        get => _transitions.IsDefault ? [] : _transitions;
+        init => _transitions = value.IsDefault ? [] : value;
     }
 
     /// <summary>End of the last visible or audible timeline item.</summary>

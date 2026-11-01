@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -16,6 +17,7 @@ public sealed class VideoTextTransitionTests
         JsonObject json = JsonNode.Parse(JsonSerializer.Serialize(original,
             VideoProjectJsonContext.Default.VideoProject))!.AsObject();
         json.Remove("textOverlays");
+        json.Remove("transitions");
         foreach (JsonNode? node in json["videoSegments"]!.AsArray())
         {
             node!.AsObject().Remove("fadeIn");
@@ -35,6 +37,8 @@ public sealed class VideoTextTransitionTests
             var editor = new VideoProjectEditor(reopened);
             Assert.IsFalse(editor.Current.TextOverlays.IsDefault);
             Assert.AreEqual(0, editor.Current.TextOverlays.Length);
+            Assert.IsFalse(editor.Current.Transitions.IsDefault);
+            Assert.AreEqual(0, editor.Current.Transitions.Length);
             Assert.AreEqual(TimeSpan.Zero, editor.Current.VideoSegments[0].FadeIn);
             Assert.AreEqual(TimeSpan.Zero, editor.Current.VideoSegments[0].FadeOut);
             Assert.AreEqual(1, (await store.ListAsync()).Count);
@@ -109,17 +113,176 @@ public sealed class VideoTextTransitionTests
         Assert.IsTrue(editor.ApplyDipToBlackAtCut(outgoingId,
             TimeSpan.FromMilliseconds(350)));
         Assert.AreEqual(1, changes);
-        Assert.AreEqual(TimeSpan.FromMilliseconds(350),
-            editor.Current.VideoSegments.Single(item => item.Id == outgoingId).FadeOut);
-        Assert.AreEqual(TimeSpan.FromMilliseconds(350),
-            editor.Current.VideoSegments.Single(item => item.Id == incomingId).FadeIn);
+        VideoTransition transition = editor.Current.Transitions.Single();
+        Assert.AreEqual(VideoTransitionLane.Video, transition.Lane);
+        Assert.AreEqual(VideoTransitionEffect.DipToBlack, transition.Effect);
+        Assert.AreEqual(TimeSpan.FromMilliseconds(700), transition.Duration);
+        Assert.AreEqual(outgoingId, transition.OutgoingId);
+        Assert.AreEqual(incomingId, transition.IncomingId);
 
         Assert.IsTrue(editor.Undo());
-        Assert.IsTrue(editor.Current.VideoSegments.All(item =>
-            item.FadeIn == TimeSpan.Zero && item.FadeOut == TimeSpan.Zero));
+        Assert.AreEqual(0, editor.Current.Transitions.Length);
         Assert.IsTrue(editor.Redo());
-        Assert.AreEqual(TimeSpan.FromMilliseconds(350),
-            editor.Current.VideoSegments.Single(item => item.Id == incomingId).FadeIn);
+        Assert.AreEqual(transition, editor.Current.Transitions.Single());
+    }
+
+    [TestMethod]
+    public void TransitionAtVideoCutCanBeEditedAndPrunesWhenCutMoves()
+    {
+        var editor = new VideoProjectEditor(CreateRecording());
+        Guid outgoingId = editor.Current.VideoSegments[0].Id;
+        Guid incomingId = editor.SplitVideoSegment(outgoingId, 5 * Second);
+        Guid id = editor.AddTransition(VideoTransitionLane.Video, outgoingId,
+            incomingId, VideoTransitionEffect.Fade, Second);
+        VideoTransition transition = editor.Current.Transitions.Single();
+        Assert.AreEqual(id, transition.Id);
+        Assert.IsTrue(VideoTransitionGeometry.TryGetSpan(editor.Current, transition,
+            out VideoTransitionSpan span));
+        Assert.AreEqual(5 * Second, span.Cut);
+        Assert.AreEqual(TimeSpan.FromMilliseconds(4500), span.Start);
+        Assert.AreEqual(TimeSpan.FromMilliseconds(5500), span.End);
+
+        Assert.IsTrue(editor.UpdateTransition(transition with
+        {
+            Effect = VideoTransitionEffect.SlideLeft,
+        }));
+        Assert.AreEqual(VideoTransitionEffect.SlideLeft,
+            editor.Current.Transitions.Single().Effect);
+        Assert.IsTrue(editor.Undo());
+        Assert.AreEqual(VideoTransitionEffect.Fade,
+            editor.Current.Transitions.Single().Effect);
+        Assert.IsTrue(editor.Redo());
+
+        Assert.IsTrue(editor.SetVideoFades(outgoingId, TimeSpan.Zero,
+            TimeSpan.FromMilliseconds(300)));
+        Assert.AreEqual(0, editor.Current.Transitions.Length);
+
+        editor.AddTransition(VideoTransitionLane.Video, outgoingId,
+            incomingId, VideoTransitionEffect.Fade, Second);
+        Assert.AreEqual(TimeSpan.Zero,
+            editor.Current.VideoSegments.Single(item => item.Id == outgoingId).FadeOut);
+        VideoSegment incoming = editor.Current.VideoSegments.Single(item => item.Id == incomingId);
+        Assert.IsTrue(editor.UpdateVideoSegment(incoming with { Start = 6 * Second }));
+        Assert.AreEqual(0, editor.Current.Transitions.Length);
+    }
+
+    [TestMethod]
+    public void SplitTextAcceptsTransitionOnItsLogicalLayer()
+    {
+        var editor = new VideoProjectEditor(CreateRecording());
+        var text = new TextOverlay(Guid.NewGuid(), Second, 6 * Second,
+            "Caption", new VideoRect(100, 100, 500, 120))
+        {
+            FontFamily = "Arial",
+            Bold = true,
+            Italic = true,
+            BackgroundColor = "#AA203040",
+            Padding = 12,
+            BorderColor = "#FFFFFF",
+            BorderThickness = 2,
+            CornerRadius = 8,
+        };
+        editor.AddTextOverlay(text);
+        Guid incomingId = editor.SplitTextOverlay(text.Id, 4 * Second);
+        Guid id = editor.AddTransition(VideoTransitionLane.Text, text.Id,
+            incomingId, VideoTransitionEffect.ZoomIn, Second);
+        Assert.AreEqual(id, editor.Current.Transitions.Single().Id);
+        Assert.IsTrue(editor.Current.TextOverlays.All(item => item.FontFamily == "Arial" &&
+            item.Bold && item.Italic && item.Padding == 12));
+        Assert.ThrowsExactly<ArgumentException>(() => editor.AddTransition(
+            VideoTransitionLane.Image, text.Id, incomingId,
+            VideoTransitionEffect.Fade, Second));
+    }
+
+    [TestMethod]
+    public void AdjacentImagePiecesAcceptOneTransition()
+    {
+        VideoProject recording = CreateRecording();
+        Guid assetId = Guid.NewGuid();
+        Guid layerId = Guid.NewGuid();
+        var first = new ImageOverlay(Guid.NewGuid(), assetId, Second,
+            2 * Second, new VideoRect(120, 100, 400, 300)) { LayerId = layerId };
+        var second = new ImageOverlay(Guid.NewGuid(), assetId, 3 * Second,
+            2 * Second, new VideoRect(200, 100, 400, 300)) { LayerId = layerId };
+        var project = recording with
+        {
+            Assets = recording.Assets.Add(new VideoAsset(assetId,
+                VideoAssetKind.Image, "assets/photo.png", TimeSpan.Zero)),
+            ImageOverlays = ImmutableArray.Create(first, second),
+        };
+        var editor = new VideoProjectEditor(project);
+        Guid id = editor.AddTransition(VideoTransitionLane.Image, first.Id,
+            second.Id, VideoTransitionEffect.SlideDown, Second);
+        Assert.AreEqual(id, editor.Current.Transitions.Single().Id);
+        Assert.IsTrue(editor.DeleteTransition(id));
+        Assert.AreEqual(0, editor.Current.Transitions.Length);
+    }
+
+    [TestMethod]
+    public void OlderTextJsonUsesSafeStyleDefaults()
+    {
+        VideoProject recording = CreateRecording();
+        var text = new TextOverlay(Guid.NewGuid(), Second, Second,
+            "Legacy caption", new VideoRect(10, 10, 500, 100));
+        JsonObject json = JsonNode.Parse(JsonSerializer.Serialize(recording with
+        {
+            TextOverlays = ImmutableArray.Create(text),
+        }, VideoProjectJsonContext.Default.VideoProject))!.AsObject();
+        JsonObject oldText = json["textOverlays"]!.AsArray()[0]!.AsObject();
+        foreach (string property in new[] { "fontFamily", "bold", "italic",
+            "backgroundColor", "padding", "borderColor", "borderThickness",
+            "cornerRadius" })
+            oldText.Remove(property);
+        VideoProject restored = JsonSerializer.Deserialize(json.ToJsonString(),
+            VideoProjectJsonContext.Default.VideoProject)!;
+        TextOverlay caption = restored.TextOverlays.Single();
+        Assert.AreEqual("Segoe UI Variable Display", caption.FontFamily);
+        Assert.IsFalse(caption.Bold);
+        Assert.IsNull(caption.BackgroundColor);
+        Assert.AreEqual(0d, caption.Padding);
+        VideoProjectValidation.Validate(restored);
+    }
+
+    [TestMethod]
+    public void TransitionSamplerKeepsEndpointsAndDirectionStable()
+    {
+        foreach (VideoTransitionLane lane in Enum.GetValues<VideoTransitionLane>())
+            foreach (VideoTransitionEffect effect in Enum.GetValues<VideoTransitionEffect>())
+                Assert.IsTrue(VideoTransitionGeometry.CanRender(effect, lane));
+        Assert.IsFalse(VideoTransitionGeometry.CanRender((VideoTransitionEffect)999,
+            VideoTransitionLane.Video));
+        VideoTransitionSample fadeStart = VideoTransitionGeometry.Sample(
+            VideoTransitionEffect.Fade, 0);
+        VideoTransitionSample fadeEnd = VideoTransitionGeometry.Sample(
+            VideoTransitionEffect.Fade, 1);
+        Assert.AreEqual(1d, fadeStart.OutgoingOpacity);
+        Assert.AreEqual(0d, fadeStart.IncomingOpacity);
+        Assert.AreEqual(0d, fadeEnd.OutgoingOpacity);
+        Assert.AreEqual(1d, fadeEnd.IncomingOpacity);
+        VideoTransitionSample slideMiddle = VideoTransitionGeometry.Sample(
+            VideoTransitionEffect.SlideLeft, .5);
+        Assert.AreEqual(-.5d, slideMiddle.OutgoingOffsetX);
+        Assert.AreEqual(.5d, slideMiddle.IncomingOffsetX);
+        VideoTransitionSample dipMiddle = VideoTransitionGeometry.Sample(
+            VideoTransitionEffect.DipToBlack, .5);
+        Assert.AreEqual(0d, dipMiddle.OutgoingOpacity);
+        Assert.AreEqual(0d, dipMiddle.IncomingOpacity);
+        Assert.AreEqual("#000000", dipMiddle.BackdropColor);
+    }
+
+    [TestMethod]
+    public void TransitionsCannotOverlapInsideShortMiddleClip()
+    {
+        var editor = new VideoProjectEditor(CreateRecording());
+        Guid firstId = editor.Current.VideoSegments[0].Id;
+        Guid middleId = editor.SplitVideoSegment(firstId, 4 * Second);
+        Guid lastId = editor.SplitVideoSegment(middleId, 5 * Second);
+        editor.AddTransition(VideoTransitionLane.Video, firstId, middleId,
+            VideoTransitionEffect.Fade, 2 * Second);
+        Assert.ThrowsExactly<ArgumentException>(() => editor.AddTransition(
+            VideoTransitionLane.Video, middleId, lastId,
+            VideoTransitionEffect.Fade, 2 * Second));
+        Assert.AreEqual(1, editor.Current.Transitions.Length);
     }
 
     [TestMethod]
@@ -135,6 +298,18 @@ public sealed class VideoTextTransitionTests
         Assert.ThrowsExactly<ArgumentException>(() => editor.AddTextOverlay(text with
         {
             Text = "\u0001",
+        }));
+        Assert.ThrowsExactly<ArgumentException>(() => editor.AddTextOverlay(text with
+        {
+            FontFamily = "Bad\u0001Font",
+        }));
+        Assert.ThrowsExactly<ArgumentException>(() => editor.AddTextOverlay(text with
+        {
+            BackgroundColor = "transparent",
+        }));
+        Assert.ThrowsExactly<ArgumentException>(() => editor.AddTextOverlay(text with
+        {
+            Padding = double.NaN,
         }));
         Assert.ThrowsExactly<ArgumentException>(() => editor.SetVideoFades(
             editor.Current.VideoSegments[0].Id, 6 * Second, TimeSpan.Zero));

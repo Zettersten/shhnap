@@ -33,6 +33,8 @@ internal static class VideoProjectValidation
             "Image overlays must be initialized and bounded.");
         Require(!project.TextOverlays.IsDefault && project.TextOverlays.Length <= MaximumTimelineItems,
             "Text overlays must be initialized and bounded.");
+        Require(!project.Transitions.IsDefault && project.Transitions.Length <= MaximumTimelineItems,
+            "Transitions must be initialized and bounded.");
 
         var assets = new Dictionary<Guid, VideoAsset>();
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -93,6 +95,7 @@ internal static class VideoProjectValidation
             "A video project must have one original MP4 and at most one of each recorded audio stem.");
 
         var itemIds = new HashSet<Guid>();
+        var itemDurations = new Dictionary<Guid, TimeSpan>();
         Require(project.VideoSegments.All(static segment => segment is not null),
             "Primary video segments cannot be null.");
         VideoSegment[] video = project.VideoSegments.OrderBy(static segment => segment.Start).ToArray();
@@ -113,6 +116,7 @@ internal static class VideoProjectValidation
                 segment.FadeIn + segment.FadeOut <= segment.Duration,
                 "Clip-edge fades must be nonnegative, at most five seconds, and fit the clip.");
             previousEnd = segment.End;
+            itemDurations.Add(segment.Id, segment.Duration);
         }
         Require(previousEnd > TimeSpan.Zero,
             "A video project must retain a primary video segment.");
@@ -139,6 +143,7 @@ internal static class VideoProjectValidation
             ValidateTimelineInterval(overlay.Start, overlay.Duration);
             Require(overlay.ZIndex is >= 0 and <= 1_000_000, "Image z-order is out of range.");
             ValidateBounds(overlay.Bounds, "Image");
+            itemDurations.Add(overlay.Id, overlay.Duration);
         }
 
         foreach (TextOverlay overlay in project.TextOverlays)
@@ -156,10 +161,49 @@ internal static class VideoProjectValidation
                 "Text size must be between 1 and 1,024 pixels.");
             Require(IsOpaqueHexColor(overlay.Color),
                 "Text color must be a six-digit RGB hex value.");
+            Require(overlay.FontFamily is { Length: > 0 and <= 128 } &&
+                overlay.FontFamily == overlay.FontFamily.Trim() &&
+                !overlay.FontFamily.Any(char.IsControl),
+                "Text font family must be a short readable name.");
+            Require(overlay.BackgroundColor is null || IsHexColor(overlay.BackgroundColor),
+                "Text background must be an RGB or ARGB hex value.");
+            Require(overlay.BorderColor is null || IsHexColor(overlay.BorderColor),
+                "Text border must be an RGB or ARGB hex value.");
+            Require(double.IsFinite(overlay.Padding) && overlay.Padding is >= 0 and <= 256 &&
+                double.IsFinite(overlay.BorderThickness) &&
+                overlay.BorderThickness is >= 0 and <= 64 &&
+                double.IsFinite(overlay.CornerRadius) &&
+                overlay.CornerRadius is >= 0 and <= 512,
+                "Text padding, border, and corner radius must be finite and bounded.");
             Require(Enum.IsDefined(overlay.Alignment), "Text alignment is invalid.");
             Require(overlay.ZIndex is >= 0 and <= 1_000_000,
                 "Text z-order is out of range.");
+            itemDurations.Add(overlay.Id, overlay.Duration);
         }
+
+        var outgoingEdges = new HashSet<(VideoTransitionLane Lane, Guid Id)>();
+        var incomingEdges = new HashSet<(VideoTransitionLane Lane, Guid Id)>();
+        var occupied = new Dictionary<Guid, TimeSpan>();
+        foreach (VideoTransition transition in project.Transitions)
+        {
+            Require(transition is not null && transition.Id != Guid.Empty &&
+                itemIds.Add(transition.Id),
+                "Transition identifiers must be unique and nonempty.");
+            Require(Enum.IsDefined(transition.Lane) && Enum.IsDefined(transition.Effect),
+                "Transition lane or effect is invalid.");
+            Require(VideoTransitionGeometry.TryGetSpan(project, transition, out VideoTransitionSpan span),
+                "A transition must fit two touching clips on one lane.");
+            Require(outgoingEdges.Add((transition.Lane, transition.OutgoingId)) &&
+                incomingEdges.Add((transition.Lane, transition.IncomingId)),
+                "A clip edge can have only one transition.");
+            occupied[transition.OutgoingId] =
+                occupied.GetValueOrDefault(transition.OutgoingId) + (span.Cut - span.Start);
+            occupied[transition.IncomingId] =
+                occupied.GetValueOrDefault(transition.IncomingId) + (span.End - span.Cut);
+        }
+        foreach ((Guid id, TimeSpan used) in occupied)
+            Require(used <= itemDurations[id],
+                "Transitions at both ends of a clip cannot overlap.");
         Require(project.Duration <= MaximumDuration,
             "The edited timeline duration must be bounded.");
     }
@@ -176,6 +220,15 @@ internal static class VideoProjectValidation
     private static bool IsOpaqueHexColor(string? color)
     {
         if (color is not { Length: 7 } || color[0] != '#') return false;
+        for (int index = 1; index < color.Length; index++)
+            if (!Uri.IsHexDigit(color[index])) return false;
+        return true;
+    }
+
+    private static bool IsHexColor(string? color)
+    {
+        if (color is null || color.Length is not (7 or 9) || color[0] != '#')
+            return false;
         for (int index = 1; index < color.Length; index++)
             if (!Uri.IsHexDigit(color[index])) return false;
         return true;

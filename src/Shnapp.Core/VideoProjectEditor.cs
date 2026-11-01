@@ -288,16 +288,64 @@ public sealed class VideoProjectEditor(VideoProject project)
         int incomingIndex = Find(Current.VideoSegments, outgoing.End);
         if (incomingIndex < 0 || incomingIndex == outgoingIndex) return false;
         VideoSegment incoming = Current.VideoSegments[incomingIndex];
-        TimeSpan fadeOut = Min(durationPerSide, outgoing.Duration - outgoing.FadeIn);
-        TimeSpan fadeIn = Min(durationPerSide, incoming.Duration - incoming.FadeOut);
-        if (fadeOut <= TimeSpan.Zero || fadeIn <= TimeSpan.Zero) return false;
-        if (outgoing.FadeOut == fadeOut && incoming.FadeIn == fadeIn) return false;
-        Commit(Current with
+        TimeSpan half = Min(durationPerSide,
+            Min(outgoing.Duration - outgoing.FadeIn,
+                incoming.Duration - incoming.FadeOut));
+        if (half <= TimeSpan.Zero || Current.Transitions.Any(item =>
+                item.Lane == VideoTransitionLane.Video &&
+                item.OutgoingId == outgoing.Id && item.IncomingId == incoming.Id)) return false;
+        AddTransition(VideoTransitionLane.Video, outgoing.Id, incoming.Id,
+            VideoTransitionEffect.DipToBlack, half * 2);
+        return true;
+    }
+
+    /// <summary>Adds one transition centered on a touching cut as an undoable edit.</summary>
+    public Guid AddTransition(VideoTransitionLane lane, Guid outgoingId, Guid incomingId,
+        VideoTransitionEffect effect, TimeSpan duration)
+    {
+        var transition = new VideoTransition(Guid.NewGuid(), lane, outgoingId,
+            incomingId, effect, duration);
+        VideoProject next = Current with { Transitions = Current.Transitions.Add(transition) };
+        if (lane == VideoTransitionLane.Video)
         {
-            VideoSegments = Current.VideoSegments
-                .SetItem(outgoingIndex, outgoing with { FadeOut = fadeOut })
-                .SetItem(incomingIndex, incoming with { FadeIn = fadeIn }),
-        });
+            int outgoingIndex = Find(next.VideoSegments, outgoingId);
+            int incomingIndex = Find(next.VideoSegments, incomingId);
+            if (outgoingIndex >= 0 && incomingIndex >= 0)
+                next = next with
+                {
+                    VideoSegments = next.VideoSegments
+                        .SetItem(outgoingIndex,
+                            next.VideoSegments[outgoingIndex] with { FadeOut = TimeSpan.Zero })
+                        .SetItem(incomingIndex,
+                            next.VideoSegments[incomingIndex] with { FadeIn = TimeSpan.Zero }),
+                };
+        }
+        VideoProjectValidation.Validate(next);
+        Commit(next);
+        return transition.Id;
+    }
+
+    /// <summary>Changes a transition preset or duration without changing its identity.</summary>
+    public bool UpdateTransition(VideoTransition transition)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        int index = Find(Current.Transitions, transition.Id);
+        if (index < 0 || Current.Transitions[index] == transition) return false;
+        VideoProject next = Current with
+        {
+            Transitions = Current.Transitions.SetItem(index, transition),
+        };
+        VideoProjectValidation.Validate(next);
+        Commit(next);
+        return true;
+    }
+
+    /// <summary>Removes a transition at a cut without moving either clip.</summary>
+    public bool DeleteTransition(Guid id)
+    {
+        int index = Find(Current.Transitions, id);
+        if (index < 0) return false;
+        Commit(Current with { Transitions = Current.Transitions.RemoveAt(index) });
         return true;
     }
 
@@ -808,12 +856,14 @@ public sealed class VideoProjectEditor(VideoProject project)
 
     private void Commit(VideoProject next)
     {
+        next = PruneTransitions(next);
         VideoProjectValidation.Validate(next);
         if (next.Title == Current.Title && next.Assets.SequenceEqual(Current.Assets) &&
             next.VideoSegments.SequenceEqual(Current.VideoSegments) &&
             next.AudioSegments.SequenceEqual(Current.AudioSegments) &&
             next.ImageOverlays.SequenceEqual(Current.ImageOverlays) &&
-            next.TextOverlays.SequenceEqual(Current.TextOverlays))
+            next.TextOverlays.SequenceEqual(Current.TextOverlays) &&
+            next.Transitions.SequenceEqual(Current.Transitions))
         {
             return;
         }
@@ -853,6 +903,53 @@ public sealed class VideoProjectEditor(VideoProject project)
         for (int i = 0; i < items.Length; i++) { if (items[i].Id == id) return i; }
         return -1;
     }
+
+    private static int Find(ImmutableArray<VideoTransition> items, Guid id)
+    {
+        for (int i = 0; i < items.Length; i++) { if (items[i].Id == id) return i; }
+        return -1;
+    }
+
+    private static VideoProject PruneTransitions(VideoProject next)
+    {
+        if (next.Transitions.IsDefaultOrEmpty) return next;
+        var kept = ImmutableArray.CreateBuilder<VideoTransition>();
+        var outgoing = new HashSet<(VideoTransitionLane Lane, Guid Id)>();
+        var incoming = new HashSet<(VideoTransitionLane Lane, Guid Id)>();
+        var occupied = new Dictionary<Guid, TimeSpan>();
+        foreach (VideoTransition item in next.Transitions)
+        {
+            if (item is null ||
+                !VideoTransitionGeometry.TryGetSpan(next, item, out VideoTransitionSpan span) ||
+                outgoing.Contains((item.Lane, item.OutgoingId)) ||
+                incoming.Contains((item.Lane, item.IncomingId))) continue;
+            TimeSpan outgoingHalf = span.Cut - span.Start;
+            TimeSpan incomingHalf = span.End - span.Cut;
+            TimeSpan outgoingDuration = ItemDuration(next, item.Lane, item.OutgoingId);
+            TimeSpan incomingDuration = ItemDuration(next, item.Lane, item.IncomingId);
+            if (occupied.GetValueOrDefault(item.OutgoingId) + outgoingHalf > outgoingDuration ||
+                occupied.GetValueOrDefault(item.IncomingId) + incomingHalf > incomingDuration)
+                continue;
+            occupied[item.OutgoingId] = occupied.GetValueOrDefault(item.OutgoingId) + outgoingHalf;
+            occupied[item.IncomingId] = occupied.GetValueOrDefault(item.IncomingId) + incomingHalf;
+            outgoing.Add((item.Lane, item.OutgoingId));
+            incoming.Add((item.Lane, item.IncomingId));
+            kept.Add(item);
+        }
+        return kept.Count == next.Transitions.Length ? next : next with
+        {
+            Transitions = kept.ToImmutable(),
+        };
+    }
+
+    private static TimeSpan ItemDuration(VideoProject project, VideoTransitionLane lane, Guid id) =>
+        lane switch
+        {
+            VideoTransitionLane.Video => project.VideoSegments.First(item => item.Id == id).Duration,
+            VideoTransitionLane.Image => project.ImageOverlays.First(item => item.Id == id).Duration,
+            VideoTransitionLane.Text => project.TextOverlays.First(item => item.Id == id).Duration,
+            _ => TimeSpan.Zero,
+        };
 
     private static int Find(ImmutableArray<VideoSegment> items, TimeSpan start)
     {
