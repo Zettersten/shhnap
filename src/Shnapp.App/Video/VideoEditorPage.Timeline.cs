@@ -463,6 +463,7 @@ public sealed partial class VideoEditorPage
         surface.DragOver += Timeline_DragOver;
         surface.Drop += Timeline_Drop;
         surface.Click += Clip_Click;
+        AddTimelineClipContextMenu(surface, kind, id);
         AutomationProperties.SetName(surface,
             $"{title}, {FormatPreciseTime(start)} to {FormatPreciseTime(start + duration)}" +
             $"{(video is null ? string.Empty : $", fade in {video.FadeIn.TotalSeconds:0.##} seconds, fade out {video.FadeOut.TotalSeconds:0.##} seconds")}. " +
@@ -510,6 +511,7 @@ public sealed partial class VideoEditorPage
     {
         if (sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag } button ||
             _editor is null) return;
+        if (args.GetCurrentPoint(button).Properties.IsRightButtonPressed) return;
         SelectClip(tag.Item1, tag.Item2);
         if (_selectedId == tag.Item2 && _selectedKind == tag.Item1 &&
             _clipButtons.TryGetValue(tag.Item2, out Button? current) &&
@@ -991,8 +993,10 @@ public sealed partial class VideoEditorPage
             ? project.ImageOverlays.FirstOrDefault(item => item.Id == _selectedId) : null;
         TextOverlay? text = _selectedKind == TimelineKind.Text
             ? project.TextOverlays.FirstOrDefault(item => item.Id == _selectedId) : null;
+        VideoTransition? transition = _selectedKind == TimelineKind.Transition
+            ? project.Transitions.FirstOrDefault(item => item.Id == _selectedId) : null;
 
-        if (video is null && audio is null && image is null && text is null)
+        if (video is null && audio is null && image is null && text is null && transition is null)
         {
             _selectedKind = TimelineKind.None;
             _selectedId = Guid.Empty;
@@ -1001,6 +1005,7 @@ public sealed partial class VideoEditorPage
             SetEnabled(ApplyPropertiesButton, false);
             PendingChangesText.Visibility = Visibility.Collapsed;
             SelectionHint.Text = "Select a clip to edit";
+            RefreshCanvasTextEditor();
             UpdateEditActionState();
             return;
         }
@@ -1013,6 +1018,34 @@ public sealed partial class VideoEditorPage
         AudioFields.Visibility = audio is null ? Visibility.Collapsed : Visibility.Visible;
         OverlayFields.Visibility = image is null ? Visibility.Collapsed : Visibility.Visible;
         TextFields.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
+        TransitionFields.Visibility = transition is null ? Visibility.Collapsed : Visibility.Visible;
+        ClipStartSeconds.Visibility = transition is null ? Visibility.Visible : Visibility.Collapsed;
+        ApplyPropertiesButton.Visibility = text is not null || transition is not null
+            ? Visibility.Collapsed : Visibility.Visible;
+        if (transition is not null)
+        {
+            if (!VideoTransitionGeometry.TryGetSpan(project, transition, out VideoTransitionSpan span))
+                return;
+            _selectedRange = (span.Start, span.End);
+            SelectedItemTitle.Text = TransitionName(transition.Effect);
+            SelectedItemDetail.Text = $"{FormatPreciseTime(span.Start)} — {FormatPreciseTime(span.End)}";
+            SelectionHint.Text = $"{TransitionName(transition.Effect)} · {FormatPreciseTime(transition.Duration)}";
+            _loadingInspector = true;
+            for (int index = 0; index < TransitionEffectBox.Items.Count; index++)
+                if (TransitionEffectBox.Items[index] is ComboBoxItem { Tag: VideoTransitionEffect effect } &&
+                    effect == transition.Effect)
+                {
+                    TransitionEffectBox.SelectedIndex = index;
+                    break;
+                }
+            TransitionDurationSeconds.Value = transition.Duration.TotalSeconds;
+            _loadingInspector = false;
+            SetEnabled(ApplyPropertiesButton, false);
+            PendingChangesText.Visibility = Visibility.Collapsed;
+            RefreshCanvasTextEditor();
+            UpdateEditActionState();
+            return;
+        }
         Guid? selectedAssetId = video?.AssetId ?? audio?.AssetId ?? image?.AssetId;
         VideoAsset? selectedAsset = selectedAssetId is { } assetId
             ? project.Assets.FirstOrDefault(asset => asset.Id == assetId) : null;
@@ -1065,7 +1098,22 @@ public sealed partial class VideoEditorPage
             if (TextContentBox.Text != text.Text) TextContentBox.Text = text.Text;
             TextDurationSeconds.Value = text.Duration.TotalSeconds;
             TextFontSize.Value = text.FontSize;
+            TextFontFamilyBox.Text = text.FontFamily;
+            TextBoldButton.IsChecked = text.Bold;
+            TextItalicButton.IsChecked = text.Italic;
             TextAlignmentBox.SelectedIndex = (int)text.Alignment;
+            TextBackgroundEnabled.IsChecked = text.BackgroundColor is not null;
+            TextBackgroundColorButton.IsEnabled = text.BackgroundColor is not null;
+            TextBackgroundColorPicker.Color = ParseCanvasColor(text.BackgroundColor ?? "#CC000000");
+            TextBackgroundSwatch.Background = new SolidColorBrush(TextBackgroundColorPicker.Color);
+            TextPaddingBox.Value = text.Padding;
+            TextBorderEnabled.IsChecked = text.BorderColor is not null;
+            TextBorderColorButton.IsEnabled = text.BorderColor is not null;
+            TextBorderColorPicker.Color = ParseCanvasColor(text.BorderColor ?? "#FFFFFFFF");
+            TextBorderSwatch.Background = new SolidColorBrush(TextBorderColorPicker.Color);
+            TextBorderWidthBox.IsEnabled = text.BorderColor is not null;
+            TextBorderWidthBox.Value = text.BorderThickness;
+            TextCornerRadiusBox.Value = text.CornerRadius;
             TextX.Value = text.Bounds.X;
             TextY.Value = text.Bounds.Y;
             TextWidth.Value = text.Bounds.Width;
@@ -1078,11 +1126,18 @@ public sealed partial class VideoEditorPage
         SetEnabled(ApplyPropertiesButton, false);
         PendingChangesText.Visibility = Visibility.Collapsed;
         ToolTipService.SetToolTip(ApplyPropertiesButton, "No clip changes to apply");
+        _textInspectorDirty = false;
+        RefreshCanvasTextEditor();
         UpdateEditActionState();
     }
 
     private void InspectorNumber_ValueChanged(NumberBox sender,
-        NumberBoxValueChangedEventArgs args) => MarkInspectorDirty();
+        NumberBoxValueChangedEventArgs args)
+    {
+        if (_selectedKind == TimelineKind.Text && !_loadingInspector)
+            PreviewCanvasTextStyleFromInspector();
+        MarkInspectorDirty();
+    }
 
     private void InspectorSlider_ValueChanged(object sender,
         Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs args) =>
@@ -1095,6 +1150,12 @@ public sealed partial class VideoEditorPage
     {
         if (_loadingInspector || _editor is null || _selectedKind == TimelineKind.None ||
             ApplyPropertiesButton is null) return;
+        if (_selectedKind == TimelineKind.Text)
+        {
+            _textInspectorDirty = true;
+            ScheduleTextAutoApply();
+            return;
+        }
         SetEnabled(ApplyPropertiesButton, true);
         PendingChangesText.Visibility = Visibility.Visible;
         ToolTipService.SetToolTip(ApplyPropertiesButton, "Apply pending clip changes");
@@ -1104,7 +1165,8 @@ public sealed partial class VideoEditorPage
     {
         if (_editor is null) return;
         bool selected = _selectedKind != TimelineKind.None;
-        bool inside = _selectedRange is { } clip && _playhead > clip.Start && _playhead < clip.End;
+        bool inside = _selectedKind != TimelineKind.Transition &&
+            _selectedRange is { } clip && _playhead > clip.Start && _playhead < clip.End;
         bool videoAtPlayhead = _selectedKind == TimelineKind.None &&
             _editor.Current.VideoSegments.Any(item =>
                 _playhead > item.Start && _playhead < item.End);
@@ -1127,8 +1189,8 @@ public sealed partial class VideoEditorPage
             TimeSpan end = _markIn.Value > _markOut.Value ? _markIn.Value : _markOut.Value;
             canCut = start > TimeSpan.Zero || end < _editor.Current.Duration;
         }
-        SetEnabled(CutRangeButton, canCut);
-        SetEnabled(AddTransitionButton, FindDipCut() is not null);
+        SetEnabled(CutRangeButton, canCut && _selectedKind != TimelineKind.Transition);
+        SetEnabled(AddTransitionButton, FindTransitionCut() is not null);
     }
 
     private static void SetEnabled(Button button, bool enabled)
@@ -1142,7 +1204,8 @@ public sealed partial class VideoEditorPage
     private bool ApplyPendingInspectorChanges()
     {
         if (_editor is null || ApplyPropertiesButton is null ||
-            !ApplyPropertiesButton.IsEnabled) return true;
+            !ApplyPropertiesButton.IsEnabled &&
+            !(_selectedKind == TimelineKind.Text && _textInspectorDirty)) return true;
         if (TryEdit(() =>
         {
             TimeSpan start = Seconds(ClipStartSeconds.Value);
@@ -1194,10 +1257,26 @@ public sealed partial class VideoEditorPage
                     FontSize = TextFontSize.Value,
                     Color = FormatTextColor(TextColorPicker.Color),
                     Alignment = (TextOverlayAlignment)Math.Max(0, TextAlignmentBox.SelectedIndex),
+                    FontFamily = TextFontFamilyBox.Text.Trim(),
+                    Bold = TextBoldButton.IsChecked == true,
+                    Italic = TextItalicButton.IsChecked == true,
+                    BackgroundColor = TextBackgroundEnabled.IsChecked == true
+                        ? FormatCanvasColor(TextBackgroundColorPicker.Color) : null,
+                    Padding = TextPaddingBox.Value,
+                    BorderColor = TextBorderEnabled.IsChecked == true
+                        ? FormatCanvasColor(TextBorderColorPicker.Color) : null,
+                    BorderThickness = TextBorderEnabled.IsChecked == true
+                        ? TextBorderWidthBox.Value : 0,
+                    CornerRadius = TextCornerRadiusBox.Value,
                 });
             }
         }))
         {
+            if (_selectedKind == TimelineKind.Text)
+            {
+                _textInspectorDirty = false;
+                CancelTextAutoApply();
+            }
             SetEnabled(ApplyPropertiesButton, false);
             PendingChangesText.Visibility = Visibility.Collapsed;
             ToolTipService.SetToolTip(ApplyPropertiesButton, "No clip changes to apply");
@@ -1232,6 +1311,8 @@ public sealed partial class VideoEditorPage
                 _editor.DeleteImageOverlay(_selectedId);
             else if (_selectedKind == TimelineKind.Text)
                 _editor.DeleteTextOverlay(_selectedId);
+            else if (_selectedKind == TimelineKind.Transition)
+                _editor.DeleteTransition(_selectedId);
         });
     }
 
@@ -1377,11 +1458,13 @@ public sealed partial class VideoEditorPage
 
     private void CloseInspector_Click(object sender, RoutedEventArgs args)
     {
-        if (!ApplyPendingInspectorChanges()) return;
+        if (!FlushCanvasTextEdit() || !ApplyPendingInspectorChanges()) return;
         _selectedKind = TimelineKind.None;
         _selectedId = Guid.Empty;
         _selectedRange = null;
         InspectorPanel.Visibility = Visibility.Collapsed;
+        TextCanvas.Visibility = Visibility.Collapsed;
+        SetSelectedTextRasterVisibility();
         SetEnabled(ApplyPropertiesButton, false);
         PendingChangesText.Visibility = Visibility.Collapsed;
         UpdateMarkedRangeHint();
@@ -1393,12 +1476,14 @@ public sealed partial class VideoEditorPage
     {
         if (_selectedKind == TimelineKind.None && !_markIn.HasValue && !_markOut.HasValue)
             return false;
-        if (!ApplyPendingInspectorChanges()) return true;
+        if (!FlushCanvasTextEdit() || !ApplyPendingInspectorChanges()) return true;
         _selectedKind = TimelineKind.None;
         _selectedId = Guid.Empty;
         _selectedRange = null;
         _markIn = _markOut = null;
         InspectorPanel.Visibility = Visibility.Collapsed;
+        TextCanvas.Visibility = Visibility.Collapsed;
+        SetSelectedTextRasterVisibility();
         SetEnabled(ApplyPropertiesButton, false);
         PendingChangesText.Visibility = Visibility.Collapsed;
         SelectionHint.Text = "Select a clip to edit";

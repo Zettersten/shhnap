@@ -63,6 +63,8 @@ public sealed partial class VideoEditorPage : Page
     {
         InitializeComponent();
         ConfigureInspectorNumberFormatting();
+        InitializeCanvasText();
+        InitializeTransitionControls();
         InitializePreviewImages();
         InitializePreviewText();
         UpdateSnapButton();
@@ -108,6 +110,11 @@ public sealed partial class VideoEditorPage : Page
         _galleryItems = galleryItems;
         _videoGalleryItems = videoGalleryItems;
         _closed = false;
+        _canvasTextId = Guid.Empty;
+        _canvasTextDirty = false;
+        _textInspectorDirty = false;
+        _canvasTextDraftBounds = null;
+        TextCanvas.Visibility = Visibility.Collapsed;
         _previousProject = project;
         _previewQueued = false;
         _playhead = TimeSpan.Zero;
@@ -139,7 +146,8 @@ public sealed partial class VideoEditorPage : Page
         VideoProjectEditor? editor = _editor;
         VideoProjectStore? store = _store;
         if (editor is null || store is null) return;
-        if (applyPendingInspectorChanges && !ApplyPendingInspectorChanges())
+        if (applyPendingInspectorChanges &&
+            (!FlushCanvasTextEdit() || !ApplyPendingInspectorChanges()))
             throw new InvalidOperationException(StatusText.Text);
 
         await _saveGate.WaitAsync();
@@ -157,7 +165,7 @@ public sealed partial class VideoEditorPage : Page
     public async Task ExportAsync()
     {
         if (_editor is null || _store is null || _isExporting) return;
-        if (!ApplyPendingInspectorChanges()) return;
+        if (!FlushCanvasTextEdit() || !ApplyPendingInspectorChanges()) return;
 
         var picker = new FileSavePicker
         {
@@ -208,6 +216,7 @@ public sealed partial class VideoEditorPage : Page
     {
         if (_closed) return;
         _closed = true;
+        ReleaseCanvasText();
         ++_previewRevision;
         ++_saveRevision;
         _previewQueued = false;
@@ -248,13 +257,15 @@ public sealed partial class VideoEditorPage : Page
             !project.VideoSegments.Equals(previous.VideoSegments);
         bool textChanged = previous is null ||
             !project.TextOverlays.Equals(previous.TextOverlays);
+        bool transitionsChanged = previous is null ||
+            !project.Transitions.Equals(previous.Transitions);
         bool mediaChanged = previous is null || dimensionsChanged ||
             !SameVideoMedia(project, previous) ||
             !project.AudioSegments.Equals(previous.AudioSegments) ||
             !project.ImageOverlays.Equals(previous.ImageOverlays);
         _previousProject = project;
         if (ProjectTitleText.Text != project.Title) ProjectTitleText.Text = project.Title;
-        if (mediaChanged || videoChanged || textChanged)
+        if (mediaChanged || videoChanged || textChanged || transitionsChanged)
         {
             if (dimensionsChanged)
                 UpdateVideoPlayerBounds(PreviewHost.ActualWidth, PreviewHost.ActualHeight);
@@ -264,9 +275,9 @@ public sealed partial class VideoEditorPage : Page
             if (DurationText.Text != duration) DurationText.Text = duration;
             _playhead = Min(_playhead, project.Duration);
             RefreshTimeline();
-            if (mediaChanged) RefreshPreviewImages();
-            if (textChanged) RefreshPreviewText();
-            if (videoChanged)
+            if (mediaChanged || transitionsChanged) RefreshPreviewImages();
+            if (textChanged || transitionsChanged) RefreshPreviewText();
+            if (videoChanged || transitionsChanged)
             {
                 UpdateFadeOpacity(_playhead);
                 SetPreviewImageTick(_player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing);
@@ -274,7 +285,7 @@ public sealed partial class VideoEditorPage : Page
             RefreshInspector();
             UpdateTransport();
             UpdateEditActionState();
-            if (mediaChanged)
+            if (mediaChanged || transitionsChanged)
             {
                 _previewQueued = true;
                 ++_previewRevision;
@@ -404,6 +415,7 @@ public sealed partial class VideoEditorPage : Page
         VideoPlayer.Height = project.Height * scale;
         UpdatePreviewImageBounds();
         UpdatePreviewTextBounds();
+        UpdateCanvasTextBounds();
     }
 
     private void PlaybackSession_PositionChanged(MediaPlaybackSession sender, object args)

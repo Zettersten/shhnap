@@ -20,6 +20,7 @@ public sealed partial class VideoEditorPage
         {
             OverlayX, OverlayY, OverlayWidth, OverlayHeight,
             TextX, TextY, TextWidth, TextHeight, TextFontSize,
+            TextPaddingBox, TextBorderWidthBox, TextCornerRadiusBox,
         })
             field.NumberFormatter = pixels;
 

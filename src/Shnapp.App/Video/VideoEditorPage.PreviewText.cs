@@ -23,7 +23,7 @@ public sealed partial class VideoEditorPage
     {
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
-        IsHitTestVisible = false,
+        IsHitTestVisible = true,
     };
     private readonly Dictionary<Guid, Image> _previewTextViews = [];
     private readonly Dictionary<Guid, TextOverlay> _visiblePreviewText = [];
@@ -51,12 +51,16 @@ public sealed partial class VideoEditorPage
         _previewTextSources.Clear();
         _previewTextCacheOrder.Clear();
         _previewTextLoads.Clear();
+        RebuildTextPreviewTransitions(_editor.Current);
         _previewTextBoundaries = _editor.Current.TextOverlays
-            .SelectMany(item => new[] { item.Start, item.End }).ToArray();
+            .SelectMany(item => new[] { item.Start, item.End })
+            .Concat(_textPreviewTransitions.SelectMany(item =>
+                new[] { item.Span.Start, item.Span.End })).ToArray();
         Array.Sort(_previewTextBoundaries);
         _previewTextIntervalStart = TimeSpan.MaxValue;
         _previewTextIntervalEnd = TimeSpan.MinValue;
         UpdateVisiblePreviewText(_playhead);
+        RefreshCanvasTextEditor();
         UpdateFadeOpacity(_playhead);
         SetPreviewImageTick(_player.PlaybackSession.PlaybackState ==
             global::Windows.Media.Playback.MediaPlaybackState.Playing);
@@ -71,10 +75,13 @@ public sealed partial class VideoEditorPage
         _previewTextSources.Clear();
         _previewTextCacheOrder.Clear();
         _previewTextLoads.Clear();
+        _textPreviewTransitions = [];
+        _activeTextPreviewTransitions = [];
         _previewTextBoundaries = [];
+        TextCanvas.Visibility = Visibility.Collapsed;
     }
 
-    private void UpdatePreviewTextBounds()
+    private void UpdatePreviewTextBounds(TimeSpan? position = null)
     {
         if (_editor is null || !double.IsFinite(VideoPlayer.Width) ||
             !double.IsFinite(VideoPlayer.Height) || VideoPlayer.Width <= 0 || VideoPlayer.Height <= 0)
@@ -98,13 +105,19 @@ public sealed partial class VideoEditorPage
             view.Width = overlay.Bounds.Width * scaleX;
             view.Height = overlay.Bounds.Height * scaleY;
         }
+        UpdateTextTransitionVisuals(position ?? _playhead);
+        UpdateCanvasTextBounds();
     }
 
     private void UpdateVisiblePreviewText(TimeSpan position)
     {
-        if (_closed || _editor is null ||
-            position >= _previewTextIntervalStart && position < _previewTextIntervalEnd)
+        if (_closed || _editor is null)
             return;
+        if (position >= _previewTextIntervalStart && position < _previewTextIntervalEnd)
+        {
+            UpdateTextTransitionVisuals(position);
+            return;
+        }
         int nextBoundary = Array.BinarySearch(_previewTextBoundaries, position);
         if (nextBoundary < 0) nextBoundary = ~nextBoundary;
         else while (nextBoundary < _previewTextBoundaries.Length &&
@@ -114,9 +127,12 @@ public sealed partial class VideoEditorPage
         _previewTextIntervalEnd = nextBoundary < _previewTextBoundaries.Length
             ? _previewTextBoundaries[nextBoundary] : TimeSpan.MaxValue;
 
+        HashSet<Guid> activeIds = _editor.Current.TextOverlays
+            .Where(item => item.Start <= position && position < item.End)
+            .Select(item => item.Id).ToHashSet();
+        IncludeTextTransitionIds(position, activeIds);
         TextOverlay[] active = _editor.Current.TextOverlays
-            .Where(item => item.Start <= position && position < item.End).ToArray();
-        HashSet<Guid> activeIds = [.. active.Select(item => item.Id)];
+            .Where(item => activeIds.Contains(item.Id)).ToArray();
         foreach (Guid id in _previewTextViews.Keys.Where(id => !activeIds.Contains(id)).ToArray())
         {
             _previewText.Children.Remove(_previewTextViews[id]);
@@ -127,7 +143,13 @@ public sealed partial class VideoEditorPage
         {
             if (!_previewTextViews.TryGetValue(overlay.Id, out Image? view))
             {
-                view = new Image { IsHitTestVisible = false, Stretch = Stretch.Fill };
+                view = new Image
+                {
+                    IsHitTestVisible = true,
+                    Stretch = Stretch.Fill,
+                    Tag = overlay.Id,
+                };
+                view.Tapped += PreviewText_Tapped;
                 _previewTextViews.Add(overlay.Id, view);
                 _previewText.Children.Add(view);
             }
@@ -135,10 +157,14 @@ public sealed partial class VideoEditorPage
             _visiblePreviewText.Add(overlay.Id, overlay);
             if (_previewTextSources.TryGetValue(overlay.Id, out BitmapImage? source))
                 view.Source = source;
-            else if (_previewTextLoads.Add(overlay.Id))
+            else if (!(_canvasTextId == overlay.Id &&
+                    TextCanvas.Visibility == Visibility.Visible) &&
+                _previewTextLoads.Add(overlay.Id))
                 _ = LoadPreviewTextAsync(overlay, _previewTextGeneration);
         }
-        UpdatePreviewTextBounds();
+        SetActiveTextTransitions(position);
+        UpdatePreviewTextBounds(position);
+        RefreshCanvasTextEditor();
     }
 
     private async Task LoadPreviewTextAsync(TextOverlay overlay, long generation)
