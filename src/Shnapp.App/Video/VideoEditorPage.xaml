@@ -33,7 +33,11 @@
             <RowDefinition Height="28" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="1" Background="#080F1C">
+        <Grid x:Name="PreviewHost" Grid.Row="1" Background="#080F1C"
+            SizeChanged="PreviewHost_SizeChanged"
+            PointerMoved="PreviewHost_PointerMoved"
+            PointerExited="PreviewHost_PointerExited"
+            AllowDrop="True" DragOver="GalleryMedia_DragOver" Drop="GalleryMedia_Drop">
             <VisualStateManager.VisualStateGroups>
                 <VisualStateGroup>
                     <VisualState x:Name="CompactVideoPreview">
@@ -41,7 +45,6 @@
                             <AdaptiveTrigger MinWindowWidth="0" />
                         </VisualState.StateTriggers>
                         <VisualState.Setters>
-                            <Setter Target="GalleryPanel.Width" Value="192" />
                             <Setter Target="InspectorPanel.Width" Value="192" />
                         </VisualState.Setters>
                     </VisualState>
@@ -50,7 +53,6 @@
                             <AdaptiveTrigger MinWindowWidth="800" />
                         </VisualState.StateTriggers>
                         <VisualState.Setters>
-                            <Setter Target="GalleryPanel.Width" Value="244" />
                             <Setter Target="InspectorPanel.Width" Value="244" />
                         </VisualState.Setters>
                     </VisualState>
@@ -67,9 +69,9 @@
                 <StackPanel Orientation="Horizontal" Spacing="4">
                     <local:ToolbarActionButton Width="28" Height="28" MinWidth="0" Padding="0"
                         CornerRadius="6" Background="Transparent" BorderThickness="0"
-                        Click="AddImage_Click" AutomationProperties.Name="Add image to video"
-                        ToolTipService.ToolTip="Add image from the library, or paste with Ctrl+V">
-                        <FontIcon Glyph="&#xE91B;" FontFamily="Segoe Fluent Icons"
+                        Click="AddImage_Click" AutomationProperties.Name="Browse saved media"
+                        ToolTipService.ToolTip="Browse saved videos and images · Ctrl+Shift+G">
+                        <FontIcon Glyph="&#xE8B9;" FontFamily="Segoe Fluent Icons"
                             FontSize="12" Width="12" Height="12" />
                     </local:ToolbarActionButton>
                     <local:ToolbarActionButton Width="28" Height="28" MinWidth="0" Padding="0"
@@ -90,41 +92,41 @@
                     </local:ToolbarActionButton>
                 </StackPanel>
             </Border>
-            <Border x:Name="GalleryHotspot" Width="24" Height="84" CornerRadius="0,8,8,0"
-                Background="{ThemeResource ShnappImagePanelBrush}"
+            <local:ToolbarActionButton x:Name="GalleryHotspot" Width="24" Height="48"
+                MinWidth="0" Padding="0" CornerRadius="0,8,8,0"
+                Background="{ThemeResource ShnappImagePanelBrush}" BorderThickness="0"
                 HorizontalAlignment="Left" VerticalAlignment="Center"
-                PointerEntered="GalleryHotspot_PointerEntered"
-                ToolTipService.ToolTip="Recent images">
-                <FontIcon Glyph="&#xE91B;" FontFamily="Segoe Fluent Icons" FontSize="12"
-                    HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Border>
-            <Border x:Name="GalleryPanel" Visibility="Collapsed" Width="244"
-                HorizontalAlignment="Left" VerticalAlignment="Stretch" Margin="8"
-                Padding="12" CornerRadius="10"
-                BorderThickness="1" BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}"
-                Background="{ThemeResource ShnappInspectorAcrylicBrush}"
-                PointerExited="GalleryPanel_PointerExited">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <Grid>
-                        <TextBlock Text="Recent images" FontSize="13" FontWeight="SemiBold"
-                            VerticalAlignment="Center" />
-                        <local:ToolbarActionButton HorizontalAlignment="Right" Width="28" Height="28"
-                            MinWidth="0" Padding="0" CornerRadius="6"
-                            Background="Transparent" BorderThickness="0"
-                            Click="CloseGallery_Click" AutomationProperties.Name="Close recent images"
-                            ToolTipService.ToolTip="Close recent images">
-                            <FontIcon Glyph="&#xE8BB;" FontFamily="Segoe Fluent Icons"
-                                FontSize="12" Width="12" Height="12" />
-                        </local:ToolbarActionButton>
-                    </Grid>
-                    <ScrollViewer Grid.Row="1" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="GalleryItemsHost" Spacing="6" />
-                    </ScrollViewer>
-                </Grid>
+                Click="GalleryHotspot_Click" PointerEntered="GalleryHotspot_PointerEntered"
+                AutomationProperties.Name="Browse saved videos and images"
+                ToolTipService.ToolTip="Browse saved videos and images · Ctrl+Shift+G">
+                <FontIcon Glyph="&#xE8B9;" FontFamily="Segoe Fluent Icons" FontSize="12"
+                    Width="12" Height="12" />
+            </local:ToolbarActionButton>
+            <Border x:Name="GalleryPanel" Visibility="Collapsed" Width="80"
+                HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,0,0,0"
+                Padding="8" CornerRadius="12"
+                BorderThickness="1" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                Background="{ThemeResource ShnappImagePanelBrush}"
+                PointerExited="GalleryPanel_PointerExited"
+                PointerWheelChanged="GalleryPanel_PointerWheelChanged"
+                AutomationProperties.Name="Saved videos and images. Click a video to open it, or drag media onto the timeline to add it.">
+                <StackPanel Spacing="4">
+                    <local:ToolbarActionButton x:Name="GalleryPrevious" Width="58" Height="28"
+                        MinWidth="0" Padding="0" CornerRadius="8"
+                        Background="Transparent" BorderThickness="0"
+                        Click="GalleryPrevious_Click" AutomationProperties.Name="Previous saved media">
+                        <FontIcon Glyph="&#xE70E;" FontFamily="Segoe Fluent Icons" FontSize="12"
+                            Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <StackPanel x:Name="GalleryItemsHost" Spacing="6" />
+                    <local:ToolbarActionButton x:Name="GalleryNext" Width="58" Height="28"
+                        MinWidth="0" Padding="0" CornerRadius="8"
+                        Background="Transparent" BorderThickness="0"
+                        Click="GalleryNext_Click" AutomationProperties.Name="More saved media">
+                        <FontIcon Glyph="&#xE70D;" FontFamily="Segoe Fluent Icons" FontSize="12"
+                            Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                </StackPanel>
             </Border>
 
             <Border x:Name="InspectorPanel" Visibility="Collapsed" Width="244"
@@ -157,7 +159,8 @@
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <NumberBox x:Name="ClipStartSeconds" Header="Start (s)"
                                 AutomationProperties.Name="Clip start time in seconds"
-                                Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11" />
+                                Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11"
+                                ValueChanged="InspectorNumber_ValueChanged" />
                             <Grid x:Name="SourceFields" ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -165,20 +168,25 @@
                                 </Grid.ColumnDefinitions>
                                 <NumberBox x:Name="ClipSourceInSeconds" Header="In (s)"
                                     AutomationProperties.Name="Source in time in seconds"
-                                    MinWidth="0" Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11" />
+                                    MinWidth="0" Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11"
+                                    ValueChanged="InspectorNumber_ValueChanged" />
                                 <NumberBox x:Name="ClipSourceOutSeconds" Grid.Column="1" Header="Out (s)"
                                     AutomationProperties.Name="Source out time in seconds"
-                                    MinWidth="0" Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11" />
+                                    MinWidth="0" Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11"
+                                    ValueChanged="InspectorNumber_ValueChanged" />
                             </Grid>
                             <StackPanel x:Name="AudioFields" Visibility="Collapsed" Spacing="7">
                                 <TextBlock Text="Gain" FontSize="11" />
                                 <Slider x:Name="AudioGainSlider" Minimum="0" Maximum="4"
-                                    StepFrequency="0.05" SmallChange="0.05" />
+                                    StepFrequency="0.05" SmallChange="0.05"
+                                    ValueChanged="InspectorSlider_ValueChanged" />
                                 <ToggleSwitch x:Name="AudioMuteSwitch" Header="Mute this clip"
-                                    OnContent="Muted" OffContent="Audible" FontSize="11" />
+                                    OnContent="Muted" OffContent="Audible" FontSize="11"
+                                    Toggled="InspectorMute_Toggled" />
                             </StackPanel>
                             <Grid x:Name="OverlayFields" Visibility="Collapsed" RowSpacing="7" ColumnSpacing="8">
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -189,30 +197,62 @@
                                 </Grid.ColumnDefinitions>
                                 <NumberBox x:Name="OverlayDurationSeconds" Grid.ColumnSpan="2" Header="Duration (s)"
                                     AutomationProperties.Name="Image duration in seconds"
-                                    Minimum="0.1" SpinButtonPlacementMode="Compact" FontSize="11" />
+                                    Minimum="0.1" SpinButtonPlacementMode="Compact" FontSize="11"
+                                    ValueChanged="InspectorNumber_ValueChanged" />
                                 <NumberBox x:Name="OverlayX" Grid.Row="1" Header="Left (px)"
                                     AutomationProperties.Name="Image left position in pixels"
-                                    MinWidth="0" SpinButtonPlacementMode="Compact" FontSize="11" />
+                                    MinWidth="0" SpinButtonPlacementMode="Compact" FontSize="11"
+                                    ValueChanged="InspectorNumber_ValueChanged" />
                                 <NumberBox x:Name="OverlayY" Grid.Row="1" Grid.Column="1" Header="Top (px)"
                                     AutomationProperties.Name="Image top position in pixels"
-                                    MinWidth="0" SpinButtonPlacementMode="Compact" FontSize="11" />
+                                    MinWidth="0" SpinButtonPlacementMode="Compact" FontSize="11"
+                                    ValueChanged="InspectorNumber_ValueChanged" />
                                 <NumberBox x:Name="OverlayWidth" Grid.Row="2" Header="Width (px)"
                                     AutomationProperties.Name="Image width in pixels"
-                                    MinWidth="0" Minimum="1" SpinButtonPlacementMode="Compact" FontSize="11" />
+                                    MinWidth="0" Minimum="1" SpinButtonPlacementMode="Compact" FontSize="11"
+                                    ValueChanged="InspectorNumber_ValueChanged" />
                                 <NumberBox x:Name="OverlayHeight" Grid.Row="2" Grid.Column="1" Header="Height (px)"
                                     AutomationProperties.Name="Image height in pixels"
-                                    MinWidth="0" Minimum="1" SpinButtonPlacementMode="Compact" FontSize="11" />
+                                    MinWidth="0" Minimum="1" SpinButtonPlacementMode="Compact" FontSize="11"
+                                    ValueChanged="InspectorNumber_ValueChanged" />
+                                <Grid Grid.Row="3" Grid.ColumnSpan="2" Margin="0,4,0,0">
+                                    <TextBlock Text="Layer order" FontSize="11" VerticalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                                        <local:ToolbarActionButton x:Name="MoveImageForwardButton"
+                                            Width="28" Height="28" MinWidth="0" Padding="0"
+                                            CornerRadius="6" Background="Transparent" BorderThickness="0"
+                                            Click="MoveImageForward_Click"
+                                            AutomationProperties.Name="Move image layer forward"
+                                            ToolTipService.ToolTip="Move image in front of the next layer">
+                                            <FontIcon Glyph="&#xE70E;" FontFamily="Segoe Fluent Icons"
+                                                FontSize="12" Width="12" Height="12" />
+                                        </local:ToolbarActionButton>
+                                        <local:ToolbarActionButton x:Name="MoveImageBackButton"
+                                            Width="28" Height="28" MinWidth="0" Padding="0"
+                                            CornerRadius="6" Background="Transparent" BorderThickness="0"
+                                            Click="MoveImageBack_Click"
+                                            AutomationProperties.Name="Move image layer backward"
+                                            ToolTipService.ToolTip="Move image behind the next layer">
+                                            <FontIcon Glyph="&#xE70D;" FontFamily="Segoe Fluent Icons"
+                                                FontSize="12" Width="12" Height="12" />
+                                        </local:ToolbarActionButton>
+                                    </StackPanel>
+                                </Grid>
                             </Grid>
                         </StackPanel>
                     </ScrollViewer>
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4"
-                        HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                        <TextBlock x:Name="PendingChangesText" Text="Changes pending"
+                            Visibility="Collapsed" FontSize="10" VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <StackPanel Orientation="Horizontal" Spacing="4"
+                            HorizontalAlignment="Right">
                         <local:ToolbarActionButton x:Name="ApplyPropertiesButton"
                             Width="28" Height="28" MinWidth="0"
                             Padding="0" CornerRadius="6" Background="Transparent"
-                            BorderThickness="0" Click="ApplyProperties_Click"
+                            BorderThickness="0" Click="ApplyProperties_Click" IsEnabled="False"
                             AutomationProperties.Name="Apply clip properties"
-                            ToolTipService.ToolTip="Apply clip properties">
+                            ToolTipService.ToolTip="No clip changes to apply">
                             <FontIcon Glyph="&#xE73E;" FontFamily="Segoe Fluent Icons"
                                 FontSize="12" Width="12" Height="12" />
                         </local:ToolbarActionButton>
@@ -221,11 +261,12 @@
                             CornerRadius="6" Background="Transparent" BorderThickness="0"
                             Click="DeleteSelected_Click"
                             AutomationProperties.Name="Remove selected clip"
-                            ToolTipService.ToolTip="Remove selected clip">
+                            ToolTipService.ToolTip="Remove selected clip · Delete">
                             <FontIcon Glyph="&#xE74D;" FontFamily="Segoe Fluent Icons"
                                 FontSize="12" Width="12" Height="12" />
                         </local:ToolbarActionButton>
-                    </StackPanel>
+                        </StackPanel>
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>
@@ -242,7 +283,7 @@
                 MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
                 BorderThickness="0" Click="PlayPause_Click"
                 AutomationProperties.Name="Play or pause video"
-                ToolTipService.ToolTip="Play or pause video">
+                ToolTipService.ToolTip="Play or pause · Space">
                 <FontIcon x:Name="PlayPauseIcon" Glyph="&#xE768;" FontFamily="Segoe Fluent Icons"
                     FontSize="12" Width="12" Height="12" />
             </local:ToolbarActionButton>
@@ -285,7 +326,7 @@
                         MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
                         BorderThickness="0" Click="MarkIn_Click"
                         AutomationProperties.Name="Mark range start at playhead"
-                        ToolTipService.ToolTip="Mark range start at playhead">
+                        ToolTipService.ToolTip="Mark range start at playhead · I">
                         <FontIcon Glyph="&#xE7C1;" FontFamily="Segoe Fluent Icons"
                             FontSize="12" Width="12" Height="12" />
                     </local:ToolbarActionButton>
@@ -293,7 +334,7 @@
                         MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
                         BorderThickness="0" Click="MarkOut_Click"
                         AutomationProperties.Name="Mark range end at playhead"
-                        ToolTipService.ToolTip="Mark range end at playhead">
+                        ToolTipService.ToolTip="Mark range end at playhead · O">
                         <FontIcon Glyph="&#xE7C1;" FontFamily="Segoe Fluent Icons"
                             FontSize="12" Width="12" Height="12" RenderTransformOrigin="0.5,0.5">
                             <FontIcon.RenderTransform><ScaleTransform ScaleX="-1" /></FontIcon.RenderTransform>
@@ -313,7 +354,7 @@
                         MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
                         BorderThickness="0" Click="Split_Click"
                         AutomationProperties.Name="Split selected clip at playhead"
-                        ToolTipService.ToolTip="Split selected clip at playhead">
+                        ToolTipService.ToolTip="Split selected clip at playhead · S">
                         <FontIcon Glyph="&#xE8C6;" FontFamily="Segoe Fluent Icons"
                             FontSize="12" Width="12" Height="12" />
                     </local:ToolbarActionButton>
@@ -337,30 +378,29 @@
                     </local:ToolbarActionButton>
                 </StackPanel>
             </Grid>
-            <Grid Grid.Row="1" ColumnSpacing="0">
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                VerticalScrollMode="Enabled" HorizontalScrollBarVisibility="Disabled"
+                HorizontalScrollMode="Disabled">
+            <Grid ColumnSpacing="0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="120" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Padding="12,0,8,0" Spacing="0">
-                    <TextBlock Text="" Height="22" />
-                    <TextBlock Text="Video" Height="28" FontSize="10" VerticalAlignment="Center" />
-                    <TextBlock Text="Computer" Height="28" FontSize="10" VerticalAlignment="Center" />
-                    <TextBlock Text="Microphone" Height="28" FontSize="10" VerticalAlignment="Center" />
-                    <TextBlock Text="Images" Height="28" FontSize="10" VerticalAlignment="Center" />
-                    <TextBlock Text="Added audio" Height="28" FontSize="10" VerticalAlignment="Center" />
-                </StackPanel>
+                <StackPanel x:Name="TimelineLaneHeaders" Grid.Column="0"
+                    Padding="12,0,8,0" Spacing="0" />
                 <ScrollViewer x:Name="TimelineScroll" Grid.Column="1"
                     SizeChanged="TimelineScroll_SizeChanged" ViewChanged="TimelineScroll_ViewChanged"
                     HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                     HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
                     <Grid x:Name="TimelineContent" Height="164" PointerPressed="Timeline_PointerPressed"
                         PointerMoved="Timeline_PointerMoved" PointerReleased="Timeline_PointerReleased"
-                        PointerCaptureLost="Timeline_PointerCaptureLost">
+                        PointerCaptureLost="Timeline_PointerCaptureLost"
+                        AllowDrop="True" DragOver="Timeline_DragOver" Drop="Timeline_Drop">
                         <Canvas x:Name="TimelineCanvas" Height="164" />
                     </Grid>
                 </ScrollViewer>
             </Grid>
+            </ScrollViewer>
         </Grid>
 
         <Grid Grid.Row="4" Height="28" Padding="10,0"

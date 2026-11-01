@@ -77,6 +77,10 @@ internal static class VideoProjectValidation
                         extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase),
                         "Overlay images must be PNG or JPEG files.");
                     break;
+                case VideoAssetKind.ImportedVideo:
+                    Require(extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase),
+                        "Imported videos must be MP4 files.");
+                    break;
             }
             Require(asset.Kind == VideoAssetKind.Image
                     ? asset.Duration == TimeSpan.Zero
@@ -91,14 +95,15 @@ internal static class VideoProjectValidation
             "Primary video segments cannot be null.");
         VideoSegment[] video = project.VideoSegments.OrderBy(static segment => segment.Start).ToArray();
         TimeSpan previousEnd = TimeSpan.Zero;
-        Guid recordingId = assets.Values.Single(static asset => asset.Kind == VideoAssetKind.Recording).Id;
         foreach (VideoSegment segment in video)
         {
             Require(segment is not null && segment.Id != Guid.Empty && itemIds.Add(segment.Id),
                 "Video segment identifiers must be unique and nonempty.");
-            Require(segment.AssetId == recordingId, "Primary video segments must reference the original MP4.");
+            Require(assets.TryGetValue(segment.AssetId, out VideoAsset? videoAsset) &&
+                videoAsset.Kind is VideoAssetKind.Recording or VideoAssetKind.ImportedVideo,
+                "Primary video segments must reference a video asset.");
             ValidateSourceInterval(segment.Start, segment.SourceIn, segment.SourceOut,
-                assets[recordingId].Duration);
+                videoAsset.Duration);
             Require(segment.Start >= previousEnd, "Primary video segments cannot overlap.");
             previousEnd = segment.End;
         }

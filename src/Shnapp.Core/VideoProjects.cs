@@ -11,6 +11,7 @@ public enum VideoAssetKind
     MicrophoneAudio,
     ImportedAudio,
     Image,
+    ImportedVideo,
 }
 
 /// <summary>An immutable media file owned by a video project directory.</summary>
@@ -78,6 +79,9 @@ public readonly record struct VideoRect(double X, double Y, double Width, double
 public sealed record ImageOverlay(Guid Id, Guid AssetId, TimeSpan Start, TimeSpan Duration,
     VideoRect Bounds, int ZIndex = 0)
 {
+    /// <summary>Stable layer identity across splits and cuts; empty in older projects.</summary>
+    public Guid LayerId { get; init; }
+
     /// <summary>Exclusive end on the output timeline.</summary>
     [JsonIgnore]
     public TimeSpan End => Start + Duration;

@@ -18,6 +18,7 @@ public sealed partial class VideoEditorPage : Page
     private Func<Guid, Task<byte[]>>? _readGalleryImage;
     private Func<Guid, string>? _getGalleryPreviewPath;
     private IReadOnlyList<ShnappSummary> _galleryItems = [];
+    private IReadOnlyList<VideoProjectSummary> _videoGalleryItems = [];
     private readonly MediaPlayer _player = new();
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private CancellationTokenSource? _previewCancellation;
@@ -38,6 +39,7 @@ public sealed partial class VideoEditorPage : Page
 
     public event EventHandler? BackRequested;
     public event EventHandler? LibraryRequested;
+    public event Action<Guid>? VideoRequested;
     public event EventHandler? StateChanged;
 
     public bool CanUndo => _editor?.CanUndo == true;
@@ -56,13 +58,15 @@ public sealed partial class VideoEditorPage : Page
     public void Configure(VideoProjectStore store, VideoProject project,
         Func<Guid, Task<byte[]>> readGalleryImage,
         Func<Guid, string> getGalleryPreviewPath,
-        IReadOnlyList<ShnappSummary> galleryItems)
+        IReadOnlyList<ShnappSummary> galleryItems,
+        IReadOnlyList<VideoProjectSummary> videoGalleryItems)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(readGalleryImage);
         ArgumentNullException.ThrowIfNull(getGalleryPreviewPath);
         ArgumentNullException.ThrowIfNull(galleryItems);
+        ArgumentNullException.ThrowIfNull(videoGalleryItems);
 
         if (_editor is not null)
         {
@@ -75,6 +79,7 @@ public sealed partial class VideoEditorPage : Page
         _readGalleryImage = readGalleryImage;
         _getGalleryPreviewPath = getGalleryPreviewPath;
         _galleryItems = galleryItems;
+        _videoGalleryItems = videoGalleryItems;
         _closed = false;
         _previousProject = project;
         _previewQueued = false;
@@ -178,6 +183,10 @@ public sealed partial class VideoEditorPage : Page
         _previewCancellation?.Cancel();
         _previewCancellation?.Dispose();
         _previewCancellation = null;
+        _galleryThumbnailCancellation?.Cancel();
+        _galleryThumbnailCancellation?.Dispose();
+        _galleryThumbnailCancellation = null;
+        _galleryImportCancellation?.Cancel();
         _exportCancellation?.Cancel();
         if (_editor is not null) _editor.Changed -= Editor_Changed;
         _player.PlaybackSession.PositionChanged -= PlaybackSession_PositionChanged;

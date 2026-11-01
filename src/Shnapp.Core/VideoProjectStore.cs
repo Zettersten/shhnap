@@ -61,12 +61,12 @@ public sealed class VideoProjectStore(string rootPath)
         return path;
     }
 
-    /// <summary>Copies imported image or audio bytes into an immutable project asset file.</summary>
+    /// <summary>Copies imported image, audio, or video bytes into an immutable project asset file.</summary>
     /// <param name="project">The project receiving the new asset.</param>
-    /// <param name="kind">Image or imported audio.</param>
+    /// <param name="kind">Image, imported audio, or imported video.</param>
     /// <param name="extension">Supported extension, with or without a leading period.</param>
     /// <param name="source">Readable source bytes, such as a clipboard image or selected file.</param>
-    /// <param name="duration">Audio source duration, or zero for an image.</param>
+    /// <param name="duration">Media source duration, or zero for an image.</param>
     /// <param name="cancellationToken">Cancels before the new file is published.</param>
     /// <returns>An asset to add to the project editor, followed by SaveAsync.</returns>
     public async Task<VideoAsset> ImportAssetAsync(VideoProject project, VideoAssetKind kind,
@@ -80,23 +80,33 @@ public sealed class VideoProjectStore(string rootPath)
         {
             throw new ArgumentException("The imported media stream must be readable.", nameof(source));
         }
-        if (kind is not VideoAssetKind.Image and not VideoAssetKind.ImportedAudio)
+        if (kind is not VideoAssetKind.Image and not VideoAssetKind.ImportedAudio
+            and not VideoAssetKind.ImportedVideo)
         {
-            throw new ArgumentException("Only image and imported audio assets can be copied.", nameof(kind));
+            throw new ArgumentException("Only image, audio, and video assets can be copied.", nameof(kind));
         }
         VideoProjectValidation.Validate(project);
         string suffix = (extension.StartsWith('.') ? extension[1..] : extension)
             .ToLowerInvariant();
-        bool supported = kind == VideoAssetKind.Image
-            ? suffix is "png" or "jpg" or "jpeg"
-            : suffix is "wav" or "mp3" or "flac";
+        bool supported = kind switch
+        {
+            VideoAssetKind.Image => suffix is "png" or "jpg" or "jpeg",
+            VideoAssetKind.ImportedAudio => suffix is "wav" or "mp3" or "flac",
+            VideoAssetKind.ImportedVideo => suffix == "mp4",
+            _ => false,
+        };
         if (!supported)
         {
             throw new ArgumentException("The imported media extension is unsupported.", nameof(extension));
         }
         var asset = new VideoAsset(Guid.NewGuid(), kind, $"assets/{Guid.NewGuid():N}.{suffix}", duration);
         VideoProjectValidation.Validate(project with { Assets = project.Assets.Add(asset) });
-        long maximumBytes = kind == VideoAssetKind.Image ? 128L * 1024 * 1024 : 4L * 1024 * 1024 * 1024;
+        long maximumBytes = kind switch
+        {
+            VideoAssetKind.Image => 128L * 1024 * 1024,
+            VideoAssetKind.ImportedVideo => 32L * 1024 * 1024 * 1024,
+            _ => 4L * 1024 * 1024 * 1024,
+        };
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         string? temporaryPath = null;
         try
@@ -108,11 +118,15 @@ public sealed class VideoProjectStore(string rootPath)
             string target = ResolvePath(projectDirectory, asset.RelativePath);
             EnsureSafePath(target, isDirectory: false, mustExist: false);
             temporaryPath = Path.Combine(assetDirectory, $".import-{Guid.NewGuid():N}.tmp");
+            int bufferSize = kind == VideoAssetKind.ImportedVideo ? 1024 * 1024 : 64 * 1024;
+            // Large video imports stay buffered during the copy. The final flush and
+            // atomic move still publish a complete asset before project metadata changes.
+            FileOptions writeOptions = FileOptions.Asynchronous |
+                (kind == VideoAssetKind.ImportedVideo ? FileOptions.None : FileOptions.WriteThrough);
             await using (FileStream output = new(temporaryPath, FileMode.CreateNew,
-                FileAccess.Write, FileShare.None, 64 * 1024,
-                FileOptions.Asynchronous | FileOptions.WriteThrough))
+                FileAccess.Write, FileShare.None, bufferSize, writeOptions))
             {
-                byte[] buffer = new byte[64 * 1024];
+                byte[] buffer = new byte[bufferSize];
                 long written = 0;
                 int count;
                 while ((count = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)

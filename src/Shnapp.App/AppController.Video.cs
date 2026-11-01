@@ -312,14 +312,19 @@ internal sealed partial class AppController
 
     private async Task ShowVideoProjectAsync(VideoProject project)
     {
-        IReadOnlyList<ShnappSummary> gallery = await ListReadySummariesAsync();
+        Task<IReadOnlyList<ShnappSummary>> imagesTask = ListReadySummariesAsync();
+        Task<IReadOnlyList<VideoProjectSummary>> videosTask = VideoStore.ListAsync(_lifetime.Token);
+        await Task.WhenAll(imagesTask, videosTask);
+        IReadOnlyList<ShnappSummary> gallery = await imagesTask;
+        IReadOnlyList<VideoProjectSummary> videos = await videosTask;
         var page = new VideoEditorPage();
         page.Configure(VideoStore, project, ReadSavedImageForLayerAsync,
             id => File.Exists(Library.GetGalleryPreviewPath(id))
                 ? Library.GetGalleryPreviewPath(id)
-                : Library.GetPreviewPath(id), gallery);
+                : Library.GetPreviewPath(id), gallery, videos);
         page.BackRequested += (_, _) => OpenLibrary();
         page.LibraryRequested += (_, _) => OpenLibrary();
+        page.VideoRequested += OpenVideoProject;
         _window.ShowVideoEditor(page);
         _window.ApplyTheme(_settings.Theme switch
         {
