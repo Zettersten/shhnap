@@ -40,6 +40,14 @@ public sealed partial class VideoEditorPage
         BorderThickness = new Thickness(1),
         Visibility = Visibility.Collapsed,
     };
+    private readonly ContentControl _canvasMediaFocusTarget = new()
+    {
+        Width = 1,
+        Height = 1,
+        Opacity = .01,
+        IsTabStop = true,
+        Visibility = Visibility.Collapsed,
+    };
     private readonly Border _canvasVideoProxy = new()
     {
         Visibility = Visibility.Collapsed,
@@ -106,6 +114,7 @@ public sealed partial class VideoEditorPage
     private VideoRect? _canvasMediaDraftBounds;
     private VideoRect? _canvasMediaDraftCrop;
     private bool? _canvasMediaAxisLockHorizontal;
+    private bool _canvasMediaNudgeEdit;
     private Guid _canvasProxyAssetId;
     private long _canvasProxyGeneration;
 
@@ -126,6 +135,19 @@ public sealed partial class VideoEditorPage
         proxyCanvas.Children.Add(_canvasVideoProxyImage);
         _canvasVideoProxy.Child = proxyCanvas;
         _canvasMedia.Children.Add(_canvasVideoProxy);
+        AutomationProperties.SetName(_canvasMediaFocusTarget,
+            "Selected video canvas media");
+        AutomationProperties.SetHelpText(_canvasMediaFocusTarget,
+            "Arrow keys move the selected image or video by one pixel; hold Shift for ten pixels. Space plays or pauses.");
+        _canvasMediaFocusTarget.GotFocus += (_, _) =>
+            _canvasMediaFrame.BorderThickness = new Thickness(2);
+        _canvasMediaFocusTarget.LostFocus += (_, _) =>
+            _canvasMediaFrame.BorderThickness = new Thickness(1);
+        VideoPlayer.GotFocus += (_, _) =>
+            _canvasMediaFrame.BorderThickness = new Thickness(2);
+        VideoPlayer.LostFocus += (_, _) =>
+            _canvasMediaFrame.BorderThickness = new Thickness(1);
+        _canvasMedia.Children.Add(_canvasMediaFocusTarget);
 
         _canvasMediaFrame.PointerPressed += MediaSurface_PointerPressed;
         _canvasMediaFrame.PointerMoved += MediaSurface_PointerMoved;
@@ -193,6 +215,7 @@ public sealed partial class VideoEditorPage
         _previewVideoHits.Children.Clear();
         _previewVideoHitViews.Clear();
         _canvasMediaFrame.Visibility = Visibility.Collapsed;
+        _canvasMediaFocusTarget.Visibility = Visibility.Collapsed;
         _canvasVideoProxy.Visibility = Visibility.Collapsed;
         _canvasMediaQuickbar.Visibility = Visibility.Collapsed;
         foreach (var (_, view) in _canvasMediaHandles)
@@ -355,6 +378,7 @@ public sealed partial class VideoEditorPage
         if (bounds is null)
         {
             _canvasMediaFrame.Visibility = Visibility.Collapsed;
+            _canvasMediaFocusTarget.Visibility = Visibility.Collapsed;
             _canvasMediaQuickbar.Visibility = Visibility.Collapsed;
             _canvasVideoProxy.Visibility = Visibility.Collapsed;
             foreach (var (_, view) in _canvasMediaHandles)
@@ -371,6 +395,7 @@ public sealed partial class VideoEditorPage
         }
         _canvasMediaFrame.Tag = (_selectedKind, _selectedId);
         _canvasMediaFrame.Visibility = Visibility.Visible;
+        _canvasMediaFocusTarget.Visibility = Visibility.Visible;
         _canvasMediaQuickbar.Visibility = Visibility.Visible;
         foreach (var (_, view) in _canvasMediaHandles)
             view.Visibility = Visibility.Visible;
@@ -450,7 +475,8 @@ public sealed partial class VideoEditorPage
             tag.Item1 is not (TimelineKind.Image or TimelineKind.VideoOverlay) ||
             _editor is null || !args.GetCurrentPoint(target).Properties.IsLeftButtonPressed)
             return;
-        SelectClip(tag.Item1, tag.Item2);
+        SelectClip(tag.Item1, tag.Item2, focusTimeline: false);
+        if (_selectedKind != tag.Item1 || _selectedId != tag.Item2) return;
         BeginMediaGesture(target, args, MediaHandle.Move);
     }
 
@@ -504,9 +530,10 @@ public sealed partial class VideoEditorPage
         _canvasMediaDraftBounds = _canvasMediaStartBounds;
         _canvasMediaDraftCrop = _canvasMediaStartCrop;
         _canvasMediaAxisLockHorizontal = null;
-        // A canvas selection owns arrow keys until focus moves to a timeline or
-        // transport control. The page's frame-step accelerators stay available there.
-        VideoPlayer.Focus(FocusState.Programmatic);
+        // The canvas does not request timeline focus. Still restore focus after
+        // inspector layout, which may materialize its first number field.
+        Guid selectedId = _selectedId;
+        DispatcherQueue.TryEnqueue(() => FocusCanvasMediaSelection(selectedId));
         if (_selectedKind == TimelineKind.VideoOverlay &&
             _pausedOverlayViews.TryGetValue(_selectedId, out var paused) &&
             paused.Image.Source is BitmapImage pausedFrame)
@@ -519,6 +546,16 @@ public sealed partial class VideoEditorPage
                 paused.Frame.Visibility = Visibility.Collapsed;
         }
         args.Handled = true;
+    }
+
+    private void FocusCanvasMediaSelection(Guid selectedId)
+    {
+        if (_closed || selectedId != _selectedId ||
+            _selectedKind is not (TimelineKind.Image or TimelineKind.VideoOverlay) ||
+            _canvasMediaFrame.Visibility != Visibility.Visible) return;
+        if (_canvasMediaFocusTarget.Focus(FocusState.Programmatic) &&
+            CanvasMediaHasKeyboardFocus()) return;
+        VideoPlayer.Focus(FocusState.Programmatic);
     }
 
     private void MediaSurface_PointerMoved(object sender, PointerRoutedEventArgs args)
@@ -759,6 +796,11 @@ public sealed partial class VideoEditorPage
                 }));
         }
         RefreshCanvasMediaSelection();
+        FocusCanvasMediaSelection(_selectedId);
+        Guid selectedId = _selectedId;
+        DispatcherQueue.TryEnqueue(
+            Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+            () => FocusCanvasMediaSelection(selectedId));
         args.Handled = true;
     }
 
@@ -848,7 +890,8 @@ public sealed partial class VideoEditorPage
         DependencyObject? focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
         while (focused is not null)
         {
-            if (ReferenceEquals(focused, VideoPlayer)) return true;
+            if (ReferenceEquals(focused, VideoPlayer) ||
+                ReferenceEquals(focused, _canvasMediaFocusTarget)) return true;
             focused = VisualTreeHelper.GetParent(focused);
         }
         return false;
@@ -857,6 +900,17 @@ public sealed partial class VideoEditorPage
     private bool NudgeCanvasMedia(VirtualKey key, bool shift)
     {
         if (!CanvasMediaHasKeyboardFocus() || _editor is null) return false;
+        if (_selectedKind == TimelineKind.VideoOverlay &&
+            _editor.Current.Transitions.Any(item =>
+                item.Lane == VideoTransitionLane.VideoOverlay &&
+                (item.OutgoingId == _selectedId || item.IncomingId == _selectedId) &&
+                VideoTransitionGeometry.TryGetSpan(_editor.Current, item,
+                    out VideoTransitionSpan span) &&
+                _playhead >= span.Start && _playhead < span.End))
+        {
+            StatusText.Text = "Seek outside the transition to move this video.";
+            return true;
+        }
         _player.Pause();
         double step = shift ? 10 : 1;
         double dx = key == VirtualKey.Left ? -step :
@@ -874,7 +928,8 @@ public sealed partial class VideoEditorPage
                 Y = Math.Clamp(image.Bounds.Y + dy, -65_536, 65_536),
             };
             if (next != image.Bounds)
-                TryEdit(() => _editor.UpdateImageOverlay(image with { Bounds = next }));
+                ApplyCanvasMediaNudge(() =>
+                    _editor.UpdateImageOverlay(image with { Bounds = next }), next);
         }
         else if (_selectedKind == TimelineKind.VideoOverlay &&
             _editor.Current.VideoOverlays.FirstOrDefault(item =>
@@ -886,10 +941,75 @@ public sealed partial class VideoEditorPage
                 Y = Math.Clamp(video.Bounds.Y + dy, -65_536, 65_536),
             };
             if (next != video.Bounds)
-                TryEdit(() => _editor.UpdateVideoOverlay(video with { Bounds = next }));
+                ApplyCanvasMediaNudge(() =>
+                    _editor.UpdateVideoOverlay(video with { Bounds = next }), next);
         }
         else return false;
         return true;
+    }
+
+    private void ApplyCanvasMediaNudge(Action update, VideoRect bounds)
+    {
+        // Image transition backdrops cache both participants' bounds. Let the
+        // full refresh rebuild those rare layouts after a nudge.
+        _canvasMediaNudgeEdit = _selectedKind != TimelineKind.Image ||
+            !_imagePreviewTransitions.Any(item =>
+                item.Outgoing.Id == _selectedId ||
+                item.Incoming.Id == _selectedId);
+        try
+        {
+            if (TryEdit(update)) UpdateNudgedCanvasMedia(bounds);
+        }
+        finally
+        {
+            _canvasMediaNudgeEdit = false;
+        }
+    }
+
+    private void UpdateNudgedCanvasMedia(VideoRect bounds)
+    {
+        if (_editor is null) return;
+        if (_selectedKind == TimelineKind.Image &&
+            _editor.Current.ImageOverlays.FirstOrDefault(item =>
+                item.Id == _selectedId) is { } image)
+        {
+            if (_visiblePreviewImageDefinitions.ContainsKey(image.Id))
+            {
+                _visiblePreviewImageDefinitions[image.Id] = image;
+                LayoutPreviewImage(image, bounds,
+                    image.SourceCrop ?? new VideoRect(0, 0, 1, 1));
+            }
+        }
+        else if (_selectedKind == TimelineKind.VideoOverlay &&
+            _editor.Current.VideoOverlays.FirstOrDefault(item =>
+                item.Id == _selectedId) is { } video)
+        {
+            for (int index = 0; index < _activeVideoHitVisuals.Length; index++)
+                if (_activeVideoHitVisuals[index].ItemId == video.Id)
+                    _activeVideoHitVisuals[index] = _activeVideoHitVisuals[index]
+                        with { Bounds = bounds };
+            for (int index = 0; index < _pausedActiveSources.Length; index++)
+                if (_pausedActiveSources[index].ItemId == video.Id)
+                    _pausedActiveSources[index] = _pausedActiveSources[index]
+                        with { Bounds = bounds };
+            LayoutVideoHitTargets();
+            if (_pausedOverlayViews.TryGetValue(video.Id, out var paused))
+                LayoutPausedOverlay(bounds,
+                    video.SourceCrop ?? new VideoRect(0, 0, 1, 1),
+                    paused.Frame, paused.Image);
+        }
+        RefreshCanvasMediaSelection();
+        bool loadingInspector = _loadingInspector;
+        _loadingInspector = true;
+        try
+        {
+            OverlayX.Value = bounds.X;
+            OverlayY.Value = bounds.Y;
+        }
+        finally
+        {
+            _loadingInspector = loadingInspector;
+        }
     }
 
     private void CanvasNudgeShortcut_Invoked(KeyboardAccelerator sender,

@@ -254,6 +254,23 @@ public sealed partial class VideoEditorPage : Page
     {
         if (_closed || _editor is null) return;
         VideoProject project = _editor.Current;
+        if (_canvasMediaNudgeEdit)
+        {
+            // A canvas nudge changes only one overlay's bounds. Its visible
+            // image and handles are updated directly, so rebuilding the whole
+            // timeline, inspector, and paused-frame cache on every key repeat
+            // would make the gesture feel delayed.
+            _previousProject = project;
+            if (_selectedKind == TimelineKind.VideoOverlay)
+            {
+                _previewQueued = true;
+                ++_previewRevision;
+                _previewCancellation?.Cancel();
+            }
+            UpdateState();
+            ScheduleSaveAndPreview();
+            return;
+        }
         VideoProject? previous = _previousProject;
         bool dimensionsChanged = previous is null ||
             project.Width != previous.Width ||
@@ -311,6 +328,11 @@ public sealed partial class VideoEditorPage : Page
             }
         }
         UpdateState();
+        ScheduleSaveAndPreview();
+    }
+
+    private void ScheduleSaveAndPreview()
+    {
         long saveRevision = ++_saveRevision;
         _refreshDebounceCancellation?.Cancel();
         _refreshDebounceCancellation?.Dispose();

@@ -971,17 +971,17 @@ public sealed partial class VideoEditorPage
         TryEdit(() => _editor.SetLayerVisible(tag.Item2, !visible));
     }
 
-    private void SelectClip(TimelineKind kind, Guid id)
+    private void SelectClip(TimelineKind kind, Guid id, bool focusTimeline = true)
     {
         if (_selectedId == id && _selectedKind == kind)
         {
-            FocusSelectedClip();
+            if (focusTimeline) FocusSelectedClip();
             return;
         }
         if (!FlushCanvasTextEdit()) return;
         if (!ApplyPendingInspectorChanges())
         {
-            FocusSelectedClip();
+            if (focusTimeline) FocusSelectedClip();
             return;
         }
         if (kind is TimelineKind.Text or TimelineKind.Image or
@@ -995,7 +995,7 @@ public sealed partial class VideoEditorPage
             selected.BorderThickness = new Thickness(2);
         RefreshInspector();
         RefreshCanvasMediaSelection();
-        FocusSelectedClip();
+        if (focusTimeline) FocusSelectedClip();
         UpdateEditActionState();
     }
 
