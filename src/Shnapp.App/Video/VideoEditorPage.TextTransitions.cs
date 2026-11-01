@@ -270,6 +270,13 @@ public sealed partial class VideoEditorPage
             _ => project.TextOverlays.First(item =>
                 item.Id == selected.IncomingId).Duration.TotalSeconds,
         };
+        if (selected.Lane == VideoTransitionLane.Video)
+        {
+            outgoing -= project.VideoSegments.First(item =>
+                item.Id == selected.OutgoingId).FadeIn.TotalSeconds;
+            incoming -= project.VideoSegments.First(item =>
+                item.Id == selected.IncomingId).FadeOut.TotalSeconds;
+        }
         foreach (VideoTransition other in project.Transitions)
         {
             if (other.Id == selected.Id ||
