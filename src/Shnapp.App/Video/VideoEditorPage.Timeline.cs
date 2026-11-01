@@ -258,7 +258,8 @@ public sealed partial class VideoEditorPage
 
     private void Clip_PointerPressed(object sender, PointerRoutedEventArgs args)
     {
-        if (sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag }) return;
+        if (sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag } clip) return;
+        clip.Focus(FocusState.Pointer);
         SelectClip(tag.Item1, tag.Item2);
         Seek(TimeSpan.FromSeconds(args.GetCurrentPoint(TimelineContent).Position.X /
             _pixelsPerSecond));
