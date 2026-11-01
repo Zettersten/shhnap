@@ -83,7 +83,7 @@ While editing, move to the canvas's left edge to reveal a small gallery over you
 
 ## Keyboard shortcuts
 
-The same keys are listed in **Settings → Shortcuts**. Shortcuts work while Shnapp is running; capture keys are global. Print Screen is opt-in so you can keep the Windows default. Video canvas nudges apply when a media layer is selected and the preview has focus; timeline arrow keys still step the playhead. Text fields and sliders retain their normal keys.
+Shnapp also shows a shortcut reference in **Settings → Shortcuts**. Shortcuts work while Shnapp is running; capture keys are global. Print Screen is opt-in so you can keep the Windows default. Video canvas nudges apply when a media layer is selected and the preview has focus; timeline arrow keys still step the playhead. Text fields and sliders retain their normal keys.
 
 | Capture | Shortcut |
 | --- | --- |
