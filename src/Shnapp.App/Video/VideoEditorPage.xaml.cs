@@ -24,6 +24,9 @@ public sealed partial class VideoEditorPage : Page
     private CancellationTokenSource? _refreshDebounceCancellation;
     private CancellationTokenSource? _exportCancellation;
     private long _previewRevision;
+    private long _saveRevision;
+    private VideoProject? _previousProject;
+    private bool _previewQueued;
     private TimeSpan _playhead;
     private TimeSpan? _markIn;
     private TimeSpan? _markOut;
@@ -73,6 +76,8 @@ public sealed partial class VideoEditorPage : Page
         _getGalleryPreviewPath = getGalleryPreviewPath;
         _galleryItems = galleryItems;
         _closed = false;
+        _previousProject = project;
+        _previewQueued = false;
         _playhead = TimeSpan.Zero;
         _markIn = null;
         _markOut = null;
@@ -165,6 +170,8 @@ public sealed partial class VideoEditorPage : Page
         if (_closed) return;
         _closed = true;
         ++_previewRevision;
+        ++_saveRevision;
+        _previewQueued = false;
         _refreshDebounceCancellation?.Cancel();
         _refreshDebounceCancellation?.Dispose();
         _refreshDebounceCancellation = null;
@@ -187,38 +194,56 @@ public sealed partial class VideoEditorPage : Page
     {
         if (_closed || _editor is null) return;
         VideoProject project = _editor.Current;
-        ProjectTitleText.Text = project.Title;
-        MetadataText.Text = $"{project.Width} × {project.Height}  ·  {FormatTime(project.Duration)}  ·  MP4";
-        DurationText.Text = FormatTime(project.Duration);
-        _playhead = Min(_playhead, project.Duration);
-        RefreshTimeline();
-        RefreshInspector();
-        UpdateTransport();
-        UpdateEditActionState();
+        bool mediaChanged = _previousProject is null ||
+            project.Width != _previousProject.Width ||
+            project.Height != _previousProject.Height ||
+            !project.VideoSegments.Equals(_previousProject.VideoSegments) ||
+            !project.AudioSegments.Equals(_previousProject.AudioSegments) ||
+            !project.ImageOverlays.Equals(_previousProject.ImageOverlays);
+        _previousProject = project;
+        if (ProjectTitleText.Text != project.Title) ProjectTitleText.Text = project.Title;
+        if (mediaChanged)
+        {
+            string metadata = $"{project.Width} × {project.Height}  ·  {FormatTime(project.Duration)}  ·  MP4";
+            if (MetadataText.Text != metadata) MetadataText.Text = metadata;
+            string duration = FormatTime(project.Duration);
+            if (DurationText.Text != duration) DurationText.Text = duration;
+            _playhead = Min(_playhead, project.Duration);
+            RefreshTimeline();
+            RefreshInspector();
+            UpdateTransport();
+            UpdateEditActionState();
+            _previewQueued = true;
+            ++_previewRevision;
+            _previewCancellation?.Cancel();
+        }
         UpdateState();
-        long revision = ++_previewRevision;
-        _previewCancellation?.Cancel();
+        long saveRevision = ++_saveRevision;
         _refreshDebounceCancellation?.Cancel();
         _refreshDebounceCancellation?.Dispose();
         _refreshDebounceCancellation = new CancellationTokenSource();
-        _ = SaveAndPreviewAsync(revision, _refreshDebounceCancellation.Token);
+        _ = SaveAndPreviewAsync(saveRevision, _refreshDebounceCancellation.Token);
     }
 
-    private async Task SaveAndPreviewAsync(long revision, CancellationToken token)
+    private async Task SaveAndPreviewAsync(long saveRevision, CancellationToken token)
     {
         try
         {
-            // Multiple inspector edits and undo/redo steps share one preview rebuild.
+            // Coalesce saves and render only when media on the timeline has changed.
             await Task.Delay(160, token);
-            if (_closed || revision != _previewRevision) return;
+            if (_closed || saveRevision != _saveRevision) return;
             await SaveAsync();
-            if (!_closed && revision == _previewRevision)
-                await RefreshPreviewAsync(revision);
+            if (_closed || saveRevision != _saveRevision || token.IsCancellationRequested) return;
+            if (_previewQueued)
+            {
+                _previewQueued = false;
+                await RefreshPreviewAsync(_previewRevision);
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)
         {
-            if (!_closed && revision == _previewRevision)
+            if (!_closed && saveRevision == _saveRevision)
                 StatusText.Text = $"Save failed: {exception.Message}";
         }
     }
