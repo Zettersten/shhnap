@@ -16,9 +16,9 @@ internal sealed class VideoRecordingService
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-        if (options.FrameRate is not (30 or 60 or 120))
+        if (options.FrameRate is not (30 or 60))
         {
-            throw new ArgumentOutOfRangeException(nameof(options), "Video frame rate must be 30, 60, or 120 fps.");
+            throw new ArgumentOutOfRangeException(nameof(options), "Video frame rate must be 30 or 60 fps.");
         }
 
         cancellationToken.ThrowIfCancellationRequested();

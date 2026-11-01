@@ -318,7 +318,7 @@
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                                     <StackPanel Spacing="2" Margin="0,0,12,0">
                                                         <TextBlock Text="Frame rate" FontWeight="SemiBold" />
-                                                        <TextBlock Text="30 saves power; 60 is smoother; 120 targets high-refresh displays."
+                                                        <TextBlock Text="30 fps saves power; 60 fps captures smoother motion."
                                                             Style="{StaticResource SettingsSupportingTextStyle}" />
                                                     </StackPanel>
                                                     <ComboBox x:Name="VideoFrameRatePicker" Grid.Column="1" MinWidth="112" VerticalAlignment="Center"
@@ -327,7 +327,6 @@
                                                         AutomationProperties.AutomationId="VideoFrameRate">
                                                         <ComboBoxItem Content="30 fps" />
                                                         <ComboBoxItem Content="60 fps" />
-                                                        <ComboBoxItem Content="120 fps" />
                                                     </ComboBox>
                                                 </Grid>
                                                 <StackPanel Margin="16,0,16,12" Spacing="2">

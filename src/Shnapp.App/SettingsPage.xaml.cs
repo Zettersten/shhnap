@@ -524,12 +524,8 @@ public sealed partial class SettingsPage : Page
         }
     }
 
-    private static int FrameRateIndex(int frameRate) => frameRate switch
-    {
-        120 => 2,
-        60 => 1,
-        _ => 0,
-    };
+    // Older development builds could save 120 fps; show the supported 60 fps choice.
+    private static int FrameRateIndex(int frameRate) => frameRate >= 60 ? 1 : 0;
 
     private ShnappSettings ReadPreferences() => new()
         {
@@ -539,12 +535,7 @@ public sealed partial class SettingsPage : Page
             VideoCaptureSystemAudio = VideoSystemAudio.IsOn,
             VideoCaptureMicrophone = VideoMicrophone.IsOn,
             VideoCaptureCursor = VideoCursor.IsOn,
-            VideoFrameRate = VideoFrameRatePicker.SelectedIndex switch
-            {
-                2 => 120,
-                1 => 60,
-                _ => 30,
-            },
+            VideoFrameRate = VideoFrameRatePicker.SelectedIndex == 1 ? 60 : 30,
             VideoMicrophoneSourceId = _savedSettings.VideoMicrophoneSourceId,
             PrintScreenEnabled = PrintScreenEnabled.IsOn,
             PrintScreenMode = PrintScreenModePicker.SelectedIndex switch

@@ -98,8 +98,11 @@ internal sealed partial class AppController
             projectId = Guid.NewGuid();
             projectDirectory = VideoStore.PrepareProjectDirectory(projectId);
             string outputPath = Path.Combine(projectDirectory, "source.mp4");
+            // Existing settings may contain 120 fps from an earlier development build.
+            // Keep those settings loadable while recording at a supported rate.
+            int recordingFrameRate = Math.Min(_settings.VideoFrameRate, 60);
             var options = new VideoCaptureOptions(
-                _settings.VideoFrameRate,
+                recordingFrameRate,
                 _settings.VideoCaptureCursor,
                 _settings.VideoCaptureSystemAudio,
                 _settings.VideoCaptureMicrophone,
@@ -172,7 +175,7 @@ internal sealed partial class AppController
                 result.MicrophoneAudioPath is { } micPath
                     ? RelativeMediaPath(projectDirectory, micPath) : null,
                 projectId,
-                _settings.VideoFrameRate);
+                recordingFrameRate);
             // Once capture has finalized, persist its metadata even if shutdown was requested.
             try
             {

@@ -49,7 +49,7 @@ The grabber freezes the visible desktop when capture starts, so moving content h
 
 ## Record and edit video
 
-Start a video from the shortcuts above, the capture menu, or the tray. Choose a window, a display, or a rectangular region with the same picker used for screenshots. A small recording bar shows elapsed time and the active audio sources; pause, resume, stop, or cancel there. Window recordings follow the selected window as it changes. **Settings → General → Video recording** controls computer audio, microphone audio, pointer visibility, and 30, 60, or 120 fps. The 120 fps option targets high-refresh displays; actual captured frames depend on display activity and encoder performance. Both audio sources are off by default.
+Start a video from the shortcuts above, the capture menu, or the tray. Choose a window, a display, or a rectangular region with the same picker used for screenshots. A small recording bar shows elapsed time and the active audio sources; pause, resume, stop, or cancel there. Window recordings follow the selected window as it changes. **Settings → General → Video recording** controls computer audio, microphone audio, pointer visibility, and 30 or 60 fps. Both audio sources are off by default.
 
 The **Videos** tab in the local library reopens recordings in a dedicated editor. Trim, split, or cut the video and adjust the computer and microphone tracks independently. Paste an image with `Ctrl+V`, choose one from the left-edge recent-image gallery, or import your own audio; image overlays and added audio can each occupy a chosen span of the timeline. Edits keep the source files intact. Export an MP4 when ready to share.
 
