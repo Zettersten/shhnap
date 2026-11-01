@@ -149,8 +149,8 @@ public sealed partial class VideoEditorPage
                 BorderThickness = new Thickness(0),
             };
             string action = item.IsVideo
-                ? "Click to open; drag or right-click to add its original recording and audio"
-                : "Click or drag to add at the playhead";
+                ? "Click to open; use + to add its original recording and audio"
+                : "Click or use + to add at the playhead";
             AutomationProperties.SetName(button, $"{item.Title}, {(item.IsVideo ? "video" : "image")}. {action}.");
             AutomationProperties.SetAutomationId(button, $"VideoGallery_{item.Id:N}");
             ToolTipService.SetToolTip(button, $"{item.Title}\n{action}");
