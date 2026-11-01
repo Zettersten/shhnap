@@ -1432,7 +1432,7 @@ public sealed partial class VideoEditorPage
         InspectorPanel.Visibility = _inspectorOpen
             ? Visibility.Visible : Visibility.Collapsed;
         bool trackLocked = IsSelectedTrackLocked();
-        InspectorFieldsScroll.IsEnabled = !trackLocked;
+        InspectorPropertyFields.IsEnabled = !trackLocked;
         SourceFields.Visibility = video is not null || videoOverlay is not null ||
             audio is not null
             ? Visibility.Visible : Visibility.Collapsed;
