@@ -1334,7 +1334,22 @@ public sealed partial class VideoEditorPage
     private void InspectorNumber_ValueChanged(NumberBox sender,
         NumberBoxValueChangedEventArgs args)
     {
-        if (_selectedKind == TimelineKind.Text && !_loadingInspector)
+        if (_loadingInspector) return;
+        if (double.IsFinite(args.OldValue) && double.IsFinite(args.NewValue) &&
+            sender.NumberFormatter is { } formatter &&
+            string.Equals(formatter.FormatDouble(args.OldValue),
+                formatter.FormatDouble(args.NewValue), StringComparison.Ordinal))
+        {
+            // NumberBox reparses its rounded display text when an input gains
+            // focus. Keep the exact project value until the visible number
+            // actually changes, so another edit cannot shift a clip by a
+            // fraction of a frame merely because this field was visited.
+            _loadingInspector = true;
+            try { sender.Value = args.OldValue; }
+            finally { _loadingInspector = false; }
+            return;
+        }
+        if (_selectedKind == TimelineKind.Text)
             PreviewCanvasTextStyleFromInspector();
         MarkInspectorDirty();
     }
