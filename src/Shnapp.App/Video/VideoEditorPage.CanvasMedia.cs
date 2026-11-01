@@ -89,6 +89,21 @@ public sealed partial class VideoEditorPage
             FontSize = 12,
         },
     };
+    private readonly Button _canvasMediaPropertiesButton = new()
+    {
+        Width = 28,
+        Height = 28,
+        MinWidth = 0,
+        Padding = new Thickness(0),
+        Background = new SolidColorBrush(Colors.Transparent),
+        BorderThickness = new Thickness(0),
+        Content = new FontIcon
+        {
+            Glyph = "\uE713",
+            FontFamily = new FontFamily("Segoe Fluent Icons"),
+            FontSize = 12,
+        },
+    };
     private readonly Border _canvasMediaQuickbar = new()
     {
         Visibility = Visibility.Collapsed,
@@ -189,9 +204,15 @@ public sealed partial class VideoEditorPage
             "Reset source crop · Ctrl+Shift+R");
         AutomationProperties.SetName(_canvasMediaResetCropButton, "Reset selected media crop");
         _canvasMediaResetCropButton.Click += CanvasMediaResetCrop_Click;
+        ToolTipService.SetToolTip(_canvasMediaPropertiesButton, "Show clip properties");
+        AutomationProperties.SetName(_canvasMediaPropertiesButton, "Show clip properties");
+        AutomationProperties.SetAutomationId(_canvasMediaPropertiesButton,
+            "ShowSelectedMediaProperties");
+        _canvasMediaPropertiesButton.Click += CanvasMediaProperties_Click;
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
         actions.Children.Add(_canvasMediaCropButton);
         actions.Children.Add(_canvasMediaResetCropButton);
+        actions.Children.Add(_canvasMediaPropertiesButton);
         _canvasMediaQuickbar.Child = actions;
         _canvasMedia.Children.Add(_canvasMediaQuickbar);
         RegisterCanvasMediaShortcuts();
@@ -435,7 +456,7 @@ public sealed partial class VideoEditorPage
             Canvas.SetLeft(view, x - view.Width / 2);
             Canvas.SetTop(view, y - view.Height / 2);
         }
-        double barWidth = 65;
+        double barWidth = 96;
         Canvas.SetLeft(_canvasMediaQuickbar,
             Math.Clamp(left, 0, Math.Max(0, VideoPlayer.Width - barWidth)));
         Canvas.SetTop(_canvasMediaQuickbar,
@@ -556,6 +577,14 @@ public sealed partial class VideoEditorPage
         if (_canvasMediaFocusTarget.Focus(FocusState.Programmatic) &&
             CanvasMediaHasKeyboardFocus()) return;
         VideoPlayer.Focus(FocusState.Programmatic);
+    }
+
+    private void CanvasMediaProperties_Click(object sender, RoutedEventArgs args)
+    {
+        if (_selectedKind is not (TimelineKind.Image or TimelineKind.VideoOverlay) ||
+            _selectedId == Guid.Empty) return;
+        SetInspectorOpen(true);
+        RefreshInspector();
     }
 
     private void MediaSurface_PointerMoved(object sender, PointerRoutedEventArgs args)

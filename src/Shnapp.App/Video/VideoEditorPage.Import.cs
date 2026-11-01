@@ -312,7 +312,7 @@ public sealed partial class VideoEditorPage
     private void OpenGallery()
     {
         if (!_galleryAvailable) return;
-        if (ActualWidth < 640) InspectorPanel.Visibility = Visibility.Collapsed;
+        if (ActualWidth < 640) SetInspectorOpen(false);
         SetGalleryReveal(true);
     }
 

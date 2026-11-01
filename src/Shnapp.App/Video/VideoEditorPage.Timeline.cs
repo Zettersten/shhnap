@@ -33,6 +33,8 @@ public sealed partial class VideoEditorPage
     private Line? _playheadLine;
     private Polygon? _playheadCap;
     private bool _loadingInspector;
+    private bool _inspectorOpen = true;
+    private Guid _inspectorSelectionId;
     private readonly Dictionary<Guid, Button> _clipButtons = new();
     private readonly Dictionary<Guid, (bool Start, bool End)> _clipVisibleEdges = new();
     private readonly InputCursor _clipMoveCursor = InputSystemCursor.Create(InputSystemCursorShape.SizeAll);
@@ -975,7 +977,15 @@ public sealed partial class VideoEditorPage
     {
         if (_selectedId == id && _selectedKind == kind)
         {
-            if (focusTimeline) FocusSelectedClip();
+            if (!focusTimeline && !ApplyPendingInspectorChanges()) return;
+            bool wasOpen = _inspectorOpen &&
+                InspectorPanel.Visibility == Visibility.Visible;
+            SetInspectorOpen(focusTimeline);
+            if (focusTimeline)
+            {
+                if (!wasOpen) RefreshInspector();
+                FocusSelectedClip();
+            }
             return;
         }
         if (!FlushCanvasTextEdit()) return;
@@ -993,6 +1003,7 @@ public sealed partial class VideoEditorPage
         _selectedId = id;
         if (_clipButtons.TryGetValue(id, out Button? selected))
             selected.BorderThickness = new Thickness(2);
+        SetInspectorOpen(focusTimeline);
         RefreshInspector();
         RefreshCanvasMediaSelection();
         if (focusTimeline) FocusSelectedClip();
@@ -1163,7 +1174,7 @@ public sealed partial class VideoEditorPage
             _selectedKind = TimelineKind.None;
             _selectedId = Guid.Empty;
             _selectedRange = null;
-            InspectorPanel.Visibility = Visibility.Collapsed;
+            SetInspectorOpen(false);
             SetEnabled(ApplyPropertiesButton, false);
             PendingChangesText.Visibility = Visibility.Collapsed;
             SelectionHint.Text = "Select a clip to edit";
@@ -1173,8 +1184,16 @@ public sealed partial class VideoEditorPage
             return;
         }
 
-        if (ActualWidth < 640) CloseGallery();
-        InspectorPanel.Visibility = Visibility.Visible;
+        // Programmatic additions select their new clip directly. Open its
+        // properties, while retaining a user's dismissal for the same clip.
+        if (_inspectorSelectionId != _selectedId)
+        {
+            _inspectorSelectionId = _selectedId;
+            _inspectorOpen = true;
+        }
+        if (_inspectorOpen && ActualWidth < 640) CloseGallery();
+        InspectorPanel.Visibility = _inspectorOpen
+            ? Visibility.Visible : Visibility.Collapsed;
         SourceFields.Visibility = video is not null || videoOverlay is not null ||
             audio is not null
             ? Visibility.Visible : Visibility.Collapsed;
@@ -1739,18 +1758,23 @@ public sealed partial class VideoEditorPage
     private void CloseInspector_Click(object sender, RoutedEventArgs args)
     {
         if (!FlushCanvasTextEdit() || !ApplyPendingInspectorChanges()) return;
-        _selectedKind = TimelineKind.None;
-        _selectedId = Guid.Empty;
-        _selectedRange = null;
-        InspectorPanel.Visibility = Visibility.Collapsed;
-        TextCanvas.Visibility = Visibility.Collapsed;
-        SetSelectedTextRasterVisibility();
-        SetEnabled(ApplyPropertiesButton, false);
-        PendingChangesText.Visibility = Visibility.Collapsed;
-        UpdateMarkedRangeHint();
-        RefreshTimeline();
-        RefreshCanvasMediaSelection();
-        UpdateEditActionState();
+        SetInspectorOpen(false);
+        Guid selectedId = _selectedId;
+        if (_selectedKind is TimelineKind.Image or TimelineKind.VideoOverlay)
+            DispatcherQueue.TryEnqueue(() => FocusCanvasMediaSelection(selectedId));
+        else if (_selectedKind == TimelineKind.Text &&
+            TextCanvas.Visibility == Visibility.Visible)
+            CanvasTextBox.Focus(FocusState.Programmatic);
+        else
+            FocusSelectedClip();
+    }
+
+    private void SetInspectorOpen(bool open)
+    {
+        _inspectorOpen = open;
+        _inspectorSelectionId = _selectedId;
+        InspectorPanel.Visibility = open && _selectedKind != TimelineKind.None
+            ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private bool ClearTimelineSelectionAndRange()
@@ -1762,7 +1786,7 @@ public sealed partial class VideoEditorPage
         _selectedId = Guid.Empty;
         _selectedRange = null;
         _markIn = _markOut = null;
-        InspectorPanel.Visibility = Visibility.Collapsed;
+        SetInspectorOpen(false);
         TextCanvas.Visibility = Visibility.Collapsed;
         SetSelectedTextRasterVisibility();
         SetEnabled(ApplyPropertiesButton, false);
