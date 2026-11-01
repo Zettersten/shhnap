@@ -29,6 +29,7 @@ internal static class VideoCompositionService
         TextRasterGates = new();
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> EdgeFrameGates = new();
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> CroppedImageGates = new();
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> CroppedVideoGates = new();
 
     internal static async Task<MediaComposition> BuildAsync(
         VideoProject project, VideoProjectStore store, CancellationToken cancellationToken = default,
@@ -363,7 +364,7 @@ internal static class VideoCompositionService
 
         var sourceInfo = new FileInfo(source.Path);
         string key = FormattableString.Invariant(
-            $"{assetId:N}|{sourceInfo.Length}|{sourceInfo.LastWriteTimeUtc.Ticks}|{crop.X:R}|{crop.Y:R}|{crop.Width:R}|{crop.Height:R}");
+            $"{assetId:N}|{sourceInfo.FullName}|{sourceInfo.Length}|{sourceInfo.LastWriteTimeUtc.Ticks}|{crop.X:R}|{crop.Y:R}|{crop.Width:R}|{crop.Height:R}");
         string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
         string path = Path.Combine(cacheDirectory, $"{overlayId:N}-{hash[..20]}.png");
         SemaphoreSlim gate = CroppedImageGates.GetOrAdd(path,
@@ -444,14 +445,112 @@ internal static class VideoCompositionService
         }
     }
 
+    private static async Task<StorageFile> EnsureCroppedVideoAsync(
+        VideoProject project, VideoProjectStore store, VideoOverlay overlay,
+        StorageFile source, VideoRect crop, CancellationToken token)
+    {
+        string projectDirectory = store.GetProjectDirectory(project.Id);
+        if (!Directory.Exists(projectDirectory) || IsReparsePoint(projectDirectory))
+            throw new IOException("The video project directory is unavailable.");
+        string cacheDirectory = Path.Combine(projectDirectory, ".video-crop-cache");
+        Directory.CreateDirectory(cacheDirectory);
+        if (IsReparsePoint(cacheDirectory))
+            throw new IOException("The video crop cache cannot be a linked directory.");
+
+        var sourceInfo = new FileInfo(source.Path);
+        string key = FormattableString.Invariant(
+            $"{overlay.AssetId:N}|{sourceInfo.FullName}|{sourceInfo.Length}|{sourceInfo.LastWriteTimeUtc.Ticks}|{crop.X:R}|{crop.Y:R}|{crop.Width:R}|{crop.Height:R}");
+        string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
+        string path = Path.Combine(cacheDirectory, $"{hash[..24]}.mp4");
+        SemaphoreSlim gate = CroppedVideoGates.GetOrAdd(path,
+            static _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(token);
+        try
+        {
+            if (File.Exists(path))
+            {
+                if (IsReparsePoint(path))
+                    throw new IOException("The video crop cache cannot contain linked files.");
+                if (new FileInfo(path).Length > 0)
+                    return await StorageFile.GetFileFromPathAsync(path);
+            }
+
+            string temporary = Path.Combine(cacheDirectory,
+                $".{Guid.NewGuid():N}.mp4");
+            try
+            {
+                MediaClip original = await MediaClip.CreateFromFileAsync(source);
+                VideoEncodingProperties format = original.GetVideoEncodingProperties();
+                Rect cropBounds = SourceCropRectangle(format, crop);
+                uint outputWidth = checked((uint)Math.Max(2,
+                    Math.Ceiling(cropBounds.Width / 2) * 2));
+                uint outputHeight = checked((uint)Math.Max(2,
+                    Math.Ceiling(cropBounds.Height / 2) * 2));
+                var effect = new VideoTransformEffectDefinition
+                {
+                    CropRectangle = cropBounds,
+                    OutputSize = new Size(outputWidth, outputHeight),
+                };
+                var transcoder = new MediaTranscoder
+                {
+                    HardwareAccelerationEnabled = true,
+                    AlwaysReencode = true,
+                };
+                transcoder.AddVideoEffect(effect.ActivatableClassId,
+                    true, effect.Properties);
+                MediaEncodingProfile profile = MediaEncodingProfile.CreateMp4(
+                    VideoEncodingQuality.HD1080p);
+                profile.Video.Width = outputWidth;
+                profile.Video.Height = outputHeight;
+                profile.Video.FrameRate.Numerator = format.FrameRate.Numerator > 0
+                    ? format.FrameRate.Numerator : checked((uint)project.FrameRate);
+                profile.Video.FrameRate.Denominator = format.FrameRate.Denominator > 0
+                    ? format.FrameRate.Denominator : 1;
+                profile.Video.Bitrate = checked((uint)Math.Clamp(
+                    format.Bitrate > 0 ?
+                        (long)((double)format.Bitrate * outputWidth / format.Width *
+                            outputHeight / format.Height) :
+                        (long)outputWidth * outputHeight * project.FrameRate / 4,
+                    2_000_000, 60_000_000));
+                // Imported video sound lives on separate timeline tracks.
+                profile.Audio = null;
+
+                StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(
+                    cacheDirectory).AsTask(token);
+                StorageFile target = await folder.CreateFileAsync(
+                    Path.GetFileName(temporary), CreationCollisionOption.FailIfExists)
+                    .AsTask(token);
+                PrepareTranscodeResult prepared = await transcoder.PrepareFileTranscodeAsync(
+                    source, target, profile).AsTask(token);
+                if (!prepared.CanTranscode)
+                    throw new InvalidOperationException(
+                        $"Windows could not crop this video ({prepared.FailureReason}).");
+                await prepared.TranscodeAsync().AsTask(token);
+                token.ThrowIfCancellationRequested();
+                if (new FileInfo(temporary).Length == 0)
+                    throw new IOException("The cropped video cache is empty.");
+                File.Move(temporary, path, overwrite: true);
+            }
+            finally
+            {
+                try { if (File.Exists(temporary)) File.Delete(temporary); }
+                catch (IOException) { }
+            }
+            return await StorageFile.GetFileFromPathAsync(path);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     private static Rect ScaleBounds(VideoRect bounds, double scaleX, double scaleY) =>
         new(bounds.X * scaleX, bounds.Y * scaleY,
             bounds.Width * scaleX, bounds.Height * scaleY);
 
-    private static void ApplySourceCrop(MediaClip clip, VideoRect? sourceCrop)
+    private static Rect SourceCropRectangle(VideoEncodingProperties format,
+        VideoRect crop)
     {
-        if (sourceCrop is not { } crop) return;
-        VideoEncodingProperties format = clip.GetVideoEncodingProperties();
         if (format.Width == 0 || format.Height == 0)
             throw new InvalidDataException("The media has no video dimensions to crop.");
         double width = format.Width;
@@ -462,12 +561,7 @@ internal static class VideoCompositionService
             left + 1, width);
         double bottom = Math.Clamp(Math.Ceiling((crop.Y + crop.Height) * height),
             top + 1, height);
-        var source = new Rect(left, top, right - left, bottom - top);
-        clip.VideoEffectDefinitions.Add(new VideoTransformEffectDefinition
-        {
-            CropRectangle = source,
-            OutputSize = new Size(source.Width, source.Height),
-        });
+        return new Rect(left, top, right - left, bottom - top);
     }
 
     private static async Task AddVideoOverlayLayersAsync(MediaComposition composition,
@@ -478,6 +572,18 @@ internal static class VideoCompositionService
     {
         double scaleX = previewSize?.Width / (double)project.Width ?? 1;
         double scaleY = previewSize?.Height / (double)project.Height ?? 1;
+        var croppedSources = new Dictionary<Guid, StorageFile>();
+        async Task<StorageFile> OverlayFileForAsync(VideoOverlay overlay)
+        {
+            if (overlay.SourceCrop is not { } crop)
+                return await fileForAsync(overlay.AssetId);
+            if (croppedSources.TryGetValue(overlay.Id, out StorageFile? cached))
+                return cached;
+            StorageFile source = await EnsureCroppedVideoAsync(project, store,
+                overlay, await fileForAsync(overlay.AssetId), crop, token);
+            croppedSources.Add(overlay.Id, source);
+            return source;
+        }
         foreach (IGrouping<Guid, VideoOverlay> group in project.VideoOverlays
             .Where(item => !project.HiddenLayerIds.Contains(
                 item.LayerId == Guid.Empty ? item.Id : item.LayerId))
@@ -510,13 +616,13 @@ internal static class VideoCompositionService
                 }
                 if (bodyEnd > bodyStart)
                     await AddVideoOverlaySourceAsync(layer, overlay,
-                        assets[overlay.AssetId], fileForAsync, null, bodyStart,
+                        assets[overlay.AssetId], OverlayFileForAsync, null, bodyStart,
                         bodyEnd - bodyStart, ScaleBounds(overlay.Bounds, scaleX, scaleY),
                         1, token);
             }
             foreach ((VideoTransition transition, VideoTransitionSpan span) in transitions)
                 await AddVideoOverlayTransitionSlicesAsync(layer, project, store, assets,
-                    fileForAsync, byId[transition.OutgoingId],
+                    OverlayFileForAsync, byId[transition.OutgoingId],
                     byId[transition.IncomingId], transition, span, scaleX, scaleY, token);
             composition.OverlayLayers.Add(layer);
         }
@@ -525,7 +631,7 @@ internal static class VideoCompositionService
     private static async Task AddVideoOverlayTransitionSlicesAsync(
         MediaOverlayLayer layer, VideoProject project, VideoProjectStore store,
         IReadOnlyDictionary<Guid, VideoAsset> assets,
-        Func<Guid, Task<StorageFile>> fileForAsync,
+        Func<VideoOverlay, Task<StorageFile>> overlayFileForAsync,
         VideoOverlay outgoing, VideoOverlay incoming, VideoTransition transition,
         VideoTransitionSpan span, double scaleX, double scaleY, CancellationToken token)
     {
@@ -534,29 +640,23 @@ internal static class VideoCompositionService
         StorageFile? incomingHold = null;
         if (outgoing.SourceOut + (span.End - span.Cut) > assets[outgoing.AssetId].Duration)
         {
-            StorageFile file = await fileForAsync(outgoing.AssetId);
+            StorageFile file = await overlayFileForAsync(outgoing);
             VideoEncodingProperties format = (await MediaClip.CreateFromFileAsync(file))
                 .GetVideoEncodingProperties();
             outgoingHold = await EnsureVideoEdgeFrameAsync(project, store,
                 new VideoSegment(outgoing.Id, outgoing.AssetId, outgoing.Start,
                     outgoing.SourceIn, outgoing.SourceOut), file, outgoing: true,
                 Math.Max(1, (double)format.Width), Math.Max(1, (double)format.Height), token);
-            if (outgoing.SourceCrop is { } crop)
-                outgoingHold = await EnsureCroppedImageAsync(project, store,
-                    outgoing.Id, outgoing.AssetId, outgoingHold, crop, token);
         }
         if (incoming.SourceIn < span.Cut - span.Start)
         {
-            StorageFile file = await fileForAsync(incoming.AssetId);
+            StorageFile file = await overlayFileForAsync(incoming);
             VideoEncodingProperties format = (await MediaClip.CreateFromFileAsync(file))
                 .GetVideoEncodingProperties();
             incomingHold = await EnsureVideoEdgeFrameAsync(project, store,
                 new VideoSegment(incoming.Id, incoming.AssetId, incoming.Start,
                     incoming.SourceIn, incoming.SourceOut), file, outgoing: false,
                 Math.Max(1, (double)format.Width), Math.Max(1, (double)format.Height), token);
-            if (incoming.SourceCrop is { } crop)
-                incomingHold = await EnsureCroppedImageAsync(project, store,
-                    incoming.Id, incoming.AssetId, incomingHold, crop, token);
         }
         Rect outgoingBounds = ScaleBounds(outgoing.Bounds, scaleX, scaleY);
         Rect incomingBounds = ScaleBounds(incoming.Bounds, scaleX, scaleY);
@@ -582,12 +682,12 @@ internal static class VideoCompositionService
                 });
             }
             await AddVideoOverlaySourceAsync(layer, outgoing, assets[outgoing.AssetId],
-                fileForAsync, outgoingHold, start, end - start,
+                overlayFileForAsync, outgoingHold, start, end - start,
                 TransitionBounds(outgoingBounds, sample.OutgoingOffsetX,
                     sample.OutgoingOffsetY, sample.OutgoingScale),
                 sample.OutgoingOpacity, token);
             await AddVideoOverlaySourceAsync(layer, incoming, assets[incoming.AssetId],
-                fileForAsync, incomingHold, start, end - start,
+                overlayFileForAsync, incomingHold, start, end - start,
                 TransitionBounds(incomingBounds, sample.IncomingOffsetX,
                     sample.IncomingOffsetY, sample.IncomingScale),
                 sample.IncomingOpacity, token);
@@ -595,7 +695,8 @@ internal static class VideoCompositionService
     }
 
     private static async Task AddVideoOverlaySourceAsync(MediaOverlayLayer layer,
-        VideoOverlay overlay, VideoAsset asset, Func<Guid, Task<StorageFile>> fileForAsync,
+        VideoOverlay overlay, VideoAsset asset,
+        Func<VideoOverlay, Task<StorageFile>> overlayFileForAsync,
         StorageFile? heldFrame, TimeSpan start, TimeSpan duration, Rect bounds,
         double opacity, CancellationToken token)
     {
@@ -616,11 +717,10 @@ internal static class VideoCompositionService
             if (sourceIn < TimeSpan.Zero || sourceIn + duration > asset.Duration)
                 throw new InvalidDataException("A transition extends beyond its source file.");
             clip = await MediaClip.CreateFromFileAsync(
-                await fileForAsync(overlay.AssetId));
+                await overlayFileForAsync(overlay));
             Trim(clip, sourceIn, sourceIn + duration);
             clip.Volume = 0;
         }
-        if (!before && !after) ApplySourceCrop(clip, overlay.SourceCrop);
         layer.Overlays.Add(new MediaOverlay(clip)
         {
             Delay = start,
@@ -816,8 +916,13 @@ internal static class VideoCompositionService
         Directory.CreateDirectory(cacheDirectory);
         if (IsReparsePoint(cacheDirectory))
             throw new IOException("The transition frame cache cannot be a linked directory.");
+        var sourceInfo = new FileInfo(sourceFile.Path);
+        string sourceKey = FormattableString.Invariant(
+            $"{sourceInfo.FullName}|{sourceInfo.Length}|{sourceInfo.LastWriteTimeUtc.Ticks}");
+        string sourceHash = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(sourceKey)))[..16];
         string path = Path.Combine(cacheDirectory,
-            $"{segment.AssetId:N}-{segment.SourceIn.Ticks}-{segment.SourceOut.Ticks}-" +
+            $"{segment.AssetId:N}-{sourceHash}-{segment.SourceIn.Ticks}-{segment.SourceOut.Ticks}-" +
             $"{(outgoing ? "last" : "first")}-{rasterWidth}x{rasterHeight}.png");
         SemaphoreSlim gate = EdgeFrameGates.GetOrAdd(path,
             static _ => new SemaphoreSlim(1, 1));
