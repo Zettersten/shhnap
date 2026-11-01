@@ -168,7 +168,42 @@ public sealed partial class VideoEditorPage
             button.Click += GalleryItem_Click;
             preview.DragStarting += GalleryItem_DragStarting;
             preview.DropCompleted += GalleryItem_DropCompleted;
-            GalleryItemsHost.Children.Add(button);
+            var itemHost = new Grid
+            {
+                Width = GalleryThumbSize,
+                Height = GalleryThumbSize,
+            };
+            itemHost.Children.Add(button);
+            var addButton = new Button
+            {
+                Width = 20,
+                Height = 20,
+                MinWidth = 0,
+                MinHeight = 0,
+                Padding = new Thickness(0),
+                Margin = new Thickness(0, 3, 3, 0),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                CornerRadius = new CornerRadius(10),
+                Background = new SolidColorBrush(ColorHelper.FromArgb(220, 16, 28, 45)),
+                BorderThickness = new Thickness(0),
+                Tag = item,
+                Content = new FontIcon
+                {
+                    Glyph = "\uE710",
+                    FontFamily = new FontFamily("Segoe Fluent Icons"),
+                    FontSize = 11,
+                    Foreground = new SolidColorBrush(Colors.White),
+                },
+            };
+            AutomationProperties.SetName(addButton,
+                item.IsVideo ? $"Add original recording of {item.Title} at playhead" :
+                    $"Add {item.Title} as an image layer at playhead");
+            ToolTipService.SetToolTip(addButton,
+                item.IsVideo ? "Add original recording at playhead" : "Add image layer at playhead");
+            addButton.Click += GalleryItem_AddClick;
+            itemHost.Children.Add(addButton);
+            GalleryItemsHost.Children.Add(itemHost);
         }
         GalleryPrevious.IsEnabled = _galleryPage > 0;
         GalleryNext.IsEnabled = (_galleryPage + 1) * _galleryPageSize < _galleryMedia.Count;
@@ -234,7 +269,8 @@ public sealed partial class VideoEditorPage
         else
         {
             OpenGallery(pin: true);
-            GalleryItemsHost.Children.OfType<Button>().FirstOrDefault()?.Focus(FocusState.Keyboard);
+            if (GalleryItemsHost.Children.FirstOrDefault() is Grid first)
+                first.Children.OfType<Button>().FirstOrDefault()?.Focus(FocusState.Keyboard);
         }
     }
 
@@ -272,6 +308,12 @@ public sealed partial class VideoEditorPage
             Stopwatch.GetElapsedTime(_galleryLastDropAt).TotalMilliseconds < 500) return;
         if (media.IsVideo) VideoRequested?.Invoke(media.Id);
         else _ = ImportGalleryImageAsync(media.Id);
+    }
+
+    private void GalleryItem_AddClick(object sender, RoutedEventArgs args)
+    {
+        if (sender is not Button { Tag: GalleryMedia media }) return;
+        _ = ImportGalleryMediaAsync(media.Id, media.IsVideo, _playhead);
     }
 
     private void GalleryItem_DragStarting(UIElement sender, DragStartingEventArgs args)
