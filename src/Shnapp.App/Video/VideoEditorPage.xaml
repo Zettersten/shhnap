@@ -15,6 +15,13 @@
         <KeyboardAccelerator Key="E" Modifiers="Control" Invoked="Export_Invoked" />
         <KeyboardAccelerator Key="Left" Modifiers="Menu" Invoked="Back_Invoked" />
         <KeyboardAccelerator Key="L" Modifiers="Control" Invoked="Library_Invoked" />
+        <KeyboardAccelerator Key="G" Modifiers="Control,Shift" Invoked="Gallery_Invoked" />
+        <KeyboardAccelerator Key="Space" Invoked="PlayPause_Invoked" />
+        <KeyboardAccelerator Key="I" Invoked="MarkIn_Invoked" />
+        <KeyboardAccelerator Key="O" Invoked="MarkOut_Invoked" />
+        <KeyboardAccelerator Key="S" Invoked="Split_Invoked" />
+        <KeyboardAccelerator Key="Delete" Invoked="DeleteClip_Invoked" />
+        <KeyboardAccelerator Key="Escape" Invoked="Escape_Invoked" />
     </Page.KeyboardAccelerators>
 
     <Grid Background="{ThemeResource ShnappCanvasBrush}">

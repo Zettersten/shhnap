@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Shnapp.Core;
 using Windows.Media.Core;
 using Windows.Media.Editing;
@@ -298,6 +299,9 @@ public sealed partial class VideoEditorPage : Page
     }
 
     private void PlayPause_Click(object sender, RoutedEventArgs args)
+        => TogglePlayback();
+
+    private void TogglePlayback()
     {
         if (_player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing)
             _player.Pause();
@@ -365,13 +369,98 @@ public sealed partial class VideoEditorPage : Page
     private void Page_Unloaded(object sender, RoutedEventArgs args) { _layoutReady = false; }
     private void Export_Click(object sender, RoutedEventArgs args) => _ = ExportAsync();
     private void Undo_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
-    { args.Handled = true; Undo(); }
+    {
+        if (IsTextEntryFocused() || _closed || _editor is null) return;
+        args.Handled = true;
+        Undo();
+    }
     private void Redo_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
-    { args.Handled = true; Redo(); }
+    {
+        if (IsTextEntryFocused() || _closed || _editor is null) return;
+        args.Handled = true;
+        Redo();
+    }
     private void Export_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
-    { args.Handled = true; _ = ExportAsync(); }
+    {
+        if (_closed || _editor is null || _isExporting) return;
+        args.Handled = true;
+        _ = ExportAsync();
+    }
     private void Back_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     { args.Handled = true; BackRequested?.Invoke(this, EventArgs.Empty); }
     private void Library_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     { args.Handled = true; LibraryRequested?.Invoke(this, EventArgs.Empty); }
+    private void Gallery_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null) return;
+        args.Handled = true;
+        ToggleGallery();
+    }
+    private void PlayPause_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsNativeControlFocused()) return;
+        args.Handled = true;
+        TogglePlayback();
+    }
+    private void MarkIn_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsTextEntryFocused()) return;
+        args.Handled = true;
+        MarkIn_Click(this, new RoutedEventArgs());
+    }
+    private void MarkOut_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsTextEntryFocused()) return;
+        args.Handled = true;
+        MarkOut_Click(this, new RoutedEventArgs());
+    }
+    private void Split_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsTextEntryFocused() || !SplitButton.IsEnabled) return;
+        args.Handled = true;
+        Split_Click(this, new RoutedEventArgs());
+    }
+    private void DeleteClip_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsTextEntryFocused() || !DeleteClipButton.IsEnabled) return;
+        args.Handled = true;
+        DeleteSelected_Click(this, new RoutedEventArgs());
+    }
+    private void Escape_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || IsTextEntryFocused()) return;
+        if (GalleryPanel.Visibility == Visibility.Visible)
+        {
+            ToggleGallery();
+            args.Handled = true;
+        }
+        else if (ClearTimelineSelectionAndRange())
+        {
+            args.Handled = true;
+        }
+    }
+
+    private bool IsNativeControlFocused()
+    {
+        if (IsTextEntryFocused()) return true;
+        object? focused = FocusManager.GetFocusedElement(XamlRoot);
+        return focused switch
+        {
+            Button { Tag: ValueTuple<TimelineKind, Guid> } => false,
+            Slider or ToggleSwitch or Button or MenuFlyoutItem => true,
+            _ => false,
+        };
+    }
+
+    private bool IsTextEntryFocused()
+    {
+        DependencyObject? focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
+        while (focused is not null)
+        {
+            if (focused is TextBox or RichEditBox or PasswordBox or NumberBox or ComboBox)
+                return true;
+            focused = VisualTreeHelper.GetParent(focused);
+        }
+        return false;
+    }
 }
