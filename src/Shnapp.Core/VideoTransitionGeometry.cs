@@ -62,6 +62,8 @@ public static class VideoTransitionGeometry
         TimeSpan outgoingEnd;
         TimeSpan incomingStart;
         TimeSpan incomingEnd;
+        TimeSpan outgoingOppositeFade = TimeSpan.Zero;
+        TimeSpan incomingOppositeFade = TimeSpan.Zero;
         switch (transition.Lane)
         {
             case VideoTransitionLane.Video:
@@ -76,6 +78,8 @@ public static class VideoTransitionGeometry
                 outgoingEnd = outgoingVideo.End;
                 incomingStart = incomingVideo.Start;
                 incomingEnd = incomingVideo.End;
+                outgoingOppositeFade = outgoingVideo.FadeIn;
+                incomingOppositeFade = incomingVideo.FadeOut;
                 break;
             case VideoTransitionLane.Image:
                 ImageOverlay? outgoingImage = project.ImageOverlays.FirstOrDefault(item =>
@@ -110,8 +114,8 @@ public static class VideoTransitionGeometry
         TimeSpan half = TimeSpan.FromTicks(transition.Duration.Ticks / 2);
         TimeSpan incomingHalf = transition.Duration - half;
         if (outgoingEnd != incomingStart ||
-            outgoingEnd - outgoingStart < half ||
-            incomingEnd - incomingStart < incomingHalf)
+            outgoingEnd - outgoingStart - outgoingOppositeFade < half ||
+            incomingEnd - incomingStart - incomingOppositeFade < incomingHalf)
             return false;
         span = new VideoTransitionSpan(outgoingEnd, outgoingEnd - half,
             outgoingEnd + incomingHalf);

@@ -286,6 +286,19 @@ public sealed class VideoTextTransitionTests
     }
 
     [TestMethod]
+    public void TransitionCannotOverlapAFadeAtTheOtherClipEdge()
+    {
+        var editor = new VideoProjectEditor(CreateRecording());
+        Guid firstId = editor.Current.VideoSegments[0].Id;
+        Guid nextId = editor.SplitVideoSegment(firstId, 5 * Second);
+        editor.SetVideoFades(firstId, TimeSpan.FromMilliseconds(4500),
+            TimeSpan.Zero);
+        Assert.ThrowsExactly<ArgumentException>(() => editor.AddTransition(
+            VideoTransitionLane.Video, firstId, nextId,
+            VideoTransitionEffect.Fade, 2 * Second));
+    }
+
+    [TestMethod]
     public void TextAndFadeValidationRejectsInvalidValues()
     {
         var editor = new VideoProjectEditor(CreateRecording());
