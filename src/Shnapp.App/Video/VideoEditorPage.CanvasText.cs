@@ -1,3 +1,4 @@
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -24,12 +25,17 @@ public sealed partial class VideoEditorPage
     private uint? _canvasTextPointerId;
     private global::Windows.Foundation.Point _canvasTextPointerStart;
     private VideoRect _canvasTextPointerBounds;
+    private bool? _canvasTextAxisLockHorizontal;
 
     private enum CanvasTextGesture { None, Move, Resize }
 
     private void InitializeCanvasText()
     {
         _canvasTextCommitTimer.Tick += CanvasTextCommitTimer_Tick;
+        ToolTipService.SetToolTip(CanvasTextMoveGrip,
+            "Drag to move text · hold Shift to move in one direction");
+        ToolTipService.SetToolTip(CanvasTextResizeGrip,
+            "Drag to resize text · hold Shift to keep proportions");
     }
 
     private void ReleaseCanvasText()
@@ -276,6 +282,7 @@ public sealed partial class VideoEditorPage
         _canvasTextPointerId = args.Pointer.PointerId;
         _canvasTextPointerStart = args.GetCurrentPoint(TextCanvas).Position;
         _canvasTextPointerBounds = overlay.Bounds;
+        _canvasTextAxisLockHorizontal = null;
         args.Handled = true;
     }
 
@@ -283,33 +290,75 @@ public sealed partial class VideoEditorPage
     {
         if (_editor is null || _canvasTextPointerId != args.Pointer.PointerId ||
             _canvasTextGesture == CanvasTextGesture.None) return;
+        UpdateCanvasTextGesture(args);
+        args.Handled = true;
+    }
+
+    private void UpdateCanvasTextGesture(PointerRoutedEventArgs args)
+    {
+        if (_editor is null || VideoPlayer.Width <= 0 || VideoPlayer.Height <= 0)
+            return;
         VideoProject project = _editor.Current;
         var position = args.GetCurrentPoint(TextCanvas).Position;
         double dx = (position.X - _canvasTextPointerStart.X) * project.Width / VideoPlayer.Width;
         double dy = (position.Y - _canvasTextPointerStart.Y) * project.Height / VideoPlayer.Height;
+        bool shiftHeld = (args.KeyModifiers & VirtualKeyModifiers.Shift) != 0 ||
+            (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift) &
+             global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
         VideoRect old = _canvasTextPointerBounds;
-        _canvasTextDraftBounds = _canvasTextGesture == CanvasTextGesture.Move
-            ? old with
+        if (_canvasTextGesture == CanvasTextGesture.Move)
+        {
+            if (shiftHeld)
+            {
+                if (_canvasTextAxisLockHorizontal is null &&
+                    Math.Max(Math.Abs(dx), Math.Abs(dy)) >= 3)
+                    _canvasTextAxisLockHorizontal = Math.Abs(dx) >= Math.Abs(dy);
+                if (_canvasTextAxisLockHorizontal is true) dy = 0;
+                else if (_canvasTextAxisLockHorizontal is false) dx = 0;
+                else dx = dy = 0;
+            }
+            else _canvasTextAxisLockHorizontal = null;
+            _canvasTextDraftBounds = old with
             {
                 X = Math.Clamp(old.X + dx, -65_536, 65_536),
                 Y = Math.Clamp(old.Y + dy, -65_536, 65_536),
-            }
-            : old with
+            };
+        }
+        else if (shiftHeld)
+        {
+            double widthScale = (old.Width + dx) / old.Width;
+            double heightScale = (old.Height + dy) / old.Height;
+            double scale = Math.Abs(widthScale - 1) >= Math.Abs(heightScale - 1)
+                ? widthScale : heightScale;
+            double minimum = Math.Max(16 / old.Width, 16 / old.Height);
+            double maximum = Math.Min(65_536 / old.Width, 65_536 / old.Height);
+            scale = Math.Clamp(scale, Math.Min(minimum, maximum), maximum);
+            _canvasTextDraftBounds = old with
+            {
+                Width = old.Width * scale,
+                Height = old.Height * scale,
+            };
+        }
+        else
+        {
+            _canvasTextDraftBounds = old with
             {
                 Width = Math.Clamp(old.Width + dx, 16, 65_536),
                 Height = Math.Clamp(old.Height + dy, 16, 65_536),
             };
+        }
         UpdateCanvasTextBounds();
-        args.Handled = true;
     }
 
     private void CanvasTextGrip_PointerReleased(object sender, PointerRoutedEventArgs args)
     {
         if (_canvasTextPointerId != args.Pointer.PointerId) return;
+        UpdateCanvasTextGesture(args);
         VideoRect? bounds = _canvasTextDraftBounds;
         _canvasTextPointerId = null;
         _canvasTextGesture = CanvasTextGesture.None;
         _canvasTextDraftBounds = null;
+        _canvasTextAxisLockHorizontal = null;
         if (sender is Border grip) grip.ReleasePointerCapture(args.Pointer);
         if (_editor is not null && bounds is { } target &&
             _editor.Current.TextOverlays.FirstOrDefault(item => item.Id == _canvasTextId) is { } overlay &&
@@ -325,6 +374,7 @@ public sealed partial class VideoEditorPage
         _canvasTextPointerId = null;
         _canvasTextGesture = CanvasTextGesture.None;
         _canvasTextDraftBounds = null;
+        _canvasTextAxisLockHorizontal = null;
         UpdateCanvasTextBounds();
     }
 

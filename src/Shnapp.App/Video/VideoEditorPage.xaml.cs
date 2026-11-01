@@ -674,7 +674,14 @@ public sealed partial class VideoEditorPage : Page
     }
     private void StepFrame_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (_closed || _editor is null || IsNativeControlFocused()) return;
+        if (_closed || _editor is null) return;
+        if (NudgeCanvasMedia(sender.Key,
+            (sender.Modifiers & VirtualKeyModifiers.Shift) != 0))
+        {
+            args.Handled = true;
+            return;
+        }
+        if (IsNativeControlFocused()) return;
         args.Handled = true;
         _player.Pause();
         int frames = (sender.Key == VirtualKey.Left ? -1 : 1) *

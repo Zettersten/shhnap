@@ -1,4 +1,5 @@
 using Microsoft.UI;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -10,6 +11,7 @@ using Shnapp.Core;
 using Windows.Foundation;
 using Windows.Media.Editing;
 using Windows.Storage;
+using Windows.System;
 
 namespace Shnapp.App.Video;
 
@@ -103,6 +105,7 @@ public sealed partial class VideoEditorPage
     private VideoRect _canvasMediaStartCrop;
     private VideoRect? _canvasMediaDraftBounds;
     private VideoRect? _canvasMediaDraftCrop;
+    private bool? _canvasMediaAxisLockHorizontal;
     private Guid _canvasProxyAssetId;
     private long _canvasProxyGeneration;
 
@@ -110,6 +113,10 @@ public sealed partial class VideoEditorPage
     {
         UpdateCanvasMediaTheme();
         ActualThemeChanged += (_, _) => UpdateCanvasMediaTheme();
+        VideoPlayer.IsTabStop = true;
+        AutomationProperties.SetName(VideoPlayer, "Video canvas");
+        AutomationProperties.SetHelpText(VideoPlayer,
+            "With an image or video selected, arrow keys move it one pixel; hold Shift for ten pixels.");
         PreviewHost.Children.Insert(PreviewHost.Children.IndexOf(_previewImages),
             _previewVideoHits);
         PreviewHost.Children.Insert(PreviewHost.Children.IndexOf(_previewText),
@@ -147,15 +154,17 @@ public sealed partial class VideoEditorPage
             view.PointerReleased += MediaSurface_PointerReleased;
             view.PointerCaptureLost += MediaSurface_PointerCaptureLost;
             AutomationProperties.SetName(view, $"Resize or crop {handle.ToString().ToLowerInvariant()}");
-            ToolTipService.SetToolTip(view, "Drag to resize · Crop button changes the source crop");
+            ToolTipService.SetToolTip(view,
+                "Drag to resize or crop · hold Shift to keep proportions");
             _canvasMediaHandles.Add((handle, view));
             _canvasMedia.Children.Add(view);
         }
 
         ToolTipService.SetToolTip(_canvasMediaCropButton,
-            "Crop source · drag an edge or corner inward");
+            "Crop source · Ctrl+Shift+C · hold Shift to keep proportions");
         AutomationProperties.SetName(_canvasMediaCropButton, "Crop selected media");
-        ToolTipService.SetToolTip(_canvasMediaResetCropButton, "Reset source crop");
+        ToolTipService.SetToolTip(_canvasMediaResetCropButton,
+            "Reset source crop · Ctrl+Shift+R");
         AutomationProperties.SetName(_canvasMediaResetCropButton, "Reset selected media crop");
         _canvasMediaResetCropButton.Click += CanvasMediaResetCrop_Click;
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
@@ -163,6 +172,7 @@ public sealed partial class VideoEditorPage
         actions.Children.Add(_canvasMediaResetCropButton);
         _canvasMediaQuickbar.Child = actions;
         _canvasMedia.Children.Add(_canvasMediaQuickbar);
+        RegisterCanvasMediaShortcuts();
     }
 
     private void UpdateCanvasMediaTheme()
@@ -493,6 +503,10 @@ public sealed partial class VideoEditorPage
         };
         _canvasMediaDraftBounds = _canvasMediaStartBounds;
         _canvasMediaDraftCrop = _canvasMediaStartCrop;
+        _canvasMediaAxisLockHorizontal = null;
+        // A canvas selection owns arrow keys until focus moves to a timeline or
+        // transport control. The page's frame-step accelerators stay available there.
+        VideoPlayer.Focus(FocusState.Programmatic);
         if (_selectedKind == TimelineKind.VideoOverlay &&
             _pausedOverlayViews.TryGetValue(_selectedId, out var paused) &&
             paused.Image.Source is BitmapImage pausedFrame)
@@ -512,15 +526,36 @@ public sealed partial class VideoEditorPage
         if (_canvasMediaPointerId != args.Pointer.PointerId ||
             !ReferenceEquals(sender, _canvasMediaCapture) || _editor is null ||
             VideoPlayer.Width <= 0 || VideoPlayer.Height <= 0) return;
+        UpdateCanvasMediaDraft(args);
+        args.Handled = true;
+    }
+
+    private void UpdateCanvasMediaDraft(PointerRoutedEventArgs args)
+    {
+        if (_editor is null || VideoPlayer.Width <= 0 || VideoPlayer.Height <= 0)
+            return;
         var point = args.GetCurrentPoint(_canvasMedia).Position;
         double dx = (point.X - _canvasMediaPointerStart.X) *
             _editor.Current.Width / VideoPlayer.Width;
         double dy = (point.Y - _canvasMediaPointerStart.Y) *
             _editor.Current.Height / VideoPlayer.Height;
+        bool shiftHeld = (args.KeyModifiers & VirtualKeyModifiers.Shift) != 0 ||
+            (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift) &
+             global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
         VideoRect bounds;
         VideoRect crop = _canvasMediaStartCrop;
         if (_canvasMediaGesture == MediaHandle.Move)
         {
+            if (shiftHeld)
+            {
+                if (_canvasMediaAxisLockHorizontal is null &&
+                    Math.Max(Math.Abs(dx), Math.Abs(dy)) >= 3)
+                    _canvasMediaAxisLockHorizontal = Math.Abs(dx) >= Math.Abs(dy);
+                if (_canvasMediaAxisLockHorizontal is true) dy = 0;
+                else if (_canvasMediaAxisLockHorizontal is false) dx = 0;
+                else dx = dy = 0;
+            }
+            else _canvasMediaAxisLockHorizontal = null;
             bounds = _canvasMediaStartBounds with
             {
                 X = Math.Clamp(_canvasMediaStartBounds.X + dx, -65_536, 65_536),
@@ -530,12 +565,12 @@ public sealed partial class VideoEditorPage
         else if (_canvasMediaCropButton.IsChecked == true)
         {
             bounds = CropCanvasMedia(_canvasMediaStartBounds, crop,
-                _canvasMediaGesture, dx, dy, out crop);
+                _canvasMediaGesture, dx, dy, shiftHeld, out crop);
         }
         else
         {
             bounds = ResizeCanvasMedia(_canvasMediaStartBounds,
-                _canvasMediaGesture, dx, dy);
+                _canvasMediaGesture, dx, dy, shiftHeld);
         }
         _canvasMediaDraftBounds = bounds;
         _canvasMediaDraftCrop = crop;
@@ -546,12 +581,13 @@ public sealed partial class VideoEditorPage
         else if (_selectedKind == TimelineKind.VideoOverlay &&
             _pausedOverlayViews.TryGetValue(_selectedId, out var paused))
             LayoutPausedOverlay(bounds, crop, paused.Frame, paused.Image);
-        args.Handled = true;
     }
 
     private static VideoRect ResizeCanvasMedia(VideoRect old, MediaHandle handle,
-        double dx, double dy)
+        double dx, double dy, bool maintainProportions)
     {
+        if (maintainProportions)
+            return ResizeCanvasMediaProportionally(old, handle, dx, dy);
         double left = old.X;
         double top = old.Y;
         double right = old.X + old.Width;
@@ -570,9 +606,98 @@ public sealed partial class VideoEditorPage
             Math.Clamp(bottom - top, 16, 65_536));
     }
 
-    private static VideoRect CropCanvasMedia(VideoRect old, VideoRect crop,
-        MediaHandle handle, double dx, double dy, out VideoRect resultCrop)
+    private static VideoRect ResizeCanvasMediaProportionally(VideoRect old,
+        MediaHandle handle, double dx, double dy, VideoRect? sourceCrop = null)
     {
+        bool west = handle is MediaHandle.NorthWest or MediaHandle.West or
+            MediaHandle.SouthWest;
+        bool east = handle is MediaHandle.NorthEast or MediaHandle.East or
+            MediaHandle.SouthEast;
+        bool north = handle is MediaHandle.NorthWest or MediaHandle.North or
+            MediaHandle.NorthEast;
+        bool south = handle is MediaHandle.SouthWest or MediaHandle.South or
+            MediaHandle.SouthEast;
+        double widthScale = west ? (old.Width - dx) / old.Width :
+            east ? (old.Width + dx) / old.Width : 1;
+        double heightScale = north ? (old.Height - dy) / old.Height :
+            south ? (old.Height + dy) / old.Height : 1;
+        double scale = west || east
+            ? north || south
+                ? Math.Abs(widthScale - 1) >= Math.Abs(heightScale - 1)
+                    ? widthScale : heightScale
+                : widthScale
+            : heightScale;
+        double minimum = Math.Max(16 / old.Width, 16 / old.Height);
+        double maximum = Math.Min(65_536 / old.Width, 65_536 / old.Height);
+        // Imported projects can contain a valid media rectangle narrower than
+        // 16 px. Keep its ratio when the minimum size cannot fit the 65,536 px cap.
+        scale = Math.Clamp(scale, Math.Min(minimum, maximum), maximum);
+
+        VideoRect AtScale(double factor)
+        {
+            double width = old.Width * factor;
+            double height = old.Height * factor;
+            double x = west ? old.X + old.Width - width :
+                east ? old.X : old.X + (old.Width - width) / 2;
+            double y = north ? old.Y + old.Height - height :
+                south ? old.Y : old.Y + (old.Height - height) / 2;
+            return new VideoRect(x, y, width, height);
+        }
+
+        if (sourceCrop is { } crop && scale > 1)
+        {
+            double sourceLeft = old.X - crop.X * old.Width / crop.Width;
+            double sourceTop = old.Y - crop.Y * old.Height / crop.Height;
+            double sourceRight = old.X + (1 - crop.X) * old.Width / crop.Width;
+            double sourceBottom = old.Y + (1 - crop.Y) * old.Height / crop.Height;
+            bool Fits(VideoRect candidate) =>
+                candidate.X >= sourceLeft && candidate.Y >= sourceTop &&
+                candidate.X + candidate.Width <= sourceRight &&
+                candidate.Y + candidate.Height <= sourceBottom;
+            if (!Fits(AtScale(scale)))
+            {
+                double low = 1;
+                double high = scale;
+                for (int index = 0; index < 48; index++)
+                {
+                    double middle = (low + high) / 2;
+                    if (Fits(AtScale(middle))) low = middle;
+                    else high = middle;
+                }
+                scale = low;
+            }
+        }
+        VideoRect next = AtScale(scale);
+        return next with
+        {
+            X = Math.Clamp(next.X, -65_536, 65_536),
+            Y = Math.Clamp(next.Y, -65_536, 65_536),
+        };
+    }
+
+    private static VideoRect CropForBounds(VideoRect old, VideoRect crop,
+        VideoRect next)
+    {
+        double x = Math.Clamp(crop.X + (next.X - old.X) *
+            crop.Width / old.Width, 0, 1);
+        double y = Math.Clamp(crop.Y + (next.Y - old.Y) *
+            crop.Height / old.Height, 0, 1);
+        return new VideoRect(x, y,
+            Math.Min(crop.Width * next.Width / old.Width, 1 - x),
+            Math.Min(crop.Height * next.Height / old.Height, 1 - y));
+    }
+
+    private static VideoRect CropCanvasMedia(VideoRect old, VideoRect crop,
+        MediaHandle handle, double dx, double dy, bool maintainProportions,
+        out VideoRect resultCrop)
+    {
+        if (maintainProportions)
+        {
+            VideoRect next = ResizeCanvasMediaProportionally(old, handle, dx,
+                dy, crop);
+            resultCrop = CropForBounds(old, crop, next);
+            return next;
+        }
         double left = old.X;
         double top = old.Y;
         double right = old.X + old.Width;
@@ -589,24 +714,23 @@ public sealed partial class VideoEditorPage
         if (handle is MediaHandle.SouthWest or MediaHandle.South or MediaHandle.SouthEast)
             bottom = Math.Clamp(bottom + dy, top + 16,
                 old.Y + (1 - crop.Y) * old.Height / crop.Height);
-        resultCrop = new VideoRect(
-            crop.X + (left - old.X) * crop.Width / old.Width,
-            crop.Y + (top - old.Y) * crop.Height / old.Height,
-            crop.Width * (right - left) / old.Width,
-            crop.Height * (bottom - top) / old.Height);
-        return new VideoRect(left, top, right - left, bottom - top);
+        var nextBounds = new VideoRect(left, top, right - left, bottom - top);
+        resultCrop = CropForBounds(old, crop, nextBounds);
+        return nextBounds;
     }
 
     private void MediaSurface_PointerReleased(object sender, PointerRoutedEventArgs args)
     {
         if (_canvasMediaPointerId != args.Pointer.PointerId ||
             !ReferenceEquals(sender, _canvasMediaCapture)) return;
+        UpdateCanvasMediaDraft(args);
         VideoRect? bounds = _canvasMediaDraftBounds;
         VideoRect? crop = _canvasMediaDraftCrop;
         _canvasMediaPointerId = null;
         _canvasMediaCapture = null;
         _canvasMediaDraftBounds = null;
         _canvasMediaDraftCrop = null;
+        _canvasMediaAxisLockHorizontal = null;
         if (sender is FrameworkElement target) target.ReleasePointerCapture(args.Pointer);
         _canvasVideoProxy.Visibility = Visibility.Collapsed;
         if (_pausedOverlayViews.TryGetValue(_selectedId, out var paused))
@@ -646,6 +770,7 @@ public sealed partial class VideoEditorPage
         _canvasMediaCapture = null;
         _canvasMediaDraftBounds = null;
         _canvasMediaDraftCrop = null;
+        _canvasMediaAxisLockHorizontal = null;
         _canvasVideoProxy.Visibility = Visibility.Collapsed;
         if (_pausedOverlayViews.TryGetValue(_selectedId, out var paused))
             paused.Frame.Visibility = Visibility.Visible;
@@ -663,6 +788,115 @@ public sealed partial class VideoEditorPage
             _editor.Current.VideoOverlays.FirstOrDefault(item =>
                 item.Id == _selectedId) is { SourceCrop: not null } video)
             TryEdit(() => _editor.UpdateVideoOverlay(video with { SourceCrop = null }));
+    }
+
+    private void RegisterCanvasMediaShortcuts()
+    {
+        var crop = new KeyboardAccelerator
+        {
+            Key = VirtualKey.C,
+            Modifiers = VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
+        };
+        crop.Invoked += CanvasCropShortcut_Invoked;
+        KeyboardAccelerators.Add(crop);
+        var reset = new KeyboardAccelerator
+        {
+            Key = VirtualKey.R,
+            Modifiers = VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
+        };
+        reset.Invoked += CanvasResetCropShortcut_Invoked;
+        KeyboardAccelerators.Add(reset);
+        foreach (VirtualKey key in new[] { VirtualKey.Up, VirtualKey.Down })
+            foreach (VirtualKeyModifiers modifiers in new[]
+                { VirtualKeyModifiers.None, VirtualKeyModifiers.Shift })
+            {
+                var nudge = new KeyboardAccelerator { Key = key, Modifiers = modifiers };
+                nudge.Invoked += CanvasNudgeShortcut_Invoked;
+                KeyboardAccelerators.Add(nudge);
+            }
+    }
+
+    private void CanvasCropShortcut_Invoked(KeyboardAccelerator sender,
+        KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsTextEntryFocused() ||
+            _canvasMediaFrame.Visibility != Visibility.Visible) return;
+        _canvasMediaCropButton.IsChecked = _canvasMediaCropButton.IsChecked != true;
+        StatusText.Text = _canvasMediaCropButton.IsChecked == true
+            ? "Crop mode · drag a handle · Shift keeps proportions"
+            : "Resize mode · drag a handle · Shift keeps proportions";
+        args.Handled = true;
+    }
+
+    private void CanvasResetCropShortcut_Invoked(KeyboardAccelerator sender,
+        KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsTextEntryFocused() ||
+            _canvasMediaFrame.Visibility != Visibility.Visible ||
+            !_canvasMediaResetCropButton.IsEnabled) return;
+        CanvasMediaResetCrop_Click(this, new RoutedEventArgs());
+        StatusText.Text = "Source crop reset";
+        args.Handled = true;
+    }
+
+    private bool CanvasMediaHasKeyboardFocus()
+    {
+        if (_editor is null || _closed ||
+            _canvasMediaFrame.Visibility != Visibility.Visible ||
+            _selectedKind is not (TimelineKind.Image or TimelineKind.VideoOverlay))
+            return false;
+        DependencyObject? focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
+        while (focused is not null)
+        {
+            if (ReferenceEquals(focused, VideoPlayer)) return true;
+            focused = VisualTreeHelper.GetParent(focused);
+        }
+        return false;
+    }
+
+    private bool NudgeCanvasMedia(VirtualKey key, bool shift)
+    {
+        if (!CanvasMediaHasKeyboardFocus() || _editor is null) return false;
+        _player.Pause();
+        double step = shift ? 10 : 1;
+        double dx = key == VirtualKey.Left ? -step :
+            key == VirtualKey.Right ? step : 0;
+        double dy = key == VirtualKey.Up ? -step :
+            key == VirtualKey.Down ? step : 0;
+        if (dx == 0 && dy == 0) return false;
+        if (_selectedKind == TimelineKind.Image &&
+            _editor.Current.ImageOverlays.FirstOrDefault(item =>
+                item.Id == _selectedId) is { } image)
+        {
+            VideoRect next = image.Bounds with
+            {
+                X = Math.Clamp(image.Bounds.X + dx, -65_536, 65_536),
+                Y = Math.Clamp(image.Bounds.Y + dy, -65_536, 65_536),
+            };
+            if (next != image.Bounds)
+                TryEdit(() => _editor.UpdateImageOverlay(image with { Bounds = next }));
+        }
+        else if (_selectedKind == TimelineKind.VideoOverlay &&
+            _editor.Current.VideoOverlays.FirstOrDefault(item =>
+                item.Id == _selectedId) is { } video)
+        {
+            VideoRect next = video.Bounds with
+            {
+                X = Math.Clamp(video.Bounds.X + dx, -65_536, 65_536),
+                Y = Math.Clamp(video.Bounds.Y + dy, -65_536, 65_536),
+            };
+            if (next != video.Bounds)
+                TryEdit(() => _editor.UpdateVideoOverlay(video with { Bounds = next }));
+        }
+        else return false;
+        return true;
+    }
+
+    private void CanvasNudgeShortcut_Invoked(KeyboardAccelerator sender,
+        KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = NudgeCanvasMedia(sender.Key,
+            (sender.Modifiers & VirtualKeyModifiers.Shift) != 0);
     }
 
     private async Task LoadCanvasVideoProxyAsync(Guid assetId, Guid overlayId)
