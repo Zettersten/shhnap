@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Microsoft.UI.Dispatching;
 using Windows.Media.Capture;
 using Windows.Media.Devices;
 using Windows.Media.MediaProperties;
@@ -11,16 +12,20 @@ internal sealed class CameraVideoRecording : IAsyncDisposable
 {
     private readonly MediaCapture _capture;
     private readonly LowLagMediaRecording _recording;
+    private readonly DispatcherQueue _captureQueue;
     private readonly SemaphoreSlim _operations = new(1, 1);
     private bool _started;
     private bool _finished;
     private bool _disposed;
+    private bool _eventsAttached = true;
 
     private CameraVideoRecording(MediaCapture capture, LowLagMediaRecording recording,
         string path)
     {
         _capture = capture;
         _recording = recording;
+        _captureQueue = DispatcherQueue.GetForCurrentThread() ??
+            throw new InvalidOperationException("Camera capture needs a UI dispatcher.");
         Path = path;
         _capture.Failed += Capture_Failed;
         _capture.RecordLimitationExceeded += Capture_RecordLimitationExceeded;
@@ -146,7 +151,7 @@ internal sealed class CameraVideoRecording : IAsyncDisposable
         {
             if (_disposed || _finished) throw new ObjectDisposedException(nameof(CameraVideoRecording));
             if (_started) return;
-            await _recording.StartAsync();
+            await OnCaptureThreadAsync(() => _recording.StartAsync().AsTask());
             _started = true;
         }
         finally { _operations.Release(); }
@@ -158,7 +163,8 @@ internal sealed class CameraVideoRecording : IAsyncDisposable
         try
         {
             if (_started && !_finished)
-                await _recording.PauseAsync(MediaCapturePauseBehavior.RetainHardwareResources);
+                await OnCaptureThreadAsync(() => _recording.PauseAsync(
+                    MediaCapturePauseBehavior.RetainHardwareResources).AsTask());
         }
         finally { _operations.Release(); }
     }
@@ -168,7 +174,8 @@ internal sealed class CameraVideoRecording : IAsyncDisposable
         await _operations.WaitAsync();
         try
         {
-            if (_started && !_finished) await _recording.ResumeAsync();
+            if (_started && !_finished)
+                await OnCaptureThreadAsync(() => _recording.ResumeAsync().AsTask());
         }
         finally { _operations.Release(); }
     }
@@ -179,8 +186,16 @@ internal sealed class CameraVideoRecording : IAsyncDisposable
         try
         {
             if (_finished) return;
-            if (_started) await _recording.StopAsync();
-            await _recording.FinishAsync();
+            if (_started)
+                await OnCaptureThreadAsync(() => _recording.StopAsync().AsTask());
+            // FinishAsync releases native recording resources. Drop event
+            // subscriptions first while their MediaCapture source is still live.
+            await OnCaptureThreadAsync(() =>
+            {
+                DetachCaptureEvents();
+                return Task.CompletedTask;
+            });
+            await OnCaptureThreadAsync(() => _recording.FinishAsync().AsTask());
             _finished = true;
         }
         finally { _operations.Release(); }
@@ -196,9 +211,48 @@ internal sealed class CameraVideoRecording : IAsyncDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        try { await StopAsync(); }
+        finally
+        {
+            // MediaCapture is not agile. The native event source and COM object
+            // must be released on the dispatcher where capture was initialized.
+            await OnCaptureThreadAsync(() =>
+            {
+                DetachCaptureEvents();
+                _capture.Dispose();
+                return Task.CompletedTask;
+            });
+        }
+    }
+
+    private void DetachCaptureEvents()
+    {
+        if (!_eventsAttached) return;
         _capture.Failed -= Capture_Failed;
         _capture.RecordLimitationExceeded -= Capture_RecordLimitationExceeded;
-        try { await StopAsync(); }
-        finally { _capture.Dispose(); }
+        _eventsAttached = false;
+    }
+
+    private Task OnCaptureThreadAsync(Func<Task> action)
+    {
+        if (_captureQueue.HasThreadAccess) return action();
+
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_captureQueue.TryEnqueue(async () =>
+        {
+            try
+            {
+                await action();
+                completion.TrySetResult();
+            }
+            catch (Exception error)
+            {
+                completion.TrySetException(error);
+            }
+        }))
+            completion.TrySetException(new InvalidOperationException(
+                "The camera dispatcher is unavailable during recording cleanup."));
+        return completion.Task;
     }
 }
