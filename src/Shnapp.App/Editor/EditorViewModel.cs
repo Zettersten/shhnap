@@ -4,6 +4,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Shnapp.Core;
+using Windows.Storage;
+using Windows.Storage.FileProperties;
 using Windows.Storage.Streams;
 
 namespace Shnapp.App.Editor;
@@ -51,9 +53,11 @@ public sealed partial class EditorViewModel : ObservableObject
     public ObservableCollection<LibraryEntry> Library { get; } = [];
 }
 
-/// <summary>A display-only entry backed by an editable local document.</summary>
+/// <summary>A gallery entry backed by a saved screenshot or recording.</summary>
 public sealed partial class LibraryEntry : ObservableObject
 {
+    private bool _videoPreviewRequested;
+
     /// <summary>Enables dragging a saved image into the editor outside selection mode.</summary>
     [ObservableProperty]
     public partial bool CanDrag { get; set; } = true;
@@ -73,8 +77,27 @@ public sealed partial class LibraryEntry : ObservableObject
     [NotifyPropertyChangedFor(nameof(GridSelectionVisibility))]
     public partial bool IsGridKeyboardFocused { get; set; }
 
-    public Visibility GridSelectionVisibility => IsGridHovered || IsGridKeyboardFocused || IsSelected
+    public Visibility GridSelectionVisibility => !IsVideo &&
+        (IsGridHovered || IsGridKeyboardFocused || IsSelected)
         ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Identifies recordings in the shared photo and video gallery.</summary>
+    public bool IsVideo { get; }
+
+    /// <summary>Shows a play marker and a thumbnail fallback for recordings.</summary>
+    public Visibility VideoBadgeVisibility => IsVideo ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Selection and photo-only actions remain limited to editable images.</summary>
+    public Visibility PhotoSelectionVisibility => IsVideo ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>The recording duration shown on a video card.</summary>
+    public string VideoDurationText { get; } = string.Empty;
+
+    /// <summary>Searchable text shared by photos and videos.</summary>
+    public string SearchTerms { get; }
+
+    /// <summary>Absolute recording path used to request a bounded shell thumbnail.</summary>
+    public string? VideoSourcePath { get; }
 
     /// <summary>Hides the trailing divider of the current filtered and sorted list.</summary>
     [ObservableProperty]
@@ -115,12 +138,14 @@ public sealed partial class LibraryEntry : ObservableObject
     public string DateText { get; }
 
     /// <summary>Gets compact details for the right edge of a thumbnail card.</summary>
-    public string GridMetadataText => CardWidth switch
-    {
-        < 180 => FileSizeText,
-        < 260 => $"{GridDateText} · {FileSizeText}",
-        _ => $"{GridDateText} · {GridDimensionsText} · {FileSizeText}",
-    };
+    public string GridMetadataText => IsVideo
+        ? CardWidth < 260 ? VideoDurationText : $"{GridDateText} · {VideoDurationText}"
+        : CardWidth switch
+        {
+            < 180 => FileSizeText,
+            < 260 => $"{GridDateText} · {FileSizeText}",
+            _ => $"{GridDateText} · {GridDimensionsText} · {FileSizeText}",
+        };
 
     private string GridDateText { get; }
     private string GridDimensionsText { get; }
@@ -182,6 +207,17 @@ public sealed partial class LibraryEntry : ObservableObject
         };
         ModifiedAt = document.ModifiedAt;
         DateTimeOffset localSave = document.ModifiedAt.ToLocalTime();
+        string searchType = document.CaptureKind switch
+        {
+            CaptureKind.Window => "window",
+            CaptureKind.FullScreen => "full screen display",
+            CaptureKind.Camera => "camera photo webcam",
+            _ => "region",
+        };
+        SearchTerms = $"{Title} image photo screenshot {searchType} " +
+            $"{localSave:MMM d yyyy HH:mm} {localSave:yyyy-MM-dd} " +
+            $"{document.Viewport.Width:0}x{document.Viewport.Height:0} " +
+            $"{document.Viewport.Width:0}×{document.Viewport.Height:0}";
         DateText = localSave.ToString("MMM d, yyyy · h:mm tt");
         GridDateText = localSave.ToString("MMM d");
         DimensionsText = $"{document.Viewport.Width:0} × {document.Viewport.Height:0} px";
@@ -204,6 +240,53 @@ public sealed partial class LibraryEntry : ObservableObject
         }
     }
 
+    /// <summary>Creates a video card in the same virtualized gallery as photos.</summary>
+    public LibraryEntry(VideoProjectSummary project, string sourceMp4Path,
+        double cardWidth = 224, double thumbnailHeight = 144,
+        int previewPixelWidth = 384, long? fileSizeBytes = null)
+    {
+        IsVideo = true;
+        CanDrag = false;
+        Id = project.Id;
+        Title = project.Title;
+        CaptureType = "Video";
+        ModifiedAt = project.CreatedAt;
+        VideoSourcePath = sourceMp4Path;
+        VideoDurationText = project.Duration.TotalHours >= 1
+            ? $"{(int)project.Duration.TotalHours:D2}:{project.Duration.Minutes:D2}:{project.Duration.Seconds:D2}"
+            : $"{(int)project.Duration.TotalMinutes:D2}:{project.Duration.Seconds:D2}";
+        DateTimeOffset localSave = project.CreatedAt.ToLocalTime();
+        DateText = localSave.ToString("MMM d, yyyy · h:mm tt");
+        GridDateText = localSave.ToString("MMM d");
+        DimensionsText = $"{project.Width} × {project.Height} px";
+        GridDimensionsText = $"{project.Width}×{project.Height}";
+        PixelArea = (double)project.Width * project.Height;
+        FileSizeBytes = fileSizeBytes;
+        FileSizeText = fileSizeBytes is { } bytes ? ShnappMetadata.FormatFileSize(bytes) : "—";
+        CompactMetadataSummary = $"{DateText}  ·  {DimensionsText}  ·  {VideoDurationText}";
+        MetadataDescription = $"{Title}, video, {VideoDurationText}, recorded " +
+            $"{localSave:MMMM d, yyyy}, {project.Width} by {project.Height} pixels";
+        SearchTerms = $"{Title} video recording {localSave:MMM d yyyy HH:mm} " +
+            $"{localSave:yyyy-MM-dd} {project.Width}x{project.Height} " +
+            $"{project.Width}×{project.Height} {VideoDurationText}";
+        CardWidth = cardWidth;
+        CardTileWidth = cardWidth;
+        ThumbnailHeight = thumbnailHeight;
+        Preview = new BitmapImage
+        {
+            DecodePixelWidth = Math.Clamp(previewPixelWidth, 64, 512),
+        };
+    }
+
+    /// <summary>Loads a recording thumbnail when its gallery card is realized.</summary>
+    public void EnsureVideoPreview()
+    {
+        if (!IsVideo || _videoPreviewRequested || string.IsNullOrWhiteSpace(VideoSourcePath))
+            return;
+        _videoPreviewRequested = true;
+        _ = LoadVideoPreviewAsync(VideoSourcePath, Preview.DecodePixelWidth);
+    }
+
     private async Task LoadPreviewAsync(string path)
     {
         try
@@ -212,6 +295,23 @@ public sealed partial class LibraryEntry : ObservableObject
                 FileShare.ReadWrite | FileShare.Delete);
             using IRandomAccessStream stream = file.AsRandomAccessStream();
             await Preview.SetSourceAsync(stream);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        catch (COMException) { }
+    }
+
+    private async Task LoadVideoPreviewAsync(string path, int previewPixelWidth)
+    {
+        try
+        {
+            StorageFile file = await StorageFile.GetFileFromPathAsync(path);
+            using StorageItemThumbnail thumbnail = await file.GetThumbnailAsync(
+                ThumbnailMode.VideosView,
+                (uint)Math.Clamp(previewPixelWidth, 64, 512),
+                ThumbnailOptions.UseCurrentScale);
+            if (thumbnail.Size > 0)
+                await Preview.SetSourceAsync(thumbnail);
         }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }

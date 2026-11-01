@@ -18,12 +18,12 @@ internal sealed partial class AppController
     {
         try
         {
-            _page.SetVideoLibrary(await VideoStore.ListAsync(_lifetime.Token));
+            _page.SetVideoLibrary(await VideoStore.ListAsync(_lifetime.Token), VideoStore.RootPath);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or
             InvalidDataException or ArgumentException)
         {
-            _page.SetVideoLibrary([]);
+            _page.SetVideoLibrary([], VideoStore.RootPath);
             _page.ShowMessage("Video library unavailable", error.Message,
                 Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
         }

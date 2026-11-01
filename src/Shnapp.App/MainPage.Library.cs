@@ -86,8 +86,39 @@ public sealed partial class MainPage
                 IsSelected = _selectedLibraryIds.Contains(document.Id),
             };
         }
+        AddVideoLibraryEntries(cardWidth, thumbnailHeight);
 
         FilterLibrary();
+    }
+
+    private void RefreshVideoLibraryEntries()
+    {
+        if (_controller is null) return;
+
+        foreach (Guid id in _libraryEntries.Values.Where(static entry => entry.IsVideo)
+            .Select(static entry => entry.Id).ToArray())
+        {
+            _libraryEntries.Remove(id);
+        }
+
+        (double cardWidth, double thumbnailHeight) = LibrarySizes[_librarySizeIndex];
+        AddVideoLibraryEntries(cardWidth, thumbnailHeight);
+        FilterLibrary();
+    }
+
+    private void AddVideoLibraryEntries(double cardWidth, double thumbnailHeight)
+    {
+        foreach (VideoProjectSummary video in _videoLibrary)
+        {
+            string source = GetVideoSourcePath(video.Id);
+            _libraryEntries[video.Id] = new LibraryEntry(video, source,
+                cardWidth, thumbnailHeight,
+                _libraryListMode || _librarySizeIndex == 0 ? 192 : 384,
+                GetSavedVideoSize(source))
+            {
+                CompactList = _libraryCompactList,
+            };
+        }
     }
 
     private void LibraryRoot_SizeChanged(object sender, SizeChangedEventArgs args)
@@ -123,28 +154,31 @@ public sealed partial class MainPage
         }
     }
 
+    private static long? GetSavedVideoSize(string sourcePath)
+    {
+        try
+        {
+            var file = new FileInfo(sourcePath);
+            return file.Exists ? file.Length : null;
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
+
     private void FilterLibrary()
     {
-        if (_showVideoLibrary)
-        {
-            FilterVideoLibrary();
-            return;
-        }
         if (_controller is null)
         {
             return;
         }
 
-        UpdateLibraryMediaChrome();
         string query = LibrarySearch.Text.Trim();
         _restoringLibrarySelection = true;
         try
         {
             ViewModel.Library.Clear();
-            IEnumerable<LibraryEntry> filtered = _library
-                .Where(document => MatchesLibraryQuery(document, query))
-                .Select(document => _libraryEntries.GetValueOrDefault(document.Id))
-                .OfType<LibraryEntry>();
+            IEnumerable<LibraryEntry> filtered = _libraryEntries.Values
+                .Where(entry => MatchesLibraryQuery(entry, query));
             LibraryEntry[] visible = SortLibraryEntries(filtered).ToArray();
             for (int index = 0; index < visible.Length; index++)
             {
@@ -160,11 +194,12 @@ public sealed partial class MainPage
         }
 
         int count = ViewModel.Library.Count;
-        bool hasSaved = _library.Count > 0;
+        int total = _library.Count + _videoLibrary.Count;
+        bool hasSaved = total > 0;
         bool noMatches = hasSaved && count == 0;
         LibraryResultCount.Text = query.Length == 0
-            ? $"{_library.Count} {ShnappWord(_library.Count)}"
-            : $"{count} of {_library.Count} {ShnappWord(_library.Count)}";
+            ? $"{total} {ShnappWord(total)}"
+            : $"{count} of {total} {ShnappWord(total)}";
         LibraryEmpty.Visibility = count == 0 ? Visibility.Visible : Visibility.Collapsed;
         LibraryEmptyArtwork.Visibility = noMatches ? Visibility.Collapsed : Visibility.Visible;
         LibraryNoResults.Visibility = noMatches ? Visibility.Visible : Visibility.Collapsed;
@@ -271,38 +306,25 @@ public sealed partial class MainPage
             (LibrarySortField.Name, false) => "Name A–Z",
             (LibrarySortField.FileSize, true) => "Largest files",
             (LibrarySortField.FileSize, false) => "Smallest files",
-            (LibrarySortField.Dimensions, true) => "Largest images",
-            _ => "Smallest images",
+            (LibrarySortField.Dimensions, true) => "Largest dimensions",
+            _ => "Smallest dimensions",
         };
     }
 
     private static string ShnappWord(int count) => count == 1 ? "shnapp" : "shnapps";
 
-    private static bool MatchesLibraryQuery(ShnappSummary document, string query)
+    private static bool MatchesLibraryQuery(LibraryEntry entry, string query)
     {
         if (query.Length == 0)
         {
             return true;
         }
-
-        string type = document.CaptureKind switch
-        {
-            CaptureKind.Window => "window",
-            CaptureKind.FullScreen => "full screen display",
-            CaptureKind.Camera => "camera photo webcam",
-            _ => "region",
-        };
-        string terms = $"{document.Title} {type} {document.ModifiedAt.ToLocalTime():MMM d yyyy HH:mm} " +
-            $"{document.Viewport.Width:0}x{document.Viewport.Height:0} " +
-            $"{document.Viewport.Width:0}×{document.Viewport.Height:0}";
         return query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .All(term => terms.Contains(term, StringComparison.OrdinalIgnoreCase));
+            .All(term => entry.SearchTerms.Contains(term, StringComparison.OrdinalIgnoreCase));
     }
 
     private void UpdateLibraryView()
     {
-        VideoLibraryList.Visibility = Visibility.Collapsed;
-        VideoLibraryEmpty.Visibility = Visibility.Collapsed;
         bool hasResults = ViewModel.Library.Count > 0;
         LibraryGrid.Visibility = hasResults && !_libraryListMode ? Visibility.Visible : Visibility.Collapsed;
         LibraryList.Visibility = hasResults && _libraryListMode ? Visibility.Visible : Visibility.Collapsed;
@@ -316,17 +338,9 @@ public sealed partial class MainPage
 
     private void LibrarySearch_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
-        if (_showVideoLibrary)
-        {
-            if (VideoLibraryEntries.FirstOrDefault() is { } video)
-            {
-                _controller?.OpenVideoProject(video.Id);
-            }
-            return;
-        }
         if (ViewModel.Library.FirstOrDefault() is { } entry)
         {
-            _controller?.OpenDocument(entry.Id);
+            OpenLibraryEntry(entry);
         }
     }
 
@@ -380,9 +394,15 @@ public sealed partial class MainPage
             return;
         }
 
-        _controller?.OpenDocument(entry.Id);
+        OpenLibraryEntry(entry);
 
         args.Handled = true;
+    }
+
+    private void OpenLibraryEntry(LibraryEntry entry)
+    {
+        if (entry.IsVideo) _controller?.OpenVideoProject(entry.Id);
+        else _controller?.OpenDocument(entry.Id);
     }
 
     private void LibraryCard_RightTapped(object sender, RightTappedRoutedEventArgs args)
@@ -393,6 +413,13 @@ public sealed partial class MainPage
         }
 
         var menu = new MenuFlyout();
+        if (entry.IsVideo)
+        {
+            AddAction("Open video", Symbol.Play, () => _controller.OpenVideoProject(entry.Id));
+            menu.ShowAt(card, new FlyoutShowOptions { Position = args.GetPosition(card) });
+            args.Handled = true;
+            return;
+        }
         AddAction("Clone", Symbol.Copy, () => _controller.CloneDocument(entry.Id));
         AddAction("Rename", Symbol.Edit, () => _controller.RequestRenameDocument(entry.Id));
         AddAction("Copy snapshot path", Symbol.Copy, () => _controller.CopyDocumentPath(entry.Id));
@@ -414,7 +441,7 @@ public sealed partial class MainPage
     {
         if (args.ClickedItem is LibraryEntry entry)
         {
-            _controller?.OpenDocument(entry.Id);
+            OpenLibraryEntry(entry);
         }
     }
 
@@ -494,7 +521,6 @@ public sealed partial class MainPage
 
     private void ToggleSelectAllVisibleLibraryEntries()
     {
-        if (_showVideoLibrary) { return; }
         // A focused list can raise both its accelerator and the bubbling key event.
         // Handle one physical Ctrl+A press once, then allow the next press to toggle.
         if (_librarySelectAllKeyActive)
@@ -503,8 +529,9 @@ public sealed partial class MainPage
         }
 
         _librarySelectAllKeyActive = true;
-        if (ViewModel.Library.Count > 0 &&
-            ViewModel.Library.All(entry => _selectedLibraryIds.Contains(entry.Id)))
+        LibraryEntry[] selectable = ViewModel.Library.Where(entry => !entry.IsVideo).ToArray();
+        if (selectable.Length == 0) return;
+        if (selectable.All(entry => _selectedLibraryIds.Contains(entry.Id)))
         {
             RemoveLibrarySelection(_selectedLibraryIds.ToArray());
             return;
@@ -520,6 +547,7 @@ public sealed partial class MainPage
         {
             foreach (LibraryEntry entry in ViewModel.Library)
             {
+                if (entry.IsVideo) continue;
                 _selectedLibraryIds.Add(entry.Id);
                 entry.IsSelected = true;
             }
@@ -549,7 +577,7 @@ public sealed partial class MainPage
     private void LibrarySelectionCheck_Changed(object sender, RoutedEventArgs args)
     {
         if (!IsLoaded || _restoringLibrarySelection ||
-            sender is not CheckBox { Tag: LibraryEntry entry } checkbox)
+            sender is not CheckBox { Tag: LibraryEntry entry } checkbox || entry.IsVideo)
         {
             return;
         }
@@ -584,13 +612,13 @@ public sealed partial class MainPage
             _librarySelectionMode = selectionMode;
             foreach (LibraryEntry entry in _libraryEntries.Values)
             {
-                entry.CanDrag = !selectionMode;
+                entry.CanDrag = !selectionMode && !entry.IsVideo;
             }
         }
 
         LibrarySelectionCount.Text = $"Delete {count}";
-        LibraryDeleteSelected.Visibility = selectionMode && !_showVideoLibrary ? Visibility.Visible : Visibility.Collapsed;
-        LibraryClearSelection.Visibility = selectionMode && !_showVideoLibrary ? Visibility.Visible : Visibility.Collapsed;
+        LibraryDeleteSelected.Visibility = selectionMode ? Visibility.Visible : Visibility.Collapsed;
+        LibraryClearSelection.Visibility = selectionMode ? Visibility.Visible : Visibility.Collapsed;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(LibraryDeleteSelected,
             count == 1 ? "Delete 1 selected shnapp" : $"Delete {count} selected shnapps");
     }

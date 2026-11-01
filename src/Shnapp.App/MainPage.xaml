@@ -875,7 +875,6 @@
             SizeChanged="LibraryRoot_SizeChanged">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <Grid Grid.Row="0" Margin="0,0,0,16" ColumnSpacing="12">
@@ -973,25 +972,7 @@
                     </ToggleButton>
                 </StackPanel>
             </Grid>
-            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="0,0,0,12">
-                <ToggleButton x:Name="LibraryPhotosTab" Width="94" Height="32" Padding="8,0"
-                    CornerRadius="8" IsChecked="True" Click="LibraryPhotosTab_Click"
-                    AutomationProperties.Name="Photos in library" AutomationProperties.AutomationId="LibraryPhotosTab">
-                    <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
-                        <FontIcon Glyph="&#xE91B;" FontFamily="Segoe Fluent Icons" FontSize="13" />
-                        <TextBlock Text="Photos" FontSize="12" VerticalAlignment="Center" />
-                    </StackPanel>
-                </ToggleButton>
-                <ToggleButton x:Name="LibraryVideosTab" Width="94" Height="32" Padding="8,0"
-                    CornerRadius="8" Click="LibraryVideosTab_Click"
-                    AutomationProperties.Name="Videos in library" AutomationProperties.AutomationId="LibraryVideosTab">
-                    <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
-                        <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons" FontSize="13" />
-                        <TextBlock Text="Videos" FontSize="12" VerticalAlignment="Center" />
-                    </StackPanel>
-                </ToggleButton>
-            </StackPanel>
-            <Grid Grid.Row="2">
+            <Grid Grid.Row="1">
                 <GridView x:Name="LibraryGrid" ItemsSource="{x:Bind ViewModel.Library}"
                     Padding="0,0,0,64" ScrollViewer.VerticalScrollBarVisibility="Hidden"
                     SelectionMode="None" IsItemClickEnabled="True" ItemClick="LibraryCard_ItemClick"
@@ -1026,9 +1007,22 @@
                                     PointerEntered="LibraryThumbnail_PointerEntered" PointerExited="LibraryThumbnail_PointerExited">
                                     <Border Background="{ThemeResource ShnappPreviewBrush}"
                                         CornerRadius="8" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                                        <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="6"
-                                            Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
-                                            Tapped="LibraryPreview_Tapped" />
+                                        <Grid>
+                                            <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="24"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Visibility="{x:Bind VideoBadgeVisibility}"
+                                                IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="6"
+                                                Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
+                                                Tapped="LibraryPreview_Tapped" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Width="22" Height="22" Margin="0,0,6,6" CornerRadius="11"
+                                        HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                        Background="#B0101C36" IsHitTestVisible="False"
+                                        Visibility="{x:Bind VideoBadgeVisibility}">
+                                        <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="11"
+                                            Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Border>
                                     <CheckBox Width="32" MinWidth="0" Height="32" Padding="0" Margin="0,0,6,6"
                                         HorizontalAlignment="Right" VerticalAlignment="Bottom" Tag="{x:Bind}"
@@ -1085,6 +1079,7 @@
                                 <CheckBox Grid.Column="0" Width="32" MinWidth="0" Height="32" Padding="0"
                                     VerticalAlignment="Center" Tag="{x:Bind}"
                                     IsChecked="{x:Bind IsSelected, Mode=OneWay}"
+                                    Visibility="{x:Bind PhotoSelectionVisibility}"
                                     Checked="LibrarySelectionCheck_Changed" Unchecked="LibrarySelectionCheck_Changed"
                                     Tapped="LibrarySelectionCheck_Tapped"
                                     ToolTipService.ToolTip="Select shnapp"
@@ -1092,9 +1087,22 @@
                                 <Border Grid.Column="1" Height="48" VerticalAlignment="Center"
                                     Background="{ThemeResource ShnappPreviewBrush}" CornerRadius="4"
                                     BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="2"
-                                        Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
-                                        Tapped="LibraryPreview_Tapped" />
+                                    <Grid>
+                                        <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="16"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Visibility="{x:Bind VideoBadgeVisibility}"
+                                            IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="2"
+                                            Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
+                                            Tapped="LibraryPreview_Tapped" />
+                                        <Border Width="16" Height="16" Margin="0,0,2,2" CornerRadius="8"
+                                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                            Background="#B0101C36" IsHitTestVisible="False"
+                                            Visibility="{x:Bind VideoBadgeVisibility}">
+                                            <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="9"
+                                                Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                    </Grid>
                                 </Border>
                                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock Text="{x:Bind Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -1212,73 +1220,6 @@
                         </StackPanel>
                     </Grid>
                 </ScrollViewer>
-                <ListView x:Name="VideoLibraryList" ItemsSource="{x:Bind VideoLibraryEntries}"
-                    Visibility="Collapsed" Margin="-4,0,-4,0" Padding="0,0,0,48"
-                    ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionMode="None"
-                    IsItemClickEnabled="True" ItemClick="VideoLibrary_ItemClick"
-                    KeyDown="VideoLibrary_KeyDown"
-                    AutomationProperties.Name="Saved videos" AutomationProperties.AutomationId="VideoLibraryList">
-                    <ListView.ItemContainerStyle>
-                        <Style TargetType="ListViewItem">
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                            <Setter Property="Padding" Value="0" />
-                            <Setter Property="Margin" Value="0" />
-                            <Setter Property="FocusVisualMargin" Value="0" />
-                        </Style>
-                    </ListView.ItemContainerStyle>
-                    <ListView.ItemTemplate>
-                        <DataTemplate x:DataType="local:VideoLibraryEntry">
-                            <Grid Height="72" Padding="12,0" ColumnSpacing="12"
-                                ToolTipService.ToolTip="{x:Bind AutomationLabel}"
-                                AutomationProperties.Name="{x:Bind AutomationLabel}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="88" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Border Width="84" Height="48" HorizontalAlignment="Left" VerticalAlignment="Center"
-                                    CornerRadius="6" Background="{ThemeResource ShnappPreviewBrush}"
-                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                                    <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="17"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="{x:Bind Title}" FontSize="13" FontWeight="SemiBold"
-                                        TextTrimming="CharacterEllipsis" MaxLines="1" />
-                                    <TextBlock Text="{x:Bind MetadataText}" FontSize="11"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        TextTrimming="CharacterEllipsis" MaxLines="1" />
-                                </StackPanel>
-                                <TextBlock Grid.Column="2" Text="{x:Bind DurationText}" FontSize="12"
-                                    VerticalAlignment="Center" HorizontalAlignment="Right"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <Border Grid.ColumnSpan="3" Height="1" VerticalAlignment="Bottom"
-                                    Background="{ThemeResource ControlStrokeColorDefaultBrush}" Opacity="0.45"
-                                    IsHitTestVisible="False" />
-                            </Grid>
-                        </DataTemplate>
-                    </ListView.ItemTemplate>
-                </ListView>
-                <StackPanel x:Name="VideoLibraryEmpty" Visibility="Collapsed" MaxWidth="440"
-                    Margin="24" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Border Width="72" Height="72" CornerRadius="18" HorizontalAlignment="Center"
-                        Background="{ThemeResource ShnappPreviewBrush}">
-                        <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons" FontSize="30"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                    <TextBlock x:Name="VideoLibraryEmptyTitle" Text="Your videos will appear here"
-                        FontFamily="Segoe UI Variable Display" FontSize="23" FontWeight="SemiBold"
-                        TextAlignment="Center" TextWrapping="WrapWholeWords" />
-                    <TextBlock x:Name="VideoLibraryEmptyDescription"
-                        Text="Record a window, region, or full screen to get started."
-                        FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        TextAlignment="Center" TextWrapping="WrapWholeWords" />
-                    <Button x:Name="VideoLibraryClearSearch" Content="Clear search" CornerRadius="8"
-                        Visibility="Collapsed" HorizontalAlignment="Center" Click="LibraryClearSearch_Click"
-                        Style="{StaticResource AccentButtonStyle}" />
-                </StackPanel>
             </Grid>
         </Grid>
         <Grid Height="28" VerticalAlignment="Bottom" Canvas.ZIndex="10"

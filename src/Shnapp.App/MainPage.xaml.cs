@@ -1727,9 +1727,11 @@ public sealed partial class MainPage : Page
     private void Library_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         LibraryEntry? entry = args.InRecycleQueue ? null : args.Item as LibraryEntry;
+        entry?.EnsureVideoPreview();
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(args.ItemContainer, entry?.Title ?? string.Empty);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(args.ItemContainer,
-            entry is null ? string.Empty : $"Shnapp_{entry.Id:N}");
+            entry is null ? string.Empty :
+                $"{(entry.IsVideo ? "Video" : "Shnapp")}_{entry.Id:N}");
     }
     private void Capture_Click(object sender, RoutedEventArgs args) => _controller?.Capture(Enum.Parse<CaptureKind>((string)((FrameworkElement)sender).Tag));
     private void Library_Click(object sender, RoutedEventArgs args) => _controller?.OpenLibrary();

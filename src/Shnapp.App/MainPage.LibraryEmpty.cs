@@ -59,7 +59,8 @@ public sealed partial class MainPage
             return;
         }
 
-        bool hasNoResults = _library.Count > 0 && ViewModel.Library.Count == 0;
+        bool hasNoResults = _library.Count + _videoLibrary.Count > 0 &&
+            ViewModel.Library.Count == 0;
         double minimumHeight = width < 720 ? 760 : 640;
         LibraryEmptyContent.Width = width;
         LibraryEmptyContent.Height = hasNoResults ? height : Math.Max(height, minimumHeight);
