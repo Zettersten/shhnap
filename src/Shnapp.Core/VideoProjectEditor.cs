@@ -41,6 +41,8 @@ public sealed class VideoProjectEditor(VideoProject project)
     }
 
     /// <summary>Inserts a new video and its separate audio stems, rippling every existing track as one undoable edit.</summary>
+    /// <param name="asset">A new imported video asset.</param>
+    /// <param name="at">Insertion point on the output timeline.</param>
     /// <param name="audioStems">New audio assets and segments with start times relative to the inserted video.</param>
     /// <returns>The inserted clip identifier.</returns>
     public Guid InsertVideoAsset(VideoAsset asset, TimeSpan at,
@@ -53,6 +55,8 @@ public sealed class VideoProjectEditor(VideoProject project)
     }
 
     /// <summary>Inserts an existing imported video asset at the playhead.</summary>
+    /// <param name="assetId">Identifier of an imported video already in this project.</param>
+    /// <param name="at">Insertion point on the output timeline.</param>
     /// <returns>The inserted clip identifier.</returns>
     public Guid InsertVideoClip(Guid assetId, TimeSpan at)
     {
@@ -434,6 +438,7 @@ public sealed class VideoProjectEditor(VideoProject project)
     }
 
     /// <summary>Moves an image layer one position forward or backward in the visual stack.</summary>
+    /// <param name="id">An image overlay in the layer to move.</param>
     /// <param name="direction">One for forward; minus one for backward.</param>
     /// <returns>False when the image does not exist or is already at that edge.</returns>
     /// <remarks>Split pieces of the same image layer move together as one undoable edit.</remarks>
