@@ -109,15 +109,22 @@ internal sealed partial class AppController
                 _settings.VideoMicrophoneSourceId,
                 _settings.VideoCaptureCamera,
                 _settings.CameraSourceId);
-            session = await new VideoRecordingService().StartAsync(selected.Target, outputPath, options, token);
-
             hud = new RecordingHudWindow(selected.Bounds,
-                _settings.VideoCaptureSystemAudio, _settings.VideoCaptureMicrophone);
+                _settings.VideoCaptureSystemAudio, _settings.VideoCaptureMicrophone,
+                _settings.VideoCaptureCamera);
             if (!hud.IsExcludedFromCapture)
             {
                 throw new InvalidOperationException(
                     "Windows could not keep the recording controls out of the video.");
             }
+            hud.CancelRequested += () => _activeCapture?.Cancel();
+            hud.Activate();
+            session = await new VideoRecordingService().StartAsync(selected.Target, outputPath, options, token);
+            hud.SetRecording();
+            session.CameraFailed += error =>
+                App.DispatcherQueue.TryEnqueue(() => hud?.SetCameraUnavailable(error.Message));
+            if (session.CameraFailure is { } cameraFailure)
+                hud.SetCameraUnavailable(cameraFailure.Message);
             var decision = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             hud.StopRequested += () => decision.TrySetResult(true);
             hud.CancelRequested += () => decision.TrySetResult(false);
@@ -141,7 +148,6 @@ internal sealed partial class AppController
             clock.IsRepeating = true;
             clock.Tick += (_, _) => hud.SetElapsed(session.Elapsed);
             clock.Start();
-            hud.Activate();
 
             using CancellationTokenRegistration registration = token.Register(() => decision.TrySetResult(false));
             Task finished = await Task.WhenAny(decision.Task, session.Completion);
@@ -209,7 +215,8 @@ internal sealed partial class AppController
             {
                 await ShowVideoProjectAsync(project);
                 if (cameraWarning is not null)
-                    _window.VideoPage?.ShowStatus("Screen recording saved. " + cameraWarning);
+                    _window.VideoPage?.ShowCaptureWarning(
+                        "The screen recording was saved. " + cameraWarning);
             }
             catch (Exception error)
             {

@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Windows.Media.Capture;
 using Windows.Media.Devices;
 using Windows.Media.MediaProperties;
@@ -57,6 +58,7 @@ internal sealed class CameraVideoRecording : IAsyncDisposable
                 SharingMode = MediaCaptureSharingMode.ExclusiveControl,
                 MemoryPreference = MediaCaptureMemoryPreference.Auto,
             }).AsTask(token);
+            await SelectEfficientRecordFormatAsync(capture, token);
 
             StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(
                 System.IO.Path.GetDirectoryName(path)!).AsTask(token);
@@ -88,6 +90,54 @@ internal sealed class CameraVideoRecording : IAsyncDisposable
             throw;
         }
     }
+
+    private static async Task SelectEfficientRecordFormatAsync(MediaCapture capture,
+        CancellationToken token)
+    {
+        // Use a format the camera itself advertises. Auto encoding then follows
+        // this input instead of choosing an expensive 4K camera default.
+        try
+        {
+            VideoEncodingProperties[] formats = capture.VideoDeviceController
+                .GetAvailableMediaStreamProperties(MediaStreamType.VideoRecord)
+                .OfType<VideoEncodingProperties>()
+                .Where(format => format.Width > 0 && format.Height > 0 &&
+                    FramesPerSecond(format) > 0)
+                .ToArray();
+            VideoEncodingProperties? selected = formats
+                .Where(format => format.Width is >= 640 and <= 1280 &&
+                    format.Height is >= 360 and <= 720 &&
+                    FramesPerSecond(format) <= 30.5)
+                .OrderByDescending(format => (ulong)format.Width * format.Height)
+                .ThenByDescending(FramesPerSecond)
+                .FirstOrDefault()
+                ?? formats.Where(format => format.Width is >= 640 and <= 1280 &&
+                        format.Height is >= 360 and <= 720)
+                    .OrderByDescending(format => (ulong)format.Width * format.Height)
+                    .ThenBy(FramesPerSecond)
+                    .FirstOrDefault()
+                ?? formats.Where(format => format.Width <= 1280 && format.Height <= 720)
+                    .OrderByDescending(format => (ulong)format.Width * format.Height)
+                    .ThenBy(FramesPerSecond)
+                    .FirstOrDefault()
+                ?? formats.OrderBy(format => (ulong)format.Width * format.Height)
+                    .ThenBy(FramesPerSecond)
+                    .FirstOrDefault();
+            if (selected is not null)
+                await capture.VideoDeviceController.SetMediaStreamPropertiesAsync(
+                    MediaStreamType.VideoRecord, selected).AsTask(token);
+        }
+        catch (Exception error) when (error is COMException or ArgumentException or
+            InvalidOperationException)
+        {
+            // Some drivers do not expose a settable record pin. Their default
+            // format remains available through MediaEncodingProfile.Auto.
+        }
+    }
+
+    private static double FramesPerSecond(VideoEncodingProperties format) =>
+        format.FrameRate.Denominator == 0 ? double.PositiveInfinity :
+        format.FrameRate.Numerator / (double)format.FrameRate.Denominator;
 
     internal async Task StartAsync()
     {

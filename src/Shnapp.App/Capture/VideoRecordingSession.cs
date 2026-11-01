@@ -73,10 +73,16 @@ internal sealed class VideoRecordingSession
     }
 
     internal event EventHandler<VideoRecordingStateChangedEventArgs>? StateChanged;
+    internal event Action<Exception>? CameraFailed;
 
     internal VideoRecordingState State
     {
         get { lock (_gate) { return _state; } }
+    }
+
+    internal Exception? CameraFailure
+    {
+        get { lock (_gate) { return _cameraError; } }
     }
 
     internal TimeSpan Elapsed
@@ -138,8 +144,17 @@ internal sealed class VideoRecordingSession
             _microphoneAudio?.Start();
             if (_cameraVideo is not null)
             {
-                lock (_gate) { _cameraStartQpc = NowQpc(); }
-                await _cameraVideo.StartAsync();
+                try
+                {
+                    await _cameraVideo.StartAsync();
+                    // StartAsync has completed, so the overlay cannot lead the first
+                    // camera frames while the encoder is still becoming ready.
+                    lock (_gate) { _cameraStartQpc = NowQpc(); }
+                }
+                catch (Exception error)
+                {
+                    OnCameraFailure(error);
+                }
             }
         }
         catch (Exception error)
@@ -187,12 +202,12 @@ internal sealed class VideoRecordingSession
         }
         try
         {
-            if (_cameraVideo is not null) await _cameraVideo.PauseAsync();
+            if (_cameraVideo is not null && CameraFailure is null)
+                await _cameraVideo.PauseAsync();
         }
         catch (Exception error)
         {
             OnCameraFailure(error);
-            throw;
         }
         Publish(VideoRecordingState.Paused);
     }
@@ -222,12 +237,12 @@ internal sealed class VideoRecordingSession
         }
         try
         {
-            if (_cameraVideo is not null) await _cameraVideo.ResumeAsync();
+            if (_cameraVideo is not null && CameraFailure is null)
+                await _cameraVideo.ResumeAsync();
         }
         catch (Exception error)
         {
             OnCameraFailure(error);
-            throw;
         }
         Publish(VideoRecordingState.Recording);
     }
@@ -271,7 +286,7 @@ internal sealed class VideoRecordingSession
             }
             _state = VideoRecordingState.Finishing;
             if (_cameraVideo is not null)
-                _cameraStopTask = Task.Run(StopCameraWhenStartedAsync);
+                _cameraStopTask ??= Task.Run(StopCameraWhenStartedAsync);
             shouldStop = _recordRequested;
         }
         Publish(VideoRecordingState.Finishing);
@@ -359,8 +374,23 @@ internal sealed class VideoRecordingSession
 
     private void OnCameraFailure(Exception error)
     {
-        lock (_gate) { _cameraError ??= error; }
-        _ = Task.Run(() => RequestStop(cancel: false));
+        lock (_gate)
+        {
+            if (_cameraError is not null) return;
+            _cameraError = error;
+            if (_cameraVideo is not null)
+                _cameraStopTask ??= Task.Run(StopCameraWhenStartedAsync);
+        }
+        Action<Exception>? handler = CameraFailed;
+        if (handler is null) return;
+        void Notify()
+        {
+            try { handler(error); }
+            catch (Exception) { /* A UI listener must not interrupt screen capture. */ }
+        }
+        if (_context is not null) _context.Post(_ => Notify(), null);
+        else if (_dispatcherQueue is not null) _dispatcherQueue.TryEnqueue(Notify);
+        else Notify();
     }
 
     private async Task StopCameraWhenStartedAsync()

@@ -1,5 +1,7 @@
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
@@ -17,6 +19,9 @@ internal sealed class RecordingHudWindow : Window
     private readonly Button _cancel;
     private readonly Button _pause;
     private readonly Ellipse _indicator;
+    private readonly Border? _cameraBadge;
+    private readonly TextBlock? _cameraLabel;
+    private bool _cameraUnavailable;
 
     internal event Action? StopRequested;
     internal event Action? CancelRequested;
@@ -24,7 +29,8 @@ internal sealed class RecordingHudWindow : Window
 
     internal bool IsExcludedFromCapture { get; }
 
-    internal RecordingHudWindow(NativeMethods.Rect target, bool computerAudio, bool microphone)
+    internal RecordingHudWindow(NativeMethods.Rect target, bool computerAudio,
+        bool microphone, bool camera)
     {
         Title = "Shnapp recording";
         var background = new SolidColorBrush(Color.FromArgb(244, 16, 28, 54));
@@ -41,18 +47,20 @@ internal sealed class RecordingHudWindow : Window
         };
         _elapsed = new TextBlock
         {
-            Text = "00:00",
+            Text = "Starting…",
             FontFamily = new FontFamily("Cascadia Mono"),
             FontSize = 12,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             Foreground = foreground,
             VerticalAlignment = VerticalAlignment.Center,
-            MinWidth = 46,
+            MinWidth = 76,
         };
         _pause = MakeButton("Pause", foreground, new SolidColorBrush(Colors.Transparent));
         _pause.Click += (_, _) => PauseRequested?.Invoke();
+        _pause.IsEnabled = false;
         _stop = MakeButton("Stop", foreground, blue);
         _stop.Click += (_, _) => StopRequested?.Invoke();
+        _stop.IsEnabled = false;
         _cancel = MakeButton("Cancel", muted, new SolidColorBrush(Colors.Transparent));
         _cancel.Click += (_, _) => CancelRequested?.Invoke();
 
@@ -67,6 +75,14 @@ internal sealed class RecordingHudWindow : Window
         controls.Children.Add(_elapsed);
         if (computerAudio) { controls.Children.Add(Badge("PC audio", muted)); }
         if (microphone) { controls.Children.Add(Badge("Mic", muted)); }
+        if (camera)
+        {
+            _cameraBadge = Badge("Camera…", muted);
+            _cameraLabel = (TextBlock)_cameraBadge.Child;
+            AutomationProperties.SetName(_cameraBadge, "Preparing camera recording");
+            AutomationProperties.SetLiveSetting(_cameraLabel, AutomationLiveSetting.Assertive);
+            controls.Children.Add(_cameraBadge);
+        }
         controls.Children.Add(_pause);
         controls.Children.Add(_stop);
         controls.Children.Add(_cancel);
@@ -88,7 +104,8 @@ internal sealed class RecordingHudWindow : Window
 
         nint handle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         double scale = Math.Max(1, NativeMethods.GetDpiForWindow(handle) / 96.0);
-        int width = (int)Math.Ceiling((computerAudio || microphone ? 366 : 284) * scale);
+        int width = (int)Math.Ceiling((300 + (computerAudio ? 60 : 0) +
+            (microphone ? 40 : 0) + (camera ? 66 : 0)) * scale);
         int height = (int)Math.Ceiling(44 * scale);
         var targetCenter = new NativeMethods.Point
         {
@@ -141,6 +158,31 @@ internal sealed class RecordingHudWindow : Window
     {
         _elapsed.Text = elapsed.TotalHours >= 1 ? elapsed.ToString(@"hh\:mm\:ss") :
             elapsed.ToString(@"mm\:ss");
+    }
+
+    internal void SetRecording()
+    {
+        _elapsed.Text = "00:00";
+        _pause.IsEnabled = true;
+        _stop.IsEnabled = true;
+        if (_cameraBadge is not null && !_cameraUnavailable)
+        {
+            _cameraLabel!.Text = "Camera";
+            AutomationProperties.SetName(_cameraBadge, "Camera recording active");
+        }
+    }
+
+    internal void SetCameraUnavailable(string reason)
+    {
+        if (_cameraBadge is null || _cameraLabel is null) return;
+        _cameraUnavailable = true;
+        _cameraLabel.Text = "Camera off";
+        _cameraLabel.Foreground = new SolidColorBrush(Colors.White);
+        _cameraBadge.Background = new SolidColorBrush(Color.FromArgb(200, 142, 72, 17));
+        string message = "Camera stopped. Screen recording continues. " + reason;
+        AutomationProperties.SetName(_cameraBadge, message);
+        AutomationProperties.SetName(_cameraLabel, message);
+        ToolTipService.SetToolTip(_cameraBadge, message);
     }
 
     internal void SetPaused(bool paused)
