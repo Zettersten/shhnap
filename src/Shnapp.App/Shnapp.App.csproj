@@ -161,6 +161,7 @@
     <PackageReference Include="Velopack" Version="1.2.161" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <ProjectReference Include="..\Shnapp.Core\Shnapp.Core.csproj" />
+    <ProjectReference Include="..\Shnapp.VideoEffects\Shnapp.VideoEffects.csproj" />
   </ItemGroup>
 
   <!--

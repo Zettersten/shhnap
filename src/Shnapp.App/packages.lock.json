@@ -84,6 +84,11 @@
         "resolved": "1.0.3719.77",
         "contentHash": "t+ucyKw5NTwMjsUrDF6R9Lk40lpcKQD1/HgyGFxl49tdA4h9dKlsj6FYGEmDRpFNfnTpENuTypMcdbrlkqBdDA=="
       },
+      "Microsoft.Windows.CsWinRT": {
+        "type": "Transitive",
+        "resolved": "2.3.1",
+        "contentHash": "ojoYrj8m8mAx6LVxofQXgfvsReDTv2LQFeDgXt5Lw99r5fv7dCR19ybd1JN0OueaWvL+BNqv0E7zZCgqptP9zA=="
+      },
       "Microsoft.Windows.SDK.BuildTools.MSIX": {
         "type": "Transitive",
         "resolved": "1.7.251221100",
@@ -155,6 +160,14 @@
       },
       "shnapp.core": {
         "type": "Project"
+      },
+      "shnapp.videoeffects": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Graphics.Win2D": "[1.4.0, )",
+          "Microsoft.Windows.CsWinRT": "[2.3.1, )",
+          "Microsoft.WindowsAppSDK.WinUI": "[2.3.9, )"
+        }
       }
     },
     "net10.0-windows10.0.26100/win-arm64": {
