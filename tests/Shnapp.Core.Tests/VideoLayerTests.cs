@@ -179,6 +179,28 @@ public sealed class VideoLayerTests
         Assert.AreEqual(0, editor.Current.LockedTrackIds.Length);
     }
 
+    [TestMethod]
+    public void LockedRecordingAndAudioBlockTimingButAudioCanBeMuted()
+    {
+        var editor = new VideoProjectEditor(VideoProject.CreateRecording(
+            "Locked tracks", 10 * Second, 640, 360, "source.mp4",
+            computerAudioRelativePath: "computer.wav"));
+        VideoSegment video = editor.Current.VideoSegments.Single();
+        AudioSegment audio = editor.Current.AudioSegments.Single();
+        Assert.IsTrue(editor.SetTrackLocked(Guid.Empty, true));
+        Assert.IsTrue(editor.SetTrackLocked(audio.AssetId, true));
+
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
+            editor.UpdateVideoSegment(video with { Start = Second }));
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
+            editor.UpdateAudioSegment(audio with { Gain = .5 }));
+        Assert.IsTrue(editor.SetAudioTrackMuted(audio.AssetId, true));
+        Assert.IsTrue(editor.Current.AudioSegments.Single().Muted);
+        Assert.IsTrue(editor.SetTrackLocked(audio.AssetId, false));
+        Assert.IsTrue(editor.UpdateAudioSegment(
+            editor.Current.AudioSegments.Single() with { Gain = .5 }));
+    }
+
     private static VideoProject Recording() =>
         VideoProject.CreateRecording("Layer test", 10 * Second, 640, 360, "source.mp4");
 }
