@@ -567,11 +567,15 @@ public sealed partial class VideoEditorPage
     private void ChangeTimelineZoom(int direction)
     {
         if (_editor is null) return;
+        double viewportWidth = Math.Max(1, TimelineScroll.ActualWidth);
+        double available = Math.Max(120, viewportWidth - 18);
+        double fitScale = Math.Clamp(available /
+            Math.Max(1, _editor.Current.Duration.TotalSeconds), .02, 42);
+        double maxZoom = Math.Min(32, 672 / fitScale);
         double next = direction == 0 ? 1 :
-            Math.Clamp(_timelineZoom * (direction > 0 ? 1.5 : 1 / 1.5), 1, 32);
+            Math.Clamp(_timelineZoom * (direction > 0 ? 1.5 : 1 / 1.5), 1, maxZoom);
         if (Math.Abs(next - _timelineZoom) < .001) return;
 
-        double viewportWidth = Math.Max(1, TimelineScroll.ActualWidth);
         double oldOffset = TimelineScroll.HorizontalOffset;
         double playheadX = _playhead.TotalSeconds * _pixelsPerSecond - oldOffset;
         bool playheadVisible = playheadX >= 0 && playheadX <= viewportWidth;
