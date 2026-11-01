@@ -140,13 +140,16 @@ public sealed partial class MainWindow : Window
         Page.SetSettingsNavigation(Settings is not null);
         ChromeNavigationHost.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
         VideoBackButton.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
-        TitleToolSeparator.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
         ChromeToolsHost.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
+        ChromeVideoToolsHost.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
         ChromeCommandsHost.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
+        ChromeVideoExportHost.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
         TitleVideoMoreButton.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
         VideoBackButton.IsEnabled = Settings is null;
         TitleVideoMoreButton.IsEnabled = Settings is null;
         ChromeCommandsHost.IsEnabled = Settings is null;
+        ChromeVideoToolsHost.IsEnabled = Settings is null;
+        ChromeVideoExportHost.IsEnabled = Settings is null;
         ChromeLibraryHost.IsEnabled = Settings is null;
         TitleCaptureButton.IsEnabled = Settings is null;
         TitleUndoButton.IsEnabled = Settings is null &&

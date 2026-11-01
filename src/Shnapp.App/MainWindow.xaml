@@ -51,6 +51,7 @@
                     <Border x:Name="TitleToolSeparator" Width="1" Height="16" Margin="5,0" VerticalAlignment="Center"
                         Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
                     <ContentControl x:Name="ChromeToolsHost" VerticalAlignment="Center" />
+                    <ContentControl x:Name="ChromeVideoToolsHost" VerticalAlignment="Center" Visibility="Collapsed" />
                 </StackPanel>
             </TitleBar.LeftHeader>
             <TitleBar.RightHeader>
@@ -75,6 +76,7 @@
                         AutomationProperties.Name="Capture region" AutomationProperties.AutomationId="CaptureRegionToolbar">
                         <FontIcon Glyph="&#xF7ED;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
                     </local:ToolbarActionButton>
+                    <ContentControl x:Name="ChromeVideoExportHost" VerticalAlignment="Center" Visibility="Collapsed" />
                     <ContentControl x:Name="ChromeCommandsHost" VerticalAlignment="Center" />
                     <local:ToolbarActionButton x:Name="TitleVideoMoreButton" Width="28" Height="28" MinWidth="0" Padding="0"
                         Visibility="Collapsed" CornerRadius="6" Click="TitleVideoMore_Click"

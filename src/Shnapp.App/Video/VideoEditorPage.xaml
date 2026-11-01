@@ -14,6 +14,8 @@
         <KeyboardAccelerator Key="Y" Modifiers="Control" Invoked="Redo_Invoked" />
         <KeyboardAccelerator Key="Z" Modifiers="Control,Shift" Invoked="Redo_Invoked" />
         <KeyboardAccelerator Key="M" Modifiers="Control" Invoked="Export_Invoked" />
+        <KeyboardAccelerator Key="T" Modifiers="Control" Invoked="AddText_Invoked" />
+        <KeyboardAccelerator Key="D" Modifiers="Control" Invoked="AddTransition_Invoked" />
         <KeyboardAccelerator Key="Left" Modifiers="Menu" Invoked="Back_Invoked" />
         <KeyboardAccelerator Key="L" Modifiers="Control" Invoked="Library_Invoked" />
         <KeyboardAccelerator Key="G" Modifiers="Control,Shift" Invoked="Gallery_Invoked" />
@@ -46,6 +48,109 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="28" />
         </Grid.RowDefinitions>
+
+        <!-- These page-owned commands are placed in the window title bar at runtime.
+             Keeping them here lets clip state and click handlers stay with this editor. -->
+        <Grid x:Name="VideoToolbarStorage" Grid.Row="0" Visibility="Collapsed">
+            <StackPanel x:Name="VideoEditTools" Orientation="Horizontal" Spacing="2"
+                Height="28" VerticalAlignment="Center" AutomationProperties.Name="Video editing tools">
+                <local:ToolbarActionButton Width="28" Height="28" MinWidth="0" Padding="0"
+                    CornerRadius="6" Background="Transparent" BorderThickness="0"
+                    Click="AddImage_Click" AutomationProperties.Name="Browse saved media"
+                    ToolTipService.ToolTip="Browse saved videos and images · Ctrl+Shift+G">
+                    <FontIcon Glyph="&#xE8B9;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" />
+                </local:ToolbarActionButton>
+                <local:ToolbarActionButton x:Name="AddTextButton" Width="28" Height="28" MinWidth="0" Padding="0"
+                    CornerRadius="6" Background="Transparent" BorderThickness="0"
+                    Click="AddText_Click" AutomationProperties.Name="Add text overlay"
+                    ToolTipService.ToolTip="Add text at playhead · Ctrl+T">
+                    <FontIcon Glyph="&#xE8D2;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" />
+                </local:ToolbarActionButton>
+                <local:ToolbarActionButton Width="28" Height="28" MinWidth="0" Padding="0"
+                    CornerRadius="6" Background="Transparent" BorderThickness="0"
+                    Click="AddAudio_Click" AutomationProperties.Name="Add audio track"
+                    ToolTipService.ToolTip="Add an audio track">
+                    <FontIcon Glyph="&#xE8D6;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" />
+                </local:ToolbarActionButton>
+                <Border Width="1" Height="16" Margin="5,0" VerticalAlignment="Center"
+                    Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
+                <local:ToolbarActionButton x:Name="MarkInButton" Width="28" Height="28"
+                    MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                    BorderThickness="0" Click="MarkIn_Click"
+                    AutomationProperties.Name="Mark range start at playhead"
+                    ToolTipService.ToolTip="Mark range start at playhead · I">
+                    <FontIcon Glyph="&#xE7C1;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" />
+                </local:ToolbarActionButton>
+                <local:ToolbarActionButton x:Name="MarkOutButton" Width="28" Height="28"
+                    MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                    BorderThickness="0" Click="MarkOut_Click"
+                    AutomationProperties.Name="Mark range end at playhead"
+                    ToolTipService.ToolTip="Mark range end at playhead · O">
+                    <FontIcon Glyph="&#xE7C1;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" RenderTransformOrigin="0.5,0.5">
+                        <FontIcon.RenderTransform><ScaleTransform ScaleX="-1" /></FontIcon.RenderTransform>
+                    </FontIcon>
+                </local:ToolbarActionButton>
+                <local:ToolbarActionButton x:Name="CutRangeButton" Width="28" Height="28"
+                    MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                    BorderThickness="0" Click="CutRange_Click"
+                    AutomationProperties.Name="Cut marked range from selected audio or image, or all tracks"
+                    ToolTipService.ToolTip="Cut marked range · Selected audio or image only; video or no selection ripples all tracks">
+                    <FontIcon Glyph="&#xE74D;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" />
+                </local:ToolbarActionButton>
+                <Border Width="1" Height="16" Margin="5,0" VerticalAlignment="Center"
+                    Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
+                <local:ToolbarActionButton x:Name="SplitButton" Width="28" Height="28"
+                    MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                    BorderThickness="0" Click="Split_Click"
+                    AutomationProperties.Name="Split clip at playhead"
+                    ToolTipService.ToolTip="Split clip at playhead · Ctrl+K">
+                    <FontIcon Glyph="&#xE8C6;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" />
+                </local:ToolbarActionButton>
+                <local:ToolbarActionButton x:Name="TrimLeftButton" Width="28" Height="28"
+                    MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                    BorderThickness="0" Click="TrimLeft_Click"
+                    AutomationProperties.Name="Trim selected clip start to playhead"
+                    ToolTipService.ToolTip="Trim clip start to playhead">
+                    <FontIcon Glyph="&#xE78A;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" />
+                </local:ToolbarActionButton>
+                <local:ToolbarActionButton x:Name="TrimRightButton" Width="28" Height="28"
+                    MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                    BorderThickness="0" Click="TrimRight_Click"
+                    AutomationProperties.Name="Trim selected clip end to playhead"
+                    ToolTipService.ToolTip="Trim clip end to playhead">
+                    <FontIcon Glyph="&#xE78A;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" RenderTransformOrigin="0.5,0.5">
+                        <FontIcon.RenderTransform><ScaleTransform ScaleX="-1" /></FontIcon.RenderTransform>
+                    </FontIcon>
+                </local:ToolbarActionButton>
+                <Border Width="1" Height="16" Margin="5,0" VerticalAlignment="Center"
+                    Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
+                <local:ToolbarActionButton x:Name="AddTransitionButton" Width="28" Height="28"
+                    MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                    BorderThickness="0" Click="AddTransition_Click" IsEnabled="False"
+                    AutomationProperties.Name="Dip to black at selected cut"
+                    ToolTipService.ToolTip="Dip to black at selected cut · Ctrl+D">
+                    <FontIcon Glyph="&#xE7A1;" FontFamily="Segoe Fluent Icons"
+                        FontSize="12" Width="12" Height="12" />
+                </local:ToolbarActionButton>
+            </StackPanel>
+            <local:ToolbarActionButton x:Name="VideoExportButton" Width="28" Height="28"
+                MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
+                BorderThickness="0" Click="Export_Click"
+                AutomationProperties.Name="Export video as MP4"
+                ToolTipService.ToolTip="Export MP4 · Ctrl+M">
+                <FontIcon Glyph="&#xEDE1;" FontFamily="Segoe Fluent Icons"
+                    FontSize="12" Width="12" Height="12" />
+            </local:ToolbarActionButton>
+        </Grid>
 
         <Grid x:Name="PreviewHost" Grid.Row="1" Background="{ThemeResource ShnappCanvasBrush}"
             SizeChanged="PreviewHost_SizeChanged"
@@ -81,35 +186,6 @@
                 HorizontalAlignment="Center" VerticalAlignment="Center" Width="32" Height="32" />
             <Grid Background="Transparent" AllowDrop="True"
                 DragOver="GalleryMedia_DragOver" Drop="GalleryMedia_Drop" />
-            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"
-                Padding="2" CornerRadius="8" Background="{ThemeResource ShnappImageChromeBrush}"
-                BorderBrush="{ThemeResource ShnappFloatingEdgeBrush}" BorderThickness="1">
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                    <local:ToolbarActionButton Width="28" Height="28" MinWidth="0" Padding="0"
-                        CornerRadius="6" Background="Transparent" BorderThickness="0"
-                        Click="AddImage_Click" AutomationProperties.Name="Browse saved media"
-                        ToolTipService.ToolTip="Browse saved videos and images · Ctrl+Shift+G">
-                        <FontIcon Glyph="&#xE8B9;" FontFamily="Segoe Fluent Icons"
-                            FontSize="12" Width="12" Height="12" />
-                    </local:ToolbarActionButton>
-                    <local:ToolbarActionButton Width="28" Height="28" MinWidth="0" Padding="0"
-                        CornerRadius="6" Background="Transparent" BorderThickness="0"
-                        Click="AddAudio_Click" AutomationProperties.Name="Add audio track"
-                        ToolTipService.ToolTip="Add an audio track">
-                        <FontIcon Glyph="&#xE8D6;" FontFamily="Segoe Fluent Icons"
-                            FontSize="12" Width="12" Height="12" />
-                    </local:ToolbarActionButton>
-                    <Border Width="1" Height="16" Margin="2,0" VerticalAlignment="Center"
-                        Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
-                    <local:ToolbarActionButton Width="28" Height="28" MinWidth="0" Padding="0"
-                        CornerRadius="6" Background="Transparent" BorderThickness="0"
-                        Click="Export_Click" AutomationProperties.Name="Export video as MP4"
-                        ToolTipService.ToolTip="Export MP4 · Ctrl+M">
-                        <FontIcon Glyph="&#xEDE1;" FontFamily="Segoe Fluent Icons"
-                            FontSize="12" Width="12" Height="12" />
-                    </local:ToolbarActionButton>
-                </StackPanel>
-            </Border>
             <Border x:Name="GalleryPanel" Visibility="Collapsed" Width="80" Opacity="0"
                 HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,0,0,0"
                 Padding="8" CornerRadius="12"
@@ -194,6 +270,20 @@
                                     MinWidth="0" Minimum="0" SpinButtonPlacementMode="Compact" FontSize="11"
                                     ValueChanged="InspectorNumber_ValueChanged" />
                             </Grid>
+                            <Grid x:Name="VideoFadeFields" Visibility="Collapsed" ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <NumberBox x:Name="VideoFadeInSeconds" Header="Fade in (s)"
+                                    AutomationProperties.Name="Video fade in duration in seconds"
+                                    Minimum="0" Maximum="5" SpinButtonPlacementMode="Compact" FontSize="11"
+                                    ValueChanged="InspectorNumber_ValueChanged" />
+                                <NumberBox x:Name="VideoFadeOutSeconds" Grid.Column="1" Header="Fade out (s)"
+                                    AutomationProperties.Name="Video fade out duration in seconds"
+                                    Minimum="0" Maximum="5" SpinButtonPlacementMode="Compact" FontSize="11"
+                                    ValueChanged="InspectorNumber_ValueChanged" />
+                            </Grid>
                             <StackPanel x:Name="AudioFields" Visibility="Collapsed" Spacing="7">
                                 <TextBlock Text="Gain" FontSize="11" />
                                 <Slider x:Name="AudioGainSlider" Minimum="0" Maximum="4"
@@ -258,6 +348,76 @@
                                     </StackPanel>
                                 </Grid>
                             </Grid>
+                            <StackPanel x:Name="TextFields" Visibility="Collapsed" Spacing="7">
+                                <TextBox x:Name="TextContentBox" Header="Text" MinHeight="66"
+                                    AcceptsReturn="True" TextWrapping="Wrap" MaxLength="1000"
+                                    AutomationProperties.Name="Overlay text"
+                                    TextChanged="TextContent_Changed" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <NumberBox x:Name="TextDurationSeconds" Header="Duration (s)"
+                                        AutomationProperties.Name="Text duration in seconds"
+                                        Minimum="0.1" SpinButtonPlacementMode="Compact" FontSize="11"
+                                        ValueChanged="InspectorNumber_ValueChanged" />
+                                    <NumberBox x:Name="TextFontSize" Grid.Column="1" Header="Size (px)"
+                                        AutomationProperties.Name="Text size in pixels"
+                                        Minimum="8" Maximum="512" SpinButtonPlacementMode="Compact" FontSize="11"
+                                        ValueChanged="InspectorNumber_ValueChanged" />
+                                </Grid>
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="TextAlignmentBox" Header="Align" MinWidth="0"
+                                        SelectionChanged="TextAlignment_Changed"
+                                        AutomationProperties.Name="Text alignment">
+                                        <ComboBoxItem Content="Left" Tag="Left" />
+                                        <ComboBoxItem Content="Center" Tag="Center" />
+                                        <ComboBoxItem Content="Right" Tag="Right" />
+                                    </ComboBox>
+                                    <StackPanel Grid.Column="1" Spacing="4">
+                                        <TextBlock Text="Color" FontSize="11" />
+                                        <Button Width="48" Height="32" Padding="4" CornerRadius="6"
+                                            AutomationProperties.Name="Choose text color"
+                                            ToolTipService.ToolTip="Choose text color">
+                                            <Border x:Name="TextColorSwatch" Width="24" Height="14" CornerRadius="3"
+                                                Background="White" />
+                                            <Button.Flyout>
+                                                <Flyout>
+                                                    <ColorPicker x:Name="TextColorPicker" IsAlphaEnabled="False"
+                                                        ColorChanged="TextColor_Changed" />
+                                                </Flyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                                <Grid ColumnSpacing="8" RowSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <NumberBox x:Name="TextX" Header="Left (px)" FontSize="11"
+                                        AutomationProperties.Name="Text left position in pixels"
+                                        ValueChanged="InspectorNumber_ValueChanged" />
+                                    <NumberBox x:Name="TextY" Grid.Column="1" Header="Top (px)" FontSize="11"
+                                        AutomationProperties.Name="Text top position in pixels"
+                                        ValueChanged="InspectorNumber_ValueChanged" />
+                                    <NumberBox x:Name="TextWidth" Grid.Row="1" Header="Width (px)" FontSize="11"
+                                        Minimum="1" AutomationProperties.Name="Text box width in pixels"
+                                        ValueChanged="InspectorNumber_ValueChanged" />
+                                    <NumberBox x:Name="TextHeight" Grid.Row="1" Grid.Column="1" Header="Height (px)" FontSize="11"
+                                        Minimum="1" AutomationProperties.Name="Text box height in pixels"
+                                        ValueChanged="InspectorNumber_ValueChanged" />
+                                </Grid>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
                     <Grid Grid.Row="2" Margin="0,8,0,0">
@@ -341,62 +501,6 @@
                 </Grid>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4"
                     VerticalAlignment="Center">
-                    <local:ToolbarActionButton x:Name="MarkInButton" Width="28" Height="28"
-                        MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
-                        BorderThickness="0" Click="MarkIn_Click"
-                        AutomationProperties.Name="Mark range start at playhead"
-                        ToolTipService.ToolTip="Mark range start at playhead · I">
-                        <FontIcon Glyph="&#xE7C1;" FontFamily="Segoe Fluent Icons"
-                            FontSize="12" Width="12" Height="12" />
-                    </local:ToolbarActionButton>
-                    <local:ToolbarActionButton x:Name="MarkOutButton" Width="28" Height="28"
-                        MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
-                        BorderThickness="0" Click="MarkOut_Click"
-                        AutomationProperties.Name="Mark range end at playhead"
-                        ToolTipService.ToolTip="Mark range end at playhead · O">
-                        <FontIcon Glyph="&#xE7C1;" FontFamily="Segoe Fluent Icons"
-                            FontSize="12" Width="12" Height="12" RenderTransformOrigin="0.5,0.5">
-                            <FontIcon.RenderTransform><ScaleTransform ScaleX="-1" /></FontIcon.RenderTransform>
-                        </FontIcon>
-                    </local:ToolbarActionButton>
-                    <local:ToolbarActionButton x:Name="CutRangeButton" Width="28" Height="28"
-                        MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
-                        BorderThickness="0" Click="CutRange_Click"
-                        AutomationProperties.Name="Cut marked range from selected audio or image, or all tracks"
-                        ToolTipService.ToolTip="Cut marked range · Selected audio or image only; video or no selection ripples all tracks">
-                        <FontIcon Glyph="&#xE74D;" FontFamily="Segoe Fluent Icons"
-                            FontSize="12" Width="12" Height="12" />
-                    </local:ToolbarActionButton>
-                    <Border Width="1" Height="16" Margin="4,0"
-                        Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
-                    <local:ToolbarActionButton x:Name="SplitButton" Width="28" Height="28"
-                        MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
-                        BorderThickness="0" Click="Split_Click"
-                        AutomationProperties.Name="Split clip at playhead"
-                        ToolTipService.ToolTip="Split clip at playhead · Ctrl+K">
-                        <FontIcon Glyph="&#xE8C6;" FontFamily="Segoe Fluent Icons"
-                            FontSize="12" Width="12" Height="12" />
-                    </local:ToolbarActionButton>
-                    <local:ToolbarActionButton x:Name="TrimLeftButton" Width="28" Height="28"
-                        MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
-                        BorderThickness="0" Click="TrimLeft_Click"
-                        AutomationProperties.Name="Trim selected clip start to playhead"
-                        ToolTipService.ToolTip="Trim clip start to playhead">
-                        <FontIcon Glyph="&#xE78A;" FontFamily="Segoe Fluent Icons"
-                            FontSize="12" Width="12" Height="12" />
-                    </local:ToolbarActionButton>
-                    <local:ToolbarActionButton x:Name="TrimRightButton" Width="28" Height="28"
-                        MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
-                        BorderThickness="0" Click="TrimRight_Click"
-                        AutomationProperties.Name="Trim selected clip end to playhead"
-                        ToolTipService.ToolTip="Trim clip end to playhead">
-                        <FontIcon Glyph="&#xE78A;" FontFamily="Segoe Fluent Icons"
-                            FontSize="12" Width="12" Height="12" RenderTransformOrigin="0.5,0.5">
-                            <FontIcon.RenderTransform><ScaleTransform ScaleX="-1" /></FontIcon.RenderTransform>
-                        </FontIcon>
-                    </local:ToolbarActionButton>
-                    <Border Width="1" Height="16" Margin="4,0"
-                        Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
                     <local:ToolbarActionButton x:Name="SnapButton" Width="24" Height="24"
                         MinWidth="0" Padding="0" CornerRadius="6"
                         Background="{ThemeResource ShnappImagePanelBrush}" BorderThickness="0"

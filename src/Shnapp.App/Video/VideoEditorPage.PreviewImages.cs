@@ -222,7 +222,12 @@ public sealed partial class VideoEditorPage
 
     private void SetPreviewImageTick(bool playing)
     {
-        if (_editor?.Current.ImageOverlays.Length is not > 0) playing = false;
+        VideoProject? project = _editor?.Current;
+        if (project is null ||
+            project.ImageOverlays.Length == 0 && project.TextOverlays.Length == 0 &&
+            !project.VideoSegments.Any(item =>
+                item.FadeIn > TimeSpan.Zero || item.FadeOut > TimeSpan.Zero))
+            playing = false;
         if (playing == _previewImageTickAttached) return;
         if (playing)
             CompositionTarget.Rendering += PreviewImages_Rendering;
@@ -234,6 +239,9 @@ public sealed partial class VideoEditorPage
     private void PreviewImages_Rendering(object sender, object args)
     {
         if (_closed || _editor is null) return;
-        UpdateVisiblePreviewImages(_player.PlaybackSession.Position);
+        TimeSpan position = _player.PlaybackSession.Position;
+        UpdateVisiblePreviewImages(position);
+        UpdateVisiblePreviewText(position);
+        UpdateFadeOpacity(position);
     }
 }

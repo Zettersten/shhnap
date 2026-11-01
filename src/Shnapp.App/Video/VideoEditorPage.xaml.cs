@@ -51,10 +51,20 @@ public sealed partial class VideoEditorPage : Page
     public bool CanRedo => _editor?.CanRedo == true;
     public string Title => _editor?.Current.Title ?? "Video";
 
+    internal void AttachTitleChrome(ContentControl toolsHost, ContentControl exportHost)
+    {
+        VideoToolbarStorage.Children.Remove(VideoEditTools);
+        VideoToolbarStorage.Children.Remove(VideoExportButton);
+        toolsHost.Content = VideoEditTools;
+        exportHost.Content = VideoExportButton;
+    }
+
     public VideoEditorPage()
     {
         InitializeComponent();
+        ConfigureInspectorNumberFormatting();
         InitializePreviewImages();
+        InitializePreviewText();
         UpdateSnapButton();
         // Windows.System.VirtualKey omits the OEM +/- names, so register their
         // standard virtual-key codes in code rather than the XAML enum parser.
@@ -103,6 +113,7 @@ public sealed partial class VideoEditorPage : Page
         _playhead = TimeSpan.Zero;
         UpdateVideoPlayerBounds(PreviewHost.ActualWidth, PreviewHost.ActualHeight);
         ResetPreviewImages();
+        RefreshPreviewText();
         _markIn = null;
         _markOut = null;
         ProjectTitleText.Text = project.Title;
@@ -206,6 +217,7 @@ public sealed partial class VideoEditorPage : Page
         _previewCancellation?.Cancel();
         _previewCancellation?.Dispose();
         _previewCancellation = null;
+        CancelTextAutoApply();
         _galleryThumbnailCancellation?.Cancel();
         _galleryThumbnailCancellation?.Dispose();
         _galleryThumbnailCancellation = null;
@@ -221,6 +233,7 @@ public sealed partial class VideoEditorPage : Page
         try { _player.Dispose(); }
         catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
         ReleasePreviewImages();
+        ReleasePreviewText();
     }
 
     private void Editor_Changed(object? sender, EventArgs args)
@@ -231,13 +244,17 @@ public sealed partial class VideoEditorPage : Page
         bool dimensionsChanged = previous is null ||
             project.Width != previous.Width ||
             project.Height != previous.Height;
+        bool videoChanged = previous is null ||
+            !project.VideoSegments.Equals(previous.VideoSegments);
+        bool textChanged = previous is null ||
+            !project.TextOverlays.Equals(previous.TextOverlays);
         bool mediaChanged = previous is null || dimensionsChanged ||
-            !project.VideoSegments.Equals(previous.VideoSegments) ||
+            !SameVideoMedia(project, previous) ||
             !project.AudioSegments.Equals(previous.AudioSegments) ||
             !project.ImageOverlays.Equals(previous.ImageOverlays);
         _previousProject = project;
         if (ProjectTitleText.Text != project.Title) ProjectTitleText.Text = project.Title;
-        if (mediaChanged)
+        if (mediaChanged || videoChanged || textChanged)
         {
             if (dimensionsChanged)
                 UpdateVideoPlayerBounds(PreviewHost.ActualWidth, PreviewHost.ActualHeight);
@@ -247,13 +264,22 @@ public sealed partial class VideoEditorPage : Page
             if (DurationText.Text != duration) DurationText.Text = duration;
             _playhead = Min(_playhead, project.Duration);
             RefreshTimeline();
-            RefreshPreviewImages();
+            if (mediaChanged) RefreshPreviewImages();
+            if (textChanged) RefreshPreviewText();
+            if (videoChanged)
+            {
+                UpdateFadeOpacity(_playhead);
+                SetPreviewImageTick(_player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing);
+            }
             RefreshInspector();
             UpdateTransport();
             UpdateEditActionState();
-            _previewQueued = true;
-            ++_previewRevision;
-            _previewCancellation?.Cancel();
+            if (mediaChanged)
+            {
+                _previewQueued = true;
+                ++_previewRevision;
+                _previewCancellation?.Cancel();
+            }
         }
         UpdateState();
         long saveRevision = ++_saveRevision;
@@ -261,6 +287,21 @@ public sealed partial class VideoEditorPage : Page
         _refreshDebounceCancellation?.Dispose();
         _refreshDebounceCancellation = new CancellationTokenSource();
         _ = SaveAndPreviewAsync(saveRevision, _refreshDebounceCancellation.Token);
+    }
+
+    private static bool SameVideoMedia(VideoProject current, VideoProject previous)
+    {
+        if (current.VideoSegments.Length != previous.VideoSegments.Length) return false;
+        for (int index = 0; index < current.VideoSegments.Length; index++)
+        {
+            VideoSegment left = current.VideoSegments[index];
+            VideoSegment right = previous.VideoSegments[index];
+            if (left.Id != right.Id || left.AssetId != right.AssetId ||
+                left.Start != right.Start || left.SourceIn != right.SourceIn ||
+                left.SourceOut != right.SourceOut)
+                return false;
+        }
+        return true;
     }
 
     private async Task SaveAndPreviewAsync(long saveRevision, CancellationToken token)
@@ -310,6 +351,8 @@ public sealed partial class VideoEditorPage : Page
             _player.PlaybackSession.PlaybackRate = 1;
             _player.PlaybackSession.Position = position;
             UpdateVisiblePreviewImages(position);
+            UpdateVisiblePreviewText(position);
+            UpdateFadeOpacity(position);
             if (wasPlaying) _player.Play();
         }
         catch (OperationCanceledException) { }
@@ -360,6 +403,7 @@ public sealed partial class VideoEditorPage : Page
         VideoPlayer.Width = project.Width * scale;
         VideoPlayer.Height = project.Height * scale;
         UpdatePreviewImageBounds();
+        UpdatePreviewTextBounds();
     }
 
     private void PlaybackSession_PositionChanged(MediaPlaybackSession sender, object args)
@@ -371,6 +415,8 @@ public sealed partial class VideoEditorPage : Page
             if (_closed || _editor is null) return;
             _playhead = Min(sender.Position, _editor.Current.Duration);
             UpdateVisiblePreviewImages(_playhead);
+            UpdateVisiblePreviewText(_playhead);
+            UpdateFadeOpacity(_playhead);
             UpdateTransport();
             DrawPlayhead();
             UpdateEditActionState();
@@ -387,6 +433,8 @@ public sealed partial class VideoEditorPage : Page
             PlayPauseIcon.Glyph = playing ? "\uE769" : "\uE768";
             SetPreviewImageTick(playing);
             UpdateVisiblePreviewImages(sender.Position);
+            UpdateVisiblePreviewText(sender.Position);
+            UpdateFadeOpacity(sender.Position);
         });
     }
 
@@ -418,6 +466,8 @@ public sealed partial class VideoEditorPage : Page
         _playhead = Min(time, _editor.Current.Duration);
         _player.PlaybackSession.Position = _playhead;
         UpdateVisiblePreviewImages(_playhead);
+        UpdateVisiblePreviewText(_playhead);
+        UpdateFadeOpacity(_playhead);
         UpdateTransport();
         DrawPlayhead();
         UpdateEditActionState();

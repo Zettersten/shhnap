@@ -16,6 +16,8 @@ public sealed partial class MainWindow
         ArgumentNullException.ThrowIfNull(page);
         if (VideoPage is { } previous)
         {
+            ChromeVideoToolsHost.Content = null;
+            ChromeVideoExportHost.Content = null;
             previous.StateChanged -= VideoPage_StateChanged;
             previous.Close();
         }
@@ -23,6 +25,7 @@ public sealed partial class MainWindow
         VideoPage = page;
         page.StateChanged += VideoPage_StateChanged;
         RootFrame.Content = page;
+        page.AttachTitleChrome(ChromeVideoToolsHost, ChromeVideoExportHost);
         UpdateTitleBarState();
         page.Focus(FocusState.Programmatic);
     }
@@ -37,6 +40,8 @@ public sealed partial class MainWindow
         VideoEditorPage previous = VideoPage;
         VideoPage = null;
         previous.StateChanged -= VideoPage_StateChanged;
+        ChromeVideoToolsHost.Content = null;
+        ChromeVideoExportHost.Content = null;
         RootFrame.Content = Page;
         previous.Close();
         UpdateTitleBarState();
