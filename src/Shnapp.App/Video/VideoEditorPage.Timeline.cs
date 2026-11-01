@@ -1502,7 +1502,7 @@ public sealed partial class VideoEditorPage
     {
         if (_selectedKind != TimelineKind.Video)
         {
-            StatusText.Text = "Select a video clip to ripple delete.";
+            StatusText.Text = "Select a clip on the original video track to ripple delete.";
             return;
         }
         DeleteSelected(ripple: true);
