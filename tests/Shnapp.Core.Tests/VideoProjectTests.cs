@@ -28,6 +28,142 @@ public sealed class VideoProjectTests
     }
 
     [TestMethod]
+    public void InsertingImportedVideoRipplesAllTracksAndUndoesAtomically()
+    {
+        var editor = new VideoProjectEditor(CreateRecording());
+        var imageAsset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.Image,
+            "assets/title.png", TimeSpan.Zero);
+        editor.AddAsset(imageAsset);
+        editor.AddImageOverlay(new ImageOverlay(Guid.NewGuid(), imageAsset.Id,
+            2 * Second, 6 * Second, new VideoRect(10, 20, 100, 80)));
+        VideoProject before = editor.Current;
+        var insertedAsset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.ImportedVideo,
+            "assets/insert.mp4", 2 * Second) { DisplayName = "Insert.mp4" };
+        var insertedAudioAsset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.ImportedAudio,
+            "assets/insert-system.wav", 2 * Second);
+        var insertedAudio = new AudioSegment(Guid.NewGuid(), insertedAudioAsset.Id,
+            TimeSpan.Zero, TimeSpan.Zero, 2 * Second);
+        int changes = 0;
+        editor.Changed += (_, _) => changes++;
+
+        Guid insertedId = editor.InsertVideoAsset(insertedAsset, 4 * Second,
+            [(insertedAudioAsset, insertedAudio)]);
+
+        Assert.AreEqual(1, changes);
+        Assert.AreEqual(12 * Second, editor.Current.Duration);
+        Assert.AreEqual(3, editor.Current.VideoSegments.Length);
+        Assert.AreEqual((4 * Second, 6 * Second, insertedAsset.Id),
+            (editor.Current.VideoSegments[1].Start,
+                editor.Current.VideoSegments[1].End,
+                editor.Current.VideoSegments[1].AssetId));
+        Assert.AreEqual(insertedId, editor.Current.VideoSegments[1].Id);
+        Assert.AreEqual((6 * Second, 12 * Second, 4 * Second, 10 * Second),
+            (editor.Current.VideoSegments[2].Start,
+                editor.Current.VideoSegments[2].End,
+                editor.Current.VideoSegments[2].SourceIn,
+                editor.Current.VideoSegments[2].SourceOut));
+        Assert.AreEqual(5, editor.Current.AudioSegments.Length);
+        foreach (IGrouping<Guid, AudioSegment> stem in editor.Current.AudioSegments
+            .Where(x => x.AssetId != insertedAudioAsset.Id).GroupBy(x => x.AssetId))
+        {
+            AudioSegment[] pieces = [.. stem.OrderBy(x => x.Start)];
+            Assert.AreEqual(2, pieces.Length);
+            Assert.AreEqual((TimeSpan.Zero, 4 * Second),
+                (pieces[0].Start, pieces[0].End));
+            Assert.AreEqual((6 * Second, 12 * Second, 4 * Second),
+                (pieces[1].Start, pieces[1].End, pieces[1].SourceIn));
+        }
+        Assert.AreEqual((4 * Second, 6 * Second),
+            (editor.Current.AudioSegments.Single(x => x.AssetId == insertedAudioAsset.Id).Start,
+                editor.Current.AudioSegments.Single(x => x.AssetId == insertedAudioAsset.Id).End));
+        Assert.AreEqual(2, editor.Current.ImageOverlays.Length);
+        Assert.AreEqual((2 * Second, 2 * Second),
+            (editor.Current.ImageOverlays[0].Start,
+                editor.Current.ImageOverlays[0].Duration));
+        Assert.AreEqual((6 * Second, 4 * Second),
+            (editor.Current.ImageOverlays[1].Start,
+                editor.Current.ImageOverlays[1].Duration));
+        Assert.IsTrue(editor.Undo());
+        Assert.AreSame(before, editor.Current);
+        Assert.IsTrue(editor.Redo());
+        Assert.AreEqual(insertedId, editor.Current.VideoSegments[1].Id);
+    }
+
+    [TestMethod]
+    public void ImportedVideoCanBeInsertedAtEitherBoundaryAndInvalidTimesDoNotEdit()
+    {
+        var editor = new VideoProjectEditor(CreateRecording());
+        var asset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.ImportedVideo,
+            "assets/second.mp4", Second);
+        VideoProject before = editor.Current;
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+            editor.InsertVideoAsset(asset, -Second));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+            editor.InsertVideoAsset(asset, 11 * Second));
+        Assert.AreSame(before, editor.Current);
+
+        editor.InsertVideoAsset(asset, TimeSpan.Zero);
+        Assert.AreEqual(asset.Id, editor.Current.VideoSegments[0].AssetId);
+        Assert.AreEqual(11 * Second, editor.Current.Duration);
+        Assert.AreEqual(Second, editor.Current.AudioSegments[0].Start);
+        editor.InsertVideoClip(asset.Id, editor.Current.Duration);
+        Assert.AreEqual(asset.Id, editor.Current.VideoSegments[^1].AssetId);
+        Assert.AreEqual(12 * Second, editor.Current.Duration);
+    }
+
+    [TestMethod]
+    public void MovingImageLayerChangesStackOrderAndKeepsSplitPiecesTogether()
+    {
+        var editor = new VideoProjectEditor(CreateRecording());
+        var lowerAsset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.Image,
+            "assets/lower.png", TimeSpan.Zero);
+        var upperAsset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.Image,
+            "assets/upper.png", TimeSpan.Zero);
+        editor.AddAsset(lowerAsset);
+        editor.AddAsset(upperAsset);
+        var lower = new ImageOverlay(Guid.NewGuid(), lowerAsset.Id,
+            TimeSpan.Zero, 5 * Second, new VideoRect(0, 0, 100, 100), 0);
+        var upper = new ImageOverlay(Guid.NewGuid(), upperAsset.Id,
+            TimeSpan.Zero, 5 * Second, new VideoRect(0, 0, 100, 100), 1);
+        editor.AddImageOverlay(lower);
+        editor.AddImageOverlay(upper);
+        editor.SplitImageOverlay(upper.Id, 2 * Second);
+        VideoProject beforeMove = editor.Current;
+
+        Assert.IsFalse(editor.MoveImageLayer(upper.Id, 1));
+        Assert.IsTrue(editor.MoveImageLayer(lower.Id, 1));
+
+        Assert.AreEqual(1, editor.Current.ImageOverlays.Single(item => item.Id == lower.Id).ZIndex);
+        Assert.IsTrue(editor.Current.ImageOverlays.Where(item => item.AssetId == upperAsset.Id)
+            .All(item => item.ZIndex == 0));
+        Assert.IsTrue(editor.Undo());
+        Assert.AreSame(beforeMove, editor.Current);
+        Assert.IsFalse(editor.MoveImageLayer(Guid.NewGuid(), 1));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => editor.MoveImageLayer(lower.Id, 2));
+    }
+
+    [TestMethod]
+    public void SeparateImagesFromSameAssetAndZIndexRemainDistinctLayers()
+    {
+        var editor = new VideoProjectEditor(CreateRecording());
+        var asset = new VideoAsset(Guid.NewGuid(), VideoAssetKind.Image,
+            "assets/reused.png", TimeSpan.Zero);
+        editor.AddAsset(asset);
+        var first = new ImageOverlay(Guid.NewGuid(), asset.Id,
+            TimeSpan.Zero, 3 * Second, new VideoRect(0, 0, 100, 100));
+        var second = new ImageOverlay(Guid.NewGuid(), asset.Id,
+            3 * Second, 3 * Second, new VideoRect(0, 0, 100, 100));
+        editor.AddImageOverlay(first);
+        editor.AddImageOverlay(second);
+
+        Assert.AreNotEqual(editor.Current.ImageOverlays[0].LayerId,
+            editor.Current.ImageOverlays[1].LayerId);
+        Assert.IsTrue(editor.MoveImageLayer(first.Id, 1));
+        Assert.AreEqual(1, editor.Current.ImageOverlays.Single(item => item.Id == first.Id).ZIndex);
+        Assert.AreEqual(0, editor.Current.ImageOverlays.Single(item => item.Id == second.Id).ZIndex);
+    }
+
+    [TestMethod]
     public void CutRangeSplitsAndRipplesVideoAudioAndImageLanesAndCanBeUndone()
     {
         var editor = new VideoProjectEditor(CreateRecording());

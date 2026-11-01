@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Shnapp.Core;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.UI;
 
 namespace Shnapp.App.Video;
@@ -23,6 +24,7 @@ public sealed partial class VideoEditorPage
     private double _renderedWindowEndX;
     private uint? _scrubbingPointerId;
     private Line? _playheadLine;
+    private bool _loadingInspector;
     private readonly Dictionary<Guid, Button> _clipButtons = new();
     private static readonly double[] TimelineTickIntervals =
         [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600,
@@ -32,8 +34,77 @@ public sealed partial class VideoEditorPage
     {
         if (_editor is null || TimelineCanvas is null) return;
         VideoProject project = _editor.Current;
+        Dictionary<Guid, VideoAsset> assets = project.Assets.ToDictionary(item => item.Id);
+        var lanes = new List<(string Label, Color Fill)>();
+        var imageLanes = new Dictionary<Guid, int>();
+        Color imageColor = Color.FromArgb(255, 125, 95, 157);
+        Color videoColor = Color.FromArgb(255, 52, 112, 162);
+        Color systemColor = Color.FromArgb(255, 66, 126, 112);
+        Color microphoneColor = Color.FromArgb(255, 95, 118, 93);
+        Color addedAudioColor = Color.FromArgb(255, 119, 101, 70);
+
+        // Higher image layers appear above lower ones, as they do in the preview.
+        foreach (var layer in project.ImageOverlays.Select((item, index) => (item, index))
+            .GroupBy(entry => ImageLayerKey(entry.item))
+            .OrderByDescending(group => group.First().item.ZIndex)
+            .ThenByDescending(group => group.Max(entry => entry.index)))
+        {
+            int lane = lanes.Count;
+            string name = assets[layer.First().item.AssetId].DisplayName ?? "Image";
+            lanes.Add((name, imageColor));
+            foreach (var entry in layer) imageLanes[entry.item.Id] = lane;
+        }
+        int videoLane = lanes.Count;
+        lanes.Add(("Video", videoColor));
+
+        var audioLanes = new Dictionary<Guid, int>();
+        HashSet<Guid> usedAudioAssets = [.. project.AudioSegments.Select(item => item.AssetId)];
+        foreach (VideoAsset asset in project.Assets.Where(item => usedAudioAssets.Contains(item.Id))
+            .OrderBy(item => item.Kind switch
+            {
+                VideoAssetKind.ComputerAudio => 0,
+                VideoAssetKind.MicrophoneAudio => 1,
+                _ => 2,
+            }))
+        {
+            string name = asset.Kind switch
+            {
+                VideoAssetKind.ComputerAudio => "Computer audio",
+                VideoAssetKind.MicrophoneAudio => "Microphone",
+                _ => asset.DisplayName ?? "Added audio",
+            };
+            audioLanes[asset.Id] = lanes.Count;
+            lanes.Add((name, asset.Kind switch
+            {
+                VideoAssetKind.ComputerAudio => systemColor,
+                VideoAssetKind.MicrophoneAudio => microphoneColor,
+                _ => addedAudioColor,
+            }));
+        }
+
+        double contentHeight = 22 + lanes.Count * 28;
+        TimelinePanel.Height = Math.Min(280, 36 + contentHeight + 14);
+        TimelineContent.Height = contentHeight;
+        TimelineCanvas.Height = contentHeight;
+        TimelineLaneHeaders.Children.Clear();
+        TimelineLaneHeaders.Children.Add(new TextBlock { Height = 22 });
+        foreach (var lane in lanes)
+        {
+            var header = new TextBlock
+            {
+                Text = lane.Label,
+                Height = 28,
+                FontSize = 10,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = (Brush)Application.Current.Resources["ShnappToolbarInactiveIconBrush"],
+            };
+            ToolTipService.SetToolTip(header, lane.Label);
+            TimelineLaneHeaders.Children.Add(header);
+        }
+
         _lastTimelineViewportWidth = TimelineScroll.ActualWidth;
-        double available = Math.Max(400, TimelineScroll.ActualWidth - 18);
+        double available = Math.Max(120, TimelineScroll.ActualWidth - 18);
         _pixelsPerSecond = Math.Clamp(available / Math.Max(1, project.Duration.TotalSeconds), .02, 42);
         double width = Math.Max(available, project.Duration.TotalSeconds * _pixelsPerSecond + 24);
         TimelineContent.Width = width;
@@ -41,21 +112,13 @@ public sealed partial class VideoEditorPage
         TimelineCanvas.Children.Clear();
         _clipButtons.Clear();
 
-        double viewport = Math.Max(400, TimelineScroll.ActualWidth);
+        double viewport = Math.Max(120, TimelineScroll.ActualWidth);
         double offset = TimelineScroll.HorizontalOffset;
         _renderedWindowStartX = Math.Max(0, offset - viewport);
         _renderedWindowEndX = Math.Min(width, offset + viewport * 2);
         double renderedWidth = _renderedWindowEndX - _renderedWindowStartX;
 
-        var laneColors = new[]
-        {
-            Color.FromArgb(255, 52, 112, 162),
-            Color.FromArgb(255, 66, 126, 112),
-            Color.FromArgb(255, 95, 118, 93),
-            Color.FromArgb(255, 125, 95, 157),
-            Color.FromArgb(255, 119, 101, 70),
-        };
-        for (int lane = 0; lane < 5; lane++)
+        for (int lane = 0; lane < lanes.Count; lane++)
         {
             var background = new Rectangle
             {
@@ -76,7 +139,7 @@ public sealed partial class VideoEditorPage
             var markedRange = new Rectangle
             {
                 Width = Math.Max(2, Math.Abs(last - first)),
-                Height = 162,
+                Height = contentHeight,
                 Fill = (Brush)Application.Current.Resources["ShnappBlueBrush"],
                 Opacity = _markIn.HasValue && _markOut.HasValue ? .18 : .7,
                 IsHitTestVisible = false,
@@ -98,7 +161,7 @@ public sealed partial class VideoEditorPage
             double x = seconds * _pixelsPerSecond;
             var tick = new Line
             {
-                X1 = 0, X2 = 0, Y1 = 17, Y2 = 162,
+                X1 = 0, X2 = 0, Y1 = 17, Y2 = contentHeight,
                 Stroke = (Brush)Application.Current.Resources["ShnappToolbarInactiveIconBrush"],
                 Opacity = .38,
                 StrokeThickness = 1,
@@ -116,35 +179,30 @@ public sealed partial class VideoEditorPage
         }
 
         foreach (VideoSegment segment in project.VideoSegments)
-            AddTimelineClip(segment.Id, TimelineKind.Video, 0, segment.Start,
-                segment.Duration, "Recording", laneColors[0]);
-        Dictionary<Guid, VideoAsset> assets = project.Assets.ToDictionary(item => item.Id);
+        {
+            VideoAsset asset = assets[segment.AssetId];
+            AddTimelineClip(segment.Id, TimelineKind.Video, videoLane, segment.Start,
+                segment.Duration, asset.DisplayName ?? "Recording", videoColor);
+        }
         foreach (AudioSegment segment in project.AudioSegments)
         {
             VideoAsset asset = assets[segment.AssetId];
-            int lane = asset.Kind switch
-            {
-                VideoAssetKind.ComputerAudio => 1,
-                VideoAssetKind.MicrophoneAudio => 2,
-                _ => 4,
-            };
-            string title = asset.Kind switch
-            {
-                VideoAssetKind.ComputerAudio => "Computer sound",
-                VideoAssetKind.MicrophoneAudio => "Microphone",
-                _ => asset.DisplayName ?? "Added audio",
-            };
+            int lane = audioLanes[asset.Id];
+            string title = lanes[lane].Label;
             AddTimelineClip(segment.Id, TimelineKind.Audio, lane,
                 segment.Start, segment.Duration,
-                segment.Muted ? $"{title} · muted" : title, laneColors[lane]);
+                segment.Muted ? $"{title} · muted" : title, lanes[lane].Fill);
         }
         foreach (ImageOverlay overlay in project.ImageOverlays)
-            AddTimelineClip(overlay.Id, TimelineKind.Image, 3,
-                overlay.Start, overlay.Duration, "Image overlay", laneColors[3]);
+        {
+            int lane = imageLanes[overlay.Id];
+            AddTimelineClip(overlay.Id, TimelineKind.Image, lane,
+                overlay.Start, overlay.Duration, lanes[lane].Label, imageColor);
+        }
 
         _playheadLine = new Line
         {
-            X1 = 0, X2 = 0, Y1 = 0, Y2 = 162,
+            X1 = 0, X2 = 0, Y1 = 0, Y2 = contentHeight,
             Stroke = new SolidColorBrush(Colors.White),
             StrokeThickness = 2,
             IsHitTestVisible = false,
@@ -160,10 +218,12 @@ public sealed partial class VideoEditorPage
         double width = Math.Max(3, duration.TotalSeconds * _pixelsPerSecond - 2);
         if (left + width < _renderedWindowStartX || left > _renderedWindowEndX)
             return;
+        double visibleLeft = Math.Max(left, _renderedWindowStartX);
+        double visibleRight = Math.Min(left + width, _renderedWindowEndX);
         bool selected = _selectedId == id && _selectedKind == kind;
         var surface = new Button
         {
-            Width = width,
+            Width = Math.Max(3, visibleRight - visibleLeft),
             Height = 24,
             MinWidth = 0,
             MinHeight = 0,
@@ -190,7 +250,7 @@ public sealed partial class VideoEditorPage
             $"{title}, {FormatPreciseTime(start)} to {FormatPreciseTime(start + duration)}. Select clip.");
         ToolTipService.SetToolTip(surface,
             $"{title} · {FormatPreciseTime(start)}–{FormatPreciseTime(start + duration)}");
-        Canvas.SetLeft(surface, left);
+        Canvas.SetLeft(surface, visibleLeft);
         Canvas.SetTop(surface, 24 + lane * 28);
         TimelineCanvas.Children.Add(surface);
         _clipButtons[id] = surface;
@@ -230,6 +290,39 @@ public sealed partial class VideoEditorPage
         Seek(TimeSpan.FromSeconds(args.GetCurrentPoint(TimelineContent).Position.X /
             _pixelsPerSecond));
         BeginTimelineScrub(args);
+    }
+
+    private void Timeline_DragOver(object sender, DragEventArgs args)
+    {
+        if (args.DataView.Contains("Shnapp.GalleryVideoId") ||
+            args.DataView.Contains("Shnapp.GalleryImageId"))
+        {
+            args.AcceptedOperation = DataPackageOperation.Copy;
+            args.Handled = true;
+        }
+    }
+
+    private async void Timeline_Drop(object sender, DragEventArgs args)
+    {
+        if (_editor is null) return;
+        bool isVideo = args.DataView.Contains("Shnapp.GalleryVideoId");
+        string format = isVideo ? "Shnapp.GalleryVideoId" : "Shnapp.GalleryImageId";
+        if (!args.DataView.Contains(format)) return;
+        args.Handled = true;
+        try
+        {
+            double seconds = args.GetPosition(TimelineContent).X / _pixelsPerSecond;
+            TimeSpan at = TimeSpan.FromSeconds(Math.Clamp(seconds, 0,
+                _editor.Current.Duration.TotalSeconds));
+            object value = await args.DataView.GetDataAsync(format);
+            if (value is not string idText || !Guid.TryParse(idText, out Guid id))
+                throw new InvalidOperationException("This gallery item could not be added.");
+            await ImportGalleryMediaAsync(id, isVideo, at);
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = $"Could not add media: {exception.Message}";
+        }
     }
 
     private void BeginTimelineScrub(PointerRoutedEventArgs args)
@@ -299,6 +392,8 @@ public sealed partial class VideoEditorPage
             _selectedId = Guid.Empty;
             _selectedRange = null;
             InspectorPanel.Visibility = Visibility.Collapsed;
+            SetEnabled(ApplyPropertiesButton, false);
+            PendingChangesText.Visibility = Visibility.Collapsed;
             SelectionHint.Text = "Select a clip to edit";
             UpdateEditActionState();
             return;
@@ -309,13 +404,19 @@ public sealed partial class VideoEditorPage
         SourceFields.Visibility = image is null ? Visibility.Visible : Visibility.Collapsed;
         AudioFields.Visibility = audio is null ? Visibility.Collapsed : Visibility.Visible;
         OverlayFields.Visibility = image is null ? Visibility.Collapsed : Visibility.Visible;
-        SelectedItemTitle.Text = video is not null ? "Video clip" :
-            image is not null ? "Image overlay" : "Audio clip";
+        VideoAsset? selectedAsset = project.Assets.FirstOrDefault(asset =>
+            asset.Id == (video?.AssetId ?? audio?.AssetId ?? image!.AssetId));
+        SelectedItemTitle.Text = video is not null
+            ? selectedAsset?.DisplayName ?? "Recording"
+            : image is not null
+                ? selectedAsset?.DisplayName ?? "Image"
+                : selectedAsset?.DisplayName ?? "Audio";
         TimeSpan start = video?.Start ?? audio?.Start ?? image!.Start;
         TimeSpan duration = video?.Duration ?? audio?.Duration ?? image!.Duration;
         _selectedRange = (start, start + duration);
         SelectedItemDetail.Text = $"{FormatPreciseTime(start)} — {FormatPreciseTime(start + duration)}";
         SelectionHint.Text = $"{SelectedItemTitle.Text} · {FormatPreciseTime(duration)}";
+        _loadingInspector = true;
         ClipStartSeconds.Value = start.TotalSeconds;
         if (video is not null || audio is not null)
         {
@@ -334,8 +435,40 @@ public sealed partial class VideoEditorPage
             OverlayY.Value = image.Bounds.Y;
             OverlayWidth.Value = image.Bounds.Width;
             OverlayHeight.Value = image.Bounds.Height;
+            var layers = project.ImageOverlays.Select((item, index) => (item, index))
+                .GroupBy(entry => ImageLayerKey(entry.item))
+                .OrderBy(group => group.First().item.ZIndex)
+                .ThenBy(group => group.Min(entry => entry.index))
+                .ToArray();
+            int position = Array.FindIndex(layers, layer =>
+                layer.Key == ImageLayerKey(image));
+            SetEnabled(MoveImageForwardButton, position < layers.Length - 1);
+            SetEnabled(MoveImageBackButton, position > 0);
         }
+        _loadingInspector = false;
+        SetEnabled(ApplyPropertiesButton, false);
+        PendingChangesText.Visibility = Visibility.Collapsed;
+        ToolTipService.SetToolTip(ApplyPropertiesButton, "No clip changes to apply");
         UpdateEditActionState();
+    }
+
+    private void InspectorNumber_ValueChanged(NumberBox sender,
+        NumberBoxValueChangedEventArgs args) => MarkInspectorDirty();
+
+    private void InspectorSlider_ValueChanged(object sender,
+        Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs args) =>
+        MarkInspectorDirty();
+
+    private void InspectorMute_Toggled(object sender, RoutedEventArgs args) =>
+        MarkInspectorDirty();
+
+    private void MarkInspectorDirty()
+    {
+        if (_loadingInspector || _editor is null || _selectedKind == TimelineKind.None ||
+            ApplyPropertiesButton is null) return;
+        SetEnabled(ApplyPropertiesButton, true);
+        PendingChangesText.Visibility = Visibility.Visible;
+        ToolTipService.SetToolTip(ApplyPropertiesButton, "Apply pending clip changes");
     }
 
     private void UpdateEditActionState()
@@ -373,7 +506,7 @@ public sealed partial class VideoEditorPage
     private void ApplyProperties_Click(object sender, RoutedEventArgs args)
     {
         if (_editor is null) return;
-        TryEdit(() =>
+        if (TryEdit(() =>
         {
             TimeSpan start = Seconds(ClipStartSeconds.Value);
             if (_selectedKind == TimelineKind.Video)
@@ -409,7 +542,12 @@ public sealed partial class VideoEditorPage
                         OverlayWidth.Value, OverlayHeight.Value),
                 });
             }
-        });
+        }))
+        {
+            SetEnabled(ApplyPropertiesButton, false);
+            PendingChangesText.Visibility = Visibility.Collapsed;
+            ToolTipService.SetToolTip(ApplyPropertiesButton, "No clip changes to apply");
+        }
     }
 
     private void DeleteSelected_Click(object sender, RoutedEventArgs args)
@@ -424,6 +562,18 @@ public sealed partial class VideoEditorPage
             else if (_selectedKind == TimelineKind.Image)
                 _editor.DeleteImageOverlay(_selectedId);
         });
+    }
+
+    private void MoveImageForward_Click(object sender, RoutedEventArgs args) =>
+        MoveSelectedImageLayer(1);
+
+    private void MoveImageBack_Click(object sender, RoutedEventArgs args) =>
+        MoveSelectedImageLayer(-1);
+
+    private void MoveSelectedImageLayer(int direction)
+    {
+        if (_editor is null || _selectedKind != TimelineKind.Image) return;
+        TryEdit(() => _editor.MoveImageLayer(_selectedId, direction));
     }
 
     private void Split_Click(object sender, RoutedEventArgs args)
@@ -540,21 +690,42 @@ public sealed partial class VideoEditorPage
         _selectedId = Guid.Empty;
         _selectedRange = null;
         InspectorPanel.Visibility = Visibility.Collapsed;
-        SelectionHint.Text = "Select a clip to edit";
+        SetEnabled(ApplyPropertiesButton, false);
+        PendingChangesText.Visibility = Visibility.Collapsed;
+        UpdateMarkedRangeHint();
         RefreshTimeline();
         UpdateEditActionState();
     }
 
-    private void TryEdit(Action action)
+    private bool ClearTimelineSelectionAndRange()
+    {
+        if (_selectedKind == TimelineKind.None && !_markIn.HasValue && !_markOut.HasValue)
+            return false;
+        _selectedKind = TimelineKind.None;
+        _selectedId = Guid.Empty;
+        _selectedRange = null;
+        _markIn = _markOut = null;
+        InspectorPanel.Visibility = Visibility.Collapsed;
+        SetEnabled(ApplyPropertiesButton, false);
+        PendingChangesText.Visibility = Visibility.Collapsed;
+        SelectionHint.Text = "Select a clip to edit";
+        RefreshTimeline();
+        UpdateEditActionState();
+        return true;
+    }
+
+    private bool TryEdit(Action action)
     {
         try
         {
             action();
             StatusText.Text = "";
+            return true;
         }
         catch (Exception exception)
         {
             StatusText.Text = exception.Message;
+            return false;
         }
     }
 
@@ -564,4 +735,7 @@ public sealed partial class VideoEditorPage
             throw new ArgumentOutOfRangeException(nameof(value), "Enter a valid positive time.");
         return TimeSpan.FromSeconds(value);
     }
+
+    private static Guid ImageLayerKey(ImageOverlay image) =>
+        image.LayerId == Guid.Empty ? image.Id : image.LayerId;
 }

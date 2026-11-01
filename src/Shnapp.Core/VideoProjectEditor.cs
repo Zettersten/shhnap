@@ -28,16 +28,142 @@ public sealed class VideoProjectEditor(VideoProject project)
     /// <param name="title">A nonempty title of at most 120 characters.</param>
     public void Rename(string title) => Commit(Current with { Title = ShnappTitles.Normalize(title) });
 
-    /// <summary>Adds an imported audio or image asset without modifying its file.</summary>
+    /// <summary>Adds an imported media asset without modifying its file.</summary>
     /// <param name="asset">A unique asset with a safe project-relative path.</param>
     public void AddAsset(VideoAsset asset)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        if (asset.Kind is not VideoAssetKind.ImportedAudio and not VideoAssetKind.Image)
+        if (asset.Kind is not VideoAssetKind.ImportedVideo and not VideoAssetKind.ImportedAudio and not VideoAssetKind.Image)
         {
-            throw new ArgumentException("Only imported audio and image assets can be added after recording.", nameof(asset));
+            throw new ArgumentException("Only imported video, audio, and image assets can be added after recording.", nameof(asset));
         }
         Commit(Current with { Assets = Current.Assets.Add(asset) });
+    }
+
+    /// <summary>Inserts a new video and its separate audio stems, rippling every existing track as one undoable edit.</summary>
+    /// <param name="audioStems">New audio assets and segments with start times relative to the inserted video.</param>
+    /// <returns>The inserted clip identifier.</returns>
+    public Guid InsertVideoAsset(VideoAsset asset, TimeSpan at,
+        IReadOnlyList<(VideoAsset Asset, AudioSegment Segment)>? audioStems = null)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (asset.Kind != VideoAssetKind.ImportedVideo)
+            throw new ArgumentException("The inserted asset must be an imported video.", nameof(asset));
+        return InsertVideo(asset, at, addAsset: true, audioStems);
+    }
+
+    /// <summary>Inserts an existing imported video asset at the playhead.</summary>
+    /// <returns>The inserted clip identifier.</returns>
+    public Guid InsertVideoClip(Guid assetId, TimeSpan at)
+    {
+        VideoAsset asset = Current.Assets.FirstOrDefault(item => item.Id == assetId)
+            ?? throw new ArgumentException("Video asset was not found.", nameof(assetId));
+        if (asset.Kind != VideoAssetKind.ImportedVideo)
+            throw new ArgumentException("The inserted asset must be an imported video.", nameof(assetId));
+        return InsertVideo(asset, at, addAsset: false, audioStems: null);
+    }
+
+    private Guid InsertVideo(VideoAsset asset, TimeSpan at, bool addAsset,
+        IReadOnlyList<(VideoAsset Asset, AudioSegment Segment)>? audioStems)
+    {
+        if (at < TimeSpan.Zero || at > Current.Duration)
+            throw new ArgumentOutOfRangeException(nameof(at), "Insert time must be on the video timeline.");
+        if (asset.Duration <= TimeSpan.Zero)
+            throw new ArgumentException("The imported video must have a duration.", nameof(asset));
+        if (audioStems is not null)
+        {
+            foreach ((VideoAsset audioAsset, AudioSegment segment) in audioStems)
+            {
+                if (audioAsset.Kind != VideoAssetKind.ImportedAudio ||
+                    segment.AssetId != audioAsset.Id || segment.Start < TimeSpan.Zero ||
+                    segment.End > asset.Duration)
+                {
+                    throw new ArgumentException(
+                        "Audio stems must be imported audio within the inserted video's duration.",
+                        nameof(audioStems));
+                }
+            }
+        }
+
+        var inserted = new VideoSegment(Guid.NewGuid(), asset.Id,
+            at, TimeSpan.Zero, asset.Duration);
+        var video = ImmutableArray.CreateBuilder<VideoSegment>();
+        foreach (VideoSegment segment in Current.VideoSegments)
+        {
+            if (segment.End <= at) { video.Add(segment); continue; }
+            if (segment.Start >= at)
+            {
+                video.Add(segment with { Start = segment.Start + asset.Duration });
+                continue;
+            }
+            TimeSpan leftDuration = at - segment.Start;
+            video.Add(segment with { SourceOut = segment.SourceIn + leftDuration });
+            video.Add(segment with
+            {
+                Id = Guid.NewGuid(),
+                Start = at + asset.Duration,
+                SourceIn = segment.SourceIn + leftDuration,
+            });
+        }
+        video.Add(inserted);
+
+        var audio = ImmutableArray.CreateBuilder<AudioSegment>();
+        foreach (AudioSegment segment in Current.AudioSegments)
+        {
+            if (segment.End <= at) { audio.Add(segment); continue; }
+            if (segment.Start >= at)
+            {
+                audio.Add(segment with { Start = segment.Start + asset.Duration });
+                continue;
+            }
+            TimeSpan leftDuration = at - segment.Start;
+            audio.Add(segment with { SourceOut = segment.SourceIn + leftDuration });
+            audio.Add(segment with
+            {
+                Id = Guid.NewGuid(),
+                Start = at + asset.Duration,
+                SourceIn = segment.SourceIn + leftDuration,
+            });
+        }
+        if (audioStems is not null)
+        {
+            foreach (var stem in audioStems)
+                audio.Add(stem.Segment with { Start = at + stem.Segment.Start });
+        }
+
+        var images = ImmutableArray.CreateBuilder<ImageOverlay>();
+        foreach (ImageOverlay overlay in Current.ImageOverlays)
+        {
+            if (overlay.End <= at) { images.Add(overlay); continue; }
+            if (overlay.Start >= at)
+            {
+                images.Add(overlay with { Start = overlay.Start + asset.Duration });
+                continue;
+            }
+            images.Add(overlay with
+            {
+                Duration = at - overlay.Start,
+                LayerId = LayerKey(overlay),
+            });
+            images.Add(overlay with
+            {
+                Id = Guid.NewGuid(),
+                Start = at + asset.Duration,
+                Duration = overlay.End - at,
+                LayerId = LayerKey(overlay),
+            });
+        }
+
+        Commit(Current with
+        {
+            Assets = addAsset
+                ? Current.Assets.Add(asset).AddRange(audioStems?.Select(stem => stem.Asset) ?? [])
+                : Current.Assets,
+            VideoSegments = Sort(video.ToImmutable()),
+            AudioSegments = Sort(audio.ToImmutable()),
+            ImageOverlays = images.ToImmutable(),
+        });
+        return inserted.Id;
     }
 
     /// <summary>Adds a nonoverlapping part of the original MP4 to the video lane.</summary>
@@ -61,7 +187,13 @@ public sealed class VideoProjectEditor(VideoProject project)
     public void AddImageOverlay(ImageOverlay overlay)
     {
         ArgumentNullException.ThrowIfNull(overlay);
-        Commit(Current with { ImageOverlays = Current.ImageOverlays.Add(overlay) });
+        Commit(Current with
+        {
+            ImageOverlays = Current.ImageOverlays.Add(overlay with
+            {
+                LayerId = LayerKey(overlay),
+            }),
+        });
     }
 
     /// <summary>Replaces an existing video segment, preserving its identifier.</summary>
@@ -301,6 +433,41 @@ public sealed class VideoProjectEditor(VideoProject project)
         return true;
     }
 
+    /// <summary>Moves an image layer one position forward or backward in the visual stack.</summary>
+    /// <param name="direction">One for forward; minus one for backward.</param>
+    /// <returns>False when the image does not exist or is already at that edge.</returns>
+    /// <remarks>Split pieces of the same image layer move together as one undoable edit.</remarks>
+    public bool MoveImageLayer(Guid id, int direction)
+    {
+        if (direction is not 1 and not -1)
+            throw new ArgumentOutOfRangeException(nameof(direction), "Use one step forward or backward.");
+        ImageOverlay? selected = Current.ImageOverlays.FirstOrDefault(item => item.Id == id);
+        if (selected is null) return false;
+
+        var layers = Current.ImageOverlays.Select((item, index) => (item, index))
+            .GroupBy(entry => LayerKey(entry.item))
+            .OrderBy(group => group.First().item.ZIndex)
+            .ThenBy(group => group.Min(entry => entry.index))
+            .ToArray();
+        int selectedIndex = Array.FindIndex(layers, group =>
+            group.Key == LayerKey(selected));
+        int nextIndex = selectedIndex + direction;
+        if (nextIndex < 0 || nextIndex >= layers.Length) return false;
+
+        var order = layers.Select((group, index) => (group.Key, index))
+            .ToDictionary(entry => entry.Key, entry => entry.index);
+        order[layers[selectedIndex].Key] = nextIndex;
+        order[layers[nextIndex].Key] = selectedIndex;
+        Commit(Current with
+        {
+            ImageOverlays = [.. Current.ImageOverlays.Select(item => item with
+            {
+                ZIndex = order[LayerKey(item)],
+            })],
+        });
+        return true;
+    }
+
     /// <summary>Deletes one timed image without changing other timeline items.</summary>
     /// <param name="id">Image overlay identifier.</param>
     /// <returns>False when no matching overlay exists.</returns>
@@ -329,11 +496,16 @@ public sealed class VideoProjectEditor(VideoProject project)
             Id = Guid.NewGuid(),
             Start = at,
             Duration = image.End - at,
+            LayerId = LayerKey(image),
         };
         Commit(Current with
         {
             ImageOverlays = Current.ImageOverlays
-                .SetItem(index, image with { Duration = at - image.Start })
+                .SetItem(index, image with
+                {
+                    Duration = at - image.Start,
+                    LayerId = LayerKey(image),
+                })
                 .Insert(index + 1, right),
         });
         return right.Id;
@@ -368,11 +540,16 @@ public sealed class VideoProjectEditor(VideoProject project)
             {
                 Start = cutEnd,
                 Duration = image.End - cutEnd,
+                LayerId = LayerKey(image),
             });
         }
         else
         {
-            images = images.SetItem(index, image with { Duration = cutStart - image.Start });
+            images = images.SetItem(index, image with
+            {
+                Duration = cutStart - image.Start,
+                LayerId = LayerKey(image),
+            });
             if (cutEnd < image.End)
             {
                 var right = image with
@@ -380,6 +557,7 @@ public sealed class VideoProjectEditor(VideoProject project)
                     Id = Guid.NewGuid(),
                     Start = cutEnd,
                     Duration = image.End - cutEnd,
+                    LayerId = LayerKey(image),
                 };
                 images = images.Insert(index + 1, right);
                 selected = right.Id;
@@ -477,6 +655,9 @@ public sealed class VideoProjectEditor(VideoProject project)
         return -1;
     }
 
+    private static Guid LayerKey(ImageOverlay overlay) =>
+        overlay.LayerId == Guid.Empty ? overlay.Id : overlay.LayerId;
+
     private static ImmutableArray<VideoSegment> Sort(ImmutableArray<VideoSegment> items) =>
         [.. items.OrderBy(static item => item.Start).ThenBy(static item => item.Id)];
 
@@ -541,7 +722,10 @@ public sealed class VideoProjectEditor(VideoProject project)
             if (item.Start >= end) { result.Add(item with { Start = item.Start - (end - start) }); continue; }
             TimeSpan left = start > item.Start ? start - item.Start : TimeSpan.Zero;
             TimeSpan right = item.End > end ? item.End - end : TimeSpan.Zero;
-            if (left > TimeSpan.Zero) { result.Add(item with { Duration = left }); }
+            if (left > TimeSpan.Zero)
+            {
+                result.Add(item with { Duration = left, LayerId = LayerKey(item) });
+            }
             if (right > TimeSpan.Zero)
             {
                 result.Add(item with
@@ -549,6 +733,7 @@ public sealed class VideoProjectEditor(VideoProject project)
                     Id = left > TimeSpan.Zero ? Guid.NewGuid() : item.Id,
                     Start = start,
                     Duration = right,
+                    LayerId = left > TimeSpan.Zero ? LayerKey(item) : item.LayerId,
                 });
             }
         }
