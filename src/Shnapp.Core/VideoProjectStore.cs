@@ -118,11 +118,12 @@ public sealed class VideoProjectStore(string rootPath)
             string target = ResolvePath(projectDirectory, asset.RelativePath);
             EnsureSafePath(target, isDirectory: false, mustExist: false);
             temporaryPath = Path.Combine(assetDirectory, $".import-{Guid.NewGuid():N}.tmp");
-            int bufferSize = kind == VideoAssetKind.ImportedVideo ? 1024 * 1024 : 64 * 1024;
-            // Large video imports stay buffered during the copy. The final flush and
+            bool largeMedia = kind is VideoAssetKind.ImportedVideo or VideoAssetKind.ImportedAudio;
+            int bufferSize = largeMedia ? 1024 * 1024 : 64 * 1024;
+            // Large media imports stay buffered during the copy. The final flush and
             // atomic move still publish a complete asset before project metadata changes.
             FileOptions writeOptions = FileOptions.Asynchronous |
-                (kind == VideoAssetKind.ImportedVideo ? FileOptions.None : FileOptions.WriteThrough);
+                (largeMedia ? FileOptions.None : FileOptions.WriteThrough);
             await using (FileStream output = new(temporaryPath, FileMode.CreateNew,
                 FileAccess.Write, FileShare.None, bufferSize, writeOptions))
             {
