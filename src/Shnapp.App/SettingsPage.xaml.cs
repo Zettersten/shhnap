@@ -92,9 +92,8 @@ public sealed partial class SettingsPage : Page
         LibraryPath.Text = libraryPath;
         LibraryNote.Text = isolated
             ? "Verification library. Startup changes are disabled."
-            : "Editable originals stay here. Share the exported PNG when a capture contains private details.";
-        SettingsVersionLabel.Text = "Installed version " + version;
-        VersionLabel.Text = SettingsVersionLabel.Text;
+            : "Original captures are stored here.";
+        VersionLabel.Text = "Installed version " + version;
         Version windows = Environment.OSVersion.Version;
         string windowsName = windows.Major == 10 && windows.Build >= 22000 ? "Windows 11" : $"Windows {windows.Major}";
         RuntimeLabel.Text = $"{windowsName} · build {windows.Build} · {RuntimeInformation.ProcessArchitecture} · .NET {Environment.Version}";
@@ -178,6 +177,10 @@ public sealed partial class SettingsPage : Page
     {
         if (!_saving) { SelectSection("general"); }
     }
+    private void RecordingNav_Click(object sender, RoutedEventArgs args)
+    {
+        if (!_saving) { SelectSection("recording"); }
+    }
     private void ShortcutsNav_Click(object sender, RoutedEventArgs args)
     {
         if (!_saving) { SelectSection("shortcuts"); }
@@ -195,6 +198,7 @@ public sealed partial class SettingsPage : Page
     {
         (_selectedSection switch
         {
+            "recording" => RecordingNavButton,
             "shortcuts" => ShortcutsNavButton,
             "updates" => UpdatesNavButton,
             "feedback" => FeedbackNavButton,
@@ -481,17 +485,19 @@ public sealed partial class SettingsPage : Page
     private void SettingsPage_SizeChanged(object sender, SizeChangedEventArgs args)
     {
         bool compact = args.NewSize.Width < 720;
-        SidebarColumn.Width = new GridLength(compact ? 72 : 204);
-        SidebarBorder.Margin = compact ? new Thickness(0, 0, 10, 16) : new Thickness(0, 0, 20, 16);
+        SettingsSaveStatus.Visibility = args.NewSize.Width < 560 ? Visibility.Collapsed : Visibility.Visible;
+        SidebarColumn.Width = new GridLength(compact ? 52 : 176);
+        SidebarBorder.Margin = compact ? new Thickness(0, 0, 8, 16) : new Thickness(0, 0, 22, 16);
         Visibility labelVisibility = compact ? Visibility.Collapsed : Visibility.Visible;
         GeneralNavLabel.Visibility = labelVisibility;
+        RecordingNavLabel.Visibility = labelVisibility;
         ShortcutsNavLabel.Visibility = labelVisibility;
         UpdatesNavLabel.Visibility = labelVisibility;
         FeedbackNavLabel.Visibility = labelVisibility;
         foreach (Button button in new[]
-            { GeneralNavButton, ShortcutsNavButton, UpdatesNavButton, FeedbackNavButton })
+            { GeneralNavButton, RecordingNavButton, ShortcutsNavButton, UpdatesNavButton, FeedbackNavButton })
         {
-            button.Padding = compact ? new Thickness(8) : new Thickness(12, 8, 12, 8);
+            button.Padding = compact ? new Thickness(8) : new Thickness(10, 6, 10, 6);
             button.HorizontalContentAlignment = compact ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         }
     }
@@ -513,10 +519,13 @@ public sealed partial class SettingsPage : Page
     {
         _selectedSection = section;
         GeneralPanel.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
+        GeneralContinuationPanel.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
+        RecordingPanel.Visibility = section == "recording" ? Visibility.Visible : Visibility.Collapsed;
         ShortcutsPanel.Visibility = section == "shortcuts" ? Visibility.Visible : Visibility.Collapsed;
         UpdatesPanel.Visibility = section == "updates" ? Visibility.Visible : Visibility.Collapsed;
         FeedbackPanel.Visibility = section == "feedback" ? Visibility.Visible : Visibility.Collapsed;
         GeneralNavSelection.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
+        RecordingNavSelection.Visibility = section == "recording" ? Visibility.Visible : Visibility.Collapsed;
         ShortcutsNavSelection.Visibility = section == "shortcuts" ? Visibility.Visible : Visibility.Collapsed;
         UpdatesNavSelection.Visibility = section == "updates" ? Visibility.Visible : Visibility.Collapsed;
         FeedbackNavSelection.Visibility = section == "feedback" ? Visibility.Visible : Visibility.Collapsed;
@@ -534,6 +543,7 @@ public sealed partial class SettingsPage : Page
         var selected = (Brush)themeResources["SettingsSelectedNavForegroundBrush"];
         var normal = (Brush)themeResources["SettingsNavForegroundBrush"];
         GeneralNavButton.Foreground = _selectedSection == "general" ? selected : normal;
+        RecordingNavButton.Foreground = _selectedSection == "recording" ? selected : normal;
         ShortcutsNavButton.Foreground = _selectedSection == "shortcuts" ? selected : normal;
         UpdatesNavButton.Foreground = _selectedSection == "updates" ? selected : normal;
         FeedbackNavButton.Foreground = _selectedSection == "feedback" ? selected : normal;
@@ -544,6 +554,7 @@ public sealed partial class SettingsPage : Page
         _saving = saving;
         CloseSettingsButton.IsEnabled = !saving;
         GeneralNavButton.IsEnabled = !saving;
+        RecordingNavButton.IsEnabled = !saving;
         ShortcutsNavButton.IsEnabled = !saving;
         UpdatesNavButton.IsEnabled = !saving;
         FeedbackNavButton.IsEnabled = !saving;
