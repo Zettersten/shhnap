@@ -453,6 +453,7 @@ public sealed partial class VideoEditorPage
         _canvasMediaCropButton.IsEnabled = !trackLocked;
         _canvasMediaResetCropButton.IsEnabled = !trackLocked && crop is not null;
         _canvasMediaShapeButton.IsEnabled = !trackLocked;
+        _canvasMediaDeleteButton.IsEnabled = !trackLocked;
         _canvasMediaShapeButton.Visibility = _selectedKind == TimelineKind.VideoOverlay
             ? Visibility.Visible : Visibility.Collapsed;
         RefreshVideoShapeMenuSelection();
