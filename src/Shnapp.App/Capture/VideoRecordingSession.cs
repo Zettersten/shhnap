@@ -122,9 +122,18 @@ internal sealed class VideoRecordingSession
             }
             if (_cameraVideoPath is not null)
             {
-                _cameraVideo = await CameraVideoRecording.PrepareAsync(_cameraVideoPath,
-                    _options.CameraSourceId, cancellationToken);
-                _cameraVideo.Failed += OnCameraFailure;
+                try
+                {
+                    _cameraVideo = await CameraVideoRecording.PrepareAsync(_cameraVideoPath,
+                        _options.CameraSourceId, cancellationToken);
+                    _cameraVideo.Failed += OnCameraFailure;
+                }
+                catch (Exception error) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // Camera video is an optional layer. A missing, busy, or denied
+                    // device must not discard the independent screen recording.
+                    OnCameraFailure(error);
+                }
             }
 
             cancellationToken.ThrowIfCancellationRequested();
