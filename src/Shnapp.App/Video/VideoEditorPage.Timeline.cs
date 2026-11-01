@@ -14,7 +14,7 @@ namespace Shnapp.App.Video;
 
 public sealed partial class VideoEditorPage
 {
-    private enum TimelineKind { None, Video, Audio, Image, Text }
+    private enum TimelineKind { None, Video, Audio, Image, Text, Transition }
     private enum ClipDragMode { Move, TrimStart, TrimEnd }
 
     private TimelineKind _selectedKind;
@@ -29,6 +29,7 @@ public sealed partial class VideoEditorPage
     private uint? _scrubbingPointerId;
     private ClipDrag? _clipDrag;
     private Line? _playheadLine;
+    private Polygon? _playheadCap;
     private bool _loadingInspector;
     private readonly Dictionary<Guid, Button> _clipButtons = new();
     private readonly Dictionary<Guid, (bool Start, bool End)> _clipVisibleEdges = new();
@@ -54,7 +55,7 @@ public sealed partial class VideoEditorPage
         if (_editor is null || TimelineCanvas is null) return;
         VideoProject project = _editor.Current;
         Dictionary<Guid, VideoAsset> assets = project.Assets.ToDictionary(item => item.Id);
-        var lanes = new List<(string Label, Color Fill)>();
+        var lanes = new List<(string Label, Color Fill, string Glyph)>();
         var textLanes = new Dictionary<Guid, int>();
         var imageLanes = new Dictionary<Guid, int>();
         Color textColor = Color.FromArgb(255, 73, 101, 164);
@@ -64,11 +65,19 @@ public sealed partial class VideoEditorPage
         Color microphoneColor = Color.FromArgb(255, 95, 118, 93);
         Color addedAudioColor = Color.FromArgb(255, 119, 101, 70);
 
-        foreach (TextOverlay text in project.TextOverlays.OrderByDescending(item => item.ZIndex))
+        // Split text items keep one lane, so their cut can hold one transition.
+        foreach (var layer in project.TextOverlays.Select((item, index) => (item, index))
+            .GroupBy(entry => entry.item.LayerId == Guid.Empty
+                ? entry.item.Id : entry.item.LayerId)
+            .OrderByDescending(group => group.First().item.ZIndex)
+            .ThenByDescending(group => group.Max(entry => entry.index)))
         {
-            textLanes[text.Id] = lanes.Count;
-            string label = text.Text.Replace('\r', ' ').Replace('\n', ' ').Trim();
-            lanes.Add((label.Length > 24 ? label[..24] + "…" : label, textColor));
+            int lane = lanes.Count;
+            string label = layer.First().item.Text.Replace('\r', ' ')
+                .Replace('\n', ' ').Trim();
+            lanes.Add((label.Length > 24 ? label[..24] + "…" : label,
+                textColor, "\uE8D2"));
+            foreach (var entry in layer) textLanes[entry.item.Id] = lane;
         }
 
         // Higher image layers appear above lower ones, as they do in the preview.
@@ -79,11 +88,11 @@ public sealed partial class VideoEditorPage
         {
             int lane = lanes.Count;
             string name = assets[layer.First().item.AssetId].DisplayName ?? "Image";
-            lanes.Add((name, imageColor));
+            lanes.Add((name, imageColor, "\uE8B9"));
             foreach (var entry in layer) imageLanes[entry.item.Id] = lane;
         }
         int videoLane = lanes.Count;
-        lanes.Add(("Video", videoColor));
+        lanes.Add(("Video", videoColor, "\uE768"));
 
         var audioLanes = new Dictionary<Guid, int>();
         HashSet<Guid> usedAudioAssets = [.. project.AudioSegments.Select(item => item.AssetId)];
@@ -107,7 +116,7 @@ public sealed partial class VideoEditorPage
                 VideoAssetKind.ComputerAudio => systemColor,
                 VideoAssetKind.MicrophoneAudio => microphoneColor,
                 _ => addedAudioColor,
-            }));
+            }, asset.Kind == VideoAssetKind.MicrophoneAudio ? "\uE720" : "\uE8D6"));
         }
 
         double contentHeight = 22 + lanes.Count * 28;
@@ -118,15 +127,33 @@ public sealed partial class VideoEditorPage
         TimelineLaneHeaders.Children.Add(new TextBlock { Height = 22 });
         foreach (var lane in lanes)
         {
-            var header = new TextBlock
+            var header = new Grid
+            {
+                Height = 28,
+            };
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(17) });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.Children.Add(new FontIcon
+            {
+                Glyph = lane.Glyph,
+                FontFamily = new FontFamily("Segoe Fluent Icons"),
+                FontSize = 11,
+                Width = 12,
+                Height = 12,
+                Foreground = (Brush)Application.Current.Resources["ShnappToolbarInactiveIconBrush"],
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            var label = new TextBlock
             {
                 Text = lane.Label,
-                Height = 28,
                 FontSize = 10,
+                MaxWidth = 82,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = (Brush)Application.Current.Resources["ShnappToolbarInactiveIconBrush"],
             };
+            Grid.SetColumn(label, 1);
+            header.Children.Add(label);
             ToolTipService.SetToolTip(header, lane.Label);
             TimelineLaneHeaders.Children.Add(header);
         }
@@ -141,6 +168,7 @@ public sealed partial class VideoEditorPage
         TimelineCanvas.Children.Clear();
         _clipButtons.Clear();
         _clipVisibleEdges.Clear();
+        ClearTimelineThumbnailViews();
 
         double viewport = Math.Max(120, TimelineScroll.ActualWidth);
         double offset = TimelineScroll.HorizontalOffset;
@@ -179,9 +207,38 @@ public sealed partial class VideoEditorPage
             TimelineCanvas.Children.Add(markedRange);
         }
 
+        var rulerBrush = (Brush)Application.Current.Resources["ShnappToolbarActiveIconBrush"];
+        var rulerEdge = new Line
+        {
+            X1 = 0, X2 = renderedWidth, Y1 = 21, Y2 = 21,
+            Stroke = rulerBrush, StrokeThickness = 1, Opacity = .24,
+            IsHitTestVisible = false,
+        };
+        Canvas.SetLeft(rulerEdge, _renderedWindowStartX);
+        TimelineCanvas.Children.Add(rulerEdge);
+
         double tickSeconds = TimelineTickIntervals.FirstOrDefault(seconds =>
             seconds * _pixelsPerSecond >= 68);
         if (tickSeconds <= 0) tickSeconds = TimelineTickIntervals[^1];
+        double minorSeconds = tickSeconds / (tickSeconds * _pixelsPerSecond >= 100 ? 5 : 4);
+        long firstMinor = (long)Math.Ceiling(_renderedWindowStartX /
+            (_pixelsPerSecond * minorSeconds));
+        for (long index = firstMinor; ; index++)
+        {
+            double seconds = index * minorSeconds;
+            double x = seconds * _pixelsPerSecond;
+            if (seconds > project.Duration.TotalSeconds || x > _renderedWindowEndX) break;
+            if (Math.Abs(seconds / tickSeconds - Math.Round(seconds / tickSeconds)) < .00001)
+                continue;
+            var minor = new Line
+            {
+                X1 = 0, X2 = 0, Y1 = 16, Y2 = 21,
+                Stroke = rulerBrush, StrokeThickness = 1, Opacity = .34,
+                IsHitTestVisible = false,
+            };
+            Canvas.SetLeft(minor, x);
+            TimelineCanvas.Children.Add(minor);
+        }
         double firstTick = Math.Ceiling(_renderedWindowStartX /
             (_pixelsPerSecond * tickSeconds)) * tickSeconds;
         for (double seconds = firstTick;
@@ -193,8 +250,8 @@ public sealed partial class VideoEditorPage
             var tick = new Line
             {
                 X1 = 0, X2 = 0, Y1 = 17, Y2 = contentHeight,
-                Stroke = (Brush)Application.Current.Resources["ShnappToolbarInactiveIconBrush"],
-                Opacity = .38,
+                Stroke = rulerBrush,
+                Opacity = .30,
                 StrokeThickness = 1,
                 IsHitTestVisible = false,
             };
@@ -204,7 +261,9 @@ public sealed partial class VideoEditorPage
             {
                 Text = FormatTime(TimeSpan.FromSeconds(seconds)),
                 FontSize = 10,
-                Foreground = (Brush)Application.Current.Resources["ShnappToolbarInactiveIconBrush"],
+                FontFamily = new FontFamily("Cascadia Mono"),
+                Foreground = rulerBrush,
+                Opacity = .72,
                 IsHitTestVisible = false,
             };
             Canvas.SetLeft(label, x + 3);
@@ -215,7 +274,8 @@ public sealed partial class VideoEditorPage
         {
             VideoAsset asset = assets[segment.AssetId];
             AddTimelineClip(segment.Id, TimelineKind.Video, videoLane, segment.Start,
-                segment.Duration, asset.DisplayName ?? "Recording", videoColor);
+                segment.Duration, asset.DisplayName ?? "Recording", videoColor,
+                segment.AssetId);
         }
         foreach (AudioSegment segment in project.AudioSegments)
         {
@@ -230,7 +290,8 @@ public sealed partial class VideoEditorPage
         {
             int lane = imageLanes[overlay.Id];
             AddTimelineClip(overlay.Id, TimelineKind.Image, lane,
-                overlay.Start, overlay.Duration, lanes[lane].Label, imageColor);
+                overlay.Start, overlay.Duration, lanes[lane].Label, imageColor,
+                overlay.AssetId);
         }
         foreach (TextOverlay overlay in project.TextOverlays)
         {
@@ -238,6 +299,8 @@ public sealed partial class VideoEditorPage
             AddTimelineClip(overlay.Id, TimelineKind.Text, lane,
                 overlay.Start, overlay.Duration, lanes[lane].Label, textColor);
         }
+
+        AddTimelineTransitionMarkers(project, videoLane, imageLanes, textLanes);
 
         _playheadLine = new Line
         {
@@ -247,11 +310,24 @@ public sealed partial class VideoEditorPage
             IsHitTestVisible = false,
         };
         TimelineCanvas.Children.Add(_playheadLine);
+        _playheadCap = new Polygon
+        {
+            Points = new PointCollection
+            {
+                new global::Windows.Foundation.Point(-5, 0),
+                new global::Windows.Foundation.Point(5, 0),
+                new global::Windows.Foundation.Point(0, 7),
+            },
+            Fill = (Brush)Application.Current.Resources["ShnappBlueBrush"],
+            IsHitTestVisible = false,
+        };
+        TimelineCanvas.Children.Add(_playheadCap);
         DrawPlayhead();
     }
 
     private void AddTimelineClip(Guid id, TimelineKind kind, int lane,
-        TimeSpan start, TimeSpan duration, string title, Color fill)
+        TimeSpan start, TimeSpan duration, string title, Color fill,
+        Guid thumbnailAssetId = default)
     {
         double left = start.TotalSeconds * _pixelsPerSecond;
         double width = Math.Max(3, duration.TotalSeconds * _pixelsPerSecond - 2);
@@ -262,7 +338,43 @@ public sealed partial class VideoEditorPage
         bool selected = _selectedId == id && _selectedKind == kind;
         bool startVisible = visibleLeft <= left;
         bool endVisible = visibleRight >= left + width;
-        var content = new Grid { Height = 24, IsHitTestVisible = false };
+        double visibleWidth = visibleRight - visibleLeft;
+        var content = new Grid
+        {
+            Width = visibleWidth,
+            Height = 24,
+            IsHitTestVisible = false,
+            Clip = new RectangleGeometry
+            {
+                Rect = new global::Windows.Foundation.Rect(0, 0, visibleWidth, 24),
+            },
+        };
+        bool hasThumbnail = thumbnailAssetId != Guid.Empty && visibleWidth >= 22;
+        double thumbnailWidth = Math.Min(34, visibleWidth);
+        if (hasThumbnail)
+        {
+            var preview = new Image
+            {
+                Width = thumbnailWidth,
+                Height = 24,
+                Stretch = Stretch.UniformToFill,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
+                IsHitTestVisible = false,
+            };
+            content.Children.Add(preview);
+            content.Children.Add(new Border
+            {
+                Width = thumbnailWidth,
+                Height = 24,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Background = new SolidColorBrush(Color.FromArgb(68, 0, 0, 0)),
+                IsHitTestVisible = false,
+            });
+            RegisterTimelineThumbnail(thumbnailAssetId,
+                kind == TimelineKind.Image ? VideoAssetKind.Image : VideoAssetKind.Recording,
+                preview);
+        }
         VideoSegment? video = kind == TimelineKind.Video
             ? _editor?.Current.VideoSegments.FirstOrDefault(item => item.Id == id) : null;
         if (video is not null)
@@ -270,16 +382,36 @@ public sealed partial class VideoEditorPage
             AddFadeIndicator(video.FadeIn, true);
             AddFadeIndicator(video.FadeOut, false);
         }
-        content.Children.Add(new TextBlock
+        content.Children.Add(new FontIcon
         {
-            Text = title,
+            Glyph = kind switch
+            {
+                TimelineKind.Text => "\uE8D2",
+                TimelineKind.Audio => "\uE8D6",
+                TimelineKind.Image => "\uE8B9",
+                _ => "\uE768",
+            },
+            FontFamily = new FontFamily("Segoe Fluent Icons"),
             FontSize = 10,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Width = 12,
+            Height = 12,
             Foreground = new SolidColorBrush(Colors.White),
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            Margin = new Thickness(9, 4, 9, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(hasThumbnail ? 7 : 6, 0, 0, 0),
         });
-        if (visibleRight - visibleLeft >= 18)
+        double titleLeft = hasThumbnail ? thumbnailWidth + 6 : 23;
+        if (visibleWidth >= titleLeft + 24)
+            content.Children.Add(new TextBlock
+            {
+                Text = title,
+                FontSize = 10,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Colors.White),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(titleLeft, 4, 8, 0),
+            });
+        if (visibleWidth >= 18)
         {
             var handleBrush = new SolidColorBrush(Colors.White);
             if (startVisible)
@@ -690,13 +822,15 @@ public sealed partial class VideoEditorPage
             FocusSelectedClip();
             return;
         }
+        if (!FlushCanvasTextEdit()) return;
         if (!ApplyPendingInspectorChanges())
         {
             FocusSelectedClip();
             return;
         }
         if (_clipButtons.TryGetValue(_selectedId, out Button? previous))
-            previous.BorderThickness = new Thickness(0);
+            previous.BorderThickness = new Thickness(
+                _selectedKind == TimelineKind.Transition ? 1 : 0);
         _selectedKind = kind;
         _selectedId = id;
         if (_clipButtons.TryGetValue(id, out Button? selected))
@@ -841,6 +975,8 @@ public sealed partial class VideoEditorPage
     {
         if (_playheadLine is not null)
             Canvas.SetLeft(_playheadLine, _playhead.TotalSeconds * _pixelsPerSecond);
+        if (_playheadCap is not null)
+            Canvas.SetLeft(_playheadCap, _playhead.TotalSeconds * _pixelsPerSecond);
     }
 
     private void RefreshInspector()
