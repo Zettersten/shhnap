@@ -25,6 +25,9 @@ public sealed partial class VideoEditorPage
     private double _pixelsPerSecond = 28;
     private double _timelineZoom = 1;
     private bool _timelineSnapEnabled = true;
+    private double _pendingTimelineWheelDelta;
+    private double _pendingTimelineWheelAnchorX;
+    private bool _timelineWheelZoomQueued;
     private double _lastTimelineViewportWidth = double.NaN;
     private double _renderedWindowStartX;
     private double _renderedWindowEndX;
@@ -1125,15 +1128,44 @@ public sealed partial class VideoEditorPage
             return;
 
         args.Handled = true;
-        double anchorX = Math.Clamp(point.Position.X, 0,
+        _pendingTimelineWheelAnchorX = Math.Clamp(point.Position.X, 0,
             Math.Max(1, TimelineScroll.ActualWidth));
-        // Precision touchpads can emit fractions of a wheel notch. Scale by the
-        // delta rather than applying a full zoom step for every small event.
-        ChangeTimelineZoom(Math.Pow(1.25, point.Properties.MouseWheelDelta / 120.0), anchorX);
+        _pendingTimelineWheelDelta += point.Properties.MouseWheelDelta;
+        if (_timelineWheelZoomQueued) return;
+        _timelineWheelZoomQueued = true;
+        CompositionTarget.Rendering += TimelineWheelZoom_Rendering;
+    }
+
+    private void TimelineWheelZoom_Rendering(object? sender, object args) =>
+        ApplyPendingTimelineWheelZoom();
+
+    private void ApplyPendingTimelineWheelZoom()
+    {
+        if (!_timelineWheelZoomQueued) return;
+        CompositionTarget.Rendering -= TimelineWheelZoom_Rendering;
+        _timelineWheelZoomQueued = false;
+        double delta = _pendingTimelineWheelDelta;
+        _pendingTimelineWheelDelta = 0;
+        if (_closed || _editor is null) return;
+        // A burst of precision touchpad deltas causes one timeline rebuild per
+        // rendered frame, with the latest pointer position as the anchor.
+        ChangeTimelineZoom(Math.Pow(1.25, Math.Clamp(delta / 120.0, -32, 32)),
+            _pendingTimelineWheelAnchorX);
+    }
+
+    private void CancelPendingTimelineWheelZoom()
+    {
+        if (_timelineWheelZoomQueued)
+            CompositionTarget.Rendering -= TimelineWheelZoom_Rendering;
+        _timelineWheelZoomQueued = false;
+        _pendingTimelineWheelDelta = 0;
     }
 
     private void ChangeTimelineZoom(int direction)
-        => ChangeTimelineZoom(direction > 0 ? 1.5 : 1 / 1.5);
+    {
+        ApplyPendingTimelineWheelZoom();
+        ChangeTimelineZoom(direction > 0 ? 1.5 : 1 / 1.5);
+    }
 
     private void ChangeTimelineZoom(double factor, double? anchorViewportX = null)
     {

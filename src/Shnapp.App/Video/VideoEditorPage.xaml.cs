@@ -224,6 +224,7 @@ public sealed partial class VideoEditorPage : Page
     {
         if (_closed) return;
         _closed = true;
+        CancelPendingTimelineWheelZoom();
         ReleaseCanvasText();
         ++_previewRevision;
         ++_saveRevision;
@@ -595,7 +596,11 @@ public sealed partial class VideoEditorPage : Page
         if (!_closed && _editor is not null)
             _ = RefreshPreviewAsync(_previewRevision);
     }
-    private void Page_Unloaded(object sender, RoutedEventArgs args) { _layoutReady = false; }
+    private void Page_Unloaded(object sender, RoutedEventArgs args)
+    {
+        _layoutReady = false;
+        CancelPendingTimelineWheelZoom();
+    }
     private void Export_Click(object sender, RoutedEventArgs args) => _ = ExportAsync();
     private void Undo_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
