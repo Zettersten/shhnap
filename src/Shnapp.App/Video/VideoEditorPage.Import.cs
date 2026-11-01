@@ -396,6 +396,7 @@ public sealed partial class VideoEditorPage
     private async Task PasteImageAsync()
     {
         if (_importing || _closed) return;
+        if (!ApplyPendingInspectorChanges()) return;
         _importing = true;
         try
         {
@@ -445,6 +446,7 @@ public sealed partial class VideoEditorPage
     private async Task ImportGalleryImageAsync(Guid id, TimeSpan? at = null)
     {
         if (_importing || _closed || _readGalleryImage is null) return;
+        if (!ApplyPendingInspectorChanges()) return;
         _importing = true;
         try
         {
@@ -516,6 +518,7 @@ public sealed partial class VideoEditorPage
     {
         if (_importing || _closed || _store is null || _editor is null ||
             id == _editor.Current.Id) return;
+        if (!ApplyPendingInspectorChanges()) return;
         _importing = true;
         var cancellation = new CancellationTokenSource();
         _galleryImportCancellation = cancellation;
@@ -610,6 +613,7 @@ public sealed partial class VideoEditorPage
     private async Task ImportAudioAsync()
     {
         if (_importing || _closed || _editor is null || _store is null) return;
+        if (!ApplyPendingInspectorChanges()) return;
         var picker = new FileOpenPicker
         {
             SuggestedStartLocation = PickerLocationId.MusicLibrary,

@@ -308,6 +308,11 @@ internal sealed partial class AppController
         {
             Show();
             System.Diagnostics.Debug.WriteLine($"Shnapp action failed: {exception}");
+            if (_window.VideoPage is { } videoPage)
+            {
+                videoPage.ShowStatus(exception.Message);
+                return;
+            }
             if (exception is ArgumentException { ParamName: "annotation" } &&
                 exception.Message.Contains("A visibility clip must fit inside the canvas.",
                     StringComparison.Ordinal))

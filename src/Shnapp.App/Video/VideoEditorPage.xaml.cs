@@ -104,16 +104,19 @@ public sealed partial class VideoEditorPage : Page
     public void ShowStatus(string message) => StatusText.Text = message;
 
     /// <summary>Flushes the latest immutable project snapshot before navigating away.</summary>
-    public async Task SaveAsync()
+    public async Task SaveAsync(bool applyPendingInspectorChanges = true)
     {
         VideoProjectEditor? editor = _editor;
         VideoProjectStore? store = _store;
         if (editor is null || store is null) return;
+        if (applyPendingInspectorChanges && !ApplyPendingInspectorChanges())
+            throw new InvalidOperationException(StatusText.Text);
 
         await _saveGate.WaitAsync();
         try
         {
-            await store.SaveAsync(editor.Current);
+            VideoProject snapshot = editor.Current;
+            await Task.Run(() => store.SaveAsync(snapshot));
         }
         finally
         {
@@ -124,6 +127,7 @@ public sealed partial class VideoEditorPage : Page
     public async Task ExportAsync()
     {
         if (_editor is null || _store is null || _isExporting) return;
+        if (!ApplyPendingInspectorChanges()) return;
 
         var picker = new FileSavePicker
         {
@@ -241,7 +245,7 @@ public sealed partial class VideoEditorPage : Page
             // Coalesce saves and render only when media on the timeline has changed.
             await Task.Delay(160, token);
             if (_closed || saveRevision != _saveRevision) return;
-            await SaveAsync();
+            await SaveAsync(applyPendingInspectorChanges: false);
             if (_closed || saveRevision != _saveRevision || token.IsCancellationRequested) return;
             if (_previewQueued)
             {

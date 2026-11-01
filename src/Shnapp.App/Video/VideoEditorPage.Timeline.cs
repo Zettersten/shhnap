@@ -285,6 +285,11 @@ public sealed partial class VideoEditorPage
             FocusSelectedClip();
             return;
         }
+        if (!ApplyPendingInspectorChanges())
+        {
+            FocusSelectedClip();
+            return;
+        }
         if (_clipButtons.TryGetValue(_selectedId, out Button? previous))
             previous.BorderThickness = new Thickness(0);
         _selectedKind = kind;
@@ -532,9 +537,13 @@ public sealed partial class VideoEditorPage
         if (button.IsEnabled != enabled) button.IsEnabled = enabled;
     }
 
-    private void ApplyProperties_Click(object sender, RoutedEventArgs args)
+    private void ApplyProperties_Click(object sender, RoutedEventArgs args) =>
+        ApplyPendingInspectorChanges();
+
+    private bool ApplyPendingInspectorChanges()
     {
-        if (_editor is null) return;
+        if (_editor is null || ApplyPropertiesButton is null ||
+            !ApplyPropertiesButton.IsEnabled) return true;
         if (TryEdit(() =>
         {
             TimeSpan start = Seconds(ClipStartSeconds.Value);
@@ -576,7 +585,9 @@ public sealed partial class VideoEditorPage
             SetEnabled(ApplyPropertiesButton, false);
             PendingChangesText.Visibility = Visibility.Collapsed;
             ToolTipService.SetToolTip(ApplyPropertiesButton, "No clip changes to apply");
+            return true;
         }
+        return false;
     }
 
     private void DeleteSelected_Click(object sender, RoutedEventArgs args)
@@ -715,6 +726,7 @@ public sealed partial class VideoEditorPage
 
     private void CloseInspector_Click(object sender, RoutedEventArgs args)
     {
+        if (!ApplyPendingInspectorChanges()) return;
         _selectedKind = TimelineKind.None;
         _selectedId = Guid.Empty;
         _selectedRange = null;
@@ -730,6 +742,7 @@ public sealed partial class VideoEditorPage
     {
         if (_selectedKind == TimelineKind.None && !_markIn.HasValue && !_markOut.HasValue)
             return false;
+        if (!ApplyPendingInspectorChanges()) return true;
         _selectedKind = TimelineKind.None;
         _selectedId = Guid.Empty;
         _selectedRange = null;
