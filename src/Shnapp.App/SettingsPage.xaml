@@ -91,6 +91,13 @@
                 <Setter Property="HorizontalContentAlignment" Value="Left" />
                 <Setter Property="Foreground" Value="{ThemeResource SettingsNavForegroundBrush}" />
             </Style>
+            <Style x:Key="SettingsShortcutKeyStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource SettingsShortcutBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource SettingsStrokeBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="7" />
+                <Setter Property="Padding" Value="8,3" />
+            </Style>
         </ResourceDictionary>
     </Page.Resources>
 
@@ -166,6 +173,19 @@
                                         <StackPanel Orientation="Horizontal" Spacing="12">
                                             <FontIcon Glyph="&#xE713;" FontSize="18" />
                                             <TextBlock x:Name="GeneralNavLabel" Text="General" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                                <Grid>
+                                    <Border x:Name="ShortcutsNavSelection" Background="{ThemeResource SettingsSelectedNavBrush}"
+                                        BorderBrush="{ThemeResource SettingsEdgeBrush}" BorderThickness="1" CornerRadius="8"
+                                        Visibility="Collapsed" />
+                                    <Button x:Name="ShortcutsNavButton" Style="{StaticResource SettingsNavButtonStyle}"
+                                        Click="ShortcutsNav_Click" ToolTipService.ToolTip="Shortcuts"
+                                        AutomationProperties.Name="Shortcuts" AutomationProperties.AutomationId="SettingsShortcuts">
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <FontIcon Glyph="&#xE765;" FontSize="18" />
+                                            <TextBlock x:Name="ShortcutsNavLabel" Text="Shortcuts" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
                                 </Grid>
@@ -300,6 +320,32 @@
                                                         AutomationProperties.AutomationId="VideoMicrophone" />
                                                 </Grid>
                                                 <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <StackPanel Margin="16,12" Spacing="5">
+                                                    <TextBlock Text="Microphone source" FontWeight="SemiBold" />
+                                                    <ComboBox x:Name="VideoMicrophoneSourcePicker" HorizontalAlignment="Stretch"
+                                                        SelectionChanged="VideoMicrophoneSourcePicker_Changed"
+                                                        AutomationProperties.Name="Microphone source for video recording"
+                                                        AutomationProperties.AutomationId="VideoMicrophoneSource">
+                                                        <ComboBoxItem Content="System default" Tag="" />
+                                                    </ComboBox>
+                                                    <TextBlock x:Name="VideoMicrophoneSourceStatus" Text="Finding microphones…"
+                                                        TextWrapping="Wrap" Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                </StackPanel>
+                                                <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <Grid Margin="16,12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Record camera video" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                        <TextBlock Text="Place your camera on a separate layer over the screen recording."
+                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    </StackPanel>
+                                                    <ToggleSwitch x:Name="VideoCamera" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                        Width="48" MinWidth="0" OnContent="" OffContent=""
+                                                        Toggled="PreferenceToggle_Changed"
+                                                        AutomationProperties.Name="Record camera video"
+                                                        AutomationProperties.AutomationId="VideoCamera" />
+                                                </Grid>
+                                                <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
                                                 <Grid Margin="16,12">
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                                     <StackPanel Spacing="2" Margin="0,0,12,0">
@@ -313,28 +359,6 @@
                                                         AutomationProperties.Name="Show pointer in video"
                                                         AutomationProperties.AutomationId="VideoCursor" />
                                                 </Grid>
-                                                <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
-                                                <Grid Margin="16,12">
-                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
-                                                        <TextBlock Text="Frame rate" FontWeight="SemiBold" />
-                                                        <TextBlock Text="30 fps saves power; 60 fps captures smoother motion."
-                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
-                                                    </StackPanel>
-                                                    <ComboBox x:Name="VideoFrameRatePicker" Grid.Column="1" MinWidth="112" VerticalAlignment="Center"
-                                                        SelectionChanged="VideoFrameRatePicker_Changed"
-                                                        AutomationProperties.Name="Video frame rate"
-                                                        AutomationProperties.AutomationId="VideoFrameRate">
-                                                        <ComboBoxItem Content="30 fps" />
-                                                        <ComboBoxItem Content="60 fps" />
-                                                    </ComboBox>
-                                                </Grid>
-                                                <StackPanel Margin="16,0,16,12" Spacing="2">
-                                                    <TextBlock Text="Video shortcuts" FontWeight="SemiBold" />
-                                                    <TextBlock Text="Region  Alt+Shift+2    Full screen  Alt+Shift+3    Window  Alt+Shift+4"
-                                                        FontFamily="Cascadia Mono" FontSize="11" TextWrapping="Wrap"
-                                                        Style="{StaticResource SettingsSupportingTextStyle}" />
-                                                </StackPanel>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
@@ -356,7 +380,25 @@
                                         </Border>
                                     </StackPanel>
                                     <StackPanel Spacing="8">
-                                        <TextBlock Text="Keyboard shortcuts" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <TextBlock Text="Local library" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
+                                            <StackPanel Spacing="3">
+                                                <TextBlock Text="Saved shnapps" FontWeight="SemiBold" />
+                                                <TextBlock x:Name="LibraryPath" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                                <TextBlock x:Name="LibraryNote" Style="{StaticResource SettingsSupportingTextStyle}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel x:Name="ShortcutsPanel" Spacing="18" Visibility="Collapsed">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="Shortcuts" FontSize="22" FontWeight="SemiBold" />
+                                        <TextBlock Text="Capture and edit without leaving the keyboard."
+                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Screenshot capture" Style="{StaticResource SettingsSectionTitleStyle}" />
                                         <Border Style="{StaticResource SettingsCardStyle}" Padding="16,8">
                                             <StackPanel Spacing="5">
                                                 <Grid>
@@ -425,12 +467,240 @@
                                         </Border>
                                     </StackPanel>
                                     <StackPanel Spacing="8">
-                                        <TextBlock Text="Local library" Style="{StaticResource SettingsSectionTitleStyle}" />
-                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
-                                            <StackPanel Spacing="3">
-                                                <TextBlock Text="Saved shnapps" FontWeight="SemiBold" />
-                                                <TextBlock x:Name="LibraryPath" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-                                                <TextBlock x:Name="LibraryNote" Style="{StaticResource SettingsSupportingTextStyle}" />
+                                        <TextBlock Text="Video capture" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,8">
+                                            <StackPanel Spacing="7">
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Record a rectangular region" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Alt+Shift+2" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Record the display under pointer" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Alt+Shift+3" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Record a window" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Alt+Shift+4" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Navigation and image editing" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,8">
+                                            <StackPanel Spacing="7">
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Back / forward" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Alt+Left / Alt+Right" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Focus library search" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+F" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Recent captures on canvas" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+Shift+G" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Paste text or image" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+V" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Copy image / save PNG" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+C / Ctrl+S" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Undo / redo" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+Z / Ctrl+Y" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Select multiple image elements" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+click / Ctrl+A" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Constrain move / keep resize proportions" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Shift+drag / Shift+resize" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Nudge a selected image element, 1 / 10 px" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Arrow / Shift+Arrow" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Duplicate / delete image element" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+D / Delete" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Move element to front / back" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+] / Ctrl+[" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Pan image canvas" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Space+drag" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Finish editing image text" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+Enter" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Clear selection / cancel crop" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Esc" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Video editing" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,8">
+                                            <StackPanel Spacing="7">
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Play or pause" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Space" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Reverse / stop / forward" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="J / K / L" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Step playhead 1 / 5 frames" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Left/Right / Shift+Left/Right" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Seek to start / end" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Home / End" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Mark range start / end" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="I / O" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Split / add fade at cut" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+K / Ctrl+D" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Delete clip / close gap" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Delete / Shift+Delete" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Toggle snapping / zoom timeline" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="S / + or -" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Add text / paste media / export" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+T / Ctrl+V / Ctrl+M" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Constrain video, image, or text movement" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Shift+drag" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Keep proportions when resizing or cropping" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Shift+resize/crop" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Nudge selected canvas media, 1 / 10 px" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Arrow / Shift+Arrow" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Toggle selected media crop / reset crop" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+Shift+C / Ctrl+Shift+R" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Show recent captures / clear selection" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+Shift+G / Esc" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>

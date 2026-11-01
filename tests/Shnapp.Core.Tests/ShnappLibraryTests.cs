@@ -518,14 +518,33 @@ public sealed class ShnappLibraryTests
     }
 
     [TestMethod]
-    public async Task HighFrameRateSettingSurvivesSaveAndReload()
+    public async Task LegacyFrameRateLoadsButIsNotSavedWithCurrentPreferences()
     {
         using var temporary = new TemporaryLibrary();
-        var settings = new ShnappSettings { VideoFrameRate = 120 };
-        await temporary.Library.SaveSettingsAsync(settings);
-        Assert.AreEqual(120, (await temporary.Library.LoadSettingsAsync()).VideoFrameRate);
+        await temporary.Library.SaveSettingsAsync(new ShnappSettings());
+        string path = Path.Combine(temporary.RootPath, "settings.json");
+        JsonObject json = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        json["settings"]!["videoFrameRate"] = 120;
+        await File.WriteAllTextAsync(path, json.ToJsonString());
+
+        ShnappSettings legacy = await temporary.Library.LoadSettingsAsync();
+        Assert.AreEqual(120, legacy.VideoFrameRate);
+        await temporary.Library.SaveSettingsAsync(legacy with
+        {
+            VideoFrameRate = 0,
+            VideoCaptureCamera = true,
+            VideoCaptureMicrophone = true,
+            VideoMicrophoneSourceId = "microphone-device-1",
+            CameraSourceId = "camera-device-1",
+        });
+        using JsonDocument saved = JsonDocument.Parse(await File.ReadAllTextAsync(path));
+        JsonElement current = saved.RootElement.GetProperty("settings");
+        Assert.IsFalse(current.TryGetProperty("videoFrameRate", out _));
+        Assert.IsTrue(current.GetProperty("videoCaptureCamera").GetBoolean());
+        Assert.AreEqual("microphone-device-1",
+            current.GetProperty("videoMicrophoneSourceId").GetString());
         await Assert.ThrowsExactlyAsync<ArgumentException>(() =>
-            temporary.Library.SaveSettingsAsync(settings with { VideoFrameRate = 121 }));
+            temporary.Library.SaveSettingsAsync(legacy with { VideoFrameRate = 121 }));
     }
 
     [TestMethod]
