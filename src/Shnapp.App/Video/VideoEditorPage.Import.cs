@@ -440,6 +440,7 @@ public sealed partial class VideoEditorPage
         _selectedId = image.Id;
         RefreshInspector();
         RefreshTimeline();
+        FocusSelectedClip();
         await SaveAsync();
         StatusText.Text = "Image added to timeline";
     }
@@ -490,6 +491,7 @@ public sealed partial class VideoEditorPage
             Seek(insertAt);
             RefreshInspector();
             RefreshTimeline();
+            FocusSelectedClip();
             CloseGallery();
             await SaveAsync();
             StatusText.Text = $"Added original recording of {source.Title} at {FormatTime(insertAt)}";
@@ -577,6 +579,7 @@ public sealed partial class VideoEditorPage
             _selectedId = clip.Id;
             RefreshInspector();
             RefreshTimeline();
+            FocusSelectedClip();
             await SaveAsync();
             StatusText.Text = $"Added {file.Name}";
         }

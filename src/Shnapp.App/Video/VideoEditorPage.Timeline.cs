@@ -259,18 +259,19 @@ public sealed partial class VideoEditorPage
     private void Clip_PointerPressed(object sender, PointerRoutedEventArgs args)
     {
         if (sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag } clip) return;
-        clip.Focus(FocusState.Pointer);
         SelectClip(tag.Item1, tag.Item2);
         Seek(TimeSpan.FromSeconds(args.GetCurrentPoint(TimelineContent).Position.X /
             _pixelsPerSecond));
         BeginTimelineScrub(args);
+        clip.Focus(FocusState.Pointer);
         args.Handled = true;
     }
 
     private void Clip_Click(object sender, RoutedEventArgs args)
     {
-        if (sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag }) return;
+        if (sender is not Button { Tag: ValueTuple<TimelineKind, Guid> tag } clip) return;
         SelectClip(tag.Item1, tag.Item2);
+        clip.Focus(FocusState.Programmatic);
     }
 
     private void SelectClip(TimelineKind kind, Guid id)
@@ -283,7 +284,14 @@ public sealed partial class VideoEditorPage
         if (_clipButtons.TryGetValue(id, out Button? selected))
             selected.BorderThickness = new Thickness(2);
         RefreshInspector();
+        FocusSelectedClip();
         UpdateEditActionState();
+    }
+
+    private void FocusSelectedClip()
+    {
+        if (_clipButtons.TryGetValue(_selectedId, out Button? clip))
+            clip.Focus(FocusState.Programmatic);
     }
 
     private void Timeline_PointerPressed(object sender, PointerRoutedEventArgs args)
