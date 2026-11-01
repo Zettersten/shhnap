@@ -46,6 +46,8 @@ public sealed partial class VideoEditorPage
         _previewImageCacheOrder.Clear();
         _previewImageLoads.Clear();
         _previewImageFailures.Clear();
+        _imagePreviewTransitions = [];
+        _activeImagePreviewTransitions = [];
         RefreshPreviewImages();
     }
 
@@ -61,14 +63,19 @@ public sealed partial class VideoEditorPage
         _previewImageCacheOrder.Clear();
         _previewImageLoads.Clear();
         _previewImageFailures.Clear();
+        _imagePreviewTransitions = [];
+        _activeImagePreviewTransitions = [];
     }
 
     private void RefreshPreviewImages()
     {
         if (_editor is null) return;
         VideoProject project = _editor.Current;
+        RebuildImagePreviewTransitions(project);
         _previewImageBoundaries = project.ImageOverlays
-            .SelectMany(item => new[] { item.Start, item.End }).ToArray();
+            .SelectMany(item => new[] { item.Start, item.End })
+            .Concat(_imagePreviewTransitions.SelectMany(item =>
+                new[] { item.Span.Start, item.Span.End })).ToArray();
         Array.Sort(_previewImageBoundaries);
         _previewImageIntervalStart = TimeSpan.MaxValue;
         _previewImageIntervalEnd = TimeSpan.MinValue;
@@ -77,7 +84,7 @@ public sealed partial class VideoEditorPage
             global::Windows.Media.Playback.MediaPlaybackState.Playing);
     }
 
-    private void UpdatePreviewImageBounds()
+    private void UpdatePreviewImageBounds(TimeSpan? position = null)
     {
         if (_editor is null || !double.IsFinite(VideoPlayer.Width) ||
             !double.IsFinite(VideoPlayer.Height) || VideoPlayer.Width <= 0 || VideoPlayer.Height <= 0)
@@ -100,13 +107,18 @@ public sealed partial class VideoEditorPage
             view.Width = overlay.Bounds.Width * scaleX;
             view.Height = overlay.Bounds.Height * scaleY;
         }
+        UpdateImageTransitionVisuals(position ?? _playhead);
     }
 
     private void UpdateVisiblePreviewImages(TimeSpan position)
     {
-        if (_closed || _editor is null ||
-            position >= _previewImageIntervalStart && position < _previewImageIntervalEnd)
+        if (_closed || _editor is null)
             return;
+        if (position >= _previewImageIntervalStart && position < _previewImageIntervalEnd)
+        {
+            UpdateImageTransitionVisuals(position);
+            return;
+        }
 
         int firstAfter = 0;
         int upper = _previewImageBoundaries.Length;
@@ -121,9 +133,12 @@ public sealed partial class VideoEditorPage
         _previewImageIntervalEnd = firstAfter < _previewImageBoundaries.Length
             ? _previewImageBoundaries[firstAfter] : TimeSpan.MaxValue;
 
+        HashSet<Guid> activeIds = _editor.Current.ImageOverlays
+            .Where(item => item.Start <= position && position < item.End)
+            .Select(item => item.Id).ToHashSet();
+        IncludeImageTransitionIds(position, activeIds);
         ImageOverlay[] active = _editor.Current.ImageOverlays
-            .Where(item => item.Start <= position && position < item.End).ToArray();
-        var activeIds = active.Select(item => item.Id).ToHashSet();
+            .Where(item => activeIds.Contains(item.Id)).ToArray();
         foreach (Guid removedId in _previewImageViews.Keys.Where(id => !activeIds.Contains(id)).ToArray())
         {
             _previewImages.Children.Remove(_previewImageViews[removedId]);
@@ -161,7 +176,8 @@ public sealed partial class VideoEditorPage
                     _ = LoadPreviewImageAsync(overlay.AssetId, _previewImageGeneration);
             }
         }
-        UpdatePreviewImageBounds();
+        SetActiveImageTransitions(position);
+        UpdatePreviewImageBounds(position);
         TrimPreviewImageCache();
     }
 
@@ -225,6 +241,7 @@ public sealed partial class VideoEditorPage
         VideoProject? project = _editor?.Current;
         if (project is null ||
             project.ImageOverlays.Length == 0 && project.TextOverlays.Length == 0 &&
+            project.Transitions.Length == 0 &&
             !project.VideoSegments.Any(item =>
                 item.FadeIn > TimeSpan.Zero || item.FadeOut > TimeSpan.Zero))
             playing = false;
