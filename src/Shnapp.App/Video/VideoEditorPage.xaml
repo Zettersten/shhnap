@@ -13,15 +13,28 @@
         <KeyboardAccelerator Key="Z" Modifiers="Control" Invoked="Undo_Invoked" />
         <KeyboardAccelerator Key="Y" Modifiers="Control" Invoked="Redo_Invoked" />
         <KeyboardAccelerator Key="Z" Modifiers="Control,Shift" Invoked="Redo_Invoked" />
-        <KeyboardAccelerator Key="E" Modifiers="Control" Invoked="Export_Invoked" />
+        <KeyboardAccelerator Key="M" Modifiers="Control" Invoked="Export_Invoked" />
         <KeyboardAccelerator Key="Left" Modifiers="Menu" Invoked="Back_Invoked" />
         <KeyboardAccelerator Key="L" Modifiers="Control" Invoked="Library_Invoked" />
         <KeyboardAccelerator Key="G" Modifiers="Control,Shift" Invoked="Gallery_Invoked" />
         <KeyboardAccelerator Key="Space" Invoked="PlayPause_Invoked" />
+        <KeyboardAccelerator Key="J" Invoked="ReversePlayback_Invoked" />
+        <KeyboardAccelerator Key="K" Invoked="StopPlayback_Invoked" />
+        <KeyboardAccelerator Key="L" Invoked="ForwardPlayback_Invoked" />
         <KeyboardAccelerator Key="I" Invoked="MarkIn_Invoked" />
         <KeyboardAccelerator Key="O" Invoked="MarkOut_Invoked" />
-        <KeyboardAccelerator Key="S" Invoked="Split_Invoked" />
+        <KeyboardAccelerator Key="S" Invoked="Snap_Invoked" />
+        <KeyboardAccelerator Key="K" Modifiers="Control" Invoked="Split_Invoked" />
         <KeyboardAccelerator Key="Delete" Invoked="DeleteClip_Invoked" />
+        <KeyboardAccelerator Key="Delete" Modifiers="Shift" Invoked="RippleDeleteClip_Invoked" />
+        <KeyboardAccelerator Key="Left" Invoked="StepFrame_Invoked" />
+        <KeyboardAccelerator Key="Right" Invoked="StepFrame_Invoked" />
+        <KeyboardAccelerator Key="Left" Modifiers="Shift" Invoked="StepFrame_Invoked" />
+        <KeyboardAccelerator Key="Right" Modifiers="Shift" Invoked="StepFrame_Invoked" />
+        <KeyboardAccelerator Key="Home" Invoked="SeekEdge_Invoked" />
+        <KeyboardAccelerator Key="End" Invoked="SeekEdge_Invoked" />
+        <KeyboardAccelerator Key="Add" Invoked="ZoomTimeline_Invoked" />
+        <KeyboardAccelerator Key="Subtract" Invoked="ZoomTimeline_Invoked" />
         <KeyboardAccelerator Key="Escape" Invoked="Escape_Invoked" />
     </Page.KeyboardAccelerators>
 
@@ -91,7 +104,7 @@
                     <local:ToolbarActionButton Width="28" Height="28" MinWidth="0" Padding="0"
                         CornerRadius="6" Background="Transparent" BorderThickness="0"
                         Click="Export_Click" AutomationProperties.Name="Export video as MP4"
-                        ToolTipService.ToolTip="Export MP4 · Ctrl+E">
+                        ToolTipService.ToolTip="Export MP4 · Ctrl+M">
                         <FontIcon Glyph="&#xEDE1;" FontFamily="Segoe Fluent Icons"
                             FontSize="12" Width="12" Height="12" />
                     </local:ToolbarActionButton>
@@ -266,7 +279,7 @@
                             CornerRadius="6" Background="Transparent" BorderThickness="0"
                             Click="DeleteSelected_Click"
                             AutomationProperties.Name="Remove selected clip"
-                            ToolTipService.ToolTip="Remove selected clip · Delete">
+                            ToolTipService.ToolTip="Remove selected clip · Delete; Shift+Delete closes the video gap">
                             <FontIcon Glyph="&#xE74D;" FontFamily="Segoe Fluent Icons"
                                 FontSize="12" Width="12" Height="12" />
                         </local:ToolbarActionButton>
@@ -288,7 +301,7 @@
                 MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
                 BorderThickness="0" Click="PlayPause_Click"
                 AutomationProperties.Name="Play or pause video"
-                ToolTipService.ToolTip="Play or pause · Space">
+                ToolTipService.ToolTip="Play or pause · Space; J / K / L shuttle">
                 <FontIcon x:Name="PlayPauseIcon" Glyph="&#xE768;" FontFamily="Segoe Fluent Icons"
                     FontSize="12" Width="12" Height="12" />
             </local:ToolbarActionButton>
@@ -358,8 +371,8 @@
                     <local:ToolbarActionButton x:Name="SplitButton" Width="28" Height="28"
                         MinWidth="0" Padding="0" CornerRadius="6" Background="Transparent"
                         BorderThickness="0" Click="Split_Click"
-                        AutomationProperties.Name="Split selected clip at playhead"
-                        ToolTipService.ToolTip="Split selected clip at playhead · S">
+                        AutomationProperties.Name="Split clip at playhead"
+                        ToolTipService.ToolTip="Split clip at playhead · Ctrl+K">
                         <FontIcon Glyph="&#xE8C6;" FontFamily="Segoe Fluent Icons"
                             FontSize="12" Width="12" Height="12" />
                     </local:ToolbarActionButton>
@@ -380,6 +393,32 @@
                             FontSize="12" Width="12" Height="12" RenderTransformOrigin="0.5,0.5">
                             <FontIcon.RenderTransform><ScaleTransform ScaleX="-1" /></FontIcon.RenderTransform>
                         </FontIcon>
+                    </local:ToolbarActionButton>
+                    <Border Width="1" Height="16" Margin="4,0"
+                        Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
+                    <local:ToolbarActionButton x:Name="SnapButton" Width="24" Height="24"
+                        MinWidth="0" Padding="0" CornerRadius="6"
+                        Background="{ThemeResource ShnappImagePanelBrush}" BorderThickness="0"
+                        Click="Snap_Click" AutomationProperties.Name="Timeline snapping on"
+                        ToolTipService.ToolTip="Timeline snapping on · S">
+                        <FontIcon Glyph="&#xE8E4;" FontFamily="Segoe Fluent Icons"
+                            FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <local:ToolbarActionButton Width="24" Height="24" MinWidth="0"
+                        Padding="0" CornerRadius="6" Background="Transparent"
+                        BorderThickness="0" Click="TimelineZoomOut_Click"
+                        AutomationProperties.Name="Zoom timeline out"
+                        ToolTipService.ToolTip="Zoom timeline out · -">
+                        <FontIcon Glyph="&#xE71F;" FontFamily="Segoe Fluent Icons"
+                            FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <local:ToolbarActionButton Width="24" Height="24" MinWidth="0"
+                        Padding="0" CornerRadius="6" Background="Transparent"
+                        BorderThickness="0" Click="TimelineZoomIn_Click"
+                        AutomationProperties.Name="Zoom timeline in"
+                        ToolTipService.ToolTip="Zoom timeline in · =">
+                        <FontIcon Glyph="&#xE8A3;" FontFamily="Segoe Fluent Icons"
+                            FontSize="12" Width="12" Height="12" />
                     </local:ToolbarActionButton>
                 </StackPanel>
             </Grid>

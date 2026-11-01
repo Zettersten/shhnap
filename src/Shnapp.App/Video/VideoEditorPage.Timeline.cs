@@ -255,10 +255,17 @@ public sealed partial class VideoEditorPage
                 Margin = new Thickness(7, 4, 7, 0),
             },
         };
-        surface.PointerPressed += Clip_PointerPressed;
-        surface.PointerMoved += Clip_PointerMoved;
-        surface.PointerReleased += Clip_PointerReleased;
-        surface.PointerCaptureLost += Clip_PointerCaptureLost;
+        // ButtonBase consumes pointer input before ordinary event handlers run.
+        surface.AddHandler(UIElement.PointerPressedEvent,
+            new PointerEventHandler(Clip_PointerPressed), true);
+        surface.AddHandler(UIElement.PointerMovedEvent,
+            new PointerEventHandler(Clip_PointerMoved), true);
+        surface.AddHandler(UIElement.PointerReleasedEvent,
+            new PointerEventHandler(Clip_PointerReleased), true);
+        surface.AddHandler(UIElement.PointerCaptureLostEvent,
+            new PointerEventHandler(Clip_PointerCaptureLost), true);
+        surface.AddHandler(UIElement.KeyDownEvent,
+            new KeyEventHandler(Clip_KeyDown), true);
         surface.DragOver += Timeline_DragOver;
         surface.Drop += Timeline_Drop;
         surface.Click += Clip_Click;
@@ -280,8 +287,9 @@ public sealed partial class VideoEditorPage
         if (_selectedId == tag.Item2 && _selectedKind == tag.Item1 &&
             _clipButtons.TryGetValue(tag.Item2, out Button? current) &&
             ReferenceEquals(current, button) &&
-            _selectedRange is { } range && button.CapturePointer(args.Pointer))
+            _selectedRange is { } range)
         {
+            button.CapturePointer(args.Pointer);
             _clipDrag = new ClipDrag(button, args.Pointer.PointerId, tag.Item1, tag.Item2,
                 range.Start, range.End - range.Start,
                 args.GetCurrentPoint(TimelineContent).Position.X, Canvas.GetLeft(button),
@@ -325,7 +333,11 @@ public sealed partial class VideoEditorPage
         drag.Surface.ReleasePointerCapture(args.Pointer);
         Canvas.SetLeft(drag.Surface, drag.CanvasLeft);
         drag.Surface.Opacity = 1;
-        if (!moved) return;
+        if (!moved)
+        {
+            FocusSelectedClip();
+            return;
+        }
         if (!ApplyPendingInspectorChanges())
         {
             SelectionHint.Text = drag.Hint;
@@ -353,6 +365,7 @@ public sealed partial class VideoEditorPage
             }
         });
         if (!valid || !committed) SelectionHint.Text = drag.Hint;
+        FocusSelectedClip();
         args.Handled = true;
     }
 
@@ -360,10 +373,24 @@ public sealed partial class VideoEditorPage
     {
         if (_clipDrag is not { } drag || !ReferenceEquals(sender, drag.Surface) ||
             drag.PointerId != args.Pointer.PointerId) return;
-        _clipDrag = null;
-        Canvas.SetLeft(drag.Surface, drag.CanvasLeft);
-        drag.Surface.Opacity = 1;
-        SelectionHint.Text = drag.Hint;
+        // ButtonBase may release its own capture just before PointerReleased.
+        // Defer cleanup so that release can commit the drag first.
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!ReferenceEquals(_clipDrag, drag)) return;
+            _clipDrag = null;
+            Canvas.SetLeft(drag.Surface, drag.CanvasLeft);
+            drag.Surface.Opacity = 1;
+            SelectionHint.Text = drag.Hint;
+        });
+    }
+
+    private void Clip_KeyDown(object sender, KeyRoutedEventArgs args)
+    {
+        if (args.Key != global::Windows.System.VirtualKey.Space || _closed || _editor is null) return;
+        args.Handled = true;
+        if (args.KeyStatus.WasKeyDown) return;
+        TogglePlayback();
     }
 
     private TimeSpan DraggedClipStart(ClipDrag drag, double pointerX)
@@ -465,6 +492,8 @@ public sealed partial class VideoEditorPage
     private void FocusSelectedClip()
     {
         Guid selectedId = _selectedId;
+        if (_clipButtons.TryGetValue(selectedId, out Button? current))
+            current.Focus(FocusState.Programmatic);
         DispatcherQueue.TryEnqueue(() =>
         {
             if (_closed || selectedId != _selectedId) return;

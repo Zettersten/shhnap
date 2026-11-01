@@ -1,5 +1,6 @@
 using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -8,6 +9,7 @@ using Windows.Media.Core;
 using Windows.Media.Editing;
 using Windows.Media.Playback;
 using Windows.Storage.Pickers;
+using Windows.System;
 using Windows.UI.ViewManagement;
 
 namespace Shnapp.App.Video;
@@ -52,6 +54,12 @@ public sealed partial class VideoEditorPage : Page
     public VideoEditorPage()
     {
         InitializeComponent();
+        UpdateSnapButton();
+        // Windows.System.VirtualKey omits the OEM +/- names, so register their
+        // standard virtual-key codes in code rather than the XAML enum parser.
+        RegisterZoomAccelerator(0xBB, VirtualKeyModifiers.None);
+        RegisterZoomAccelerator(0xBB, VirtualKeyModifiers.Shift);
+        RegisterZoomAccelerator(0xBD, VirtualKeyModifiers.None);
         Loaded += Page_Loaded;
         VideoPlayer.SetMediaPlayer(_player);
         ActualThemeChanged += (_, _) => PreviewChecker.Invalidate();
@@ -290,6 +298,7 @@ public sealed partial class VideoEditorPage : Page
             if (revision != _previewRevision || _closed) return;
             var stream = composition.GeneratePreviewMediaStreamSource(previewWidth, previewHeight);
             _player.Source = MediaSource.CreateFromMediaStreamSource(stream);
+            _player.PlaybackSession.PlaybackRate = 1;
             _player.PlaybackSession.Position = position;
             if (wasPlaying) _player.Play();
         }
@@ -374,7 +383,10 @@ public sealed partial class VideoEditorPage : Page
         if (_player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing)
             _player.Pause();
         else
+        {
+            _player.PlaybackSession.PlaybackRate = 1;
             _player.Play();
+        }
     }
 
     private void TransportSlider_ValueChanged(object sender,
@@ -470,29 +482,129 @@ public sealed partial class VideoEditorPage : Page
         args.Handled = true;
         TogglePlayback();
     }
+    private void StopPlayback_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsNativeControlFocused()) return;
+        args.Handled = true;
+        _player.Pause();
+        _player.PlaybackSession.PlaybackRate = 1;
+    }
+    private void ReversePlayback_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsNativeControlFocused()) return;
+        args.Handled = true;
+        try
+        {
+            MediaPlaybackSession session = _player.PlaybackSession;
+            if (!session.IsSupportedPlaybackRateRange(-1, -1))
+            {
+                _player.Pause();
+                StatusText.Text = "Reverse playback unavailable for this preview; use Left to step back.";
+                return;
+            }
+            session.PlaybackRate = -1;
+            _player.Play();
+            StatusText.Text = "";
+        }
+        catch (Exception exception) when (exception is ArgumentException or
+            System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            _player.Pause();
+            StatusText.Text = "Reverse playback unavailable for this preview; use Left to step back.";
+        }
+    }
+    private void ForwardPlayback_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsNativeControlFocused()) return;
+        args.Handled = true;
+        _player.PlaybackSession.PlaybackRate = 1;
+        _player.Play();
+    }
     private void MarkIn_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (_closed || _editor is null || IsTextEntryFocused()) return;
+        if (_closed || _editor is null || IsNativeControlFocused()) return;
         args.Handled = true;
         MarkIn_Click(this, new RoutedEventArgs());
     }
     private void MarkOut_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (_closed || _editor is null || IsTextEntryFocused()) return;
+        if (_closed || _editor is null || IsNativeControlFocused()) return;
         args.Handled = true;
         MarkOut_Click(this, new RoutedEventArgs());
     }
     private void Split_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (_closed || _editor is null || IsTextEntryFocused() || !SplitButton.IsEnabled) return;
+        if (_closed || _editor is null || IsNativeControlFocused() || !SplitButton.IsEnabled) return;
         args.Handled = true;
         Split_Click(this, new RoutedEventArgs());
     }
     private void DeleteClip_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (_closed || _editor is null || IsTextEntryFocused() || !DeleteClipButton.IsEnabled) return;
+        if (_closed || _editor is null || IsNativeControlFocused() || !DeleteClipButton.IsEnabled) return;
         args.Handled = true;
         DeleteSelected_Click(this, new RoutedEventArgs());
+    }
+    private void RippleDeleteClip_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsNativeControlFocused() || !DeleteClipButton.IsEnabled) return;
+        args.Handled = true;
+        RippleDeleteSelected();
+    }
+    private void StepFrame_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsNativeControlFocused()) return;
+        args.Handled = true;
+        _player.Pause();
+        int frames = (sender.Key == VirtualKey.Left ? -1 : 1) *
+            ((sender.Modifiers & VirtualKeyModifiers.Shift) != 0 ? 5 : 1);
+        double rate = Math.Clamp(_editor.Current.FrameRate, 1, 240);
+        double index = Math.Round(_playhead.TotalSeconds * rate) + frames;
+        double seconds = Math.Clamp(index / rate, 0, _editor.Current.Duration.TotalSeconds);
+        Seek(TimeSpan.FromSeconds(seconds));
+    }
+    private void SeekEdge_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsNativeControlFocused()) return;
+        args.Handled = true;
+        _player.Pause();
+        Seek(sender.Key == VirtualKey.Home ? TimeSpan.Zero : _editor.Current.Duration);
+    }
+    private void ZoomTimeline_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsNativeControlFocused()) return;
+        args.Handled = true;
+        ChangeTimelineZoom(sender.Key == VirtualKey.Add || (int)sender.Key == 0xBB ? 1 : -1);
+    }
+    private void RegisterZoomAccelerator(int virtualKey, VirtualKeyModifiers modifiers)
+    {
+        var accelerator = new KeyboardAccelerator
+        {
+            Key = (VirtualKey)virtualKey,
+            Modifiers = modifiers,
+        };
+        accelerator.Invoked += ZoomTimeline_Invoked;
+        KeyboardAccelerators.Add(accelerator);
+    }
+    private void TimelineZoomOut_Click(object sender, RoutedEventArgs args) => ChangeTimelineZoom(-1);
+    private void TimelineZoomIn_Click(object sender, RoutedEventArgs args) => ChangeTimelineZoom(1);
+    private void Snap_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_closed || _editor is null || IsNativeControlFocused()) return;
+        args.Handled = true;
+        ToggleTimelineSnap();
+        UpdateSnapButton();
+    }
+    private void Snap_Click(object sender, RoutedEventArgs args)
+    {
+        ToggleTimelineSnap();
+        UpdateSnapButton();
+    }
+    private void UpdateSnapButton()
+    {
+        string state = TimelineSnapEnabled ? "on" : "off";
+        SnapButton.Opacity = TimelineSnapEnabled ? 1 : .5;
+        AutomationProperties.SetName(SnapButton, $"Timeline snapping {state}");
+        ToolTipService.SetToolTip(SnapButton, $"Timeline snapping {state} · S");
     }
     private void Escape_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
