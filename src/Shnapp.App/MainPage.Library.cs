@@ -425,7 +425,7 @@ public sealed partial class MainPage
         AddAction("Copy snapshot path", Symbol.Copy, () => _controller.CopyDocumentPath(entry.Id));
         AddAction("Share", Symbol.Share, () => _controller.ShareDocument(entry.Id));
         menu.Items.Add(new MenuFlyoutSeparator());
-        AddAction("Delete", Symbol.Delete, () => _controller.RequestDeleteDocuments([entry.Id]));
+        AddAction("Delete", Symbol.Delete, () => _controller.RequestDeleteDocuments(new[] { entry.Id }));
         menu.ShowAt(card, new FlyoutShowOptions { Position = args.GetPosition(card) });
         args.Handled = true;
 
