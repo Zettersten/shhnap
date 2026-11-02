@@ -33,11 +33,13 @@ public sealed partial class VideoEditorPage
     private readonly Dictionary<Guid, Border> _pausedBackdropViews = [];
     private PausedSource[] _pausedActiveSources = [];
     private PausedBackdrop[] _pausedActiveBackdrops = [];
-    private readonly DispatcherTimer _pausedFrameDebounce = new()
+    private readonly DispatcherTimer _pausedFrameSchedule = new()
     {
-        Interval = TimeSpan.FromMilliseconds(35),
+        Interval = TimeSpan.FromMilliseconds(16),
     };
     private readonly SemaphoreSlim _pausedFrameGate = new(1, 1);
+    private bool _pausedDecodePending;
+    private bool _pausedDecodeInProgress;
     private readonly Dictionary<(Guid AssetId, long Frame), BitmapImage> _pausedFrameCache = [];
     private readonly Queue<(Guid AssetId, long Frame)> _pausedFrameCacheOrder = new();
     private readonly Dictionary<Guid, MediaComposition> _pausedSourceCompositions = [];
@@ -60,19 +62,20 @@ public sealed partial class VideoEditorPage
         _pausedFrameSurface.Children.Add(_pausedVideoFrame);
         PreviewHost.Children.Insert(PreviewHost.Children.IndexOf(VideoPlayer) + 1,
             _pausedFrameSurface);
-        _pausedFrameDebounce.Tick += PausedFrameDebounce_Tick;
+        _pausedFrameSchedule.Tick += PausedFrameSchedule_Tick;
     }
 
     private void ReleasePausedFrame()
     {
         InvalidatePausedFrame(clearPresentedFrame: true);
-        _pausedFrameDebounce.Tick -= PausedFrameDebounce_Tick;
+        _pausedFrameSchedule.Tick -= PausedFrameSchedule_Tick;
     }
 
     private void InvalidatePausedFrame(bool clearPresentedFrame = false)
     {
         ++_pausedRequestRevision;
-        _pausedFrameDebounce.Stop();
+        _pausedFrameSchedule.Stop();
+        _pausedDecodePending = false;
         _pausedPreviewComposition = null;
         _pausedCompositionRevision = 0;
         _pausedDisplayedFrame = long.MinValue;
@@ -80,11 +83,9 @@ public sealed partial class VideoEditorPage
         _pausedFrameCacheOrder.Clear();
         _pausedSourceCompositions.Clear();
         _pausedSourceOrder.Clear();
-        // Keep the last decoded frame visible while a changed composition is
-        // rebuilt. Clearing it here exposes the black paused surface.
-        if (clearPresentedFrame) _pausedVideoFrame.Source = null;
         if (clearPresentedFrame)
         {
+            _pausedVideoFrame.Source = null;
             foreach (var view in _pausedOverlayViews.Values)
                 _previewImages.Children.Remove(view.Frame);
             foreach (Border backdrop in _pausedBackdropViews.Values)
@@ -96,8 +97,8 @@ public sealed partial class VideoEditorPage
         }
         else if (_editor is { } editor)
         {
-            // The model already contains the edit. Reconcile removed and
-            // reordered layers now, while retaining their last decoded pixels.
+            // Keep decoded pixels visible while the native composition rebuilds.
+            // Reconcile removed and reordered layers against the new model.
             _pausedActiveSources = ActivePausedOverlays(editor.Current, _playhead);
             _pausedActiveBackdrops = ActivePausedBackdrops(editor.Current, _playhead);
             SyncPausedOverlayViews(_pausedActiveSources);
@@ -115,7 +116,8 @@ public sealed partial class VideoEditorPage
         _pausedPreviewComposition = composition;
         _pausedCompositionRevision = revision;
         ++_pausedRequestRevision;
-        _pausedFrameDebounce.Stop();
+        _pausedFrameSchedule.Stop();
+        _pausedDecodePending = false;
         _pausedDisplayedFrame = long.MinValue;
         _pausedFrameCache.Clear();
         _pausedFrameCacheOrder.Clear();
@@ -148,7 +150,8 @@ public sealed partial class VideoEditorPage
         if (_closed || _editor is null ||
             _player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing)
         {
-            _pausedFrameDebounce.Stop();
+            _pausedFrameSchedule.Stop();
+            _pausedDecodePending = false;
             if (_pausedFrameSurface.Visibility != Visibility.Collapsed)
             {
                 _pausedFrameSurface.Visibility = Visibility.Collapsed;
@@ -173,8 +176,6 @@ public sealed partial class VideoEditorPage
         _pausedRequestedPosition = position;
         _pausedFrameSurface.Visibility = Visibility.Visible;
         ++_pausedRequestRevision;
-        _pausedFrameDebounce.Stop();
-
         bool needsDecode = false;
         if (PrimarySourceAt(project, position) is { } primary)
         {
@@ -199,7 +200,15 @@ public sealed partial class VideoEditorPage
                 _pausedOverlayViews[overlay.ItemId].Image.Source = bitmap;
             else needsDecode = true;
         }
-        if (needsDecode) _pausedFrameDebounce.Start();
+        _pausedDecodePending = needsDecode;
+        if (needsDecode)
+        {
+            // Start once per burst of pointer movement. Resetting the timer on
+            // every seek starves frame decoding until the drag stops.
+            if (!_pausedDecodeInProgress && !_pausedFrameSchedule.IsEnabled)
+                _pausedFrameSchedule.Start();
+        }
+        else _pausedFrameSchedule.Stop();
     }
 
     private static PausedSource? PrimarySourceAt(VideoProject project,
@@ -317,11 +326,27 @@ public sealed partial class VideoEditorPage
         Math.Max(0, (long)Math.Round(position.TotalSeconds *
             Math.Clamp(frameRate, 1, 240)));
 
-    private async void PausedFrameDebounce_Tick(object? sender, object args)
+    private async void PausedFrameSchedule_Tick(object? sender, object args)
     {
-        _pausedFrameDebounce.Stop();
-        await RenderPausedFrameAsync(_pausedRequestedPosition,
-            _pausedRequestRevision, _pausedCompositionRevision);
+        _pausedFrameSchedule.Stop();
+        if (!_pausedDecodePending || _pausedDecodeInProgress) return;
+        _pausedDecodePending = false;
+        _pausedDecodeInProgress = true;
+        try
+        {
+            await RenderPausedFrameAsync(_pausedRequestedPosition,
+                _pausedRequestRevision, _pausedCompositionRevision);
+        }
+        finally
+        {
+            _pausedDecodeInProgress = false;
+            // One decode at a time. If a seek arrived during it, process only
+            // the newest requested position after the current decode exits.
+            if (_pausedDecodePending && !_closed &&
+                _pausedPreviewComposition is not null &&
+                _player.PlaybackSession.PlaybackState != MediaPlaybackState.Playing)
+                _pausedFrameSchedule.Start();
+        }
     }
 
     private async Task RenderPausedFrameAsync(TimeSpan position,
