@@ -42,8 +42,10 @@ public sealed partial class MainWindow
         previous.StateChanged -= VideoPage_StateChanged;
         ChromeVideoToolsHost.Content = null;
         ChromeVideoExportHost.Content = null;
-        RootFrame.Content = Page;
+        // Detach the native MediaPlayer while its video page is still loaded.
+        // Swapping the frame first unloads MediaPlayerElement during teardown.
         previous.Close();
+        RootFrame.Content = Page;
         UpdateTitleBarState();
     }
 
