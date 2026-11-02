@@ -82,12 +82,12 @@ public sealed partial class SettingsPage : Page
         CameraSourcePicker.SelectedIndex = 0;
         CameraSourcePicker.IsEnabled = false;
         TakeCameraPhotoButton.IsEnabled = false;
-        CameraSourceStatus.Text = "Finding cameras…";
+        SetSourceStatus(CameraSourceStatus, "Finding cameras…");
         _microphoneSourcesLoaded = false;
         _availableMicrophoneSourceCount = 0;
         VideoMicrophoneSourcePicker.SelectedIndex = 0;
         VideoMicrophoneSourcePicker.IsEnabled = false;
-        VideoMicrophoneSourceStatus.Text = "Finding microphones…";
+        SetSourceStatus(VideoMicrophoneSourceStatus, "Finding microphones…");
         ThemePicker.SelectedIndex = settings.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
         LibraryPath.Text = libraryPath;
         LibraryNote.Text = isolated
@@ -177,9 +177,11 @@ public sealed partial class SettingsPage : Page
     {
         if (!_saving) { SelectSection("general"); }
     }
-    private void RecordingNav_Click(object sender, RoutedEventArgs args)
+    private async void RecordingNav_Click(object sender, RoutedEventArgs args)
     {
-        if (!_saving) { SelectSection("recording"); }
+        if (_saving) { return; }
+        SelectSection("recording");
+        await Task.WhenAll(RefreshCameraSourcesAsync(), RefreshMicrophoneSourcesAsync());
     }
     private void ShortcutsNav_Click(object sender, RoutedEventArgs args)
     {
@@ -211,12 +213,21 @@ public sealed partial class SettingsPage : Page
             _entered = true;
             _openingTransition = AnimateDialogAsync(0, 1, 14, 0, 240, EasingMode.EaseOut);
         }
-        await Task.WhenAll(RefreshCameraSourcesAsync(), RefreshMicrophoneSourcesAsync());
+        if (_selectedSection == "recording")
+        {
+            await Task.WhenAll(RefreshCameraSourcesAsync(), RefreshMicrophoneSourcesAsync());
+        }
+    }
+
+    private static void SetSourceStatus(TextBlock status, string message)
+    {
+        status.Text = message;
+        status.Visibility = message.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private async Task RefreshCameraSourcesAsync()
     {
-        if (!_configured || _loadingCameraSources)
+        if (!_configured || _cameraSourcesLoaded || _loadingCameraSources)
         {
             return;
         }
@@ -225,7 +236,7 @@ public sealed partial class SettingsPage : Page
         _cameraSourcesLoaded = false;
         CameraSourcePicker.IsEnabled = false;
         TakeCameraPhotoButton.IsEnabled = false;
-        CameraSourceStatus.Text = "Finding cameras…";
+        SetSourceStatus(CameraSourceStatus, "Finding cameras…");
         try
         {
             IReadOnlyList<CameraSource> sources = await CameraCaptureService.EnumerateSourcesAsync();
@@ -248,7 +259,8 @@ public sealed partial class SettingsPage : Page
             _availableCameraSourceCount = 0;
             CameraSourcePicker.IsEnabled = false;
             TakeCameraPhotoButton.IsEnabled = false;
-            CameraSourceStatus.Text = "Camera sources could not be loaded. Reopen Settings to try again.";
+            SetSourceStatus(CameraSourceStatus,
+                "Camera sources could not be loaded. Return to Recording to try again.");
             Debug.WriteLine($"Shnapp camera source enumeration failed: {exception}");
         }
         finally
@@ -284,7 +296,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        CameraSourceStatus.Text = _availableCameraSourceCount == 0
+        string message = _availableCameraSourceCount == 0
             ? VideoCamera.IsOn
                 ? "No camera is connected. Camera video cannot record until one is available."
                 : "No camera is connected. Connect one to take photos or record camera video."
@@ -292,7 +304,8 @@ public sealed partial class SettingsPage : Page
                 ? "The saved camera is unavailable. Choose Automatic or another camera."
                 : CameraSourcePicker.SelectedIndex <= 0
                     ? "Automatic uses an available camera for photos and video."
-                    : "This camera will be used for photos and video.";
+                    : string.Empty;
+        SetSourceStatus(CameraSourceStatus, message);
     }
 
     private string? SelectedCameraSourceId()
@@ -308,7 +321,7 @@ public sealed partial class SettingsPage : Page
 
     private async Task RefreshMicrophoneSourcesAsync()
     {
-        if (!_configured || _loadingMicrophoneSources)
+        if (!_configured || _microphoneSourcesLoaded || _loadingMicrophoneSources)
         {
             return;
         }
@@ -316,7 +329,7 @@ public sealed partial class SettingsPage : Page
         _loadingMicrophoneSources = true;
         _microphoneSourcesLoaded = false;
         VideoMicrophoneSourcePicker.IsEnabled = false;
-        VideoMicrophoneSourceStatus.Text = "Finding microphones…";
+        SetSourceStatus(VideoMicrophoneSourceStatus, "Finding microphones…");
         try
         {
             DeviceInformationCollection sources = await DeviceInformation.FindAllAsync(
@@ -347,8 +360,8 @@ public sealed partial class SettingsPage : Page
         {
             _availableMicrophoneSourceCount = 0;
             VideoMicrophoneSourcePicker.IsEnabled = false;
-            VideoMicrophoneSourceStatus.Text =
-                "Microphone sources could not be loaded. Reopen Settings to try again.";
+            SetSourceStatus(VideoMicrophoneSourceStatus,
+                "Microphone sources could not be loaded. Return to Recording to try again.");
             Debug.WriteLine($"Shnapp microphone source enumeration failed: {exception}");
         }
         finally
@@ -386,7 +399,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        VideoMicrophoneSourceStatus.Text = _availableMicrophoneSourceCount == 0
+        string message = _availableMicrophoneSourceCount == 0
             ? "No microphone is connected. Connect one to record your voice."
             : VideoMicrophoneSourcePicker.SelectedIndex > _availableMicrophoneSourceCount
                 ? "The saved microphone is unavailable. Choose System default or another microphone."
@@ -394,7 +407,8 @@ public sealed partial class SettingsPage : Page
                     ? "Turn on Record microphone to use this source."
                 : VideoMicrophoneSourcePicker.SelectedIndex <= 0
                     ? "Uses the default Windows input for new recordings."
-                    : "This microphone will be used for new recordings.";
+                    : string.Empty;
+        SetSourceStatus(VideoMicrophoneSourceStatus, message);
     }
 
     private string? SelectedMicrophoneSourceId()
@@ -500,6 +514,13 @@ public sealed partial class SettingsPage : Page
             button.Padding = compact ? new Thickness(8) : new Thickness(10, 6, 10, 6);
             button.HorizontalContentAlignment = compact ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         }
+        UpdateActions.Orientation = args.NewSize.Width < 760
+            ? Orientation.Vertical : Orientation.Horizontal;
+        Orientation linkOrientation = args.NewSize.Width < 600
+            ? Orientation.Vertical : Orientation.Horizontal;
+        LinkActionsFirst.Orientation = linkOrientation;
+        LinkActionsSecond.Orientation = linkOrientation;
+        FeedbackActions.Orientation = linkOrientation;
     }
 
     private void SettingsPage_KeyDown(object sender, KeyRoutedEventArgs args)
@@ -520,7 +541,8 @@ public sealed partial class SettingsPage : Page
         _selectedSection = section;
         SettingsLayout.MaxHeight = section switch
         {
-            "general" or "feedback" => 500,
+            "general" => 500,
+            "feedback" => 400,
             "recording" => 630,
             "updates" => 620,
             _ => 700,

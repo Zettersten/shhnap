@@ -272,8 +272,7 @@
                                                         AutomationProperties.Name="Record microphone"
                                                         AutomationProperties.AutomationId="VideoMicrophone" />
                                                 </Grid>
-                                                <Rectangle Height="1" Opacity="0.5" Fill="{ThemeResource SettingsStrokeBrush}" />
-                                                <StackPanel Margin="0,10" Spacing="5">
+                                                <StackPanel Margin="12,4,0,10" Spacing="5">
                                                     <TextBlock Text="Microphone source" FontWeight="SemiBold" />
                                                     <ComboBox x:Name="VideoMicrophoneSourcePicker" HorizontalAlignment="Stretch"
                                                         SelectionChanged="VideoMicrophoneSourcePicker_Changed"
@@ -298,8 +297,7 @@
                                                         AutomationProperties.Name="Record camera video"
                                                         AutomationProperties.AutomationId="VideoCamera" />
                                                 </Grid>
-                                                <Rectangle Height="1" Opacity="0.5" Fill="{ThemeResource SettingsStrokeBrush}" />
-                                                <StackPanel Margin="0,10" Spacing="6">
+                                                <StackPanel Margin="12,4,0,10" Spacing="6">
                                                     <TextBlock Text="Camera source for photos and recordings" FontWeight="SemiBold" />
                                                     <ComboBox x:Name="CameraSourcePicker" HorizontalAlignment="Stretch"
                                                         SelectionChanged="CameraSourcePicker_Changed"
@@ -703,7 +701,7 @@
                                         <TextBlock x:Name="UpdateChannelLabel" Style="{StaticResource SettingsSupportingTextStyle}" />
                                         <InfoBar x:Name="UpdateMessage" IsOpen="True" IsClosable="False"
                                             Severity="Informational" Title="Update status" />
-                                        <StackPanel Spacing="8" HorizontalAlignment="Left">
+                                        <StackPanel x:Name="UpdateActions" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
                                             <Button x:Name="CheckUpdatesButton" Content="Check for updates" Click="CheckUpdates_Click" CornerRadius="8"
                                                 AutomationProperties.AutomationId="CheckForUpdates" />
                                             <Button x:Name="OpenLatestButton" Content="View release" Click="OpenLatest_Click" CornerRadius="8"
@@ -727,11 +725,15 @@
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="Links" Style="{StaticResource SettingsSectionTitleStyle}" />
                                         <Border Style="{StaticResource SettingsCardStyle}" Padding="0,4">
-                                            <StackPanel Spacing="7" HorizontalAlignment="Left">
-                                                <Button Content="Visit shhnap.com" Click="OpenWebsite_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenWebsite" />
-                                                <Button Content="Open source repository" Click="OpenRepository_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenRepository" />
-                                                <Button Content="About the creator" Click="OpenPublisher_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPublisher" />
-                                                <Button Content="Privacy" Click="OpenPrivacy_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPrivacy" />
+                                            <StackPanel Spacing="8" HorizontalAlignment="Left">
+                                                <StackPanel x:Name="LinkActionsFirst" Orientation="Horizontal" Spacing="8">
+                                                    <Button Content="Visit shhnap.com" Click="OpenWebsite_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenWebsite" />
+                                                    <Button Content="Open source repository" Click="OpenRepository_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenRepository" />
+                                                </StackPanel>
+                                                <StackPanel x:Name="LinkActionsSecond" Orientation="Horizontal" Spacing="8">
+                                                    <Button Content="About the creator" Click="OpenPublisher_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPublisher" />
+                                                    <Button Content="Privacy" Click="OpenPrivacy_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPrivacy" />
+                                                </StackPanel>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
@@ -749,7 +751,7 @@
                                             <StackPanel Spacing="10">
                                                 <TextBlock Text="GitHub issues keep bug reports and feature ideas in one place."
                                                     Style="{StaticResource SettingsSupportingTextStyle}" />
-                                                <StackPanel Spacing="8" HorizontalAlignment="Left">
+                                                <StackPanel x:Name="FeedbackActions" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
                                                     <Button Content="Report a bug" Click="ReportBug_Click" CornerRadius="8" AutomationProperties.AutomationId="ReportBug" />
                                                     <Button Content="Request a feature" Click="RequestFeature_Click" CornerRadius="8" AutomationProperties.AutomationId="RequestFeature" />
                                                     <Button Content="Browse existing issues" Click="BrowseIssues_Click" CornerRadius="8" AutomationProperties.AutomationId="BrowseIssues" />
