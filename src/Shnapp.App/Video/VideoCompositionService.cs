@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -27,11 +26,8 @@ internal static class VideoCompositionService
     private const double MaximumTextRasterPixels = 4_000_000;
     private const int MaximumFadeSamples = 60;
     private const int MaximumTransitionSamples = 120;
-    private static readonly ConcurrentDictionary<(Guid Project, Guid Overlay), SemaphoreSlim>
-        TextRasterGates = new();
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> EdgeFrameGates = new();
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> CroppedImageGates = new();
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> CroppedVideoGates = new();
+    private static readonly AsyncKeyedGate<(Guid Project, Guid Overlay)> TextRasterGates = new();
+    private static readonly AsyncKeyedGate<string> CacheFileGates = new();
 
     internal static async Task<MediaComposition> BuildAsync(
         VideoProject project, VideoProjectStore store, CancellationToken cancellationToken = default,
@@ -255,17 +251,14 @@ internal static class VideoCompositionService
             throw new IOException("The video text cache cannot be a linked directory.");
         string hash = TextRasterHash(overlay);
         string path = Path.Combine(cacheDirectory, $"{overlay.Id:N}-{hash}.png");
-        SemaphoreSlim gate = TextRasterGates.GetOrAdd((project.Id, overlay.Id),
-            static _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(cancellationToken);
+        if (HasCachedFile(path, "The video text cache cannot contain linked files."))
+            return path;
+        IDisposable gate = await TextRasterGates.EnterAsync(
+            (project.Id, overlay.Id), cancellationToken);
         try
         {
-            if (File.Exists(path))
-            {
-                if (IsReparsePoint(path))
-                    throw new IOException("The video text cache cannot contain linked files.");
-                if (new FileInfo(path).Length > 0) return path;
-            }
+            if (HasCachedFile(path, "The video text cache cannot contain linked files."))
+                return path;
 
             double scale = Math.Min(1, Math.Min(
                 MaximumTextRasterDimension / Math.Max(overlay.Bounds.Width, overlay.Bounds.Height),
@@ -329,12 +322,21 @@ internal static class VideoCompositionService
         }
         finally
         {
-            gate.Release();
+            gate.Dispose();
         }
     }
 
     private static bool IsReparsePoint(string path) =>
         (File.GetAttributes(path) & System.IO.FileAttributes.ReparsePoint) != 0;
+
+    private static bool HasCachedFile(string path, string linkedFileMessage)
+    {
+        var file = new FileInfo(path);
+        if (!file.Exists) return false;
+        if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
+            throw new IOException(linkedFileMessage);
+        return file.Length > 0;
+    }
 
     private static string TextRasterHash(TextOverlay overlay)
     {
@@ -370,6 +372,7 @@ internal static class VideoCompositionService
         VideoProject project, VideoProjectStore store, Guid overlayId, Guid assetId,
         StorageFile source, VideoRect crop, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         string projectDirectory = store.GetProjectDirectory(project.Id);
         if (!Directory.Exists(projectDirectory) || IsReparsePoint(projectDirectory))
             throw new IOException("The video project directory is unavailable.");
@@ -383,18 +386,13 @@ internal static class VideoCompositionService
             $"{assetId:N}|{sourceInfo.FullName}|{sourceInfo.Length}|{sourceInfo.LastWriteTimeUtc.Ticks}|{crop.X:R}|{crop.Y:R}|{crop.Width:R}|{crop.Height:R}");
         string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
         string path = Path.Combine(cacheDirectory, $"{overlayId:N}-{hash[..20]}.png");
-        SemaphoreSlim gate = CroppedImageGates.GetOrAdd(path,
-            static _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(token);
+        if (HasCachedFile(path, "The image crop cache cannot contain linked files."))
+            return await StorageFile.GetFileFromPathAsync(path);
+        IDisposable gate = await CacheFileGates.EnterAsync(path, token);
         try
         {
-            if (File.Exists(path))
-            {
-                if (IsReparsePoint(path))
-                    throw new IOException("The image crop cache cannot contain linked files.");
-                if (new FileInfo(path).Length > 0)
-                    return await StorageFile.GetFileFromPathAsync(path);
-            }
+            if (HasCachedFile(path, "The image crop cache cannot contain linked files."))
+                return await StorageFile.GetFileFromPathAsync(path);
 
             string temporary = Path.Combine(cacheDirectory,
                 $".{overlayId:N}.{Guid.NewGuid():N}.tmp");
@@ -457,7 +455,7 @@ internal static class VideoCompositionService
         }
         finally
         {
-            gate.Release();
+            gate.Dispose();
         }
     }
 
@@ -465,6 +463,7 @@ internal static class VideoCompositionService
         VideoProject project, VideoProjectStore store, VideoOverlay overlay,
         StorageFile source, VideoRect crop, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         string projectDirectory = store.GetProjectDirectory(project.Id);
         if (!Directory.Exists(projectDirectory) || IsReparsePoint(projectDirectory))
             throw new IOException("The video project directory is unavailable.");
@@ -478,18 +477,13 @@ internal static class VideoCompositionService
             $"{overlay.AssetId:N}|{sourceInfo.FullName}|{sourceInfo.Length}|{sourceInfo.LastWriteTimeUtc.Ticks}|{crop.X:R}|{crop.Y:R}|{crop.Width:R}|{crop.Height:R}");
         string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
         string path = Path.Combine(cacheDirectory, $"{hash[..24]}.mp4");
-        SemaphoreSlim gate = CroppedVideoGates.GetOrAdd(path,
-            static _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(token);
+        if (HasCachedFile(path, "The video crop cache cannot contain linked files."))
+            return await StorageFile.GetFileFromPathAsync(path);
+        IDisposable gate = await CacheFileGates.EnterAsync(path, token);
         try
         {
-            if (File.Exists(path))
-            {
-                if (IsReparsePoint(path))
-                    throw new IOException("The video crop cache cannot contain linked files.");
-                if (new FileInfo(path).Length > 0)
-                    return await StorageFile.GetFileFromPathAsync(path);
-            }
+            if (HasCachedFile(path, "The video crop cache cannot contain linked files."))
+                return await StorageFile.GetFileFromPathAsync(path);
 
             string temporary = Path.Combine(cacheDirectory,
                 $".{Guid.NewGuid():N}.mp4");
@@ -556,7 +550,7 @@ internal static class VideoCompositionService
         }
         finally
         {
-            gate.Release();
+            gate.Dispose();
         }
     }
 
@@ -943,6 +937,7 @@ internal static class VideoCompositionService
         StorageFile sourceFile, bool outgoing, double width, double height,
         CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         double rasterScale = Math.Min(1, MaximumTextRasterDimension /
             Math.Max(width, height));
         int rasterWidth = Math.Max(1, (int)Math.Ceiling(width * rasterScale));
@@ -962,18 +957,13 @@ internal static class VideoCompositionService
         string path = Path.Combine(cacheDirectory,
             $"{segment.AssetId:N}-{sourceHash}-{segment.SourceIn.Ticks}-{segment.SourceOut.Ticks}-" +
             $"{(outgoing ? "last" : "first")}-{rasterWidth}x{rasterHeight}.png");
-        SemaphoreSlim gate = EdgeFrameGates.GetOrAdd(path,
-            static _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(token);
+        if (HasCachedFile(path, "The transition cache cannot contain linked files."))
+            return await StorageFile.GetFileFromPathAsync(path);
+        IDisposable gate = await CacheFileGates.EnterAsync(path, token);
         try
         {
-            if (File.Exists(path))
-            {
-                if (IsReparsePoint(path))
-                    throw new IOException("The transition cache cannot contain linked files.");
-                if (new FileInfo(path).Length > 0)
-                    return await StorageFile.GetFileFromPathAsync(path);
-            }
+            if (HasCachedFile(path, "The transition cache cannot contain linked files."))
+                return await StorageFile.GetFileFromPathAsync(path);
 
             string temporary = Path.Combine(cacheDirectory,
                 $".{Guid.NewGuid():N}.tmp");
@@ -1006,7 +996,7 @@ internal static class VideoCompositionService
         }
         finally
         {
-            gate.Release();
+            gate.Dispose();
         }
     }
 
