@@ -79,12 +79,12 @@ public sealed partial class VideoEditorPage
         _pausedPreviewComposition = null;
         _pausedCompositionRevision = 0;
         _pausedDisplayedFrame = long.MinValue;
-        _pausedFrameCache.Clear();
-        _pausedFrameCacheOrder.Clear();
-        _pausedSourceCompositions.Clear();
-        _pausedSourceOrder.Clear();
         if (clearPresentedFrame)
         {
+            _pausedFrameCache.Clear();
+            _pausedFrameCacheOrder.Clear();
+            _pausedSourceCompositions.Clear();
+            _pausedSourceOrder.Clear();
             _pausedVideoFrame.Source = null;
             foreach (var view in _pausedOverlayViews.Values)
                 _previewImages.Children.Remove(view.Frame);
@@ -119,8 +119,6 @@ public sealed partial class VideoEditorPage
         _pausedFrameSchedule.Stop();
         _pausedDecodePending = false;
         _pausedDisplayedFrame = long.MinValue;
-        _pausedFrameCache.Clear();
-        _pausedFrameCacheOrder.Clear();
         UpdatePausedFrameBounds();
         UpdatePausedFrame(_playhead);
     }
