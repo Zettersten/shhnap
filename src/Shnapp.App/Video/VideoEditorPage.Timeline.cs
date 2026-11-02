@@ -38,6 +38,7 @@ public sealed partial class VideoEditorPage
     private TrackDrag? _trackDrag;
     private bool _trackDragStarted;
     private readonly Dictionary<Guid, Grid> _trackHeaders = [];
+    private readonly Dictionary<Guid, Button> _trackGrips = [];
     private readonly Dictionary<Guid, Border> _trackDropMarkers = [];
     private readonly Dictionary<Guid, int> _trackHeaderRows = [];
     private Guid? _trackDropTarget;
@@ -74,9 +75,6 @@ public sealed partial class VideoEditorPage
         VideoProject project = _editor.Current;
         Dictionary<Guid, VideoAsset> assets = project.Assets.ToDictionary(item => item.Id);
         var lanes = new List<TimelineLane>();
-        var textLanes = new Dictionary<Guid, int>();
-        var imageLanes = new Dictionary<Guid, int>();
-        var videoOverlayLanes = new Dictionary<Guid, int>();
         Color textColor = Color.FromArgb(255, 73, 101, 164);
         Color imageColor = Color.FromArgb(255, 125, 95, 157);
         Color videoColor = Color.FromArgb(255, 52, 112, 162);
@@ -91,12 +89,10 @@ public sealed partial class VideoEditorPage
             .OrderByDescending(group => group.First().item.ZIndex)
             .ThenByDescending(group => group.Max(entry => entry.index)))
         {
-            int lane = lanes.Count;
             string label = layer.First().item.Text.Replace('\r', ' ')
                 .Replace('\n', ' ').Trim();
             lanes.Add(new TimelineLane(label.Length > 24 ? label[..24] + "…" : label,
                 textColor, "\uE8D2", layer.Key, TimelineKind.Text));
-            foreach (var entry in layer) textLanes[entry.item.Id] = lane;
         }
 
         // Higher image layers appear above lower ones, as they do in the preview.
@@ -105,28 +101,22 @@ public sealed partial class VideoEditorPage
             .OrderByDescending(group => group.First().item.ZIndex)
             .ThenByDescending(group => group.Max(entry => entry.index)))
         {
-            int lane = lanes.Count;
             string name = assets[layer.First().item.AssetId].DisplayName ?? "Image";
             lanes.Add(new TimelineLane(name, imageColor, "\uE8B9", layer.Key,
                 TimelineKind.Image));
-            foreach (var entry in layer) imageLanes[entry.item.Id] = lane;
         }
         foreach (var layer in project.VideoOverlays.Select((item, index) => (item, index))
             .GroupBy(entry => VideoOverlayLayerKey(entry.item))
             .OrderByDescending(group => group.First().item.ZIndex)
             .ThenByDescending(group => group.Max(entry => entry.index)))
         {
-            int lane = lanes.Count;
             string name = assets[layer.First().item.AssetId].DisplayName ?? "Video layer";
             lanes.Add(new TimelineLane(name, videoColor, "\uE768", layer.Key,
                 TimelineKind.VideoOverlay));
-            foreach (var entry in layer) videoOverlayLanes[entry.item.Id] = lane;
         }
-        int videoLane = lanes.Count;
         lanes.Add(new TimelineLane("Original video", videoColor, "\uE768",
             Guid.Empty, TimelineKind.Video));
 
-        var audioLanes = new Dictionary<Guid, int>();
         HashSet<Guid> usedAudioAssets = [.. project.AudioSegments.Select(item => item.AssetId)];
         foreach (VideoAsset asset in project.Assets.Where(item => usedAudioAssets.Contains(item.Id))
             .OrderBy(item => item.Kind switch
@@ -142,7 +132,6 @@ public sealed partial class VideoEditorPage
                 VideoAssetKind.MicrophoneAudio => "Microphone",
                 _ => asset.DisplayName ?? "Added audio",
             };
-            audioLanes[asset.Id] = lanes.Count;
             lanes.Add(new TimelineLane(name, asset.Kind switch
             {
                 VideoAssetKind.ComputerAudio => systemColor,
@@ -156,22 +145,21 @@ public sealed partial class VideoEditorPage
         // New tracks enter above the recording or after existing audio tracks.
         Dictionary<Guid, TimelineLane> byTrack = lanes.ToDictionary(lane => lane.VisibilityKey);
         lanes = [.. VideoProjectTracks.OrderedIds(project).Select(id => byTrack[id])];
-        textLanes.Clear();
+        Dictionary<Guid, int> laneIndices = lanes.Select((lane, index) => (lane, index))
+            .ToDictionary(entry => entry.lane.VisibilityKey, entry => entry.index);
+        var textLanes = new Dictionary<Guid, int>();
         foreach (TextOverlay item in project.TextOverlays)
-            textLanes[item.Id] = lanes.FindIndex(lane => lane.VisibilityKey ==
-                VideoProjectTracks.LayerId(item));
-        imageLanes.Clear();
+            textLanes[item.Id] = laneIndices[VideoProjectTracks.LayerId(item)];
+        var imageLanes = new Dictionary<Guid, int>();
         foreach (ImageOverlay item in project.ImageOverlays)
-            imageLanes[item.Id] = lanes.FindIndex(lane => lane.VisibilityKey ==
-                VideoProjectTracks.LayerId(item));
-        videoOverlayLanes.Clear();
+            imageLanes[item.Id] = laneIndices[VideoProjectTracks.LayerId(item)];
+        var videoOverlayLanes = new Dictionary<Guid, int>();
         foreach (VideoOverlay item in project.VideoOverlays)
-            videoOverlayLanes[item.Id] = lanes.FindIndex(lane => lane.VisibilityKey ==
-                VideoProjectTracks.LayerId(item));
-        audioLanes.Clear();
+            videoOverlayLanes[item.Id] = laneIndices[VideoProjectTracks.LayerId(item)];
+        var audioLanes = new Dictionary<Guid, int>();
         foreach (AudioSegment item in project.AudioSegments)
-            audioLanes[item.AssetId] = lanes.FindIndex(lane => lane.VisibilityKey == item.AssetId);
-        videoLane = lanes.FindIndex(lane => lane.Kind == TimelineKind.Video);
+            audioLanes[item.AssetId] = laneIndices[item.AssetId];
+        int videoLane = laneIndices[Guid.Empty];
 
         double contentHeight = 22 + lanes.Count * 28;
         TimelinePanel.Height = Math.Min(280, 28 + contentHeight + 14);
@@ -179,6 +167,7 @@ public sealed partial class VideoEditorPage
         TimelineCanvas.Height = contentHeight;
         TimelineLaneHeaders.Children.Clear();
         _trackHeaders.Clear();
+        _trackGrips.Clear();
         _trackDropMarkers.Clear();
         _trackHeaderRows.Clear();
         _trackDropTarget = null;
@@ -245,7 +234,9 @@ public sealed partial class VideoEditorPage
                 ? "Unlock this track to reorder it"
                 : lane.VisibilityKey == Guid.Empty
                     ? "Original video stays at the bottom of visual tracks"
-                    : $"Drag to reorder {lane.Label}");
+                    : $"Drag or use Up / Down to reorder {lane.Label}");
+            AutomationProperties.SetHelpText(grip,
+                "Drag with a pointer or use Up and Down while focused to reorder this track.");
             grip.AddHandler(UIElement.PointerPressedEvent,
                 new PointerEventHandler(TrackGrip_PointerPressed), true);
             grip.AddHandler(UIElement.PointerMovedEvent,
@@ -253,6 +244,8 @@ public sealed partial class VideoEditorPage
             grip.AddHandler(UIElement.PointerReleasedEvent,
                 new PointerEventHandler(TrackGrip_PointerReleased), true);
             grip.PointerCaptureLost += TrackGrip_PointerCaptureLost;
+            grip.AddHandler(UIElement.KeyDownEvent,
+                new KeyEventHandler(TrackGrip_KeyDown), true);
             Grid.SetColumn(grip, 2);
             header.Children.Add(grip);
             string action = lane.Kind == TimelineKind.Audio
@@ -329,6 +322,7 @@ public sealed partial class VideoEditorPage
             TimelineLaneHeaders.Children.Add(header);
             _trackHeaderRows[lane.VisibilityKey] = _trackHeaders.Count;
             _trackHeaders[lane.VisibilityKey] = header;
+            _trackGrips[lane.VisibilityKey] = grip;
             _trackDropMarkers[lane.VisibilityKey] = dropMarker;
         }
 
@@ -1119,6 +1113,37 @@ public sealed partial class VideoEditorPage
             args.GetCurrentPoint(TimelineLaneHeaders).Position.Y, SelectionHint.Text);
         _trackDragStarted = false;
         args.Handled = true;
+    }
+
+    private void TrackGrip_KeyDown(object sender, KeyRoutedEventArgs args)
+    {
+        if (args.Key is not (global::Windows.System.VirtualKey.Up or global::Windows.System.VirtualKey.Down) ||
+            _editor is null || sender is not Button { Tag: Guid trackId } ||
+            trackId == Guid.Empty || _editor.Current.LockedTrackIds.Contains(trackId)) return;
+
+        args.Handled = true;
+        var order = VideoProjectTracks.OrderedIds(_editor.Current);
+        int index = order.IndexOf(trackId);
+        int targetIndex = index + (args.Key == global::Windows.System.VirtualKey.Up ? -1 : 1);
+        if (index < 0 || targetIndex < 0 || targetIndex >= order.Length) return;
+        Guid targetId = order[targetIndex];
+        if (targetId == Guid.Empty || VideoProjectTracks.IsAudio(_editor.Current, trackId) !=
+            VideoProjectTracks.IsAudio(_editor.Current, targetId)) return;
+
+        string label = _trackHeaders[trackId].Children.OfType<TextBlock>()
+            .FirstOrDefault()?.Text ?? "Track";
+        string targetLabel = _trackHeaders[targetId].Children.OfType<TextBlock>()
+            .FirstOrDefault()?.Text ?? "track";
+        bool moved = false;
+        bool after = targetIndex > index;
+        if (!TryEdit(() => moved = _editor.MoveTrack(trackId, targetId, after)) || !moved)
+            return;
+        SelectionHint.Text = $"{label} moved {(after ? "below" : "above")} {targetLabel}";
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_closed && _trackGrips.TryGetValue(trackId, out Button? grip))
+                grip.Focus(FocusState.Programmatic);
+        });
     }
 
     private void TrackGrip_PointerMoved(object sender, PointerRoutedEventArgs args)

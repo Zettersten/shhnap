@@ -783,7 +783,7 @@
                 <TextBlock Text="Timeline" FontSize="10" FontWeight="SemiBold"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <TextBlock x:Name="SelectionHint" Grid.Column="1" Text="Select a clip to edit"
-                    FontSize="10" MaxWidth="240" TextTrimming="CharacterEllipsis"
+                    FontSize="10" TextTrimming="CharacterEllipsis"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </Grid>
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
