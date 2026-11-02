@@ -65,11 +65,11 @@ public sealed partial class VideoEditorPage
 
     private void ReleasePausedFrame()
     {
-        InvalidatePausedFrame();
+        InvalidatePausedFrame(clearPresentedFrame: true);
         _pausedFrameDebounce.Tick -= PausedFrameDebounce_Tick;
     }
 
-    private void InvalidatePausedFrame()
+    private void InvalidatePausedFrame(bool clearPresentedFrame = false)
     {
         ++_pausedRequestRevision;
         _pausedFrameDebounce.Stop();
@@ -80,15 +80,29 @@ public sealed partial class VideoEditorPage
         _pausedFrameCacheOrder.Clear();
         _pausedSourceCompositions.Clear();
         _pausedSourceOrder.Clear();
-        _pausedVideoFrame.Source = null;
-        foreach (var view in _pausedOverlayViews.Values)
-            _previewImages.Children.Remove(view.Frame);
-        foreach (Border backdrop in _pausedBackdropViews.Values)
-            _previewImages.Children.Remove(backdrop);
-        _pausedOverlayViews.Clear();
-        _pausedBackdropViews.Clear();
-        _pausedActiveSources = [];
-        _pausedActiveBackdrops = [];
+        // Keep the last decoded frame visible while a changed composition is
+        // rebuilt. Clearing it here exposes the black paused surface.
+        if (clearPresentedFrame) _pausedVideoFrame.Source = null;
+        if (clearPresentedFrame)
+        {
+            foreach (var view in _pausedOverlayViews.Values)
+                _previewImages.Children.Remove(view.Frame);
+            foreach (Border backdrop in _pausedBackdropViews.Values)
+                _previewImages.Children.Remove(backdrop);
+            _pausedOverlayViews.Clear();
+            _pausedBackdropViews.Clear();
+            _pausedActiveSources = [];
+            _pausedActiveBackdrops = [];
+        }
+        else if (_editor is { } editor)
+        {
+            // The model already contains the edit. Reconcile removed and
+            // reordered layers now, while retaining their last decoded pixels.
+            _pausedActiveSources = ActivePausedOverlays(editor.Current, _playhead);
+            _pausedActiveBackdrops = ActivePausedBackdrops(editor.Current, _playhead);
+            SyncPausedOverlayViews(_pausedActiveSources);
+            SyncPausedBackdrops(_pausedActiveBackdrops);
+        }
         _pausedFrameSurface.Visibility = _closed ||
             _player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing
             ? Visibility.Collapsed : Visibility.Visible;
@@ -105,7 +119,6 @@ public sealed partial class VideoEditorPage
         _pausedDisplayedFrame = long.MinValue;
         _pausedFrameCache.Clear();
         _pausedFrameCacheOrder.Clear();
-        _pausedVideoFrame.Source = null;
         UpdatePausedFrameBounds();
         UpdatePausedFrame(_playhead);
     }
@@ -169,11 +182,7 @@ public sealed partial class VideoEditorPage
                 project.FrameRate));
             if (_pausedFrameCache.TryGetValue(key, out BitmapImage? bitmap))
                 _pausedVideoFrame.Source = bitmap;
-            else
-            {
-                _pausedVideoFrame.Source = null;
-                needsDecode = true;
-            }
+            else needsDecode = true;
         }
         else _pausedVideoFrame.Source = null;
 
@@ -188,11 +197,7 @@ public sealed partial class VideoEditorPage
                 project.FrameRate));
             if (_pausedFrameCache.TryGetValue(key, out BitmapImage? bitmap))
                 _pausedOverlayViews[overlay.ItemId].Image.Source = bitmap;
-            else
-            {
-                _pausedOverlayViews[overlay.ItemId].Image.Source = null;
-                needsDecode = true;
-            }
+            else needsDecode = true;
         }
         if (needsDecode) _pausedFrameDebounce.Start();
     }

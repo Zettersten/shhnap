@@ -104,6 +104,9 @@ public sealed partial class VideoEditorPage : Page
         ArgumentNullException.ThrowIfNull(galleryItems);
         ArgumentNullException.ThrowIfNull(videoGalleryItems);
 
+        // A page can be configured for a different project. Its previous
+        // paused frame must not be presented while that project opens.
+        InvalidatePausedFrame(clearPresentedFrame: true);
         if (_editor is not null)
         {
             _editor.Changed -= Editor_Changed;
