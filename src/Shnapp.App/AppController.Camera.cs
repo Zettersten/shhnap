@@ -89,9 +89,15 @@ internal sealed partial class AppController
     {
         if (await RefreshCameraAvailabilityAsync()) return true;
         Show();
-        _page.ShowMessage("No camera available",
-            "Connect a camera, then try again. You can choose a preferred camera in Settings.",
-            InfoBarSeverity.Warning);
+        const string message = "Connect a camera, then try again. You can choose a preferred camera in Settings.";
+        if (_window.VideoPage is { } videoPage)
+        {
+            videoPage.ShowStatus("No camera available · " + message);
+        }
+        else
+        {
+            _page.ShowMessage("No camera available", message, InfoBarSeverity.Warning);
+        }
         return false;
     }
 
@@ -105,20 +111,30 @@ internal sealed partial class AppController
         CancellationToken token = _activeCapture.Token;
         try
         {
-            if (_window.VideoPage is { } videoPage) { await videoPage.SaveAsync(); }
-            _window.ShowPhotoPage();
+            var videoPage = _window.VideoPage;
+            if (videoPage is not null)
+            {
+                await videoPage.SaveAsync();
+            }
+            else
+            {
+                _page.CommitText();
+                _saveTimer.Stop();
+                await SaveCurrentAsync();
+            }
+
+            // Dismiss Settings, but leave the video editor and its media player
+            // alive while the camera preview opens. A canceled photo returns
+            // to the video instead of discarding the editing surface.
             _window.ShowMainPage();
             Show();
             if (!await RequireCameraAsync()) return;
 
-            _page.CommitText();
-            _saveTimer.Stop();
-            await SaveCurrentAsync();
             _dialogOpen = true;
             byte[]? photo;
             try
             {
-                photo = await CameraCaptureDialog.CaptureAsync(_page.XamlRoot,
+                photo = await CameraCaptureDialog.CaptureAsync(videoPage?.XamlRoot ?? _page.XamlRoot,
                     _settings.CameraSourceId, token);
             }
             finally
@@ -138,6 +154,14 @@ internal sealed partial class AppController
             if ((long)bitmap.SizeInPixels.Width * bitmap.SizeInPixels.Height > 64_000_000)
             {
                 throw new InvalidDataException("This camera photo exceeds the 64-megapixel capture limit.");
+            }
+
+            if (videoPage is not null)
+            {
+                _window.ShowPhotoPage();
+                _page.CommitText();
+                _saveTimer.Stop();
+                await SaveCurrentAsync();
             }
 
             DateTimeOffset capturedAt = DateTimeOffset.Now;
@@ -226,7 +250,14 @@ internal sealed partial class AppController
             : exception is InvalidDataException or ArgumentException
                 ? exception.Message
                 : "The camera could not take a photo. Check its connection and close other apps using it, then try again.";
-        _page.ShowMessage("Camera photo unavailable", message, InfoBarSeverity.Warning);
+        if (_window.VideoPage is { } videoPage)
+        {
+            videoPage.ShowStatus("Camera photo unavailable · " + message);
+        }
+        else
+        {
+            _page.ShowMessage("Camera photo unavailable", message, InfoBarSeverity.Warning);
+        }
         _ = RefreshCameraAvailabilityAsync();
     }
 }
