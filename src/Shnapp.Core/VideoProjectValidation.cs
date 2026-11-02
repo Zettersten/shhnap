@@ -72,7 +72,7 @@ internal static class VideoProjectValidation
             {
                 case VideoAssetKind.Recording:
                     recordings++;
-                    Require(extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase),
+                    Require(SupportsExtension(asset.Kind, extension),
                         "The recording source must be an MP4 file.");
                     break;
                 case VideoAssetKind.ComputerAudio:
@@ -80,23 +80,19 @@ internal static class VideoProjectValidation
                     goto case VideoAssetKind.MicrophoneAudio;
                 case VideoAssetKind.MicrophoneAudio:
                     if (asset.Kind == VideoAssetKind.MicrophoneAudio) { microphoneStems++; }
-                    Require(extension.Equals(".wav", StringComparison.OrdinalIgnoreCase),
+                    Require(SupportsExtension(asset.Kind, extension),
                         "Recorded audio stems must be WAV files.");
                     break;
                 case VideoAssetKind.ImportedAudio:
-                    Require(extension.Equals(".wav", StringComparison.OrdinalIgnoreCase) ||
-                        extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase) ||
-                        extension.Equals(".flac", StringComparison.OrdinalIgnoreCase),
+                    Require(SupportsExtension(asset.Kind, extension),
                         "Imported audio must be WAV, MP3, or FLAC.");
                     break;
                 case VideoAssetKind.Image:
-                    Require(extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
-                        extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
-                        extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase),
+                    Require(SupportsExtension(asset.Kind, extension),
                         "Overlay images must be PNG or JPEG files.");
                     break;
                 case VideoAssetKind.ImportedVideo:
-                    Require(extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase),
+                    Require(SupportsExtension(asset.Kind, extension),
                         "Imported videos must be MP4 files.");
                     break;
             }
@@ -274,6 +270,21 @@ internal static class VideoProjectValidation
             Math.Abs(bounds.X) <= 65_536 && Math.Abs(bounds.Y) <= 65_536,
             $"{kind} bounds must be finite video-pixel coordinates with positive size.");
     }
+
+    internal static bool SupportsExtension(VideoAssetKind kind, string extension) => kind switch
+    {
+        VideoAssetKind.Recording or VideoAssetKind.ImportedVideo =>
+            extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase),
+        VideoAssetKind.ComputerAudio or VideoAssetKind.MicrophoneAudio =>
+            extension.Equals(".wav", StringComparison.OrdinalIgnoreCase),
+        VideoAssetKind.ImportedAudio => extension.Equals(".wav", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".flac", StringComparison.OrdinalIgnoreCase),
+        VideoAssetKind.Image => extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase),
+        _ => false,
+    };
 
     private static void ValidateSourceCrop(VideoRect? crop)
     {

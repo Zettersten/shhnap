@@ -154,6 +154,34 @@ public sealed class VideoLayerTests
     }
 
     [TestMethod]
+    public void MissingVisualTracksAppearAboveSavedOrderAndAudioFollowsRecording()
+    {
+        var editor = new VideoProjectEditor(VideoProject.CreateRecording(
+            "New tracks", 10 * Second, 640, 360, "source.mp4",
+            computerAudioRelativePath: "computer.wav"));
+        var video = new VideoAsset(Guid.NewGuid(), VideoAssetKind.ImportedVideo,
+            "assets/new.mp4", 5 * Second);
+        var image = new VideoAsset(Guid.NewGuid(), VideoAssetKind.Image,
+            "assets/new.png", TimeSpan.Zero);
+        editor.AddAsset(video);
+        editor.AddAsset(image);
+        Guid videoId = editor.AddVideoOverlay(video.Id, TimeSpan.Zero,
+            TimeSpan.Zero, 5 * Second, new VideoRect(0, 0, 320, 180));
+        Guid imageId = Guid.NewGuid();
+        editor.AddImageOverlay(new ImageOverlay(imageId, image.Id, TimeSpan.Zero,
+            5 * Second, new VideoRect(0, 0, 320, 180)));
+        Guid textId = Guid.NewGuid();
+        editor.AddTextOverlay(new TextOverlay(textId, TimeSpan.Zero, 5 * Second,
+            "Title", new VideoRect(0, 0, 320, 80)));
+
+        VideoProject saved = editor.Current with { TrackOrder = [imageId, Guid.Empty] };
+        Guid audioId = saved.AudioSegments.Single().AssetId;
+        CollectionAssert.AreEqual(
+            new[] { videoId, textId, imageId, Guid.Empty, audioId },
+            VideoProjectTracks.OrderedIds(saved).ToArray());
+    }
+
+    [TestMethod]
     public void LockedTrackRejectsEditsButAllowsVisibilityAndUnlock()
     {
         var editor = new VideoProjectEditor(Recording());

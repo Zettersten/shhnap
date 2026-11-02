@@ -47,13 +47,21 @@ public static class VideoProjectTracks
         if (project.TrackOrder.IsDefaultOrEmpty) return fallback;
         HashSet<Guid> present = [.. fallback];
         var order = project.TrackOrder.Where(present.Contains).Distinct().ToList();
+        HashSet<Guid> included = [.. order];
+        HashSet<Guid> audioIds = [.. project.AudioSegments.Select(static item => item.AssetId)];
+        var newVisual = new List<Guid>();
+        var newAudio = new List<Guid>();
         foreach (Guid id in fallback)
         {
-            if (order.Contains(id)) continue;
-            if (IsAudio(project, id)) order.Add(id);
-            else order.Insert(0, id);
+            if (!included.Add(id)) continue;
+            if (audioIds.Contains(id)) newAudio.Add(id);
+            else newVisual.Add(id);
         }
-        return [.. order];
+        // New visual tracks appear above saved tracks, while audio follows them.
+        newVisual.Reverse();
+        newVisual.AddRange(order);
+        newVisual.AddRange(newAudio);
+        return [.. newVisual];
     }
 
     public static bool IsAudio(VideoProject project, Guid id) => id != Guid.Empty &&

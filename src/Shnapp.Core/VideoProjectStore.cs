@@ -88,14 +88,7 @@ public sealed class VideoProjectStore(string rootPath)
         VideoProjectValidation.Validate(project);
         string suffix = (extension.StartsWith('.') ? extension[1..] : extension)
             .ToLowerInvariant();
-        bool supported = kind switch
-        {
-            VideoAssetKind.Image => suffix is "png" or "jpg" or "jpeg",
-            VideoAssetKind.ImportedAudio => suffix is "wav" or "mp3" or "flac",
-            VideoAssetKind.ImportedVideo => suffix == "mp4",
-            _ => false,
-        };
-        if (!supported)
+        if (!VideoProjectValidation.SupportsExtension(kind, "." + suffix))
         {
             throw new ArgumentException("The imported media extension is unsupported.", nameof(extension));
         }

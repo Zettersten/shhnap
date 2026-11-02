@@ -92,7 +92,7 @@ public sealed class VideoProjectEditor(VideoProject project)
         ArgumentNullException.ThrowIfNull(overlay);
         int index = Find(Current.VideoOverlays, overlay.Id);
         if (index < 0) return false;
-        overlay = overlay with { LayerId = LayerKey(overlay) };
+        overlay = overlay with { LayerId = VideoProjectTracks.LayerId(overlay) };
         if (Current.VideoOverlays[index] == overlay) return false;
         Commit(Current with { VideoOverlays = Sort(Current.VideoOverlays.SetItem(index, overlay)) });
         return true;
@@ -125,14 +125,14 @@ public sealed class VideoProjectEditor(VideoProject project)
         var left = original with
         {
             SourceOut = original.SourceIn + (at - original.Start),
-            LayerId = LayerKey(original),
+            LayerId = VideoProjectTracks.LayerId(original),
         };
         var right = original with
         {
             Id = Guid.NewGuid(),
             Start = at,
             SourceIn = left.SourceOut,
-            LayerId = LayerKey(original),
+            LayerId = VideoProjectTracks.LayerId(original),
         };
         Commit(Current with
         {
@@ -157,12 +157,12 @@ public sealed class VideoProjectEditor(VideoProject project)
         VideoOverlay? selected = Current.VideoOverlays.FirstOrDefault(item => item.Id == id);
         if (selected is null) return false;
         var layers = Current.VideoOverlays.Select((item, index) => (item, index))
-            .GroupBy(entry => LayerKey(entry.item))
+            .GroupBy(entry => VideoProjectTracks.LayerId(entry.item))
             .OrderBy(group => group.First().item.ZIndex)
             .ThenBy(group => group.Min(entry => entry.index))
             .ToArray();
         int selectedIndex = Array.FindIndex(layers, group =>
-            group.Key == LayerKey(selected));
+            group.Key == VideoProjectTracks.LayerId(selected));
         int nextIndex = selectedIndex + direction;
         if (nextIndex < 0 || nextIndex >= layers.Length) return false;
         var order = layers.Select((group, index) => (group.Key, index))
@@ -173,7 +173,7 @@ public sealed class VideoProjectEditor(VideoProject project)
         {
             VideoOverlays = Sort([.. Current.VideoOverlays.Select(item => item with
             {
-                ZIndex = order[LayerKey(item)],
+                ZIndex = order[VideoProjectTracks.LayerId(item)],
             })]),
         });
         return true;
@@ -204,14 +204,14 @@ public sealed class VideoProjectEditor(VideoProject project)
             {
                 Start = cutEnd,
                 SourceIn = item.SourceIn + (cutEnd - item.Start),
-                LayerId = LayerKey(item),
+                LayerId = VideoProjectTracks.LayerId(item),
             });
         else
         {
             overlays = overlays.SetItem(index, item with
             {
                 SourceOut = item.SourceIn + (cutStart - item.Start),
-                LayerId = LayerKey(item),
+                LayerId = VideoProjectTracks.LayerId(item),
             });
             if (cutEnd < item.End)
             {
@@ -220,7 +220,7 @@ public sealed class VideoProjectEditor(VideoProject project)
                     Id = Guid.NewGuid(),
                     Start = cutEnd,
                     SourceIn = item.SourceIn + (cutEnd - item.Start),
-                    LayerId = LayerKey(item),
+                    LayerId = VideoProjectTracks.LayerId(item),
                 };
                 overlays = overlays.Insert(index + 1, right);
                 selected = right.Id;
@@ -234,9 +234,9 @@ public sealed class VideoProjectEditor(VideoProject project)
     public bool SetLayerVisible(Guid layerId, bool visible)
     {
         if (layerId != Guid.Empty &&
-            !Current.VideoOverlays.Any(item => LayerKey(item) == layerId) &&
-            !Current.ImageOverlays.Any(item => LayerKey(item) == layerId) &&
-            !Current.TextOverlays.Any(item => LayerKey(item) == layerId))
+            !Current.VideoOverlays.Any(item => VideoProjectTracks.LayerId(item) == layerId) &&
+            !Current.ImageOverlays.Any(item => VideoProjectTracks.LayerId(item) == layerId) &&
+            !Current.TextOverlays.Any(item => VideoProjectTracks.LayerId(item) == layerId))
             return false;
         bool hidden = Current.HiddenLayerIds.Contains(layerId);
         if (hidden == !visible) return false;
@@ -399,14 +399,14 @@ public sealed class VideoProjectEditor(VideoProject project)
             images.Add(overlay with
             {
                 Duration = at - overlay.Start,
-                LayerId = LayerKey(overlay),
+                LayerId = VideoProjectTracks.LayerId(overlay),
             });
             images.Add(overlay with
             {
                 Id = Guid.NewGuid(),
                 Start = at + asset.Duration,
                 Duration = overlay.End - at,
-                LayerId = LayerKey(overlay),
+                LayerId = VideoProjectTracks.LayerId(overlay),
             });
         }
 
@@ -422,14 +422,14 @@ public sealed class VideoProjectEditor(VideoProject project)
             texts.Add(overlay with
             {
                 Duration = at - overlay.Start,
-                LayerId = LayerKey(overlay),
+                LayerId = VideoProjectTracks.LayerId(overlay),
             });
             texts.Add(overlay with
             {
                 Id = Guid.NewGuid(),
                 Start = at + asset.Duration,
                 Duration = overlay.End - at,
-                LayerId = LayerKey(overlay),
+                LayerId = VideoProjectTracks.LayerId(overlay),
             });
         }
 
@@ -473,7 +473,7 @@ public sealed class VideoProjectEditor(VideoProject project)
         {
             ImageOverlays = Current.ImageOverlays.Add(overlay with
             {
-                LayerId = LayerKey(overlay),
+                LayerId = VideoProjectTracks.LayerId(overlay),
             }),
         });
     }
@@ -486,7 +486,7 @@ public sealed class VideoProjectEditor(VideoProject project)
         {
             TextOverlays = Current.TextOverlays.Add(overlay with
             {
-                LayerId = LayerKey(overlay),
+                LayerId = VideoProjectTracks.LayerId(overlay),
             }),
         });
     }
@@ -848,12 +848,12 @@ public sealed class VideoProjectEditor(VideoProject project)
         if (selected is null) return false;
 
         var layers = Current.ImageOverlays.Select((item, index) => (item, index))
-            .GroupBy(entry => LayerKey(entry.item))
+            .GroupBy(entry => VideoProjectTracks.LayerId(entry.item))
             .OrderBy(group => group.First().item.ZIndex)
             .ThenBy(group => group.Min(entry => entry.index))
             .ToArray();
         int selectedIndex = Array.FindIndex(layers, group =>
-            group.Key == LayerKey(selected));
+            group.Key == VideoProjectTracks.LayerId(selected));
         int nextIndex = selectedIndex + direction;
         if (nextIndex < 0 || nextIndex >= layers.Length) return false;
 
@@ -865,7 +865,7 @@ public sealed class VideoProjectEditor(VideoProject project)
         {
             ImageOverlays = [.. Current.ImageOverlays.Select(item => item with
             {
-                ZIndex = order[LayerKey(item)],
+                ZIndex = order[VideoProjectTracks.LayerId(item)],
             })],
         });
         return true;
@@ -899,7 +899,7 @@ public sealed class VideoProjectEditor(VideoProject project)
             Id = Guid.NewGuid(),
             Start = at,
             Duration = image.End - at,
-            LayerId = LayerKey(image),
+            LayerId = VideoProjectTracks.LayerId(image),
         };
         Commit(Current with
         {
@@ -907,7 +907,7 @@ public sealed class VideoProjectEditor(VideoProject project)
                 .SetItem(index, image with
                 {
                     Duration = at - image.Start,
-                    LayerId = LayerKey(image),
+                    LayerId = VideoProjectTracks.LayerId(image),
                 })
                 .Insert(index + 1, right),
         });
@@ -943,7 +943,7 @@ public sealed class VideoProjectEditor(VideoProject project)
             {
                 Start = cutEnd,
                 Duration = image.End - cutEnd,
-                LayerId = LayerKey(image),
+                LayerId = VideoProjectTracks.LayerId(image),
             });
         }
         else
@@ -951,7 +951,7 @@ public sealed class VideoProjectEditor(VideoProject project)
             images = images.SetItem(index, image with
             {
                 Duration = cutStart - image.Start,
-                LayerId = LayerKey(image),
+                LayerId = VideoProjectTracks.LayerId(image),
             });
             if (cutEnd < image.End)
             {
@@ -960,7 +960,7 @@ public sealed class VideoProjectEditor(VideoProject project)
                     Id = Guid.NewGuid(),
                     Start = cutEnd,
                     Duration = image.End - cutEnd,
-                    LayerId = LayerKey(image),
+                    LayerId = VideoProjectTracks.LayerId(image),
                 };
                 images = images.Insert(index + 1, right);
                 selected = right.Id;
@@ -1002,12 +1002,12 @@ public sealed class VideoProjectEditor(VideoProject project)
             Id = Guid.NewGuid(),
             Start = at,
             Duration = text.End - at,
-            LayerId = LayerKey(text),
+            LayerId = VideoProjectTracks.LayerId(text),
         };
         Commit(Current with
         {
             TextOverlays = Current.TextOverlays
-                .SetItem(index, text with { Duration = at - text.Start, LayerId = LayerKey(text) })
+                .SetItem(index, text with { Duration = at - text.Start, LayerId = VideoProjectTracks.LayerId(text) })
                 .Insert(index + 1, right),
         });
         return right.Id;
@@ -1039,7 +1039,7 @@ public sealed class VideoProjectEditor(VideoProject project)
             {
                 Start = cutEnd,
                 Duration = text.End - cutEnd,
-                LayerId = LayerKey(text),
+                LayerId = VideoProjectTracks.LayerId(text),
             });
         }
         else
@@ -1047,7 +1047,7 @@ public sealed class VideoProjectEditor(VideoProject project)
             texts = texts.SetItem(index, text with
             {
                 Duration = cutStart - text.Start,
-                LayerId = LayerKey(text),
+                LayerId = VideoProjectTracks.LayerId(text),
             });
             if (cutEnd < text.End)
             {
@@ -1056,7 +1056,7 @@ public sealed class VideoProjectEditor(VideoProject project)
                     Id = Guid.NewGuid(),
                     Start = cutEnd,
                     Duration = text.End - cutEnd,
-                    LayerId = LayerKey(text),
+                    LayerId = VideoProjectTracks.LayerId(text),
                 };
                 texts = texts.Insert(index + 1, right);
                 selected = right.Id;
@@ -1152,9 +1152,9 @@ public sealed class VideoProjectEditor(VideoProject project)
     {
         if (project.HiddenLayerIds.IsDefaultOrEmpty) return project;
         var present = new HashSet<Guid> { Guid.Empty };
-        foreach (VideoOverlay item in project.VideoOverlays) present.Add(LayerKey(item));
-        foreach (ImageOverlay item in project.ImageOverlays) present.Add(LayerKey(item));
-        foreach (TextOverlay item in project.TextOverlays) present.Add(LayerKey(item));
+        foreach (VideoOverlay item in project.VideoOverlays) present.Add(VideoProjectTracks.LayerId(item));
+        foreach (ImageOverlay item in project.ImageOverlays) present.Add(VideoProjectTracks.LayerId(item));
+        foreach (TextOverlay item in project.TextOverlays) present.Add(VideoProjectTracks.LayerId(item));
         ImmutableArray<Guid> hidden = [.. project.HiddenLayerIds.Where(present.Contains).Distinct()];
         return hidden.SequenceEqual(project.HiddenLayerIds)
             ? project : project with { HiddenLayerIds = hidden };
@@ -1295,15 +1295,6 @@ public sealed class VideoProjectEditor(VideoProject project)
         return -1;
     }
 
-    private static Guid LayerKey(ImageOverlay overlay) =>
-        overlay.LayerId == Guid.Empty ? overlay.Id : overlay.LayerId;
-
-    private static Guid LayerKey(VideoOverlay overlay) =>
-        overlay.LayerId == Guid.Empty ? overlay.Id : overlay.LayerId;
-
-    private static Guid LayerKey(TextOverlay overlay) =>
-        overlay.LayerId == Guid.Empty ? overlay.Id : overlay.LayerId;
-
     private static VideoSegment FitFades(VideoSegment segment)
     {
         TimeSpan fadeIn = Min(segment.FadeIn, segment.Duration);
@@ -1342,14 +1333,14 @@ public sealed class VideoProjectEditor(VideoProject project)
             result.Add(item with
             {
                 SourceOut = item.SourceIn + left,
-                LayerId = LayerKey(item),
+                LayerId = VideoProjectTracks.LayerId(item),
             });
             result.Add(item with
             {
                 Id = Guid.NewGuid(),
                 Start = at + duration,
                 SourceIn = item.SourceIn + left,
-                LayerId = LayerKey(item),
+                LayerId = VideoProjectTracks.LayerId(item),
             });
         }
         return Sort(result.ToImmutable());
@@ -1431,7 +1422,7 @@ public sealed class VideoProjectEditor(VideoProject project)
                 result.Add(item with
                 {
                     SourceOut = item.SourceIn + left,
-                    LayerId = LayerKey(item),
+                    LayerId = VideoProjectTracks.LayerId(item),
                 });
             if (right > TimeSpan.Zero)
                 result.Add(item with
@@ -1439,7 +1430,7 @@ public sealed class VideoProjectEditor(VideoProject project)
                     Id = left > TimeSpan.Zero ? Guid.NewGuid() : item.Id,
                     Start = start,
                     SourceIn = item.SourceOut - right,
-                    LayerId = LayerKey(item),
+                    LayerId = VideoProjectTracks.LayerId(item),
                 });
         }
         return Sort(result.ToImmutable());
@@ -1457,7 +1448,7 @@ public sealed class VideoProjectEditor(VideoProject project)
             TimeSpan right = item.End > end ? item.End - end : TimeSpan.Zero;
             if (left > TimeSpan.Zero)
             {
-                result.Add(item with { Duration = left, LayerId = LayerKey(item) });
+                result.Add(item with { Duration = left, LayerId = VideoProjectTracks.LayerId(item) });
             }
             if (right > TimeSpan.Zero)
             {
@@ -1466,7 +1457,7 @@ public sealed class VideoProjectEditor(VideoProject project)
                     Id = left > TimeSpan.Zero ? Guid.NewGuid() : item.Id,
                     Start = start,
                     Duration = right,
-                    LayerId = left > TimeSpan.Zero ? LayerKey(item) : item.LayerId,
+                    LayerId = left > TimeSpan.Zero ? VideoProjectTracks.LayerId(item) : item.LayerId,
                 });
             }
         }
@@ -1484,7 +1475,7 @@ public sealed class VideoProjectEditor(VideoProject project)
             TimeSpan left = start > item.Start ? start - item.Start : TimeSpan.Zero;
             TimeSpan right = item.End > end ? item.End - end : TimeSpan.Zero;
             if (left > TimeSpan.Zero)
-                result.Add(item with { Duration = left, LayerId = LayerKey(item) });
+                result.Add(item with { Duration = left, LayerId = VideoProjectTracks.LayerId(item) });
             if (right > TimeSpan.Zero)
             {
                 result.Add(item with
@@ -1492,7 +1483,7 @@ public sealed class VideoProjectEditor(VideoProject project)
                     Id = left > TimeSpan.Zero ? Guid.NewGuid() : item.Id,
                     Start = start,
                     Duration = right,
-                    LayerId = LayerKey(item),
+                    LayerId = VideoProjectTracks.LayerId(item),
                 });
             }
         }
