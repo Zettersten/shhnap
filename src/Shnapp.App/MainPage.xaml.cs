@@ -120,17 +120,17 @@ public sealed partial class MainPage : Page
 
     private void MainPage_Unloaded(object sender, RoutedEventArgs args)
     {
-        if (_themeSettings is not null)
-        {
-            _themeSettings.Changed -= ThemeSettings_Changed;
-            _themeSettings = null;
-        }
+        // MainPage belongs to the window for its entire lifetime. Keep this
+        // one subscription until process teardown: unsubscribing from the
+        // ThemeSettings native event during XAML Unloaded can fail-fast when
+        // the window is closing.
         DisconnectChromeGlassSettings();
     }
 
     private void ThemeSettings_Changed(Microsoft.UI.System.ThemeSettings sender, object args) =>
         DispatcherQueue.TryEnqueue(() =>
         {
+            if (!IsLoaded) return;
             LayoutLibraryEmptyScene();
             UpdateChromeGlassVisibility();
         });
