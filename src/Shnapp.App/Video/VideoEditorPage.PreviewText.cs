@@ -60,8 +60,6 @@ public sealed partial class VideoEditorPage
         UpdateVisiblePreviewText(_playhead);
         RefreshCanvasTextEditor();
         UpdateFadeOpacity(_playhead);
-        SetPreviewImageTick(_player.PlaybackSession.PlaybackState ==
-            global::Windows.Media.Playback.MediaPlaybackState.Playing);
     }
 
     private void ReleasePreviewText()

@@ -215,8 +215,8 @@ public sealed partial class VideoEditorPage
         if (project.HiddenLayerIds.Contains(Guid.Empty)) return null;
         if (TryGetActiveTransition(project, VideoTransitionLane.Video,
             position, out VideoTransition? transition, out _) &&
-            transition.Effect is not (VideoTransitionEffect.DipToBlack or
-                VideoTransitionEffect.DipToWhite))
+            transition is { Effect: not (VideoTransitionEffect.DipToBlack or
+                VideoTransitionEffect.DipToWhite) })
             return null;
         VideoSegment? segment = project.VideoSegments.FirstOrDefault(item =>
             item.Start <= position && position < item.End);

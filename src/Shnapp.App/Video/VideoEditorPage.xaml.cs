@@ -329,7 +329,6 @@ public sealed partial class VideoEditorPage : Page
             if (videoChanged || transitionsChanged || visibilityChanged)
             {
                 UpdateFadeOpacity(_playhead);
-                SetPreviewImageTick(_player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing);
             }
             RefreshInspector();
             if (trackLocksChanged) RefreshCanvasMediaSelection();
@@ -518,7 +517,6 @@ public sealed partial class VideoEditorPage : Page
             bool playing = sender.PlaybackState == MediaPlaybackState.Playing;
             PlayPauseIcon.Glyph = playing ? "\uE769" : "\uE768";
             _previewImages.Opacity = playing ? 0 : 1;
-            SetPreviewImageTick(playing);
             UpdateVisiblePreviewImages(sender.Position);
             UpdateVisiblePreviewText(sender.Position);
             UpdateCanvasMediaForPlayhead(sender.Position);

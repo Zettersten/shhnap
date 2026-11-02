@@ -333,7 +333,7 @@ internal static class VideoCompositionService
     {
         var file = new FileInfo(path);
         if (!file.Exists) return false;
-        if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
+        if ((file.Attributes & System.IO.FileAttributes.ReparsePoint) != 0)
             throw new IOException(linkedFileMessage);
         return file.Length > 0;
     }

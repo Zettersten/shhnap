@@ -25,7 +25,6 @@ public sealed partial class VideoEditorPage
     private readonly HashSet<Guid> _previewImageLoads = [];
     private readonly HashSet<Guid> _previewImageFailures = [];
     private long _previewImageGeneration;
-    private bool _previewImageTickAttached;
     private TimeSpan[] _previewImageBoundaries = [];
     private TimeSpan _previewImageIntervalStart = TimeSpan.MaxValue;
     private TimeSpan _previewImageIntervalEnd = TimeSpan.MinValue;
@@ -38,7 +37,6 @@ public sealed partial class VideoEditorPage
     private void ResetPreviewImages()
     {
         ++_previewImageGeneration;
-        SetPreviewImageTick(false);
         foreach (Border frame in _previewImageFrames.Values)
             _previewImages.Children.Remove(frame);
         foreach (ImagePreviewTransition transition in _imagePreviewTransitions)
@@ -59,7 +57,6 @@ public sealed partial class VideoEditorPage
     private void ReleasePreviewImages()
     {
         ++_previewImageGeneration;
-        SetPreviewImageTick(false);
         foreach (Border frame in _previewImageFrames.Values)
             _previewImages.Children.Remove(frame);
         foreach (ImagePreviewTransition transition in _imagePreviewTransitions)
@@ -89,8 +86,6 @@ public sealed partial class VideoEditorPage
         _previewImageIntervalStart = TimeSpan.MaxValue;
         _previewImageIntervalEnd = TimeSpan.MinValue;
         UpdateVisiblePreviewImages(_playhead);
-        SetPreviewImageTick(_player.PlaybackSession.PlaybackState ==
-            global::Windows.Media.Playback.MediaPlaybackState.Playing);
     }
 
     private void UpdatePreviewImageBounds(TimeSpan? position = null)
@@ -276,23 +271,4 @@ public sealed partial class VideoEditorPage
         }
     }
 
-    private void SetPreviewImageTick(bool playing)
-    {
-        // Playback now uses the complete native composition. XAML overlay
-        // frames are only needed while paused, so avoid per-frame UI work.
-        if (_previewImageTickAttached)
-        {
-            CompositionTarget.Rendering -= PreviewImages_Rendering;
-            _previewImageTickAttached = false;
-        }
-    }
-
-    private void PreviewImages_Rendering(object sender, object args)
-    {
-        if (_closed || _editor is null) return;
-        TimeSpan position = _player.PlaybackSession.Position;
-        UpdateVisiblePreviewImages(position);
-        UpdateVisiblePreviewText(position);
-        UpdateFadeOpacity(position);
-    }
 }
