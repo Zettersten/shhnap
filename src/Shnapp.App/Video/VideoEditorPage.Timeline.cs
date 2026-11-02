@@ -36,8 +36,13 @@ public sealed partial class VideoEditorPage
     private sealed record TrackDrag(Button Handle, uint PointerId, Guid TrackId,
         double StartY, string Hint);
     private TrackDrag? _trackDrag;
+    private bool _trackDragStarted;
     private readonly Dictionary<Guid, Grid> _trackHeaders = [];
+    private readonly Dictionary<Guid, Border> _trackDropMarkers = [];
+    private readonly Dictionary<Guid, int> _trackHeaderRows = [];
     private Guid? _trackDropTarget;
+    private bool _trackDropAfter;
+    private Rectangle? _trackDropCanvasLine;
     private Line? _playheadLine;
     private Polygon? _playheadCap;
     private bool _loadingInspector;
@@ -174,7 +179,10 @@ public sealed partial class VideoEditorPage
         TimelineCanvas.Height = contentHeight;
         TimelineLaneHeaders.Children.Clear();
         _trackHeaders.Clear();
+        _trackDropMarkers.Clear();
+        _trackHeaderRows.Clear();
         _trackDropTarget = null;
+        _trackDropCanvasLine = null;
         TimelineLaneHeaders.Children.Add(new TextBlock { Height = 22 });
         foreach (var lane in lanes)
         {
@@ -306,9 +314,22 @@ public sealed partial class VideoEditorPage
             lockButton.Click += TimelineLock_Click;
             Grid.SetColumn(lockButton, 4);
             header.Children.Add(lockButton);
+            var dropMarker = new Border
+            {
+                Height = 2,
+                CornerRadius = new CornerRadius(1),
+                Background = (Brush)Application.Current.Resources["ShnappBlueBrush"],
+                VerticalAlignment = VerticalAlignment.Top,
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false,
+            };
+            Grid.SetColumnSpan(dropMarker, 5);
+            header.Children.Add(dropMarker);
             ToolTipService.SetToolTip(header, lane.Label);
             TimelineLaneHeaders.Children.Add(header);
+            _trackHeaderRows[lane.VisibilityKey] = _trackHeaders.Count;
             _trackHeaders[lane.VisibilityKey] = header;
+            _trackDropMarkers[lane.VisibilityKey] = dropMarker;
         }
 
         _lastTimelineViewportWidth = TimelineScroll.ActualWidth;
@@ -515,6 +536,15 @@ public sealed partial class VideoEditorPage
             IsHitTestVisible = false,
         };
         TimelineCanvas.Children.Add(_playheadCap);
+        _trackDropCanvasLine = new Rectangle
+        {
+            Width = width,
+            Height = 2,
+            Fill = (Brush)Application.Current.Resources["ShnappBlueBrush"],
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false,
+        };
+        TimelineCanvas.Children.Add(_trackDropCanvasLine);
         DrawPlayhead();
     }
 
@@ -1087,6 +1117,7 @@ public sealed partial class VideoEditorPage
         handle.CapturePointer(args.Pointer);
         _trackDrag = new TrackDrag(handle, args.Pointer.PointerId, trackId,
             args.GetCurrentPoint(TimelineLaneHeaders).Position.Y, SelectionHint.Text);
+        _trackDragStarted = false;
         args.Handled = true;
     }
 
@@ -1096,8 +1127,13 @@ public sealed partial class VideoEditorPage
             drag.PointerId != args.Pointer.PointerId || _editor is null) return;
         double y = args.GetCurrentPoint(TimelineLaneHeaders).Position.Y;
         if (Math.Abs(y - drag.StartY) < 4) return;
+        if (!_trackDragStarted)
+        {
+            _trackDragStarted = true;
+            HighlightTrackDragSource(drag, true);
+        }
         (Guid? target, bool after) = TrackDropAt(y, drag.TrackId);
-        HighlightTrackDrop(target);
+        HighlightTrackDrop(target, after);
         if (target.HasValue)
         {
             string label = _trackHeaders[target.Value].Children.OfType<TextBlock>()
@@ -1116,6 +1152,8 @@ public sealed partial class VideoEditorPage
         _trackDrag = null;
         drag.Handle.ReleasePointerCapture(args.Pointer);
         HighlightTrackDrop(null);
+        HighlightTrackDragSource(drag, false);
+        _trackDragStarted = false;
         SelectionHint.Text = drag.Hint;
         if (Math.Abs(y - drag.StartY) < 4) return;
         (Guid? target, bool after) = TrackDropAt(y, drag.TrackId);
@@ -1133,6 +1171,8 @@ public sealed partial class VideoEditorPage
             if (!ReferenceEquals(_trackDrag, drag)) return;
             _trackDrag = null;
             HighlightTrackDrop(null);
+            HighlightTrackDragSource(drag, false);
+            _trackDragStarted = false;
             SelectionHint.Text = drag.Hint;
         });
     }
@@ -1149,15 +1189,50 @@ public sealed partial class VideoEditorPage
         return (target, after);
     }
 
-    private void HighlightTrackDrop(Guid? target)
+    private void HighlightTrackDragSource(TrackDrag drag, bool active)
     {
-        if (_trackDropTarget == target) return;
-        if (_trackDropTarget.HasValue &&
-            _trackHeaders.TryGetValue(_trackDropTarget.Value, out Grid? old))
-            old.Background = null;
+        if (!_trackHeaders.TryGetValue(drag.TrackId, out Grid? header)) return;
+        header.Background = active ? TrackDragTint(54) : null;
+        drag.Handle.Background = active ? TrackDragTint(92) :
+            new SolidColorBrush(Colors.Transparent);
+    }
+
+    private void HighlightTrackDrop(Guid? target, bool after = false)
+    {
+        if (_trackDropTarget == target && (!target.HasValue || _trackDropAfter == after))
+            return;
+        if (_trackDropTarget.HasValue)
+        {
+            if (_trackHeaders.TryGetValue(_trackDropTarget.Value, out Grid? old))
+                old.Background = null;
+            if (_trackDropMarkers.TryGetValue(_trackDropTarget.Value,
+                out Border? oldMarker)) oldMarker.Visibility = Visibility.Collapsed;
+        }
         _trackDropTarget = target;
-        if (target.HasValue && _trackHeaders.TryGetValue(target.Value, out Grid? header))
-            header.Background = new SolidColorBrush(Color.FromArgb(42, 70, 150, 210));
+        _trackDropAfter = after;
+        if (target.HasValue && _trackHeaders.TryGetValue(target.Value, out Grid? header) &&
+            _trackDropMarkers.TryGetValue(target.Value, out Border? marker) &&
+            _trackHeaderRows.TryGetValue(target.Value, out int row))
+        {
+            header.Background = TrackDragTint(28);
+            marker.VerticalAlignment = after ? VerticalAlignment.Bottom :
+                VerticalAlignment.Top;
+            marker.Visibility = Visibility.Visible;
+            if (_trackDropCanvasLine is not null)
+            {
+                Canvas.SetTop(_trackDropCanvasLine, 22 + row * 28 +
+                    (after ? 26 : 0));
+                _trackDropCanvasLine.Visibility = Visibility.Visible;
+            }
+        }
+        else if (_trackDropCanvasLine is not null)
+            _trackDropCanvasLine.Visibility = Visibility.Collapsed;
+    }
+
+    private static Brush TrackDragTint(byte alpha)
+    {
+        Color blue = ((SolidColorBrush)Application.Current.Resources["ShnappBlueBrush"]).Color;
+        return new SolidColorBrush(Color.FromArgb(alpha, blue.R, blue.G, blue.B));
     }
 
     private void SelectClip(TimelineKind kind, Guid id, bool focusTimeline = true)
