@@ -94,8 +94,31 @@ jobs:
           $version = $env:RELEASE_TAG.Substring(1)
           $manifestDir = "catalog-candidates/winget/manifests/z/Zettersten/Shnapp/$version"
           if (Get-Command winget -ErrorAction SilentlyContinue) {
-            winget validate $manifestDir
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $validationOutput = @(winget validate $manifestDir 2>&1)
+            $validationExitCode = $LASTEXITCODE
+            $validationLines = @($validationOutput | ForEach-Object { "$($_)".Trim() } | Where-Object { $_ })
+            $validationLines | ForEach-Object { Write-Host $_ }
+            if ($validationExitCode -ne 0) {
+              # The runner's older WinGet client reports a successful validation with
+              # warnings for the current 1.28 schema headers. Accept only those exact
+              # three warnings; all other validation failures remain fatal.
+              $expectedLines = @(
+                'Manifest validation succeeded with warnings.'
+                'Manifest Warning: The schema header URL does not match the expected pattern. Value: # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.28.0.schema.json Line: 1, Column: 25 File: Zettersten.Shnapp.installer.yaml'
+                'Manifest Warning: The schema header URL does not match the expected pattern. Value: # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json Line: 1, Column: 25 File: Zettersten.Shnapp.locale.en-US.yaml'
+                'Manifest Warning: The schema header URL does not match the expected pattern. Value: # yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.28.0.schema.json Line: 1, Column: 25 File: Zettersten.Shnapp.yaml'
+              )
+              $onlyKnownWarnings = $validationLines.Count -eq $expectedLines.Count
+              if ($onlyKnownWarnings) {
+                for ($index = 0; $index -lt $expectedLines.Count; $index++) {
+                  if ($validationLines[$index] -cne $expectedLines[$index]) { $onlyKnownWarnings = $false; break }
+                }
+              }
+              if (-not $onlyKnownWarnings) { exit $validationExitCode }
+              'The runner WinGet CLI validated the manifest with only known 1.28 schema-header warnings.' |
+                Add-Content -Path $env:GITHUB_STEP_SUMMARY
+              $global:LASTEXITCODE = 0
+            }
           }
           else {
             'WinGet CLI is unavailable on this runner; Microsoft validates submitted PRs.' |
