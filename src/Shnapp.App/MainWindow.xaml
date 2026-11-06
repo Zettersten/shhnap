@@ -20,7 +20,7 @@
             HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
 
         <TitleBar x:Name="AppTitleBar" Height="36"
-            VerticalAlignment="Top" Background="{ThemeResource ShnappImageChromeBrush}">
+            VerticalAlignment="Top" Background="Transparent">
             <TitleBar.Resources>
                 <SolidColorBrush x:Key="ButtonBackground" Color="Transparent" />
                 <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="Transparent" />
@@ -42,9 +42,16 @@
                     </Grid>
                     <StackPanel x:Name="ChromeNavigationHost" Orientation="Horizontal" Spacing="4"
                         VerticalAlignment="Center" />
-                    <Border Width="1" Height="16" Margin="5,0" VerticalAlignment="Center"
+                    <local:ToolbarActionButton x:Name="VideoBackButton" Width="28" Height="28" MinWidth="0" Padding="0"
+                        Visibility="Collapsed" CornerRadius="6" Click="VideoBack_Click"
+                        ToolTipService.ToolTip="Back to Library"
+                        AutomationProperties.Name="Back to Library" AutomationProperties.AutomationId="VideoBack">
+                        <FontIcon Glyph="&#xE72B;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
+                    <Border x:Name="TitleToolSeparator" Width="1" Height="16" Margin="5,0" VerticalAlignment="Center"
                         Background="{ThemeResource ShnappFloatingEdgeBrush}" Opacity="0.5" />
                     <ContentControl x:Name="ChromeToolsHost" VerticalAlignment="Center" />
+                    <ContentControl x:Name="ChromeVideoToolsHost" VerticalAlignment="Center" Visibility="Collapsed" />
                 </StackPanel>
             </TitleBar.LeftHeader>
             <TitleBar.RightHeader>
@@ -69,7 +76,14 @@
                         AutomationProperties.Name="Capture region" AutomationProperties.AutomationId="CaptureRegionToolbar">
                         <FontIcon Glyph="&#xF7ED;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
                     </local:ToolbarActionButton>
+                    <ContentControl x:Name="ChromeVideoExportHost" VerticalAlignment="Center" Visibility="Collapsed" />
                     <ContentControl x:Name="ChromeCommandsHost" VerticalAlignment="Center" />
+                    <local:ToolbarActionButton x:Name="TitleVideoMoreButton" Width="28" Height="28" MinWidth="0" Padding="0"
+                        Visibility="Collapsed" CornerRadius="6" Click="TitleVideoMore_Click"
+                        ToolTipService.ToolTip="Video options"
+                        AutomationProperties.Name="Video options" AutomationProperties.AutomationId="VideoOptions">
+                        <FontIcon Glyph="&#xE712;" FontFamily="Segoe Fluent Icons" FontSize="12" Width="12" Height="12" />
+                    </local:ToolbarActionButton>
                 </StackPanel>
             </TitleBar.RightHeader>
         </TitleBar>

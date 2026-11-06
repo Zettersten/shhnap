@@ -321,7 +321,7 @@ public sealed partial class MainPage
                     return;
                 }
 
-                clones = [clone];
+                clones = new[] { clone };
             }
             else
             {

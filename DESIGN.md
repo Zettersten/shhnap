@@ -1120,11 +1120,9 @@ A shortcut field should:
 - display the normalized key sequence
 - support reset to default
 
-Defaults:
-
-- `Ctrl+Shift+4` — window
-- `Ctrl+Shift+3` — full screen
-- `Ctrl+Shift+2` — free form
+The current capture and editor key map is maintained in the
+[Keyboard shortcuts](README.md#keyboard-shortcuts) reference and shown in
+**Settings → Shortcuts**. Keep the two references aligned when bindings change.
 
 ### Focus and keyboard navigation
 

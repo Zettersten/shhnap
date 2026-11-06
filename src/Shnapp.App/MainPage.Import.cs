@@ -18,7 +18,7 @@ public sealed partial class MainPage
     {
         LibraryEntry? entry = (sender as FrameworkElement)?.Tag as LibraryEntry ??
             (sender as FrameworkElement)?.DataContext as LibraryEntry;
-        if (entry is null)
+        if (entry is null || entry.IsVideo)
         {
             args.Cancel = true;
             return;

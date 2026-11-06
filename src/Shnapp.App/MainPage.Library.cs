@@ -50,7 +50,7 @@ public sealed partial class MainPage
     {
         LibraryEmptyDescription.Text = restoring
             ? "Restoring saved shnapps. They will appear here as they are ready."
-            : "The fast, beautiful way to capture your screen and turn ideas into reality.";
+            : "Capture screenshots and video. Annotate images, trim clips, and keep it all in one library.";
     }
 
     private void RebuildLibraryEntries()
@@ -66,6 +66,7 @@ public sealed partial class MainPage
             _focusedGridEntry.IsGridKeyboardFocused = false;
             _focusedGridEntry = null;
         }
+        foreach (LibraryEntry entry in _libraryEntries.Values) entry.ReleasePreview();
         _libraryEntries.Clear();
         foreach (ShnappSummary document in _library)
         {
@@ -86,8 +87,40 @@ public sealed partial class MainPage
                 IsSelected = _selectedLibraryIds.Contains(document.Id),
             };
         }
+        AddVideoLibraryEntries(cardWidth, thumbnailHeight);
 
         FilterLibrary();
+    }
+
+    private void RefreshVideoLibraryEntries()
+    {
+        if (_controller is null) return;
+
+        foreach (Guid id in _libraryEntries.Values.Where(static entry => entry.IsVideo)
+            .Select(static entry => entry.Id).ToArray())
+        {
+            _libraryEntries[id].ReleasePreview();
+            _libraryEntries.Remove(id);
+        }
+
+        (double cardWidth, double thumbnailHeight) = LibrarySizes[_librarySizeIndex];
+        AddVideoLibraryEntries(cardWidth, thumbnailHeight);
+        FilterLibrary();
+    }
+
+    private void AddVideoLibraryEntries(double cardWidth, double thumbnailHeight)
+    {
+        foreach (VideoProjectSummary video in _videoLibrary)
+        {
+            string source = GetVideoSourcePath(video);
+            _libraryEntries[video.Id] = new LibraryEntry(video, source,
+                cardWidth, thumbnailHeight,
+                _libraryListMode || _librarySizeIndex == 0 ? 192 : 384,
+                GetSavedVideoSize(source))
+            {
+                CompactList = _libraryCompactList,
+            };
+        }
     }
 
     private void LibraryRoot_SizeChanged(object sender, SizeChangedEventArgs args)
@@ -123,6 +156,17 @@ public sealed partial class MainPage
         }
     }
 
+    private static long? GetSavedVideoSize(string sourcePath)
+    {
+        try
+        {
+            var file = new FileInfo(sourcePath);
+            return file.Exists ? file.Length : null;
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
+
     private void FilterLibrary()
     {
         if (_controller is null)
@@ -135,10 +179,8 @@ public sealed partial class MainPage
         try
         {
             ViewModel.Library.Clear();
-            IEnumerable<LibraryEntry> filtered = _library
-                .Where(document => MatchesLibraryQuery(document, query))
-                .Select(document => _libraryEntries.GetValueOrDefault(document.Id))
-                .OfType<LibraryEntry>();
+            IEnumerable<LibraryEntry> filtered = _libraryEntries.Values
+                .Where(entry => MatchesLibraryQuery(entry, query));
             LibraryEntry[] visible = SortLibraryEntries(filtered).ToArray();
             for (int index = 0; index < visible.Length; index++)
             {
@@ -154,11 +196,12 @@ public sealed partial class MainPage
         }
 
         int count = ViewModel.Library.Count;
-        bool hasSaved = _library.Count > 0;
+        int total = _library.Count + _videoLibrary.Count;
+        bool hasSaved = total > 0;
         bool noMatches = hasSaved && count == 0;
         LibraryResultCount.Text = query.Length == 0
-            ? $"{_library.Count} {ShnappWord(_library.Count)}"
-            : $"{count} of {_library.Count} {ShnappWord(_library.Count)}";
+            ? $"{total} {ShnappWord(total)}"
+            : $"{count} of {total} {ShnappWord(total)}";
         LibraryEmpty.Visibility = count == 0 ? Visibility.Visible : Visibility.Collapsed;
         LibraryEmptyArtwork.Visibility = noMatches ? Visibility.Collapsed : Visibility.Visible;
         LibraryNoResults.Visibility = noMatches ? Visibility.Visible : Visibility.Collapsed;
@@ -265,32 +308,21 @@ public sealed partial class MainPage
             (LibrarySortField.Name, false) => "Name A–Z",
             (LibrarySortField.FileSize, true) => "Largest files",
             (LibrarySortField.FileSize, false) => "Smallest files",
-            (LibrarySortField.Dimensions, true) => "Largest images",
-            _ => "Smallest images",
+            (LibrarySortField.Dimensions, true) => "Largest dimensions",
+            _ => "Smallest dimensions",
         };
     }
 
     private static string ShnappWord(int count) => count == 1 ? "shnapp" : "shnapps";
 
-    private static bool MatchesLibraryQuery(ShnappSummary document, string query)
+    private static bool MatchesLibraryQuery(LibraryEntry entry, string query)
     {
         if (query.Length == 0)
         {
             return true;
         }
-
-        string type = document.CaptureKind switch
-        {
-            CaptureKind.Window => "window",
-            CaptureKind.FullScreen => "full screen display",
-            CaptureKind.Camera => "camera photo webcam",
-            _ => "region",
-        };
-        string terms = $"{document.Title} {type} {document.ModifiedAt.ToLocalTime():MMM d yyyy HH:mm} " +
-            $"{document.Viewport.Width:0}x{document.Viewport.Height:0} " +
-            $"{document.Viewport.Width:0}×{document.Viewport.Height:0}";
         return query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .All(term => terms.Contains(term, StringComparison.OrdinalIgnoreCase));
+            .All(term => entry.SearchTerms.Contains(term, StringComparison.OrdinalIgnoreCase));
     }
 
     private void UpdateLibraryView()
@@ -310,7 +342,7 @@ public sealed partial class MainPage
     {
         if (ViewModel.Library.FirstOrDefault() is { } entry)
         {
-            _controller?.OpenDocument(entry.Id);
+            OpenLibraryEntry(entry);
         }
     }
 
@@ -364,9 +396,15 @@ public sealed partial class MainPage
             return;
         }
 
-        _controller?.OpenDocument(entry.Id);
+        OpenLibraryEntry(entry);
 
         args.Handled = true;
+    }
+
+    private void OpenLibraryEntry(LibraryEntry entry)
+    {
+        if (entry.IsVideo) _controller?.OpenVideoProject(entry.Id);
+        else _controller?.OpenDocument(entry.Id);
     }
 
     private void LibraryCard_RightTapped(object sender, RightTappedRoutedEventArgs args)
@@ -377,12 +415,19 @@ public sealed partial class MainPage
         }
 
         var menu = new MenuFlyout();
+        if (entry.IsVideo)
+        {
+            AddAction("Open video", Symbol.Play, () => _controller.OpenVideoProject(entry.Id));
+            menu.ShowAt(card, new FlyoutShowOptions { Position = args.GetPosition(card) });
+            args.Handled = true;
+            return;
+        }
         AddAction("Clone", Symbol.Copy, () => _controller.CloneDocument(entry.Id));
         AddAction("Rename", Symbol.Edit, () => _controller.RequestRenameDocument(entry.Id));
         AddAction("Copy snapshot path", Symbol.Copy, () => _controller.CopyDocumentPath(entry.Id));
         AddAction("Share", Symbol.Share, () => _controller.ShareDocument(entry.Id));
         menu.Items.Add(new MenuFlyoutSeparator());
-        AddAction("Delete", Symbol.Delete, () => _controller.RequestDeleteDocuments([entry.Id]));
+        AddAction("Delete", Symbol.Delete, () => _controller.RequestDeleteDocuments(new[] { entry.Id }));
         menu.ShowAt(card, new FlyoutShowOptions { Position = args.GetPosition(card) });
         args.Handled = true;
 
@@ -398,7 +443,7 @@ public sealed partial class MainPage
     {
         if (args.ClickedItem is LibraryEntry entry)
         {
-            _controller?.OpenDocument(entry.Id);
+            OpenLibraryEntry(entry);
         }
     }
 
@@ -486,8 +531,9 @@ public sealed partial class MainPage
         }
 
         _librarySelectAllKeyActive = true;
-        if (ViewModel.Library.Count > 0 &&
-            ViewModel.Library.All(entry => _selectedLibraryIds.Contains(entry.Id)))
+        LibraryEntry[] selectable = ViewModel.Library.Where(entry => !entry.IsVideo).ToArray();
+        if (selectable.Length == 0) return;
+        if (selectable.All(entry => _selectedLibraryIds.Contains(entry.Id)))
         {
             RemoveLibrarySelection(_selectedLibraryIds.ToArray());
             return;
@@ -503,6 +549,7 @@ public sealed partial class MainPage
         {
             foreach (LibraryEntry entry in ViewModel.Library)
             {
+                if (entry.IsVideo) continue;
                 _selectedLibraryIds.Add(entry.Id);
                 entry.IsSelected = true;
             }
@@ -532,7 +579,7 @@ public sealed partial class MainPage
     private void LibrarySelectionCheck_Changed(object sender, RoutedEventArgs args)
     {
         if (!IsLoaded || _restoringLibrarySelection ||
-            sender is not CheckBox { Tag: LibraryEntry entry } checkbox)
+            sender is not CheckBox { Tag: LibraryEntry entry } checkbox || entry.IsVideo)
         {
             return;
         }
@@ -567,7 +614,7 @@ public sealed partial class MainPage
             _librarySelectionMode = selectionMode;
             foreach (LibraryEntry entry in _libraryEntries.Values)
             {
-                entry.CanDrag = !selectionMode;
+                entry.CanDrag = !selectionMode && !entry.IsVideo;
             }
         }
 

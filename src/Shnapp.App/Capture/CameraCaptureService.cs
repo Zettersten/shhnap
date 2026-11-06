@@ -20,6 +20,7 @@ internal sealed class CameraCaptureService : IDisposable
 
     private MediaCapture? _capture;
     private MediaPlayer? _player;
+    private MediaSource? _source;
     private MediaPlayerElement? _preview;
 
     internal event Action<string>? Failed;
@@ -41,6 +42,7 @@ internal sealed class CameraCaptureService : IDisposable
 
         var capture = new MediaCapture();
         MediaPlayer? player = null;
+        MediaSource? source = null;
         try
         {
             await capture.InitializeAsync(new MediaCaptureInitializationSettings
@@ -62,17 +64,19 @@ internal sealed class CameraCaptureService : IDisposable
                 throw new InvalidOperationException("This camera does not provide a video preview. Choose another camera.");
             }
 
+            source = MediaSource.CreateFromMediaFrameSource(frameSource);
             player = new MediaPlayer
             {
                 RealTimePlayback = true,
                 AutoPlay = false,
-                Source = MediaSource.CreateFromMediaFrameSource(frameSource),
+                Source = source,
             };
             capture.Failed += Capture_Failed;
             player.MediaFailed += Player_MediaFailed;
             preview.SetMediaPlayer(player);
             _capture = capture;
             _player = player;
+            _source = source;
             _preview = preview;
             player.Play();
         }
@@ -85,8 +89,14 @@ internal sealed class CameraCaptureService : IDisposable
             else
             {
                 // Initialization can fail before the session becomes owned by this service.
-                player?.Dispose();
-                capture.Dispose();
+                try { if (player is not null) player.Source = null; }
+                catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
+                try { source?.Dispose(); }
+                catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
+                try { player?.Dispose(); }
+                catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
+                try { capture.Dispose(); }
+                catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
             }
             throw;
         }
@@ -121,16 +131,23 @@ internal sealed class CameraCaptureService : IDisposable
     public void Dispose()
     {
         MediaPlayer? player = _player;
+        MediaSource? source = _source;
         MediaPlayerElement? preview = _preview;
         MediaCapture? capture = _capture;
         _player = null;
+        _source = null;
         _preview = null;
         _capture = null;
+        if (capture is not null) Failed = null;
 
         if (player is not null)
         {
             player.MediaFailed -= Player_MediaFailed;
             try { player.Pause(); }
+            catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
+            // The source wraps a MediaCapture frame source. Disconnect it before
+            // releasing either the player or the capture session.
+            try { player.Source = null; }
             catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
         }
 
@@ -140,11 +157,15 @@ internal sealed class CameraCaptureService : IDisposable
             catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
         }
 
+        try { source?.Dispose(); }
+        catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
         try { player?.Dispose(); }
         catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
         if (capture is not null)
         {
-            capture.Failed -= Capture_Failed;
+            // The capture is being disposed now. Keep its native event intact:
+            // removing WinRT camera handlers during teardown can fail-fast.
+            // Clearing the managed subscribers above prevents late UI callbacks.
             try { capture.Dispose(); }
             catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
         }

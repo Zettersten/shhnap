@@ -14,8 +14,8 @@ const contactHref = `mailto:${distribution.contactEmail}`;
     <section class="pr-hero" aria-labelledby="privacy-page-title">
       <div class="shell pr-hero-inner">
         <div class="pr-hero-main">
-          <h1 id="privacy-page-title">Your screenshots<br /><em>stay yours.</em></h1>
-          <p>Shnapp captures and edits images on your Windows PC. There is no Shnapp account, and the app does not include analytics or telemetry. Here’s how the current Windows app and this website handle your information.</p>
+          <h1 id="privacy-page-title">Your captures<br /><em>stay yours.</em></h1>
+          <p>Shnapp captures images and records video on your Windows PC. Recording can include computer audio, microphone audio, and camera video when you enable them. There is no Shnapp account, and the app does not include analytics or telemetry. Here’s how the current Windows app and this website handle your information.</p>
           <a href="#local-files">Explore the details <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v13m-5-5 5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></a>
         </div>
         <div class="pr-hero-facts" aria-label="Privacy at a glance">
@@ -23,7 +23,7 @@ const contactHref = `mailto:${distribution.contactEmail}`;
           <div><strong>Your account</strong><span>None required</span></div>
           <div><strong>App analytics</strong><span>None included</span></div>
         </div>
-        <p class="pr-update-date">Updated October 14, 2026</p>
+        <p class="pr-update-date">Updated November 6, 2026</p>
       </div>
     </section>
 
@@ -41,8 +41,8 @@ const contactHref = `mailto:${distribution.contactEmail}`;
         <div class="pr-article">
           <section id="local-files" aria-labelledby="local-title">
             <h2 id="local-title">Local files</h2>
-            <p>Shnapp keeps your capture library, editable originals, rendered previews, preferences, and update-check state on your PC. Direct-download editions use <code>%LOCALAPPDATA%\Shnapp</code> by default; an advanced <code>--data-root</code> launch option can move it elsewhere. The Microsoft Store edition uses its own Windows LocalCache folder, which Windows excludes from device backup. Quit a direct-download copy before the Store edition's first launch. It then copies an existing library into that folder and leaves the original files in place.</p>
-            <p>When you copy a PNG, Shnapp places it on your Windows clipboard. When you choose Save, the exported PNG goes to the location you select. Shnapp does not automatically upload captures to us or GitHub.</p>
+            <p>Shnapp keeps your capture library, editable originals, video projects, recordings, any enabled audio or camera tracks, rendered previews, preferences, and update-check state on your PC. Direct-download editions use <code>%LOCALAPPDATA%\Shnapp</code> by default; an advanced <code>--data-root</code> launch option can move it elsewhere. The Microsoft Store edition uses its own Windows LocalCache folder, which Windows excludes from device backup. Quit a direct-download copy before the Store edition's first launch. It then copies an existing library into that folder and leaves the original files in place.</p>
+            <p>When you copy a PNG, Shnapp places it on your Windows clipboard. Saved PNGs and exported MP4s go to the locations you select. Shnapp does not automatically upload captures or recordings to us or GitHub.</p>
           </section>
 
           <section id="network" aria-labelledby="network-title">
@@ -54,14 +54,14 @@ const contactHref = `mailto:${distribution.contactEmail}`;
 
           <section id="sharing" aria-labelledby="sharing-title">
             <h2 id="sharing-title">Sharing and feedback</h2>
-            <p>Shnapp opens the Windows Share sheet only when you choose Share. It gives Windows the finished PNG and, when available, a thumbnail. Share and Copy path create separate local PNG snapshots so later edits cannot change files another app may read. Snapshots become eligible for cleanup after seven days; deleting a capture also attempts to remove its snapshots. A file another app is using may remain until a later cleanup. You choose the destination; that destination’s privacy practices apply after you share.</p>
+            <p>For screenshots, Shnapp opens the Windows Share sheet only when you choose Share. It gives Windows the finished PNG and, when available, a thumbnail. Share and Copy path create separate local PNG snapshots so later edits cannot change files another app may read. Snapshots become eligible for cleanup after seven days; deleting a capture also attempts to remove its snapshots. A file another app is using may remain until a later cleanup. You choose the destination; that destination’s privacy practices apply after you share. For video, the editor exports an MP4 to the location you choose.</p>
             <p>Links to bug reports and feature requests open GitHub when the public issue tracker is available. GitHub handles information you submit there under its <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener noreferrer">privacy statement</a>. If you email us, your message is handled by our email provider. Please avoid including sensitive screenshots in a public issue.</p>
           </section>
 
           <section id="choices" aria-labelledby="choices-title">
             <h2 id="choices-title">Your choices</h2>
-            <p>You choose what to capture, copy, export, and share. For a direct-download edition, quit Shnapp and delete <code>%LOCALAPPDATA%\Shnapp</code>, or the folder you set with <code>--data-root</code>, to remove its local library and preferences. The Microsoft Store edition keeps a separate copy in its Windows app-data folder; removing or resetting that edition may delete its copy. Back up editable captures before removing it. PNGs saved elsewhere must be deleted separately.</p>
-            <p>For a capture containing sensitive details, use opaque Cover on the exported image. Blur and Pixelate may leave text or shapes recognizable. The editable original remains in your local library until you delete it.</p>
+            <p>You choose what to capture, whether a recording includes computer audio, microphone audio, or camera video, and what to copy, export, and share. For a direct-download edition, quit Shnapp and delete <code>%LOCALAPPDATA%\Shnapp</code>, or the folder you set with <code>--data-root</code>, to remove its local library and preferences. The Microsoft Store edition keeps a separate copy in its Windows app-data folder; removing or resetting that edition may delete its copy. Back up editable captures before removing it. PNGs and MP4s saved elsewhere must be deleted separately.</p>
+            <p>For a screenshot containing sensitive details, use opaque Cover on the exported image. Blur and Pixelate may leave text or shapes recognizable. An editable original remains in your local library until you delete it. Review an exported video before sharing it, especially if you recorded audio or a camera feed.</p>
           </section>
 
           <section id="contact" aria-labelledby="contact-title">

@@ -20,7 +20,7 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
 <SiteLayout
   page="download"
   title="Download Shnapp for Windows 11"
-  description="Get Shnapp for Windows 11. Choose the x64 or ARM64 direct download and follow the setup steps for the current release."
+  description="Get Shnapp for Windows 11. Capture screenshots and screen video, edit them locally, and choose the x64, ARM64, or Microsoft Store edition."
 >
   <div class="download-page">
     <section class="dl-hero" aria-labelledby="download-title">
@@ -31,7 +31,7 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
             <span data-release-status-copy>{downloadsAvailable ? 'Available now for Windows 11' : 'First public release in preparation'}</span>
           </span>
           <h1 id="download-title">Ready when the moment <em>hits.</em></h1>
-          <p>Get Shnapp for Windows 11 and turn a quick capture into something ready to keep, copy, or share. Built for Intel, AMD, and ARM PCs.</p>
+          <p>Get Shnapp for Windows 11. Capture a still or record your screen, edit it locally, and share when it is ready. Built for Intel, AMD, and ARM PCs.</p>
           <div class="dl-hero-actions">
             <a class="dl-primary-link" href="#builds">Choose your build <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></a>
             {downloadsAvailable && <a class="dl-secondary-link" data-release-link href={latestReleaseUrl} target="_blank" rel="noopener noreferrer">See release notes <span aria-hidden="true">↗</span></a>}
@@ -39,9 +39,9 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
         </div>
         <figure class="dl-hero-preview">
           <div class="dl-preview-frame">
-            <img src="/screenshots/editor.png" width="1920" height="1032" alt="Shnapp editor showing a fictional launch checklist with selected annotation options" />
+            <img src="/screenshots/editor.webp" width="1586" height="893" alt="Shnapp editor showing a fictional launch checklist with selected annotation options" fetchpriority="high" />
           </div>
-          <figcaption>Capture. Mark it up. Keep moving.</figcaption>
+          <figcaption>Capture a still. Mark it up. Keep moving.</figcaption>
         </figure>
       </div>
     </section>
@@ -97,7 +97,7 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
         <ol class="dl-setup-list">
           <li><span class="dl-setup-index" aria-hidden="true">01</span><div><h3>Download</h3><p>Choose x64 for an Intel or AMD PC, or ARM64 for a Windows on ARM PC.</p></div></li>
           <li><span class="dl-setup-index" aria-hidden="true">02</span><div><h3 data-zip-only>Extract</h3><p data-zip-only>Extract the entire archive to a folder you choose. Keep <code>versions</code> and <code>current-version.txt</code> beside the root <code>Shnapp.exe</code>, then run that launcher.</p><h3 data-installer-only hidden>Install</h3><p data-installer-only hidden>Run the setup file to install Shnapp, then open the app.</p></div></li>
-          <li><span class="dl-setup-index" aria-hidden="true">03</span><div><h3>Capture</h3><p>Use Ctrl + Shift + 2 for a region, 4 for a window, 3 for a display, or 5 for a camera photo when a camera is connected.</p></div></li>
+          <li><span class="dl-setup-index" aria-hidden="true">03</span><div><h3>Capture or record</h3><p>Use Ctrl + Shift + 2, 3, or 4 for a screenshot of a region, display, or window; use Alt + Shift with the same number to record video. Ctrl + Shift + 5 takes a camera photo when a camera is connected.</p></div></li>
         </ol>
       </div>
     </section>
@@ -132,7 +132,7 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
         <div class="dl-info-heading"><h2 id="know-title">A few useful details.</h2><p>Shnapp saves its library and preferences in your Windows user folder, separate from the app files.</p><a href="/privacy/">How Shnapp handles your data <span aria-hidden="true">↗</span></a></div>
         <div class="dl-faq">
           <details><summary>Does Shnapp need an account?</summary><p>No. Capturing, editing, copying, and saving do not require an account.</p></details>
-          <details><summary>Where are my captures stored?</summary><p>Direct-download editions keep your library and settings under <code>%LOCALAPPDATA%\Shnapp</code> by default. The Microsoft Store edition uses its own Windows app-data folder. Quit a direct-download copy before opening the Store edition for the first time so it can copy your existing library. Your original files stay in place. PNGs you save elsewhere go to the location you choose. <a href="/privacy/">See the privacy details.</a></p></details>
+          <details><summary>Where are my captures stored?</summary><p>Direct-download editions keep your photo and video library and settings under <code>%LOCALAPPDATA%\Shnapp</code> by default. The Microsoft Store edition uses its own Windows app-data folder. Quit a direct-download copy before opening the Store edition for the first time so it can copy your existing library. Your original files stay in place. PNGs and MP4s exported elsewhere go to the location you choose. <a href="/privacy/">See the privacy details.</a></p></details>
           <details><summary>How do updates work?</summary><p data-zip-only>Direct ZIP copies check for a stable GitHub release at most once a day. Shnapp verifies and prepares a newer version in the background, then uses it on your next restart. You can check or restart from Settings → About &amp; Updates. Copies installed before v1.0.4 need one manual ZIP replacement to gain this feature; the local library stays in your Windows user folder. Scoop, WinGet, and Chocolatey copies use their package managers, with an update action in Shnapp. A Store copy uses Microsoft Store updates.</p><p data-installer-only hidden>Installer copies can check for and apply app updates from Settings → About &amp; Updates. Portable ZIP copies retain their existing GitHub release updater. Scoop, WinGet, and Chocolatey copies use their package managers, with an update action in Shnapp. A Store copy uses Microsoft Store updates.</p></details>
           <details><summary>What if my capture contains sensitive information?</summary><p>Use opaque Cover before copying, saving, or sharing the finished image. Blur and Pixelate are visual obscuring tools and may leave details recognizable. Your editable original stays in your local library.</p></details>
         </div>

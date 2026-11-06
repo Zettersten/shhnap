@@ -9,6 +9,8 @@ using Microsoft.UI.Xaml.Media.Animation;
 using Shnapp.App.Capture;
 using Shnapp.Core;
 using Shnapp.App.Windows;
+using Windows.Devices.Enumeration;
+using Windows.Media.Devices;
 using Windows.System;
 using Windows.UI.ViewManagement;
 
@@ -26,6 +28,9 @@ public sealed partial class SettingsPage : Page
     private bool _cameraSourcesLoaded;
     private bool _loadingCameraSources;
     private int _availableCameraSourceCount;
+    private bool _microphoneSourcesLoaded;
+    private bool _loadingMicrophoneSources;
+    private int _availableMicrophoneSourceCount;
     private bool _configured;
     private bool _entered;
     private readonly bool _animationsEnabled = new UISettings().AnimationsEnabled;
@@ -59,6 +64,10 @@ public sealed partial class SettingsPage : Page
         StartAtSignIn.IsEnabled = _startupEditable;
         AutoCopy.IsOn = settings.AutoCopy;
         WindowShadow.IsOn = settings.WindowShadow;
+        VideoSystemAudio.IsOn = settings.VideoCaptureSystemAudio;
+        VideoMicrophone.IsOn = settings.VideoCaptureMicrophone;
+        VideoCamera.IsOn = settings.VideoCaptureCamera;
+        VideoCursor.IsOn = settings.VideoCaptureCursor;
         PrintScreenEnabled.IsOn = settings.PrintScreenEnabled;
         PrintScreenEnabled.IsEnabled = _printScreenEditable;
         PrintScreenModePicker.SelectedIndex = settings.PrintScreenMode switch
@@ -73,14 +82,18 @@ public sealed partial class SettingsPage : Page
         CameraSourcePicker.SelectedIndex = 0;
         CameraSourcePicker.IsEnabled = false;
         TakeCameraPhotoButton.IsEnabled = false;
-        CameraSourceStatus.Text = "Finding cameras…";
+        SetSourceStatus(CameraSourceStatus, "Finding cameras…");
+        _microphoneSourcesLoaded = false;
+        _availableMicrophoneSourceCount = 0;
+        VideoMicrophoneSourcePicker.SelectedIndex = 0;
+        VideoMicrophoneSourcePicker.IsEnabled = false;
+        SetSourceStatus(VideoMicrophoneSourceStatus, "Finding microphones…");
         ThemePicker.SelectedIndex = settings.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
         LibraryPath.Text = libraryPath;
         LibraryNote.Text = isolated
             ? "Verification library. Startup changes are disabled."
-            : "Editable originals stay here. Share the exported PNG when a capture contains private details.";
-        SettingsVersionLabel.Text = "Installed version " + version;
-        VersionLabel.Text = SettingsVersionLabel.Text;
+            : "Original captures are stored here.";
+        VersionLabel.Text = "Installed version " + version;
         Version windows = Environment.OSVersion.Version;
         string windowsName = windows.Major == 10 && windows.Build >= 22000 ? "Windows 11" : $"Windows {windows.Major}";
         RuntimeLabel.Text = $"{windowsName} · build {windows.Build} · {RuntimeInformation.ProcessArchitecture} · .NET {Environment.Version}";
@@ -164,6 +177,16 @@ public sealed partial class SettingsPage : Page
     {
         if (!_saving) { SelectSection("general"); }
     }
+    private async void RecordingNav_Click(object sender, RoutedEventArgs args)
+    {
+        if (_saving) { return; }
+        SelectSection("recording");
+        await Task.WhenAll(RefreshCameraSourcesAsync(), RefreshMicrophoneSourcesAsync());
+    }
+    private void ShortcutsNav_Click(object sender, RoutedEventArgs args)
+    {
+        if (!_saving) { SelectSection("shortcuts"); }
+    }
     private void UpdatesNav_Click(object sender, RoutedEventArgs args)
     {
         if (!_saving) { SelectSection("updates"); }
@@ -175,7 +198,14 @@ public sealed partial class SettingsPage : Page
 
     private async void SettingsPage_Loaded(object sender, RoutedEventArgs args)
     {
-        (UpdatesPanel.Visibility == Visibility.Visible ? UpdatesNavButton : GeneralNavButton)
+        (_selectedSection switch
+        {
+            "recording" => RecordingNavButton,
+            "shortcuts" => ShortcutsNavButton,
+            "updates" => UpdatesNavButton,
+            "feedback" => FeedbackNavButton,
+            _ => GeneralNavButton,
+        })
             .Focus(FocusState.Programmatic);
         UpdateNavForegrounds();
         if (_animationsEnabled && !_entered)
@@ -183,12 +213,21 @@ public sealed partial class SettingsPage : Page
             _entered = true;
             _openingTransition = AnimateDialogAsync(0, 1, 14, 0, 240, EasingMode.EaseOut);
         }
-        await RefreshCameraSourcesAsync();
+        if (_selectedSection == "recording")
+        {
+            await Task.WhenAll(RefreshCameraSourcesAsync(), RefreshMicrophoneSourcesAsync());
+        }
+    }
+
+    private static void SetSourceStatus(TextBlock status, string message)
+    {
+        status.Text = message;
+        status.Visibility = message.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private async Task RefreshCameraSourcesAsync()
     {
-        if (!_configured || _loadingCameraSources)
+        if (!_configured || _cameraSourcesLoaded || _loadingCameraSources)
         {
             return;
         }
@@ -197,7 +236,7 @@ public sealed partial class SettingsPage : Page
         _cameraSourcesLoaded = false;
         CameraSourcePicker.IsEnabled = false;
         TakeCameraPhotoButton.IsEnabled = false;
-        CameraSourceStatus.Text = "Finding cameras…";
+        SetSourceStatus(CameraSourceStatus, "Finding cameras…");
         try
         {
             IReadOnlyList<CameraSource> sources = await CameraCaptureService.EnumerateSourcesAsync();
@@ -220,7 +259,8 @@ public sealed partial class SettingsPage : Page
             _availableCameraSourceCount = 0;
             CameraSourcePicker.IsEnabled = false;
             TakeCameraPhotoButton.IsEnabled = false;
-            CameraSourceStatus.Text = "Camera sources could not be loaded. Reopen Settings to try again.";
+            SetSourceStatus(CameraSourceStatus,
+                "Camera sources could not be loaded. Return to Recording to try again.");
             Debug.WriteLine($"Shnapp camera source enumeration failed: {exception}");
         }
         finally
@@ -256,13 +296,16 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        CameraSourceStatus.Text = _availableCameraSourceCount == 0
-            ? "No camera is connected. Connect one to take a camera photo."
+        string message = _availableCameraSourceCount == 0
+            ? VideoCamera.IsOn
+                ? "No camera is connected. Camera video cannot record until one is available."
+                : "No camera is connected. Connect one to take photos or record camera video."
             : CameraSourcePicker.SelectedIndex > _availableCameraSourceCount
                 ? "The saved camera is unavailable. Choose Automatic or another camera."
                 : CameraSourcePicker.SelectedIndex <= 0
-                    ? "Automatic uses the default available camera."
-                    : "This camera will be used for camera photos.";
+                    ? "Automatic uses an available camera for photos and video."
+                    : string.Empty;
+        SetSourceStatus(CameraSourceStatus, message);
     }
 
     private string? SelectedCameraSourceId()
@@ -273,6 +316,110 @@ public sealed partial class SettingsPage : Page
         }
 
         string? sourceId = (CameraSourcePicker.SelectedItem as ComboBoxItem)?.Tag as string;
+        return string.IsNullOrEmpty(sourceId) ? null : sourceId;
+    }
+
+    private async Task RefreshMicrophoneSourcesAsync()
+    {
+        if (!_configured || _microphoneSourcesLoaded || _loadingMicrophoneSources)
+        {
+            return;
+        }
+
+        _loadingMicrophoneSources = true;
+        _microphoneSourcesLoaded = false;
+        VideoMicrophoneSourcePicker.IsEnabled = false;
+        SetSourceStatus(VideoMicrophoneSourceStatus, "Finding microphones…");
+        try
+        {
+            DeviceInformationCollection sources = await DeviceInformation.FindAllAsync(
+                MediaDevice.GetAudioCaptureSelector());
+            VideoMicrophoneSourcePicker.Items.Clear();
+            VideoMicrophoneSourcePicker.Items.Add(new ComboBoxItem
+            {
+                Content = "System default",
+                Tag = string.Empty,
+            });
+            foreach (DeviceInformation source in sources)
+            {
+                VideoMicrophoneSourcePicker.Items.Add(new ComboBoxItem
+                {
+                    Content = source.Name,
+                    Tag = source.Id,
+                });
+            }
+
+            _availableMicrophoneSourceCount = sources.Count;
+            SelectMicrophoneSource(_savedSettings.VideoMicrophoneSourceId);
+            _microphoneSourcesLoaded = true;
+            VideoMicrophoneSourcePicker.IsEnabled =
+                !_saving && VideoMicrophone.IsOn && sources.Count > 0;
+            UpdateMicrophoneSourceStatus();
+        }
+        catch (Exception exception)
+        {
+            _availableMicrophoneSourceCount = 0;
+            VideoMicrophoneSourcePicker.IsEnabled = false;
+            SetSourceStatus(VideoMicrophoneSourceStatus,
+                "Microphone sources could not be loaded. Return to Recording to try again.");
+            Debug.WriteLine($"Shnapp microphone source enumeration failed: {exception}");
+        }
+        finally
+        {
+            _loadingMicrophoneSources = false;
+        }
+    }
+
+    private void SelectMicrophoneSource(string? sourceId)
+    {
+        for (int index = 0; index < VideoMicrophoneSourcePicker.Items.Count; index++)
+        {
+            if (VideoMicrophoneSourcePicker.Items[index] is ComboBoxItem item &&
+                string.Equals(item.Tag as string, sourceId ?? string.Empty,
+                    StringComparison.Ordinal))
+            {
+                VideoMicrophoneSourcePicker.SelectedIndex = index;
+                return;
+            }
+        }
+
+        VideoMicrophoneSourcePicker.Items.Add(new ComboBoxItem
+        {
+            Content = "Previously selected microphone (unavailable)",
+            Tag = sourceId,
+        });
+        VideoMicrophoneSourcePicker.SelectedIndex =
+            VideoMicrophoneSourcePicker.Items.Count - 1;
+    }
+
+    private void UpdateMicrophoneSourceStatus()
+    {
+        if (!_microphoneSourcesLoaded)
+        {
+            return;
+        }
+
+        string message = _availableMicrophoneSourceCount == 0
+            ? "No microphone is connected. Connect one to record your voice."
+            : VideoMicrophoneSourcePicker.SelectedIndex > _availableMicrophoneSourceCount
+                ? "The saved microphone is unavailable. Choose System default or another microphone."
+                : !VideoMicrophone.IsOn
+                    ? "Turn on Record microphone to use this source."
+                : VideoMicrophoneSourcePicker.SelectedIndex <= 0
+                    ? "Uses the default Windows input for new recordings."
+                    : string.Empty;
+        SetSourceStatus(VideoMicrophoneSourceStatus, message);
+    }
+
+    private string? SelectedMicrophoneSourceId()
+    {
+        if (!_microphoneSourcesLoaded)
+        {
+            return _savedSettings.VideoMicrophoneSourceId;
+        }
+
+        string? sourceId =
+            (VideoMicrophoneSourcePicker.SelectedItem as ComboBoxItem)?.Tag as string;
         return string.IsNullOrEmpty(sourceId) ? null : sourceId;
     }
 
@@ -352,22 +499,37 @@ public sealed partial class SettingsPage : Page
     private void SettingsPage_SizeChanged(object sender, SizeChangedEventArgs args)
     {
         bool compact = args.NewSize.Width < 720;
-        SidebarColumn.Width = new GridLength(compact ? 72 : 204);
-        SidebarBorder.Margin = compact ? new Thickness(0, 0, 10, 16) : new Thickness(0, 0, 20, 16);
+        SettingsSaveStatus.Visibility = args.NewSize.Width < 560 ? Visibility.Collapsed : Visibility.Visible;
+        SidebarColumn.Width = new GridLength(compact ? 52 : 176);
+        SidebarBorder.Margin = compact ? new Thickness(0, 0, 8, 16) : new Thickness(0, 0, 22, 16);
         Visibility labelVisibility = compact ? Visibility.Collapsed : Visibility.Visible;
         GeneralNavLabel.Visibility = labelVisibility;
+        RecordingNavLabel.Visibility = labelVisibility;
+        ShortcutsNavLabel.Visibility = labelVisibility;
         UpdatesNavLabel.Visibility = labelVisibility;
         FeedbackNavLabel.Visibility = labelVisibility;
-        foreach (Button button in new[] { GeneralNavButton, UpdatesNavButton, FeedbackNavButton })
+        foreach (Button button in new[]
+            { GeneralNavButton, RecordingNavButton, ShortcutsNavButton, UpdatesNavButton, FeedbackNavButton })
         {
-            button.Padding = compact ? new Thickness(8) : new Thickness(12, 8, 12, 8);
+            button.Padding = compact ? new Thickness(8) : new Thickness(10, 6, 10, 6);
             button.HorizontalContentAlignment = compact ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         }
+        UpdateActions.Orientation = args.NewSize.Width < 760
+            ? Orientation.Vertical : Orientation.Horizontal;
+        Orientation linkOrientation = args.NewSize.Width < 600
+            ? Orientation.Vertical : Orientation.Horizontal;
+        LinkActionsFirst.Orientation = linkOrientation;
+        LinkActionsSecond.Orientation = linkOrientation;
+        FeedbackActions.Orientation = linkOrientation;
     }
 
     private void SettingsPage_KeyDown(object sender, KeyRoutedEventArgs args)
     {
-        if (args.Key == VirtualKey.Escape && !args.Handled && !ThemePicker.IsDropDownOpen)
+        if (args.Key == VirtualKey.Escape && !args.Handled &&
+            !ThemePicker.IsDropDownOpen &&
+            !CameraSourcePicker.IsDropDownOpen &&
+            !VideoMicrophoneSourcePicker.IsDropDownOpen &&
+            !PrintScreenModePicker.IsDropDownOpen)
         {
             args.Handled = true;
             if (!_saving) { _controller?.CloseSettings(); }
@@ -377,10 +539,23 @@ public sealed partial class SettingsPage : Page
     private void SelectSection(string section)
     {
         _selectedSection = section;
+        SettingsLayout.MaxHeight = section switch
+        {
+            "general" => 500,
+            "feedback" => 400,
+            "recording" => 630,
+            "updates" => 620,
+            _ => 700,
+        };
         GeneralPanel.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
+        GeneralContinuationPanel.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
+        RecordingPanel.Visibility = section == "recording" ? Visibility.Visible : Visibility.Collapsed;
+        ShortcutsPanel.Visibility = section == "shortcuts" ? Visibility.Visible : Visibility.Collapsed;
         UpdatesPanel.Visibility = section == "updates" ? Visibility.Visible : Visibility.Collapsed;
         FeedbackPanel.Visibility = section == "feedback" ? Visibility.Visible : Visibility.Collapsed;
         GeneralNavSelection.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
+        RecordingNavSelection.Visibility = section == "recording" ? Visibility.Visible : Visibility.Collapsed;
+        ShortcutsNavSelection.Visibility = section == "shortcuts" ? Visibility.Visible : Visibility.Collapsed;
         UpdatesNavSelection.Visibility = section == "updates" ? Visibility.Visible : Visibility.Collapsed;
         FeedbackNavSelection.Visibility = section == "feedback" ? Visibility.Visible : Visibility.Collapsed;
         UpdateNavForegrounds();
@@ -397,6 +572,8 @@ public sealed partial class SettingsPage : Page
         var selected = (Brush)themeResources["SettingsSelectedNavForegroundBrush"];
         var normal = (Brush)themeResources["SettingsNavForegroundBrush"];
         GeneralNavButton.Foreground = _selectedSection == "general" ? selected : normal;
+        RecordingNavButton.Foreground = _selectedSection == "recording" ? selected : normal;
+        ShortcutsNavButton.Foreground = _selectedSection == "shortcuts" ? selected : normal;
         UpdatesNavButton.Foreground = _selectedSection == "updates" ? selected : normal;
         FeedbackNavButton.Foreground = _selectedSection == "feedback" ? selected : normal;
     }
@@ -406,11 +583,20 @@ public sealed partial class SettingsPage : Page
         _saving = saving;
         CloseSettingsButton.IsEnabled = !saving;
         GeneralNavButton.IsEnabled = !saving;
+        RecordingNavButton.IsEnabled = !saving;
+        ShortcutsNavButton.IsEnabled = !saving;
         UpdatesNavButton.IsEnabled = !saving;
         FeedbackNavButton.IsEnabled = !saving;
         StartAtSignIn.IsEnabled = _startupEditable;
         PrintScreenEnabled.IsEnabled = !saving && _printScreenEditable;
         PrintScreenModePicker.IsEnabled = !saving && _printScreenEditable && PrintScreenEnabled.IsOn;
+        VideoSystemAudio.IsEnabled = !saving;
+        VideoMicrophone.IsEnabled = !saving;
+        VideoMicrophoneSourcePicker.IsEnabled =
+            !saving && _microphoneSourcesLoaded &&
+            _availableMicrophoneSourceCount > 0 && VideoMicrophone.IsOn;
+        VideoCamera.IsEnabled = !saving;
+        VideoCursor.IsEnabled = !saving;
         CameraSourcePicker.IsEnabled = !saving && _cameraSourcesLoaded && _availableCameraSourceCount > 0;
         TakeCameraPhotoButton.IsEnabled = !saving && _cameraSourcesLoaded && _availableCameraSourceCount > 0;
     }
@@ -426,6 +612,11 @@ public sealed partial class SettingsPage : Page
     private void PreferenceToggle_Changed(object sender, RoutedEventArgs args)
     {
         PrintScreenModePicker.IsEnabled = !_saving && _printScreenEditable && PrintScreenEnabled.IsOn;
+        VideoMicrophoneSourcePicker.IsEnabled =
+            !_saving && _microphoneSourcesLoaded &&
+            _availableMicrophoneSourceCount > 0 && VideoMicrophone.IsOn;
+        UpdateMicrophoneSourceStatus();
+        UpdateCameraSourceStatus();
         SaveChangedPreferences();
     }
 
@@ -438,6 +629,16 @@ public sealed partial class SettingsPage : Page
         if (!_loadingCameraSources && _cameraSourcesLoaded)
         {
             UpdateCameraSourceStatus();
+            SaveChangedPreferences();
+        }
+    }
+
+    private void VideoMicrophoneSourcePicker_Changed(
+        object sender, SelectionChangedEventArgs args)
+    {
+        if (!_loadingMicrophoneSources && _microphoneSourcesLoaded)
+        {
+            UpdateMicrophoneSourceStatus();
             SaveChangedPreferences();
         }
     }
@@ -482,6 +683,10 @@ public sealed partial class SettingsPage : Page
             StartAtSignIn.IsOn = _savedSettings.StartOnLogin;
             AutoCopy.IsOn = _savedSettings.AutoCopy;
             WindowShadow.IsOn = _savedSettings.WindowShadow;
+            VideoSystemAudio.IsOn = _savedSettings.VideoCaptureSystemAudio;
+            VideoMicrophone.IsOn = _savedSettings.VideoCaptureMicrophone;
+            VideoCamera.IsOn = _savedSettings.VideoCaptureCamera;
+            VideoCursor.IsOn = _savedSettings.VideoCaptureCursor;
             PrintScreenEnabled.IsOn = _savedSettings.PrintScreenEnabled;
             PrintScreenModePicker.SelectedIndex = _savedSettings.PrintScreenMode switch
             {
@@ -493,6 +698,10 @@ public sealed partial class SettingsPage : Page
             SelectCameraSource(_savedSettings.CameraSourceId);
             _loadingCameraSources = false;
             UpdateCameraSourceStatus();
+            _loadingMicrophoneSources = true;
+            SelectMicrophoneSource(_savedSettings.VideoMicrophoneSourceId);
+            _loadingMicrophoneSources = false;
+            UpdateMicrophoneSourceStatus();
             ThemePicker.SelectedIndex = _savedSettings.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
             _configured = true;
             SettingsSaveStatus.Text = "Change not saved";
@@ -515,6 +724,11 @@ public sealed partial class SettingsPage : Page
             StartOnLogin = StartAtSignIn.IsOn,
             AutoCopy = AutoCopy.IsOn,
             WindowShadow = WindowShadow.IsOn,
+            VideoCaptureSystemAudio = VideoSystemAudio.IsOn,
+            VideoCaptureMicrophone = VideoMicrophone.IsOn,
+            VideoCaptureCamera = VideoCamera.IsOn,
+            VideoCaptureCursor = VideoCursor.IsOn,
+            VideoMicrophoneSourceId = SelectedMicrophoneSourceId(),
             PrintScreenEnabled = PrintScreenEnabled.IsOn,
             PrintScreenMode = PrintScreenModePicker.SelectedIndex switch
             {

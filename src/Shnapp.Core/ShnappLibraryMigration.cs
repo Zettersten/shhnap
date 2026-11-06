@@ -429,7 +429,7 @@ public static class ShnappLibraryMigration
         return table;
     }
 
-    private static string[] GetSourceDirectoryNames(string documentsRoot)
+    internal static string[] GetSourceDirectoryNames(string documentsRoot)
     {
         if (!Directory.Exists(documentsRoot)) { return []; }
         EnsureNotReparsePoint(documentsRoot);
@@ -440,7 +440,7 @@ public static class ShnappLibraryMigration
             .ToArray();
     }
 
-    private static async Task WriteMarkerAsync(string path, CancellationToken cancellationToken)
+    internal static async Task WriteMarkerAsync(string path, CancellationToken cancellationToken)
     {
         if (File.Exists(path))
         {
@@ -465,7 +465,7 @@ public static class ShnappLibraryMigration
         }
     }
 
-    private static void EnsureNotReparsePoint(string path)
+    internal static void EnsureNotReparsePoint(string path)
     {
         try
         {
@@ -478,7 +478,7 @@ public static class ShnappLibraryMigration
         catch (DirectoryNotFoundException) { }
     }
 
-    private static void DeleteOwnedStage(string stageRoot)
+    internal static void DeleteOwnedStage(string stageRoot)
     {
         if (!Directory.Exists(stageRoot))
         {

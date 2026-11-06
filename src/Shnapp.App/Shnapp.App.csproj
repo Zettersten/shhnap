@@ -57,7 +57,7 @@
     <Content Include="..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\ShnappLogo.png" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\LibraryEmptyBackground.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\LibraryEmptyBackgroundVideo.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\provenance.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -155,10 +155,13 @@
     <PackageReference Include="Microsoft.NET.ILLink.Tasks" Version="10.0.12" PrivateAssets="all" />
     <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.9" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
+    <PackageReference Include="ScreenRecorderLib" Version="7.0.1" />
+    <PackageReference Include="NAudio" Version="3.3.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Velopack" Version="1.2.161" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <ProjectReference Include="..\Shnapp.Core\Shnapp.Core.csproj" />
+    <ProjectReference Include="..\Shnapp.VideoEffects\Shnapp.VideoEffects.csproj" />
   </ItemGroup>
 
   <!--

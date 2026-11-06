@@ -101,6 +101,7 @@ public sealed partial class MainPage : Page
             DrawingCanvas.Invalidate();
             LayoutLibraryEmptyScene();
             LibraryEmptySparkleHost.Refresh();
+            UpdateChromeGlassVisibility();
         };
         Loaded += MainPage_Loaded;
         Unloaded += MainPage_Unloaded;
@@ -113,20 +114,26 @@ public sealed partial class MainPage : Page
             _themeSettings = Microsoft.UI.System.ThemeSettings.CreateForWindowId(App.Window.AppWindow.Id);
             _themeSettings.Changed += ThemeSettings_Changed;
         }
+        InitializeChromeGlass();
         LayoutLibraryEmptyScene();
     }
 
     private void MainPage_Unloaded(object sender, RoutedEventArgs args)
     {
-        if (_themeSettings is not null)
-        {
-            _themeSettings.Changed -= ThemeSettings_Changed;
-            _themeSettings = null;
-        }
+        // MainPage belongs to the window for its entire lifetime. Keep this
+        // one subscription until process teardown: unsubscribing from the
+        // ThemeSettings native event during XAML Unloaded can fail-fast when
+        // the window is closing.
+        DisconnectChromeGlassSettings();
     }
 
     private void ThemeSettings_Changed(Microsoft.UI.System.ThemeSettings sender, object args) =>
-        DispatcherQueue.TryEnqueue(LayoutLibraryEmptyScene);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!IsLoaded) return;
+            LayoutLibraryEmptyScene();
+            UpdateChromeGlassVisibility();
+        });
 
     internal void Configure(AppController controller) => _controller = controller;
 
@@ -752,25 +759,10 @@ public sealed partial class MainPage : Page
 
     private void DrawCanvasBackdrop(CanvasDrawingSession drawing, double width, double height)
     {
-        drawing.Transform = Matrix3x2.Identity;
-        drawing.FillRectangle(new Rect(0, 0, width, height), CanvasThemeColor("ShnappCanvasBrush"));
-        if (_accessibility.HighContrast)
-        {
-            return;
-        }
-
-        const int tileSize = 18;
-        Color alternate = CanvasThemeColor("ShnappCheckerAccentBrush");
-        int columns = (int)Math.Ceiling(width / tileSize);
-        int rows = (int)Math.Ceiling(height / tileSize);
-        for (int row = 0; row < rows; row++)
-        {
-            for (int column = row & 1; column < columns; column += 2)
-            {
-                drawing.FillRectangle(column * tileSize, row * tileSize,
-                    tileSize, tileSize, alternate);
-            }
-        }
+        CheckerboardBackdrop.Draw(drawing, width, height,
+            CanvasThemeColor("ShnappCanvasBrush"),
+            CanvasThemeColor("ShnappCheckerAccentBrush"),
+            _accessibility.HighContrast);
     }
 
     private void Canvas_PointerReleased(object sender, PointerRoutedEventArgs args)
@@ -1735,9 +1727,15 @@ public sealed partial class MainPage : Page
     private void Library_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         LibraryEntry? entry = args.InRecycleQueue ? null : args.Item as LibraryEntry;
+        if (args.ItemContainer.Tag is LibraryEntry previous &&
+            !ReferenceEquals(previous, entry))
+            previous.ReleasePreview();
+        args.ItemContainer.Tag = entry;
+        entry?.EnsurePreview();
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(args.ItemContainer, entry?.Title ?? string.Empty);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(args.ItemContainer,
-            entry is null ? string.Empty : $"Shnapp_{entry.Id:N}");
+            entry is null ? string.Empty :
+                $"{(entry.IsVideo ? "Video" : "Shnapp")}_{entry.Id:N}");
     }
     private void Capture_Click(object sender, RoutedEventArgs args) => _controller?.Capture(Enum.Parse<CaptureKind>((string)((FrameworkElement)sender).Tag));
     private void Library_Click(object sender, RoutedEventArgs args) => _controller?.OpenLibrary();

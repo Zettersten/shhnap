@@ -12,7 +12,7 @@ public sealed partial class MainPage
     {
         if (Document is { } document)
         {
-            _controller?.RequestDeleteDocuments([document.Id]);
+            _controller?.RequestDeleteDocuments(new[] { document.Id });
         }
     }
 }

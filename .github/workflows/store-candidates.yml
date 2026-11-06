@@ -1,7 +1,6 @@
 name: Microsoft Store package candidates
 
-# Manual candidate build only. Store submission remains disabled until the first
-# listing is live and the Partner Center account is compliant.
+# Manual candidate build only. Partner Center submission remains a separate step.
 on:
   workflow_call:
     inputs:

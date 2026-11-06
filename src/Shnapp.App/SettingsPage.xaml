@@ -13,77 +13,52 @@
         <ResourceDictionary>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="SettingsScrimBrush" Color="#B900102D" />
-                    <AcrylicBrush x:Key="SettingsSurfaceBrush" TintColor="#F4F7FF" TintOpacity="0.86" FallbackColor="#F4F7FF" />
-                    <AcrylicBrush x:Key="SettingsSidebarBrush" TintColor="#EAF0FB" TintOpacity="0.82" FallbackColor="#EAF0FB" />
-                    <SolidColorBrush x:Key="SettingsCardBrush" Color="#FFFFFF" />
-                    <SolidColorBrush x:Key="SettingsStrokeBrush" Color="#C7D4EB" />
-                    <SolidColorBrush x:Key="SettingsSecondaryBrush" Color="#52617A" />
-                    <SolidColorBrush x:Key="SettingsShortcutBrush" Color="#EAF0FC" />
-                    <SolidColorBrush x:Key="SettingsNavForegroundBrush" Color="#1B2B48" />
-                    <SolidColorBrush x:Key="SettingsSelectedNavForegroundBrush" Color="#152A55" />
-                    <LinearGradientBrush x:Key="SettingsEdgeBrush" StartPoint="0,0" EndPoint="1,1">
-                        <GradientStop Color="#08AFFF" Offset="0" />
-                        <GradientStop Color="#306DFF" Offset="0.52" />
-                        <GradientStop Color="#873EFF" Offset="1" />
-                    </LinearGradientBrush>
-                    <LinearGradientBrush x:Key="SettingsSelectedNavBrush" StartPoint="0,0" EndPoint="1,0">
-                        <GradientStop Color="#DCEBFF" Offset="0" />
-                        <GradientStop Color="#E9E3FF" Offset="1" />
-                    </LinearGradientBrush>
+                    <SolidColorBrush x:Key="SettingsScrimBrush" Color="#96000B1B" />
+                    <AcrylicBrush x:Key="SettingsSurfaceBrush" TintColor="#F5F8FC" TintOpacity="0.92" FallbackColor="#F5F8FC" />
+                    <SolidColorBrush x:Key="SettingsStrokeBrush" Color="#CCD5E2" />
+                    <SolidColorBrush x:Key="SettingsSecondaryBrush" Color="#526276" />
+                    <SolidColorBrush x:Key="SettingsShortcutBrush" Color="#E9EEF6" />
+                    <SolidColorBrush x:Key="SettingsNavForegroundBrush" Color="#26374B" />
+                    <SolidColorBrush x:Key="SettingsSelectedNavForegroundBrush" Color="#154675" />
+                    <SolidColorBrush x:Key="SettingsSelectedNavBrush" Color="#DCEBFA" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Default">
-                    <SolidColorBrush x:Key="SettingsScrimBrush" Color="#BE030B20" />
-                    <AcrylicBrush x:Key="SettingsSurfaceBrush" TintColor="#111B3A" TintOpacity="0.82" FallbackColor="#111B3A" />
-                    <AcrylicBrush x:Key="SettingsSidebarBrush" TintColor="#111B36" TintOpacity="0.78" FallbackColor="#111B36" />
-                    <SolidColorBrush x:Key="SettingsCardBrush" Color="#1B2949" />
-                    <SolidColorBrush x:Key="SettingsStrokeBrush" Color="#344775" />
-                    <SolidColorBrush x:Key="SettingsSecondaryBrush" Color="#B5C7E7" />
-                    <SolidColorBrush x:Key="SettingsShortcutBrush" Color="#26375F" />
-                    <SolidColorBrush x:Key="SettingsNavForegroundBrush" Color="#F4F7FF" />
+                    <SolidColorBrush x:Key="SettingsScrimBrush" Color="#A3020918" />
+                    <AcrylicBrush x:Key="SettingsSurfaceBrush" TintColor="#111C30" TintOpacity="0.88" FallbackColor="#111C30" />
+                    <SolidColorBrush x:Key="SettingsStrokeBrush" Color="#33435C" />
+                    <SolidColorBrush x:Key="SettingsSecondaryBrush" Color="#ADBED4" />
+                    <SolidColorBrush x:Key="SettingsShortcutBrush" Color="#263750" />
+                    <SolidColorBrush x:Key="SettingsNavForegroundBrush" Color="#DCE6F5" />
                     <SolidColorBrush x:Key="SettingsSelectedNavForegroundBrush" Color="#FFFFFF" />
-                    <LinearGradientBrush x:Key="SettingsEdgeBrush" StartPoint="0,0" EndPoint="1,1">
-                        <GradientStop Color="#19B9FF" Offset="0" />
-                        <GradientStop Color="#276CFF" Offset="0.48" />
-                        <GradientStop Color="#843BFF" Offset="1" />
-                    </LinearGradientBrush>
-                    <LinearGradientBrush x:Key="SettingsSelectedNavBrush" StartPoint="0,0" EndPoint="1,0">
-                        <GradientStop Color="#16458C" Offset="0" />
-                        <GradientStop Color="#3522A4" Offset="1" />
-                    </LinearGradientBrush>
+                    <SolidColorBrush x:Key="SettingsSelectedNavBrush" Color="#234364" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="HighContrast">
                     <SolidColorBrush x:Key="SettingsScrimBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="SettingsSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
-                    <SolidColorBrush x:Key="SettingsSidebarBrush" Color="{ThemeResource SystemColorWindowColor}" />
-                    <SolidColorBrush x:Key="SettingsCardBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="SettingsStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="SettingsSecondaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="SettingsShortcutBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="SettingsNavForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="SettingsSelectedNavForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
-                    <SolidColorBrush x:Key="SettingsEdgeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                     <SolidColorBrush x:Key="SettingsSelectedNavBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
             <Style x:Key="SettingsCardStyle" TargetType="Border">
-                <Setter Property="Background" Value="{ThemeResource SettingsCardBrush}" />
-                <Setter Property="BorderBrush" Value="{ThemeResource SettingsStrokeBrush}" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="12" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
             </Style>
             <Style x:Key="SettingsSectionTitleStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="17" />
+                <Setter Property="FontSize" Value="15" />
                 <Setter Property="FontWeight" Value="SemiBold" />
             </Style>
             <Style x:Key="SettingsSupportingTextStyle" TargetType="TextBlock">
                 <Setter Property="Foreground" Value="{ThemeResource SettingsSecondaryBrush}" />
                 <Setter Property="TextWrapping" Value="Wrap" />
-                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontSize" Value="12" />
             </Style>
             <Style x:Key="SettingsNavButtonStyle" TargetType="Button">
-                <Setter Property="Height" Value="44" />
-                <Setter Property="Padding" Value="12,8" />
+                <Setter Property="Height" Value="38" />
+                <Setter Property="Padding" Value="10,6" />
                 <Setter Property="CornerRadius" Value="8" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
@@ -91,11 +66,18 @@
                 <Setter Property="HorizontalContentAlignment" Value="Left" />
                 <Setter Property="Foreground" Value="{ThemeResource SettingsNavForegroundBrush}" />
             </Style>
+            <Style x:Key="SettingsShortcutKeyStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource SettingsShortcutBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource SettingsStrokeBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="7" />
+                <Setter Property="Padding" Value="8,3" />
+            </Style>
         </ResourceDictionary>
     </Page.Resources>
 
     <local:InteractiveCursorHost x:Name="SettingsScrim" Background="{ThemeResource SettingsScrimBrush}">
-        <Grid MaxWidth="900" MaxHeight="760" Margin="16"
+        <Grid x:Name="SettingsLayout" MaxWidth="860" MaxHeight="700" Margin="16"
             HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
             <Border x:Name="SettingsDialog" Background="{ThemeResource SettingsSurfaceBrush}"
                 BorderBrush="{ThemeResource SettingsStrokeBrush}" BorderThickness="1" CornerRadius="16"
@@ -111,35 +93,21 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0" Margin="24,18,22,16">
+                    <Grid Grid.Row="0" Margin="24,14,20,18">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Border x:Name="SettingsHeaderIcon" Width="44" Height="44"
-                            Background="{ThemeResource SettingsSelectedNavBrush}"
-                            BorderBrush="{ThemeResource SettingsEdgeBrush}" BorderThickness="1"
-                            CornerRadius="10" VerticalAlignment="Center">
-                            <FontIcon Glyph="&#xE713;" FontSize="22"
-                                Foreground="{ThemeResource SettingsSelectedNavForegroundBrush}" HorizontalAlignment="Center"
-                                VerticalAlignment="Center" />
-                        </Border>
-                        <StackPanel Grid.Column="1" Margin="14,0,12,0" VerticalAlignment="Center" Spacing="3">
-                            <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold" />
-                            <TextBlock Text="Customize how Shnapp captures and handles your work."
-                                Style="{StaticResource SettingsSupportingTextStyle}" />
-                            <TextBlock x:Name="SettingsVersionLabel" FontSize="12"
-                                Style="{StaticResource SettingsSupportingTextStyle}"
-                                IsTextSelectionEnabled="True" />
-                            <TextBlock x:Name="SettingsSaveStatus" Text="Changes save automatically"
-                                Style="{StaticResource SettingsSupportingTextStyle}" />
-                        </StackPanel>
-                        <Button x:Name="CloseSettingsButton" Grid.Column="2" Width="40" Height="40" VerticalAlignment="Top" CornerRadius="8"
+                        <TextBlock Text="Settings" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock x:Name="SettingsSaveStatus" Grid.Column="1" Margin="12,0,16,0"
+                            Text="Changes save automatically" VerticalAlignment="Center" FontSize="12"
+                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                        <Button x:Name="CloseSettingsButton" Grid.Column="2" Width="34" Height="34" VerticalAlignment="Center" CornerRadius="6"
                             Click="BackToEditor_Click" AutomationProperties.Name="Close settings"
                             AutomationProperties.AutomationId="BackToEditor"
                             ToolTipService.ToolTip="Close settings">
-                            <FontIcon Glyph="&#xE8BB;" FontSize="16" />
+                            <FontIcon Glyph="&#xE8BB;" FontSize="14" />
                         </Button>
                     </Grid>
 
@@ -148,49 +116,73 @@
                         <InfoBar x:Name="ExternalLinkMessage" IsOpen="False" IsClosable="True" />
                     </StackPanel>
 
-                    <Grid Grid.Row="2" MinHeight="0" Margin="22,0,22,0">
+                    <Grid Grid.Row="2" MinHeight="0" Margin="24,0,24,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition x:Name="SidebarColumn" Width="204" />
+                            <ColumnDefinition x:Name="SidebarColumn" Width="176" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Border x:Name="SidebarBorder" Grid.Column="0" Background="{ThemeResource SettingsSidebarBrush}"
-                            BorderBrush="{ThemeResource SettingsStrokeBrush}" BorderThickness="1"
-                            CornerRadius="12" Margin="0,0,20,16">
-                            <StackPanel Margin="7,8" Spacing="4">
+                        <Border x:Name="SidebarBorder" Grid.Column="0" Background="Transparent"
+                            Margin="0,0,22,16">
+                            <StackPanel Spacing="2">
                                 <Grid>
                                     <Border x:Name="GeneralNavSelection" Background="{ThemeResource SettingsSelectedNavBrush}"
-                                        BorderBrush="{ThemeResource SettingsEdgeBrush}" BorderThickness="1" CornerRadius="8" />
+                                        CornerRadius="6" />
                                     <Button x:Name="GeneralNavButton" Style="{StaticResource SettingsNavButtonStyle}"
                                         Click="GeneralNav_Click" ToolTipService.ToolTip="General"
                                         AutomationProperties.Name="General" AutomationProperties.AutomationId="SettingsGeneral">
-                                        <StackPanel Orientation="Horizontal" Spacing="12">
-                                            <FontIcon Glyph="&#xE713;" FontSize="18" />
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <FontIcon Glyph="&#xE713;" FontSize="16" />
                                             <TextBlock x:Name="GeneralNavLabel" Text="General" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
                                 </Grid>
                                 <Grid>
+                                    <Border x:Name="RecordingNavSelection" Background="{ThemeResource SettingsSelectedNavBrush}"
+                                        CornerRadius="6" Visibility="Collapsed" />
+                                    <Button x:Name="RecordingNavButton" Style="{StaticResource SettingsNavButtonStyle}"
+                                        Click="RecordingNav_Click" ToolTipService.ToolTip="Recording"
+                                        AutomationProperties.Name="Recording" AutomationProperties.AutomationId="SettingsRecording">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <FontIcon Glyph="&#xE714;" FontSize="16" />
+                                            <TextBlock x:Name="RecordingNavLabel" Text="Recording" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                                <Grid>
+                                    <Border x:Name="ShortcutsNavSelection" Background="{ThemeResource SettingsSelectedNavBrush}"
+                                        CornerRadius="6"
+                                        Visibility="Collapsed" />
+                                    <Button x:Name="ShortcutsNavButton" Style="{StaticResource SettingsNavButtonStyle}"
+                                        Click="ShortcutsNav_Click" ToolTipService.ToolTip="Shortcuts"
+                                        AutomationProperties.Name="Shortcuts" AutomationProperties.AutomationId="SettingsShortcuts">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <FontIcon Glyph="&#xE765;" FontSize="16" />
+                                            <TextBlock x:Name="ShortcutsNavLabel" Text="Shortcuts" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                                <Grid>
                                     <Border x:Name="UpdatesNavSelection" Background="{ThemeResource SettingsSelectedNavBrush}"
-                                        BorderBrush="{ThemeResource SettingsEdgeBrush}" BorderThickness="1" CornerRadius="8"
+                                        CornerRadius="6"
                                         Visibility="Collapsed" />
                                     <Button x:Name="UpdatesNavButton" Style="{StaticResource SettingsNavButtonStyle}"
                                         Click="UpdatesNav_Click" ToolTipService.ToolTip="About &amp; Updates"
                                         AutomationProperties.Name="About and Updates" AutomationProperties.AutomationId="SettingsUpdates">
-                                        <StackPanel Orientation="Horizontal" Spacing="12">
-                                            <FontIcon Glyph="&#xE895;" FontSize="18" />
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <FontIcon Glyph="&#xE895;" FontSize="16" />
                                             <TextBlock x:Name="UpdatesNavLabel" Text="About &amp; Updates" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
                                 </Grid>
                                 <Grid>
                                     <Border x:Name="FeedbackNavSelection" Background="{ThemeResource SettingsSelectedNavBrush}"
-                                        BorderBrush="{ThemeResource SettingsEdgeBrush}" BorderThickness="1" CornerRadius="8"
+                                        CornerRadius="6"
                                         Visibility="Collapsed" />
                                     <Button x:Name="FeedbackNavButton" Style="{StaticResource SettingsNavButtonStyle}"
                                         Click="FeedbackNav_Click" ToolTipService.ToolTip="Feedback"
                                         AutomationProperties.Name="Feedback" AutomationProperties.AutomationId="SettingsFeedback">
-                                        <StackPanel Orientation="Horizontal" Spacing="12">
-                                            <FontIcon Glyph="&#xE939;" FontSize="18" />
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <FontIcon Glyph="&#xE939;" FontSize="16" />
                                             <TextBlock x:Name="FeedbackNavLabel" Text="Feedback" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
@@ -201,18 +193,16 @@
                         <ScrollViewer x:Name="SettingsScrollViewer" Grid.Column="1"
                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                             HorizontalScrollMode="Disabled" HorizontalContentAlignment="Stretch">
-                            <StackPanel Margin="6,0,4,16" Spacing="18" HorizontalAlignment="Stretch">
-                                <StackPanel x:Name="GeneralPanel" Spacing="18">
+                            <StackPanel Margin="0,0,4,16" Spacing="16" HorizontalAlignment="Stretch">
+                                <StackPanel x:Name="GeneralPanel" Spacing="16">
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="Capture" Style="{StaticResource SettingsSectionTitleStyle}" />
                                         <Border Style="{StaticResource SettingsCardStyle}">
                                             <StackPanel>
-                                                <Grid Margin="16,12">
+                                                <Grid Margin="0,10">
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                                     <StackPanel Spacing="2" Margin="0,0,12,0">
                                                         <TextBlock Text="Start Shnapp at sign-in" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                                        <TextBlock Text="Keep capture one shortcut away after Windows starts."
-                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
                                                     </StackPanel>
                                                     <ToggleSwitch x:Name="StartAtSignIn" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
                                                         Width="48" MinWidth="0" OnContent="" OffContent=""
@@ -220,8 +210,8 @@
                                                         AutomationProperties.Name="Start Shnapp at sign-in"
                                                         AutomationProperties.AutomationId="StartOnLogin" />
                                                 </Grid>
-                                                <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
-                                                <Grid Margin="16,12">
+                                                <Rectangle Height="1" Opacity="0.5" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <Grid Margin="0,10">
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                                     <StackPanel Spacing="2" Margin="0,0,12,0">
                                                         <TextBlock Text="Copy new shnapps automatically" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -234,13 +224,11 @@
                                                         AutomationProperties.Name="Copy new shnapps automatically"
                                                         AutomationProperties.AutomationId="AutoCopy" />
                                                 </Grid>
-                                                <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
-                                                <Grid Margin="16,12">
+                                                <Rectangle Height="1" Opacity="0.5" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <Grid Margin="0,10">
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                                     <StackPanel Spacing="2" Margin="0,0,12,0">
                                                         <TextBlock Text="Soft shadow on window shnapps" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                                        <TextBlock Text="Give captured windows a little separation when shared."
-                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
                                                     </StackPanel>
                                                     <ToggleSwitch x:Name="WindowShadow" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
                                                         Width="48" MinWidth="0" OnContent="" OffContent=""
@@ -248,9 +236,69 @@
                                                         AutomationProperties.Name="Soft shadow on window shnapps"
                                                         AutomationProperties.AutomationId="WindowShadow" />
                                                 </Grid>
-                                                <Rectangle Height="1" Margin="16,0" Fill="{ThemeResource SettingsStrokeBrush}" />
-                                                <StackPanel Margin="16,12" Spacing="6">
-                                                    <TextBlock Text="Camera source" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+                                <StackPanel x:Name="RecordingPanel" Spacing="16" Visibility="Collapsed">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Recording" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}">
+                                            <StackPanel>
+                                                <Grid Margin="0,10">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Record computer audio" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                        <TextBlock Text="Include sound playing through your default output device."
+                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    </StackPanel>
+                                                    <ToggleSwitch x:Name="VideoSystemAudio" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                        Width="48" MinWidth="0" OnContent="" OffContent=""
+                                                        Toggled="PreferenceToggle_Changed"
+                                                        AutomationProperties.Name="Record computer audio"
+                                                        AutomationProperties.AutomationId="VideoSystemAudio" />
+                                                </Grid>
+                                                <Rectangle Height="1" Opacity="0.5" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <Grid Margin="0,10">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Record microphone" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                        <TextBlock Text="Keep your voice on a separate editable track."
+                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    </StackPanel>
+                                                    <ToggleSwitch x:Name="VideoMicrophone" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                        Width="48" MinWidth="0" OnContent="" OffContent=""
+                                                        Toggled="PreferenceToggle_Changed"
+                                                        AutomationProperties.Name="Record microphone"
+                                                        AutomationProperties.AutomationId="VideoMicrophone" />
+                                                </Grid>
+                                                <StackPanel Margin="12,4,0,10" Spacing="5">
+                                                    <TextBlock Text="Microphone source" FontWeight="SemiBold" />
+                                                    <ComboBox x:Name="VideoMicrophoneSourcePicker" HorizontalAlignment="Stretch"
+                                                        SelectionChanged="VideoMicrophoneSourcePicker_Changed"
+                                                        AutomationProperties.Name="Microphone source for video recording"
+                                                        AutomationProperties.AutomationId="VideoMicrophoneSource">
+                                                        <ComboBoxItem Content="System default" Tag="" />
+                                                    </ComboBox>
+                                                    <TextBlock x:Name="VideoMicrophoneSourceStatus" Text="Finding microphones…"
+                                                        TextWrapping="Wrap" Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                </StackPanel>
+                                                <Rectangle Height="1" Opacity="0.5" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <Grid Margin="0,10">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Record camera video" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                        <TextBlock Text="Place your camera on a separate layer over the screen recording."
+                                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                                    </StackPanel>
+                                                    <ToggleSwitch x:Name="VideoCamera" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                        Width="48" MinWidth="0" OnContent="" OffContent=""
+                                                        Toggled="PreferenceToggle_Changed"
+                                                        AutomationProperties.Name="Record camera video"
+                                                        AutomationProperties.AutomationId="VideoCamera" />
+                                                </Grid>
+                                                <StackPanel Margin="12,4,0,10" Spacing="6">
+                                                    <TextBlock Text="Camera source for photos and recordings" FontWeight="SemiBold" />
                                                     <ComboBox x:Name="CameraSourcePicker" HorizontalAlignment="Stretch"
                                                         SelectionChanged="CameraSourcePicker_Changed"
                                                         AutomationProperties.Name="Camera source"
@@ -265,16 +313,28 @@
                                                         AutomationProperties.Name="Take camera photo"
                                                         AutomationProperties.AutomationId="TakeCameraPhotoFromSettings" />
                                                 </StackPanel>
+                                                <Rectangle Height="1" Opacity="0.5" Fill="{ThemeResource SettingsStrokeBrush}" />
+                                                <Grid Margin="0,10">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="2" Margin="0,0,12,0">
+                                                        <TextBlock Text="Show pointer" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                    <ToggleSwitch x:Name="VideoCursor" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                        Width="48" MinWidth="0" OnContent="" OffContent=""
+                                                        Toggled="PreferenceToggle_Changed"
+                                                        AutomationProperties.Name="Show pointer in video"
+                                                        AutomationProperties.AutomationId="VideoCursor" />
+                                                </Grid>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
+                                </StackPanel>
+                                <StackPanel x:Name="GeneralContinuationPanel" Spacing="16">
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="Appearance" Style="{StaticResource SettingsSectionTitleStyle}" />
-                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="0,4">
                                             <StackPanel Spacing="5">
                                                 <TextBlock Text="Theme" FontWeight="SemiBold" />
-                                                <TextBlock Text="Match Windows or choose the look that suits your workspace."
-                                                    Style="{StaticResource SettingsSupportingTextStyle}" />
                                                 <ComboBox x:Name="ThemePicker" MinWidth="200" HorizontalAlignment="Left"
                                                     SelectionChanged="ThemePicker_Changed"
                                                     AutomationProperties.Name="Theme" AutomationProperties.AutomationId="ShnappTheme">
@@ -286,8 +346,25 @@
                                         </Border>
                                     </StackPanel>
                                     <StackPanel Spacing="8">
-                                        <TextBlock Text="Keyboard shortcuts" Style="{StaticResource SettingsSectionTitleStyle}" />
-                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,8">
+                                        <TextBlock Text="Local library" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="0,4">
+                                            <StackPanel Spacing="3">
+                                                <TextBlock x:Name="LibraryPath" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                                <TextBlock x:Name="LibraryNote" Style="{StaticResource SettingsSupportingTextStyle}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel x:Name="ShortcutsPanel" Spacing="18" Visibility="Collapsed">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="Shortcuts" FontSize="18" FontWeight="SemiBold" />
+                                        <TextBlock Text="Capture and edit without leaving the keyboard."
+                                            Style="{StaticResource SettingsSupportingTextStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Screenshot capture" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="0,4">
                                             <StackPanel Spacing="5">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -355,12 +432,247 @@
                                         </Border>
                                     </StackPanel>
                                     <StackPanel Spacing="8">
-                                        <TextBlock Text="Local library" Style="{StaticResource SettingsSectionTitleStyle}" />
-                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
-                                            <StackPanel Spacing="3">
-                                                <TextBlock Text="Saved shnapps" FontWeight="SemiBold" />
-                                                <TextBlock x:Name="LibraryPath" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-                                                <TextBlock x:Name="LibraryNote" Style="{StaticResource SettingsSupportingTextStyle}" />
+                                        <TextBlock Text="Video capture" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="0,4">
+                                            <StackPanel Spacing="7">
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Record a rectangular region" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Alt+Shift+2" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Record the display under pointer" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Alt+Shift+3" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Record a window" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Alt+Shift+4" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Navigation and image editing" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="0,4">
+                                            <StackPanel Spacing="7">
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Back / forward" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Alt+Left / Alt+Right" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Focus library search" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+F" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Recent captures on canvas" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+Shift+G" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Paste text or image" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+V" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Copy image / save PNG" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+C / Ctrl+S" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Undo / redo" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+Z / Ctrl+Y" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Select multiple image elements" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+click / Ctrl+A" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Constrain move / keep resize proportions" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Shift+drag / Shift+resize" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Nudge a selected image element, 1 / 10 px" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Arrow / Shift+Arrow" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Duplicate / delete image element" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+D / Delete" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Move element to front / back" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+] / Ctrl+[" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Pan image canvas" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Space+drag" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Finish editing image text" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+Enter" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Clear selection / cancel crop" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Esc" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Video editing" Style="{StaticResource SettingsSectionTitleStyle}" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="0,4">
+                                            <StackPanel Spacing="7">
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Play or pause" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Space" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Reverse / stop / forward" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="J / K / L" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Step playhead 1 / 5 frames" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Left/Right / Shift+Left/Right" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Seek to start / end" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Home / End" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Mark range start / end" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="I / O" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Split / add fade at cut" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+K / Ctrl+D" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Delete clip / close gap" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Delete / Shift+Delete" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Toggle snapping / zoom timeline" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="S / + or -" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Zoom timeline at pointer" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Wheel over timeline" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Add text / paste media / export" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+T / Ctrl+V / Ctrl+M" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Constrain video, image, or text movement" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Shift+drag" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Keep proportions when resizing or cropping" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Shift+resize/crop" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Nudge selected canvas media, 1 / 10 px" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Arrow / Shift+Arrow" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Toggle selected media crop / reset crop" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+Shift+C / Ctrl+Shift+R" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Show recent captures / clear selection" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsShortcutKeyStyle}" VerticalAlignment="Center">
+                                                        <TextBlock Text="Ctrl+Shift+G / Esc" FontFamily="Cascadia Mono" FontSize="12" MaxWidth="205" TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Grid>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
@@ -368,13 +680,13 @@
 
                                 <StackPanel x:Name="UpdatesPanel" Spacing="18" Visibility="Collapsed">
                                     <StackPanel Spacing="6">
-                                        <TextBlock Text="About &amp; Updates" FontSize="22" FontWeight="SemiBold" />
+                                        <TextBlock Text="About &amp; Updates" FontSize="18" FontWeight="SemiBold" />
                                         <TextBlock Text="App details, installation, and update status."
                                             Style="{StaticResource SettingsSupportingTextStyle}" />
                                     </StackPanel>
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="Shnapp" Style="{StaticResource SettingsSectionTitleStyle}" />
-                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="0,4">
                                             <StackPanel Spacing="5">
                                                 <TextBlock x:Name="VersionLabel" FontWeight="SemiBold" IsTextSelectionEnabled="True" />
                                                 <TextBlock x:Name="RuntimeLabel" IsTextSelectionEnabled="True"
@@ -389,7 +701,7 @@
                                         <TextBlock x:Name="UpdateChannelLabel" Style="{StaticResource SettingsSupportingTextStyle}" />
                                         <InfoBar x:Name="UpdateMessage" IsOpen="True" IsClosable="False"
                                             Severity="Informational" Title="Update status" />
-                                        <StackPanel Spacing="8" HorizontalAlignment="Left">
+                                        <StackPanel x:Name="UpdateActions" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
                                             <Button x:Name="CheckUpdatesButton" Content="Check for updates" Click="CheckUpdates_Click" CornerRadius="8"
                                                 AutomationProperties.AutomationId="CheckForUpdates" />
                                             <Button x:Name="OpenLatestButton" Content="View release" Click="OpenLatest_Click" CornerRadius="8"
@@ -412,12 +724,16 @@
                                     </StackPanel>
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="Links" Style="{StaticResource SettingsSectionTitleStyle}" />
-                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
-                                            <StackPanel Spacing="7" HorizontalAlignment="Left">
-                                                <Button Content="Visit shhnap.com" Click="OpenWebsite_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenWebsite" />
-                                                <Button Content="Open source repository" Click="OpenRepository_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenRepository" />
-                                                <Button Content="About the creator" Click="OpenPublisher_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPublisher" />
-                                                <Button Content="Privacy" Click="OpenPrivacy_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPrivacy" />
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="0,4">
+                                            <StackPanel Spacing="8" HorizontalAlignment="Left">
+                                                <StackPanel x:Name="LinkActionsFirst" Orientation="Horizontal" Spacing="8">
+                                                    <Button Content="Visit shhnap.com" Click="OpenWebsite_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenWebsite" />
+                                                    <Button Content="Open source repository" Click="OpenRepository_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenRepository" />
+                                                </StackPanel>
+                                                <StackPanel x:Name="LinkActionsSecond" Orientation="Horizontal" Spacing="8">
+                                                    <Button Content="About the creator" Click="OpenPublisher_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPublisher" />
+                                                    <Button Content="Privacy" Click="OpenPrivacy_Click" CornerRadius="8" AutomationProperties.AutomationId="OpenPrivacy" />
+                                                </StackPanel>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
@@ -425,17 +741,17 @@
 
                                 <StackPanel x:Name="FeedbackPanel" Spacing="18" Visibility="Collapsed">
                                     <StackPanel Spacing="6">
-                                        <TextBlock Text="Feedback" FontSize="22" FontWeight="SemiBold" />
+                                        <TextBlock Text="Feedback" FontSize="18" FontWeight="SemiBold" />
                                         <TextBlock Text="Help make Shnapp better."
                                             Style="{StaticResource SettingsSupportingTextStyle}" />
                                     </StackPanel>
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="Share an idea or issue" Style="{StaticResource SettingsSectionTitleStyle}" />
-                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
+                                        <Border Style="{StaticResource SettingsCardStyle}" Padding="0,4">
                                             <StackPanel Spacing="10">
                                                 <TextBlock Text="GitHub issues keep bug reports and feature ideas in one place."
                                                     Style="{StaticResource SettingsSupportingTextStyle}" />
-                                                <StackPanel Spacing="8" HorizontalAlignment="Left">
+                                                <StackPanel x:Name="FeedbackActions" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
                                                     <Button Content="Report a bug" Click="ReportBug_Click" CornerRadius="8" AutomationProperties.AutomationId="ReportBug" />
                                                     <Button Content="Request a feature" Click="RequestFeature_Click" CornerRadius="8" AutomationProperties.AutomationId="RequestFeature" />
                                                     <Button Content="Browse existing issues" Click="BrowseIssues_Click" CornerRadius="8" AutomationProperties.AutomationId="BrowseIssues" />
@@ -443,7 +759,7 @@
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
-                                    <Border Style="{StaticResource SettingsCardStyle}" Padding="16,12">
+                                    <Border Style="{StaticResource SettingsCardStyle}" Padding="0,4">
                                         <StackPanel Spacing="5">
                                             <TextBlock Text="Before you send" FontWeight="SemiBold" />
                                             <TextBlock Text="Include your Shnapp version and Windows version when reporting a bug. Avoid sharing private captures."

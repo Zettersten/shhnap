@@ -92,6 +92,37 @@ internal static class CameraCaptureDialog
         int sourceRevision = 0;
         bool loaded = false;
         bool closed = false;
+        CameraCaptureService? failedCamera = null;
+
+        async Task HandleCameraFailureAsync(CameraCaptureService session, string message)
+        {
+            if (closed || !ReferenceEquals(camera, session))
+            {
+                return;
+            }
+
+            failedCamera = session;
+            dialog.IsPrimaryButtonEnabled = false;
+            status.Text = message;
+            retry.Visibility = Visibility.Visible;
+
+            // A camera failure can arrive while CapturePhotoToStreamAsync is
+            // still running. Wait for that operation before releasing its
+            // MediaCapture and preview resources.
+            await sourceGate.WaitAsync();
+            try
+            {
+                if (!closed && ReferenceEquals(camera, session))
+                {
+                    camera.Dispose();
+                    camera = null;
+                }
+            }
+            finally
+            {
+                sourceGate.Release();
+            }
+        }
 
         async Task StartSelectedSourceAsync()
         {
@@ -117,18 +148,7 @@ internal static class CameraCaptureDialog
                 camera = null;
                 var session = new CameraCaptureService();
                 session.Failed += message => dialog.DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (closed || !ReferenceEquals(camera, session))
-                    {
-                        return;
-                    }
-
-                    dialog.IsPrimaryButtonEnabled = false;
-                    status.Text = message;
-                    retry.Visibility = Visibility.Visible;
-                    camera?.Dispose();
-                    camera = null;
-                });
+                    _ = HandleCameraFailureAsync(session, message));
                 try
                 {
                     await session.StartAsync(source.Id, preview);
@@ -175,8 +195,11 @@ internal static class CameraCaptureDialog
         {
             var deferral = args.GetDeferral();
             args.Cancel = true;
+            bool gateHeld = false;
             try
             {
+                await sourceGate.WaitAsync();
+                gateHeld = true;
                 if (camera is null) { return; }
                 dialog.IsPrimaryButtonEnabled = false;
                 sourcePicker.IsEnabled = false;
@@ -190,11 +213,13 @@ internal static class CameraCaptureDialog
                 retry.Visibility = Visibility.Visible;
                 privacySettings.Visibility = IsAccessDenied(exception)
                     ? Visibility.Visible : Visibility.Collapsed;
-                dialog.IsPrimaryButtonEnabled = camera is not null;
+                dialog.IsPrimaryButtonEnabled = camera is not null &&
+                    !ReferenceEquals(camera, failedCamera);
             }
             finally
             {
                 sourcePicker.IsEnabled = true;
+                if (gateHeld) { sourceGate.Release(); }
                 deferral.Complete();
             }
         };

@@ -122,7 +122,7 @@ internal sealed partial class AppController
         data.Properties.Title = payload.Title;
         data.Properties.Description = "Shnapp PNG image";
         data.RequestedOperation = DataPackageOperation.Copy;
-        data.SetStorageItems([payload.Image], readOnly: true);
+        data.SetStorageItems(new[] { payload.Image }, readOnly: true);
         data.SetBitmap(RandomAccessStreamReference.CreateFromFile(payload.Image));
         data.Properties.Thumbnail = RandomAccessStreamReference.CreateFromFile(payload.Thumbnail);
     }

@@ -72,6 +72,22 @@ function Assert-StoreMsix {
         Assert-ExactValue "$Label architecture" ($identity.GetAttribute('ProcessorArchitecture').ToLowerInvariant()) ($ProcessorArchitecture.ToLowerInvariant())
         Assert-ExactValue "$Label publisher display name" $displayName.InnerText $PublisherDisplayName
 
+        $vcRuntime = $manifest.SelectSingleNode(
+            "/appx:Package/appx:Dependencies/appx:PackageDependency[@Name='Microsoft.VCLibs.140.00.UWPDesktop']",
+            $namespaces)
+        if ($null -eq $vcRuntime) {
+            throw "$Label is missing the Microsoft VC++ runtime framework dependency."
+        }
+        Assert-ExactValue "$Label VC++ runtime publisher" ($vcRuntime.GetAttribute('Publisher')) `
+            'CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US'
+        if ([version]$vcRuntime.GetAttribute('MinVersion') -lt [version]'14.0.33728.0') {
+            throw "$Label requires an older VC++ runtime than ScreenRecorderLib supports."
+        }
+        $recorderEntry = $package.GetEntry('ScreenRecorderLib.dll')
+        if ($null -eq $recorderEntry -or $recorderEntry.Length -eq 0) {
+            throw "$Label has no native screen recorder DLL."
+        }
+
         $fileHashes = [System.Collections.Generic.SortedDictionary[string,string]]::new([System.StringComparer]::Ordinal)
         foreach ($entry in $package.Entries) {
             if ($entry.FullName.EndsWith('/')) { continue }

@@ -23,7 +23,8 @@ public sealed partial class MainWindow : Window
         ++_settingsTransitionVersion;
         if (SettingsOverlay.Visibility != Visibility.Visible)
         {
-            _focusBeforeSettings = Page.XamlRoot is { } root
+            FrameworkElement activePage = VideoPage is { } videoPage ? videoPage : Page;
+            _focusBeforeSettings = activePage.XamlRoot is { } root
                 ? FocusManager.GetFocusedElement(root) as UIElement : null;
         }
         (Page.Content as InteractiveCursorHost)?.ReleaseCursor();
@@ -70,7 +71,14 @@ public sealed partial class MainWindow : Window
 
         if (previousFocus?.Focus(FocusState.Programmatic) != true)
         {
-            Page.FocusDefaultAction();
+            if (VideoPage is { } videoPage)
+            {
+                videoPage.Focus(FocusState.Programmatic);
+            }
+            else
+            {
+                Page.FocusDefaultAction();
+            }
         }
     }
 
@@ -78,6 +86,7 @@ public sealed partial class MainWindow : Window
     {
         ((FrameworkElement)Content).RequestedTheme = theme;
         Page.RequestedTheme = theme;
+        if (VideoPage is { } videoPage) { videoPage.RequestedTheme = theme; }
         if (AppWindowTitleBar.IsCustomizationSupported())
         {
             AppWindowTitleBar titleBar = AppWindow.TitleBar;
@@ -125,15 +134,30 @@ public sealed partial class MainWindow : Window
 
     private void UpdateTitleBarState()
     {
-        bool editing = Page.ViewModel.HasDocument && Settings is null;
+        bool video = VideoPage is not null;
+        bool editing = !video && Page.ViewModel.HasDocument && Settings is null;
         Page.SetChromeToolAvailability(editing);
         Page.SetSettingsNavigation(Settings is not null);
+        ChromeNavigationHost.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
+        VideoBackButton.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
+        ChromeToolsHost.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
+        ChromeVideoToolsHost.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
+        ChromeCommandsHost.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
+        ChromeVideoExportHost.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
+        TitleVideoMoreButton.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
+        VideoBackButton.IsEnabled = Settings is null;
+        TitleVideoMoreButton.IsEnabled = Settings is null;
         ChromeCommandsHost.IsEnabled = Settings is null;
+        ChromeVideoToolsHost.IsEnabled = Settings is null;
+        ChromeVideoExportHost.IsEnabled = Settings is null;
         ChromeLibraryHost.IsEnabled = Settings is null;
         TitleCaptureButton.IsEnabled = Settings is null;
-        TitleUndoButton.IsEnabled = editing && Page.ViewModel.CanUndo;
-        TitleRedoButton.IsEnabled = editing && Page.ViewModel.CanRedo;
+        TitleUndoButton.IsEnabled = Settings is null &&
+            (video ? VideoPage!.CanUndo : editing && Page.ViewModel.CanUndo);
+        TitleRedoButton.IsEnabled = Settings is null &&
+            (video ? VideoPage!.CanRedo : editing && Page.ViewModel.CanRedo);
         Title = Settings is not null ? "Settings" :
+            video ? VideoPage!.Title :
             editing ? Page.ViewModel.Title : "Shnapp";
         UpdateTitleEditorVisibility();
         AppTitleBar.RecomputeDragRegions();
@@ -141,17 +165,27 @@ public sealed partial class MainWindow : Window
 
     private void UpdateTitleEditorVisibility()
     {
-        TitleEditorHost.Visibility = Page.IsTitleRenameActive ? Visibility.Visible : Visibility.Collapsed;
+        TitleEditorHost.Visibility = VideoPage is null && Page.IsTitleRenameActive
+            ? Visibility.Visible : Visibility.Collapsed;
         AppTitleBar.RecomputeDragRegions();
     }
 
-    private void TitleUndo_Click(object sender, RoutedEventArgs args) => Page.UndoFromChrome();
-    private void TitleRedo_Click(object sender, RoutedEventArgs args) => Page.RedoFromChrome();
+    private void TitleUndo_Click(object sender, RoutedEventArgs args)
+    {
+        if (VideoPage is { } videoPage) { videoPage.Undo(); }
+        else { Page.UndoFromChrome(); }
+    }
+
+    private void TitleRedo_Click(object sender, RoutedEventArgs args)
+    {
+        if (VideoPage is { } videoPage) { videoPage.Redo(); }
+        else { Page.RedoFromChrome(); }
+    }
     private void TitleCapture_Click(object sender, RoutedEventArgs args) => Page.CaptureRegionFromChrome();
 
     private void TitleBar_KeyDown(object sender, KeyRoutedEventArgs args)
     {
-        if (Settings is null && !args.Handled)
+        if (Settings is null && VideoPage is null && !args.Handled)
         {
             Page.HandleChromeKeyDown(args);
         }
@@ -159,7 +193,7 @@ public sealed partial class MainWindow : Window
 
     private void TitleBar_KeyUp(object sender, KeyRoutedEventArgs args)
     {
-        if (Settings is null)
+        if (Settings is null && VideoPage is null)
         {
             Page.HandleChromeKeyUp(args);
         }

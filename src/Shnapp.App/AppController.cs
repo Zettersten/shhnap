@@ -57,7 +57,10 @@ internal sealed partial class AppController
         _page.Configure(this);
         _tray = new(App.WindowHandle, activationMessage);
         _tray.CaptureRequested += Capture;
+        _tray.VideoRequested += RecordVideo;
         _tray.LibraryRequested += OpenLibrary;
+        _window.VideoBackRequested += OpenLibrary;
+        _window.VideoSettingsRequested += OpenSettings;
         _tray.SettingsRequested += OpenSettings;
         _tray.UpdateNotificationClicked += OpenSettingsUpdates;
         _tray.QuitRequested += Quit;
@@ -91,36 +94,65 @@ internal sealed partial class AppController
         {
             try
             {
-                if (!ShnappLibraryMigration.IsComplete(Library.RootPath))
+                bool photosPending = !ShnappLibraryMigration.IsComplete(Library.RootPath);
+                bool videosPending = !ShnappVideoLibraryMigration.IsComplete(Library.RootPath);
+                if (photosPending || videosPending)
                 {
                     string portableRoot = LaunchOptions.UnredirectedPortableDataRoot;
                     if (LaunchOptions.IsPortableInstanceRunning(portableRoot))
                     {
                         _page.ShowMessage("Close portable Shnapp to import",
-                            "The portable copy is running. Quit it and restart this Store copy to import your library. " +
+                            "The portable copy is running. Quit it and restart this Store copy to import your photos and videos. " +
                             "Your portable data is unchanged.", InfoBarSeverity.Warning);
                     }
                     else
                     {
-                        ShnappLibraryMigration.Result migration = await ShnappLibraryMigration.ImportOnceAsync(
-                            portableRoot, Library.RootPath, _lifetime.Token);
-                        if (!migration.Complete)
+                        ShnappLibraryMigration.Result? photos = null;
+                        ShnappVideoLibraryMigration.Result? videos = null;
+                        Exception? photoError = null;
+                        Exception? videoError = null;
+                        if (photosPending)
+                        {
+                            try
+                            {
+                                photos = await ShnappLibraryMigration.ImportOnceAsync(
+                                    portableRoot, Library.RootPath, _lifetime.Token);
+                            }
+                            catch (Exception error) when (IsPortableImportError(error))
+                            {
+                                photoError = error;
+                            }
+                        }
+                        if (videosPending)
+                        {
+                            try
+                            {
+                                videos = await ShnappVideoLibraryMigration.ImportOnceAsync(
+                                    portableRoot, Library.RootPath, _lifetime.Token);
+                            }
+                            catch (Exception error) when (IsPortableImportError(error))
+                            {
+                                videoError = error;
+                            }
+                        }
+                        if (photoError is not null || videoError is not null ||
+                            photos is { Complete: false } || videos is { Complete: false })
                         {
                             _page.ShowMessage("Portable library import incomplete",
-                                "Some portable shnapps or settings could not be copied. Your original library is unchanged. " +
+                                "Some portable shnapps, videos, or settings could not be copied. Your original library is unchanged. " +
                                 "Close the portable copy and restart Shnapp to retry.", InfoBarSeverity.Warning);
                         }
-                        else if (migration.ImportedDocuments > 0)
+                        else if ((photos?.ImportedDocuments ?? 0) + (videos?.ImportedProjects ?? 0) > 0)
                         {
                             _page.ShowMessage("Portable library imported",
-                                $"Copied {migration.ImportedDocuments} shnapp(s) into this Store library. " +
+                                $"Copied {photos?.ImportedDocuments ?? 0} shnapp(s) and " +
+                                $"{videos?.ImportedProjects ?? 0} video(s) into this Store library. " +
                                 "Your portable library is unchanged.", InfoBarSeverity.Success);
                         }
                     }
                 }
             }
-            catch (Exception exception) when (exception is IOException or InvalidDataException or
-                UnauthorizedAccessException or ArgumentException)
+            catch (Exception exception) when (IsPortableImportError(exception))
             {
                 _page.ShowMessage("Portable library import unavailable",
                     "Your portable library is unchanged. Close the portable copy and restart Shnapp to retry. " +
@@ -147,6 +179,7 @@ internal sealed partial class AppController
             }
             IReadOnlyList<ShnappSummary> documents = await ListReadySummariesAsync();
             _page.ShowLibrary(documents);
+            await RefreshVideoLibraryAsync();
             UpdateNavigationButtons();
             _page.SetGalleryDocuments(documents);
             _page.ViewModel.Status = "Ready to shnapp · close returns to the tray";
@@ -197,6 +230,9 @@ internal sealed partial class AppController
         if (!HasPackageIdentity) { _updateTimer.Start(); }
         _ = CleanupExpiredExportSnapshotsAsync();
     }
+
+    private static bool IsPortableImportError(Exception error) =>
+        error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException;
 
     internal void Capture(CaptureKind kind) => Run(() =>
         kind == CaptureKind.Camera ? CaptureCameraAsync() : CaptureAsync(kind));
@@ -272,6 +308,11 @@ internal sealed partial class AppController
         {
             Show();
             System.Diagnostics.Debug.WriteLine($"Shnapp action failed: {exception}");
+            if (_window.VideoPage is { } videoPage)
+            {
+                videoPage.ShowStatus(exception.Message);
+                return;
+            }
             if (exception is ArgumentException { ParamName: "annotation" } &&
                 exception.Message.Contains("A visibility clip must fit inside the canvas.",
                     StringComparison.Ordinal))
@@ -327,7 +368,6 @@ internal sealed partial class AppController
         }
 
         bool wasVisible = NativeMethods.IsWindowVisible(App.WindowHandle);
-        _window.ShowMainPage();
         CanvasBitmap? bitmap = null;
         Task? previousSave = null;
         _activeCapture = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -337,6 +377,9 @@ internal sealed partial class AppController
         var watch = Stopwatch.StartNew();
         try
         {
+            if (_window.VideoPage is { } videoPage) { await videoPage.SaveAsync(); }
+            _window.ShowPhotoPage();
+            _window.ShowMainPage();
             _saveTimer.Stop();
             // Capture first: saving the current document can take longer than a changing
             // desktop frame. A visible editor must leave the screen before its first frame.
@@ -596,6 +639,8 @@ internal sealed partial class AppController
 
     private async Task OpenLibraryAsync(bool recordHistory = true)
     {
+        if (_window.VideoPage is { } videoPage) { await videoPage.SaveAsync(); }
+        _window.ShowPhotoPage();
         _window.ShowMainPage();
         _activeCapture?.Cancel();
         await _captureGate.WaitAsync(_lifetime.Token);
@@ -607,6 +652,7 @@ internal sealed partial class AppController
             _failedRecovery.Clear();
             IReadOnlyList<ShnappSummary> documents = await ListReadySummariesAsync();
             _page.ShowLibrary(documents);
+            await RefreshVideoLibraryAsync();
             if (recordHistory) { RecordNavigation(null); }
             _page.SetGalleryDocuments(documents);
             Renderer.ClearPastedImages();
@@ -621,6 +667,8 @@ internal sealed partial class AppController
 
     private async Task OpenDocumentAsync(Guid id, bool recordHistory = true)
     {
+        if (_window.VideoPage is { } videoPage) { await videoPage.SaveAsync(); }
+        _window.ShowPhotoPage();
         _window.ShowMainPage();
         if (!await _captureGate.WaitAsync(0, _lifetime.Token))
         {
@@ -678,6 +726,11 @@ internal sealed partial class AppController
             return;
         }
 
+        if (_window.VideoPage is { } videoPage)
+        {
+            await videoPage.SaveAsync();
+            _window.ShowPhotoPage();
+        }
         _page.CommitText();
         _saveTimer.Stop();
         await SaveCurrentAsync();
@@ -787,6 +840,11 @@ internal sealed partial class AppController
         {
             _page.CommitText();
             await SaveCurrentAsync();
+            if (_window.VideoPage is { } videoPage)
+            {
+                await videoPage.SaveAsync();
+                _window.ShowPhotoPage();
+            }
             _quitting = true;
             await _lifetime.CancelAsync();
             _tray.Dispose();

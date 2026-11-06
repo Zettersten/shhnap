@@ -248,6 +248,16 @@
                 <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Capture full screen" Icon="FullScreen"
                     Tag="FullScreen" Click="Capture_Click" AutomationProperties.AutomationId="CaptureFullScreen" />
                 <AppBarSeparator />
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Record region video" Icon="Video"
+                    Tag="Region" Click="VideoCapture_Click" AutomationProperties.AutomationId="RecordRegionVideo"
+                    ToolTipService.ToolTip="Record a rectangular region · Alt+Shift+2" />
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Record full-screen video" Icon="Video"
+                    Tag="FullScreen" Click="VideoCapture_Click" AutomationProperties.AutomationId="RecordFullScreenVideo"
+                    ToolTipService.ToolTip="Record the display under the pointer · Alt+Shift+3" />
+                <local:HandCursorAppBarButton CornerRadius="8" Width="190" Label="Record window video" Icon="Video"
+                    Tag="Window" Click="VideoCapture_Click" AutomationProperties.AutomationId="RecordWindowVideo"
+                    ToolTipService.ToolTip="Record a window · Alt+Shift+4" />
+                <AppBarSeparator />
                 <local:HandCursorAppBarButton x:Name="QuickCameraCapture" CornerRadius="8" Width="190"
                     Label="Take camera photo" Icon="Camera" Click="CameraCapture_Click" IsEnabled="False"
                     AutomationProperties.AutomationId="QuickCameraCapture"
@@ -380,6 +390,16 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+                    <!-- GPU backdrop blur lives behind the native acrylic tint.
+                         The chrome controls remain in their independent overlays. -->
+                    <Grid x:Name="TitleChromeGlassHost" Height="36" VerticalAlignment="Top"
+                        IsHitTestVisible="False" />
+                    <Border Height="36" VerticalAlignment="Top" IsHitTestVisible="False"
+                        Background="{ThemeResource ShnappImageChromeBrush}" />
+                    <Grid x:Name="FooterChromeGlassHost" Height="28" VerticalAlignment="Bottom"
+                        IsHitTestVisible="False" />
+                    <Border Height="28" VerticalAlignment="Bottom" IsHitTestVisible="False"
+                        Background="{ThemeResource ShnappImageChromeBrush}" />
                     <Border x:Name="InspectorPanel" Visibility="Visible"
                         Width="252" Margin="12,48,12,36"
                         HorizontalAlignment="Right" VerticalAlignment="Stretch"
@@ -855,7 +875,6 @@
             SizeChanged="LibraryRoot_SizeChanged">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <Grid Grid.Row="0" Margin="0,0,0,16" ColumnSpacing="12">
@@ -884,7 +903,7 @@
                         </Button>
                     </StackPanel>
                 </Grid>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <StackPanel x:Name="LibraryPhotoControls" Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                     <DropDownButton CornerRadius="8" x:Name="LibrarySortButton" Height="36" Padding="10,0"
                         ToolTipService.ToolTip="Sort library by date, name, file size, or dimensions"
                         AutomationProperties.Name="Sort library" AutomationProperties.AutomationId="LibrarySortButton">
@@ -953,7 +972,7 @@
                     </ToggleButton>
                 </StackPanel>
             </Grid>
-            <Grid Grid.Row="2">
+            <Grid Grid.Row="1">
                 <GridView x:Name="LibraryGrid" ItemsSource="{x:Bind ViewModel.Library}"
                     Padding="0,0,0,64" ScrollViewer.VerticalScrollBarVisibility="Hidden"
                     SelectionMode="None" IsItemClickEnabled="True" ItemClick="LibraryCard_ItemClick"
@@ -988,9 +1007,22 @@
                                     PointerEntered="LibraryThumbnail_PointerEntered" PointerExited="LibraryThumbnail_PointerExited">
                                     <Border Background="{ThemeResource ShnappPreviewBrush}"
                                         CornerRadius="8" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                                        <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="6"
-                                            Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
-                                            Tapped="LibraryPreview_Tapped" />
+                                        <Grid>
+                                            <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="24"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Visibility="{x:Bind VideoBadgeVisibility}"
+                                                IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <Image Source="{x:Bind Preview, Mode=OneWay}" Stretch="Uniform" Margin="6"
+                                                Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
+                                                Tapped="LibraryPreview_Tapped" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Width="22" Height="22" Margin="0,0,6,6" CornerRadius="11"
+                                        HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                        Background="#B0101C36" IsHitTestVisible="False"
+                                        Visibility="{x:Bind VideoBadgeVisibility}">
+                                        <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="11"
+                                            Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Border>
                                     <CheckBox Width="32" MinWidth="0" Height="32" Padding="0" Margin="0,0,6,6"
                                         HorizontalAlignment="Right" VerticalAlignment="Bottom" Tag="{x:Bind}"
@@ -1047,6 +1079,7 @@
                                 <CheckBox Grid.Column="0" Width="32" MinWidth="0" Height="32" Padding="0"
                                     VerticalAlignment="Center" Tag="{x:Bind}"
                                     IsChecked="{x:Bind IsSelected, Mode=OneWay}"
+                                    Visibility="{x:Bind PhotoSelectionVisibility}"
                                     Checked="LibrarySelectionCheck_Changed" Unchecked="LibrarySelectionCheck_Changed"
                                     Tapped="LibrarySelectionCheck_Tapped"
                                     ToolTipService.ToolTip="Select shnapp"
@@ -1054,9 +1087,22 @@
                                 <Border Grid.Column="1" Height="48" VerticalAlignment="Center"
                                     Background="{ThemeResource ShnappPreviewBrush}" CornerRadius="4"
                                     BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                                    <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="2"
-                                        Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
-                                        Tapped="LibraryPreview_Tapped" />
+                                    <Grid>
+                                        <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="16"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Visibility="{x:Bind VideoBadgeVisibility}"
+                                            IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Image Source="{x:Bind Preview, Mode=OneWay}" Stretch="Uniform" Margin="2"
+                                            Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
+                                            Tapped="LibraryPreview_Tapped" />
+                                        <Border Width="16" Height="16" Margin="0,0,2,2" CornerRadius="8"
+                                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                            Background="#B0101C36" IsHitTestVisible="False"
+                                            Visibility="{x:Bind VideoBadgeVisibility}">
+                                            <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="9"
+                                                Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                    </Grid>
                                 </Border>
                                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock Text="{x:Bind Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -1094,7 +1140,7 @@
                             <Canvas x:Name="LibraryEmptyScene" Width="0" Height="0"
                                 HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False"
                                 AutomationProperties.AccessibilityView="Raw">
-                                <Image Source="ms-appx:///Assets/LibraryEmptyBackground.png"
+                                <Image Source="ms-appx:///Assets/LibraryEmptyBackgroundVideo.png"
                                     Width="1448" Height="1086" Stretch="Fill" />
 
                             </Canvas>
@@ -1103,14 +1149,16 @@
                                 <Image x:Name="LibraryEmptyLogo" Source="ms-appx:///Assets/ShnappLogo.png"
                                     Width="300" Height="88" Stretch="Uniform" HorizontalAlignment="Center"
                                     AutomationProperties.Name="Shnapp" />
-                                <TextBlock x:Name="LibraryEmptyTitle" Text="Capture. Annotate. Organize."
+                                <TextBlock x:Name="LibraryEmptyTitle" Text="Capture. Record. Create."
                                     FontFamily="Segoe UI Variable Display" FontSize="38" FontWeight="Bold"
                                     TextWrapping="WrapWholeWords" TextAlignment="Center" Foreground="#F8FAFF" />
                                 <TextBlock x:Name="LibraryEmptyDescription"
-                                    Text="The fast, beautiful way to capture your screen and turn ideas into reality."
+                                    Text="Capture screenshots and video. Annotate images, trim clips, and keep it all in one library."
                                     FontSize="19" TextWrapping="WrapWholeWords" TextAlignment="Center"
                                     Foreground="#C8D6F2" />
-                                <Grid x:Name="LibraryEmptyCaptureShell" Width="306" Height="54" Margin="0,16,0,0"
+                                <StackPanel x:Name="LibraryEmptyActions" Orientation="Horizontal" Spacing="10"
+                                    Margin="0,16,0,0" HorizontalAlignment="Center">
+                                <Grid x:Name="LibraryEmptyCaptureShell" Width="306" Height="54"
                                     HorizontalAlignment="Center" Translation="0,0,2">
                                     <Border Height="54" CornerRadius="8" VerticalAlignment="Center"
                                         Background="{ThemeResource CaptureButtonShadowBrush}" IsHitTestVisible="False">
@@ -1159,6 +1207,19 @@
                                         BorderBrush="{ThemeResource CaptureButtonRimBrushPressed}"
                                         Visibility="Collapsed" IsHitTestVisible="False" />
                                 </Grid>
+                                <Button x:Name="LibraryEmptyRecord" Tag="Region" Click="VideoCapture_Click"
+                                    Width="190" Height="54" Padding="14,0" CornerRadius="8"
+                                    Background="{ThemeResource ShnappToolbarBrush}"
+                                    AutomationProperties.Name="Record a video of a region"
+                                    AutomationProperties.AutomationId="LibraryEmptyRecordVideo"
+                                    ToolTipService.ToolTip="Record a region · Alt+Shift+2">
+                                    <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                                        <SymbolIcon Symbol="Video" Width="18" Height="18" />
+                                        <TextBlock Text="Record video" FontSize="16" FontWeight="SemiBold"
+                                            VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                </StackPanel>
                             </StackPanel>
                         </Grid>
                         <StackPanel x:Name="LibraryNoResults" Visibility="Collapsed" MaxWidth="500" Margin="24"
@@ -1178,7 +1239,7 @@
         </Grid>
         <Grid Height="28" VerticalAlignment="Bottom" Canvas.ZIndex="10"
             SizeChanged="FooterBar_SizeChanged"
-            Padding="10,0" ColumnSpacing="8" Background="{ThemeResource ShnappImageChromeBrush}">
+            Padding="10,0" ColumnSpacing="8" Background="Transparent">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
