@@ -281,8 +281,10 @@ public sealed class VideoProjectStore(string rootPath)
             try
             {
                 VideoProject project = await OpenAsync(id, cancellationToken).ConfigureAwait(false);
+                string recordingPath = project.Assets.Single(static asset =>
+                    asset.Kind == VideoAssetKind.Recording).RelativePath;
                 summaries.Add(new VideoProjectSummary(project.Id, project.Title, project.CreatedAt,
-                    project.Duration, project.Width, project.Height));
+                    project.Duration, project.Width, project.Height, recordingPath));
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or
                 InvalidDataException or JsonException or ArgumentException)

@@ -112,7 +112,7 @@ public sealed partial class MainPage
     {
         foreach (VideoProjectSummary video in _videoLibrary)
         {
-            string source = GetVideoSourcePath(video.Id);
+            string source = GetVideoSourcePath(video);
             _libraryEntries[video.Id] = new LibraryEntry(video, source,
                 cardWidth, thumbnailHeight,
                 _libraryListMode || _librarySizeIndex == 0 ? 192 : 384,

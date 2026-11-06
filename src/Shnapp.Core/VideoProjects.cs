@@ -340,5 +340,6 @@ public sealed record VideoProject(int SchemaVersion, Guid Id, string Title, Date
 /// <param name="Duration">Current edited video duration.</param>
 /// <param name="Width">Output width in pixels.</param>
 /// <param name="Height">Output height in pixels.</param>
+/// <param name="RecordingRelativePath">Validated path of the original MP4 in the project.</param>
 public sealed record VideoProjectSummary(Guid Id, string Title, DateTimeOffset CreatedAt,
-    TimeSpan Duration, int Width, int Height);
+    TimeSpan Duration, int Width, int Height, string RecordingRelativePath);

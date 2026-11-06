@@ -17,6 +17,7 @@ public sealed partial class MainPage
         if (_editor is null) RefreshVideoLibraryEntries();
     }
 
-    private string GetVideoSourcePath(Guid id) =>
-        Path.Combine(_videoRootPath, id.ToString("N"), "source.mp4");
+    private string GetVideoSourcePath(VideoProjectSummary project) =>
+        Path.Combine(_videoRootPath, project.Id.ToString("N"),
+            project.RecordingRelativePath.Replace('/', Path.DirectorySeparatorChar));
 }

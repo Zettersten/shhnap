@@ -482,6 +482,7 @@ public sealed class VideoProjectStoreTests
         Assert.AreEqual(1, listed.Count);
         Assert.AreEqual(project.Id, listed[0].Id);
         Assert.AreEqual(TimeSpan.FromSeconds(5), listed[0].Duration);
+        Assert.AreEqual("assets/original.mp4", listed[0].RecordingRelativePath);
     }
 
     [TestMethod]
