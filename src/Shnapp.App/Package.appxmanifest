@@ -46,13 +46,6 @@
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
       <Extensions>
-        <Extension Category="windows.activatableClass.inProcessServer">
-          <InProcessServer>
-            <Path>WinRT.Host.dll</Path>
-            <ActivatableClass ActivatableClassId="Shnapp.VideoEffects.VideoShapeMaskEffect"
-              ThreadingModel="both" />
-          </InProcessServer>
-        </Extension>
         <uap5:Extension
           Category="windows.startupTask"
           Executable="Shnapp.exe"
@@ -63,6 +56,16 @@
       </Extensions>
     </Application>
   </Applications>
+
+  <Extensions>
+    <Extension Category="windows.activatableClass.inProcessServer">
+      <InProcessServer>
+        <Path>WinRT.Host.dll</Path>
+        <ActivatableClass ActivatableClassId="Shnapp.VideoEffects.VideoShapeMaskEffect"
+          ThreadingModel="both" />
+      </InProcessServer>
+    </Extension>
+  </Extensions>
 
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
