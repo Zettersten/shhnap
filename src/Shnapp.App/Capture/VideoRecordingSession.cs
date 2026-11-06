@@ -40,7 +40,9 @@ internal sealed class VideoRecordingSession
     private long _finalPauseStartQpc;
     private bool _recordRequested;
     private bool _cancelRequested;
-    private Exception? _audioError;
+    private Exception? _startError;
+    private Exception? _systemAudioError;
+    private Exception? _microphoneAudioError;
     private Exception? _cameraError;
     private int _finalizeWatchdogArmed;
 
@@ -113,12 +115,13 @@ internal sealed class VideoRecordingSession
             if (_systemAudioPath is not null)
             {
                 _systemAudio = new VideoAudioStem(_systemAudioPath, loopback: true, deviceId: null,
-                    MapAudioPacket, OnAudioFailure);
+                    MapAudioPacket, error => OnAudioFailure(error, systemAudio: true));
             }
             if (_microphoneAudioPath is not null)
             {
                 _microphoneAudio = new VideoAudioStem(_microphoneAudioPath, loopback: false,
-                    _options.MicrophoneSourceId, MapAudioPacket, OnAudioFailure);
+                    _options.MicrophoneSourceId, MapAudioPacket,
+                    error => OnAudioFailure(error, systemAudio: false));
             }
             if (_cameraVideoPath is not null)
             {
@@ -149,8 +152,10 @@ internal sealed class VideoRecordingSession
             }
             await _started.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            _systemAudio?.Start();
-            _microphoneAudio?.Start();
+            try { _systemAudio?.Start(); }
+            catch (Exception error) { OnAudioFailure(error, systemAudio: true); }
+            try { _microphoneAudio?.Start(); }
+            catch (Exception error) { OnAudioFailure(error, systemAudio: false); }
             if (_cameraVideo is not null)
             {
                 try
@@ -168,7 +173,7 @@ internal sealed class VideoRecordingSession
         }
         catch (Exception error)
         {
-            _audioError ??= error;
+            _startError ??= error;
             if (!_recordRequested)
             {
                 _nativeFinished.TrySetException(error);
@@ -241,7 +246,11 @@ internal sealed class VideoRecordingSession
         }
         catch
         {
-            OnAudioFailure(new InvalidOperationException("Video recording could not resume."));
+            lock (_gate)
+            {
+                _startError ??= new InvalidOperationException("Video recording could not resume.");
+            }
+            _ = Task.Run(() => RequestStop(cancel: false));
             throw;
         }
         try
@@ -372,11 +381,12 @@ internal sealed class VideoRecordingSession
         _nativeFinished.TrySetException(error);
     }
 
-    private void OnAudioFailure(Exception error)
+    private void OnAudioFailure(Exception error, bool systemAudio)
     {
         lock (_gate)
         {
-            _audioError ??= error;
+            if (systemAudio) _systemAudioError ??= error;
+            else _microphoneAudioError ??= error;
         }
         _ = Task.Run(() => RequestStop(cancel: false));
     }
@@ -465,6 +475,8 @@ internal sealed class VideoRecordingSession
     {
         Exception? failure = null;
         Exception? cameraFailure = null;
+        Exception? systemAudioFailure = null;
+        Exception? microphoneAudioFailure = null;
         bool cancelled = false;
         TimeSpan duration = TimeSpan.Zero;
         try
@@ -483,40 +495,35 @@ internal sealed class VideoRecordingSession
                 _endQpc = NowQpc();
             }
             cancelled = _cancelRequested;
-            failure ??= _audioError;
+            failure ??= _startError;
         }
         duration = Elapsed;
         if (failure is null && !cancelled && duration <= TimeSpan.Zero)
         {
             failure = new IOException("Recording ended before a video frame could be captured.");
         }
-        try
+        if (_systemAudio is not null)
         {
-            if (_systemAudio is not null)
-            {
-                await _systemAudio.StopAsync(duration, padToDuration: failure is null && !cancelled)
-                    .ConfigureAwait(false);
-            }
-            if (_microphoneAudio is not null)
-            {
-                await _microphoneAudio.StopAsync(duration, padToDuration: failure is null && !cancelled)
-                    .ConfigureAwait(false);
-            }
+            try { await _systemAudio.StopAsync(duration, padToDuration: failure is null && !cancelled)
+                .ConfigureAwait(false); }
+            catch (Exception error) { systemAudioFailure ??= error; }
         }
-        catch (Exception error)
+        if (_microphoneAudio is not null)
         {
-            failure ??= error;
+            try { await _microphoneAudio.StopAsync(duration, padToDuration: failure is null && !cancelled)
+                .ConfigureAwait(false); }
+            catch (Exception error) { microphoneAudioFailure ??= error; }
         }
 
         if (_systemAudio is not null)
         {
             try { await _systemAudio.DisposeAsync().ConfigureAwait(false); }
-            catch (Exception error) { failure ??= error; }
+            catch (Exception error) { systemAudioFailure ??= error; }
         }
         if (_microphoneAudio is not null)
         {
             try { await _microphoneAudio.DisposeAsync().ConfigureAwait(false); }
-            catch (Exception error) { failure ??= error; }
+            catch (Exception error) { microphoneAudioFailure ??= error; }
         }
         if (_cameraVideo is not null)
         {
@@ -571,6 +578,13 @@ internal sealed class VideoRecordingSession
             _completion.TrySetException(error);
             return;
         }
+        lock (_gate)
+        {
+            systemAudioFailure ??= _systemAudioError;
+            microphoneAudioFailure ??= _microphoneAudioError;
+        }
+        VideoRecordingAudioResult audio = VideoRecordingAudioFinalizer.Finalize(
+            _systemAudioPath, systemAudioFailure, _microphoneAudioPath, microphoneAudioFailure);
         TimeSpan cameraDuration = TimeSpan.Zero;
         TimeSpan cameraStart = TimeSpan.Zero;
         string? cameraPath = _cameraVideoPath;
@@ -614,9 +628,9 @@ internal sealed class VideoRecordingSession
             }
         }
         lock (_gate) { _state = VideoRecordingState.Completed; }
-        var result = new VideoRecordingResult(_videoPath, _systemAudioPath, _microphoneAudioPath,
+        var result = new VideoRecordingResult(_videoPath, audio.SystemAudioPath, audio.MicrophoneAudioPath,
             _startedAt, mp4Duration.Value, _width, _height,
-            cameraPath, cameraStart, cameraDuration, cameraWarning);
+            cameraPath, cameraStart, cameraDuration, cameraWarning, audio.Warning);
         Publish(VideoRecordingState.Completed);
         _completion.TrySetResult(result);
     }

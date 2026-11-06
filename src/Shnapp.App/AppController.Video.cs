@@ -214,9 +214,12 @@ internal sealed partial class AppController
             try
             {
                 await ShowVideoProjectAsync(project);
-                if (cameraWarning is not null)
+                string? captureWarning = string.Join(" ",
+                    new[] { result.AudioWarning, cameraWarning }.Where(
+                        warning => !string.IsNullOrWhiteSpace(warning)));
+                if (captureWarning.Length > 0)
                     _window.VideoPage?.ShowCaptureWarning(
-                        "The screen recording was saved. " + cameraWarning);
+                        "The screen recording was saved. " + captureWarning);
             }
             catch (Exception error)
             {

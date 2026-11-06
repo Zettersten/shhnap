@@ -136,35 +136,38 @@ internal sealed class VideoAudioStem : IAsyncDisposable
         }
         _accepting = false;
         _stopRequested = true;
-        if (_started && !_stopped.Task.IsCompleted)
-        {
-            _recorder.StopRecording();
-            try
-            {
-                await _stopped.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-            }
-            catch (TimeoutException)
-            {
-                // Teardown must continue if the endpoint disappeared.
-            }
-        }
-        _packets.Writer.TryComplete();
+        Exception? cleanupError = null;
         try
         {
-            await _writeTask.ConfigureAwait(false);
+            if (_started && !_stopped.Task.IsCompleted)
+            {
+                try
+                {
+                    _recorder.StopRecording();
+                    await _stopped.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    // Teardown must continue if the endpoint disappeared.
+                }
+                catch (Exception error)
+                {
+                    cleanupError = error;
+                }
+            }
+            _packets.Writer.TryComplete();
+            try { await _writeTask.ConfigureAwait(false); }
+            catch (Exception error) { cleanupError ??= error; }
         }
         finally
         {
-            Exception? cleanupError = null;
-            try { _writer.Dispose(); } catch (Exception error) { cleanupError = error; }
+            try { _writer.Dispose(); } catch (Exception error) { cleanupError ??= error; }
             try { _recorder.Dispose(); } catch (Exception error) { cleanupError ??= error; }
             try { _device?.Dispose(); } catch (Exception error) { cleanupError ??= error; }
             try { _deviceEnumerator?.Dispose(); } catch (Exception error) { cleanupError ??= error; }
-            if (cleanupError is not null)
-            {
-                throw cleanupError;
-            }
         }
+        if (cleanupError is not null)
+            throw cleanupError;
     }
 
     private void OnDataAvailable(ReadOnlySpan<byte> data, AudioClientBufferFlags flags, long devicePosition, long qpcPosition)

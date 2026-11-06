@@ -35,7 +35,8 @@ internal sealed record VideoRecordingResult(
     string? CameraVideoPath,
     TimeSpan CameraStart,
     TimeSpan CameraDuration,
-    string? CameraWarning);
+    string? CameraWarning,
+    string? AudioWarning);
 
 internal enum VideoRecordingState
 {
