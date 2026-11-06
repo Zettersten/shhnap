@@ -104,7 +104,8 @@ foreach ($rid in @('win-x64', 'win-arm64')) {
                     $asset = $relative -match '^Assets/(?:[A-Za-z0-9_. -]+\.(ico|json|png))?$'
                     $winuiAsset = $relative -match '^Microsoft\.UI\.Xaml/(?:Assets/(?:[A-Za-z0-9_. -]+\.(html|png))?)?$'
                     $localizedResource = $relative -match '^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){1,2}/(?:Microsoft\.ui\.xaml(?:\.Phone)?\.dll\.mui)?$'
-                    if ($payloadFile -or $asset -or $winuiAsset -or $localizedResource -or
+                    $winRtHostResource = $relative -ceq 'WinRT.Host.dll.mui'
+                    if ($payloadFile -or $asset -or $winuiAsset -or $localizedResource -or $winRtHostResource -or
                         $relative -cin @('LICENSE', 'THIRD_PARTY_NOTICES.txt', 'THIRD_PARTY_NOTICES/') -or
                         $relative.StartsWith('THIRD_PARTY_NOTICES/', [System.StringComparison]::Ordinal)) {
                         continue
