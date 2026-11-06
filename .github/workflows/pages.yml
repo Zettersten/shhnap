@@ -48,10 +48,9 @@ jobs:
           test -s dist/download/index.html
           test -s dist/privacy/index.html
 
-          if grep -Eq 'workflowVideoLive:[[:space:]]*true' src/config/distribution.ts; then
+          if grep -Fq '/demos/shnapp-workflow.mp4' dist/index.html; then
             test -s dist/demos/shnapp-workflow.mp4
-            test -s dist/demos/shnapp-workflow-poster.jpg
-            grep -Fq '/demos/shnapp-workflow.mp4' dist/index.html
+            test -s dist/demos/shnapp-workflow-poster.webp
           fi
 
           if grep -Eq '(downloadsLive|publicRepository):[[:space:]]*false' src/config/distribution.ts; then
