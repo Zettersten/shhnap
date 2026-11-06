@@ -19,6 +19,50 @@ public sealed class VideoProjectStore(string rootPath)
     /// <summary>The normalized video-library root.</summary>
     public string RootPath { get; } = NormalizeRoot(rootPath);
 
+    /// <summary>Returns a full export path outside the immutable video-library assets.</summary>
+    public string GetExternalExportPath(string destinationPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+        string destination = Path.GetFullPath(destinationPath);
+        if (destination.StartsWith(@"\\?\", StringComparison.Ordinal) ||
+            destination.StartsWith(@"\\.\", StringComparison.Ordinal))
+        {
+            throw new IOException("Choose a regular video export path.");
+        }
+        if (IsWithinRoot(destination) || IsWithinRoot(ResolveExistingLinks(destination)))
+        {
+            throw new IOException("Choose a video export location outside the editable video library.");
+        }
+        return destination;
+    }
+
+    private bool IsWithinRoot(string path) =>
+        path.Equals(RootPath, StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith(RootPath + Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveExistingLinks(string path)
+    {
+        string root = Path.GetPathRoot(path) ?? throw new IOException("The export path has no root.");
+        string resolved = root;
+        foreach (string component in path[root.Length..].Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries))
+        {
+            resolved = Path.Combine(resolved, component);
+            FileSystemInfo? target = Directory.Exists(resolved)
+                ? Directory.ResolveLinkTarget(resolved, returnFinalTarget: true)
+                : File.Exists(resolved)
+                    ? File.ResolveLinkTarget(resolved, returnFinalTarget: true)
+                    : null;
+            if (target is not null)
+            {
+                resolved = Path.GetFullPath(target.FullName);
+            }
+        }
+        return resolved;
+    }
+
     /// <summary>Gets a project's GUID-only directory without creating it.</summary>
     /// <param name="id">Nonempty project identifier.</param>
     /// <returns>The absolute project directory path.</returns>

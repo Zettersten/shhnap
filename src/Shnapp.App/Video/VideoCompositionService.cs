@@ -1118,7 +1118,7 @@ internal static class VideoCompositionService
         IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
-        string destination = Path.GetFullPath(destinationPath);
+        string destination = store.GetExternalExportPath(destinationPath);
         string directory = Path.GetDirectoryName(destination)
             ?? throw new ArgumentException("Choose an output folder.", nameof(destinationPath));
         string staging = Path.Combine(directory, $".shnapp-{Guid.NewGuid():N}.mp4");
@@ -1161,6 +1161,7 @@ internal static class VideoCompositionService
                 throw new IOException("The video export was empty.");
             }
 
+            store.GetExternalExportPath(destination);
             File.Move(staging, destination, overwrite: true);
         }
         finally
