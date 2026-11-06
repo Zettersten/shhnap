@@ -1,9 +1,11 @@
 ---
 import SiteLayout from '../../layouts/SiteLayout.astro';
+import MicrosoftStoreBadge from '../../components/MicrosoftStoreBadge.astro';
 import { assetUrl, catalogChannels, distribution, downloadsAvailable, issueUrls, latestReleaseUrl } from '../../config/distribution';
 import type { CatalogState } from '../../config/distribution';
 
 const builds = Object.entries(distribution.builds).map(([architecture, build]) => ({ architecture, ...build }));
+const packageManagerChannels = catalogChannels.filter((channel) => channel.id !== 'microsoft-store');
 const contactHref = `mailto:${distribution.contactEmail}`;
 const bugHref = distribution.publicRepository ? issueUrls.bug : contactHref;
 const featureHref = distribution.publicRepository ? issueUrls.feature : contactHref;
@@ -28,12 +30,13 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
         <div class="dl-hero-copy">
           <span class="dl-release-status" role="status">
             <span class="dl-status-dot" aria-hidden="true"></span>
-            <span data-release-status-copy>{downloadsAvailable ? 'Available now for Windows 11' : 'First public release in preparation'}</span>
+            <span>Available on Microsoft Store</span>
           </span>
           <h1 id="download-title">Ready when the moment <em>hits.</em></h1>
           <p>Get Shnapp for Windows 11. Capture a still or record your screen, edit it locally, and share when it is ready. Built for Intel, AMD, and ARM PCs.</p>
           <div class="dl-hero-actions">
-            <a class="dl-primary-link" href="#builds">Choose your build <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></a>
+            <MicrosoftStoreBadge />
+            <a class="dl-secondary-link" href="#builds">Other download options <span aria-hidden="true">↓</span></a>
             {downloadsAvailable && <a class="dl-secondary-link" data-release-link href={latestReleaseUrl} target="_blank" rel="noopener noreferrer">See release notes <span aria-hidden="true">↗</span></a>}
           </div>
         </div>
@@ -104,9 +107,9 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
 
     <section class="dl-catalog-section" aria-labelledby="catalog-title">
       <div class="shell">
-        <div class="dl-section-intro dl-catalog-intro"><h2 id="catalog-title">Your preferred way to install.</h2><p>Choose a package manager or install through Microsoft Store. Each channel shows its current status.</p></div>
+        <div class="dl-section-intro dl-catalog-intro"><h2 id="catalog-title">Install with a package manager.</h2><p>Use a package manager if it is already part of your Windows workflow. Each channel shows its current status.</p></div>
         <div class="dl-catalog-list">
-          {catalogChannels.map((channel) => (
+          {packageManagerChannels.map((channel) => (
             <article class="dl-catalog-row">
               <div class="dl-catalog-name"><h3>{channel.name}</h3><p>{channel.description}</p></div>
               <div class="dl-catalog-details">
@@ -174,9 +177,6 @@ if (catalogChannels.some((channel) => channel.state === 'live' && !channel.listi
         const unsignedVersion = signingNote.querySelector<HTMLElement>('[data-unsigned-version]');
         if (unsignedVersion && isUnsignedRelease) unsignedVersion.textContent = `${feed.tag} is unsigned.`;
       }
-
-      const status = document.querySelector<HTMLElement>('[data-release-status-copy]');
-      if (status) status.textContent = `Shnapp ${feed.tag} available for Windows 11`;
 
       const version = document.querySelector<HTMLAnchorElement>('[data-release-version]');
       if (version) {
