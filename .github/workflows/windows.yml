@@ -187,6 +187,7 @@ jobs:
                 (Join-Path $publishDir 'Shnapp.exe'),
                 (Join-Path $publishDir 'Shnapp.dll'),
                 (Join-Path $publishDir 'Shnapp.Core.dll'),
+                (Join-Path $publishDir 'Shnapp.VideoEffects.dll'),
                 (Join-Path $publishDir 'Velopack.dll'),
                 (Join-Path $launcherDir 'Shnapp.exe')) + $recordingBinaries) {
               ./packaging/release/Sign-ReleaseExecutable.ps1 `
