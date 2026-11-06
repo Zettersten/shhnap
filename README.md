@@ -12,11 +12,11 @@
   <strong>Made for Windows 11 · Native WinUI · Local by default</strong>
 </p>
 
-Shnapp waits quietly in your tray until you need it. Capture part of your screen, add a little context, then copy the finished image or save a PNG. Every capture is a **shnapp**; making one is **shnapping**.
+Shnapp waits quietly in your tray until you need it. Capture a screenshot or record your screen, add context with image tools or a video timeline, then share a PNG or MP4. Every capture is a **shnapp**; making one is **shnapping**.
 
 ## See Shnapp in action
 
-[Watch the 39-second Shnapp v2 tour](src/Shnapp.Site/public/demos/shnapp-workflow.mp4) for the full-window canvas, floating options, transforms, sharing actions, and local library. The app captures below use a fictional sample workspace.
+[Watch the 39-second photo editor tour](src/Shnapp.Site/public/demos/shnapp-workflow.mp4) for the full-window canvas, floating options, transforms, sharing actions, and local library. The app captures below use a fictional sample workspace.
 
 | Full-window canvas and acrylic options | Annotated editor |
 | --- | --- |
@@ -136,7 +136,7 @@ Direct-download copies save their library and preferences under `%LOCALAPPDATA%\
 
 ## Get started
 
-Get [Shnapp for Windows 11](https://shhnap.com/download/) for your x64 or ARM64 PC, or [install it from Microsoft Store](https://apps.microsoft.com/detail/9P7LX12F1V5L). For direct downloads with a Velopack installer, the download page recommends the matching setup file: run it to install Shnapp for your Windows account. Releases without an installer continue to offer the portable ZIP. You can also choose the ZIP on installer releases: extract the entire archive, run the root `Shnapp.exe`, and keep `versions` and `current-version.txt` beside it for updates. The [latest GitHub release](https://github.com/Zettersten/shhnap/releases/latest) has release notes and SHA-256 checksum files for its downloads. The v2 portable ZIP keeps the self-contained app, WinUI libraries, resources, and license notices together in its versioned folder. You can also [build it from source](#build-from-source). Captions, output resizing, polygon shapes, true free-form capture, and optional AI assistance are planned.
+Get [Shnapp for Windows 11](https://shhnap.com/download/) for your x64 or ARM64 PC, or [install it from Microsoft Store](https://apps.microsoft.com/detail/9P7LX12F1V5L). For direct downloads with a Velopack installer, the download page recommends the matching setup file: run it to install Shnapp for your Windows account. Releases without an installer continue to offer the portable ZIP. You can also choose the ZIP on installer releases: extract the entire archive, run the root `Shnapp.exe`, and keep `versions` and `current-version.txt` beside it for updates. The [latest GitHub release](https://github.com/Zettersten/shhnap/releases/latest) has release notes and SHA-256 checksum files for its downloads. The portable ZIP keeps the self-contained app, WinUI libraries, resources, and license notices together in its versioned folder. You can also [build it from source](#build-from-source). Captions, output resizing, polygon shapes, true free-form capture, and optional AI assistance are planned.
 
 If you use Scoop, install from the [Shnapp bucket](https://github.com/Zettersten/scoop-bucket):
 
