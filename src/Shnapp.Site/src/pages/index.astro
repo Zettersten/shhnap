@@ -1,5 +1,6 @@
 ---
 import SiteLayout from '../layouts/SiteLayout.astro';
+import MicrosoftStoreBadge from '../components/MicrosoftStoreBadge.astro';
 import { distribution, downloadsAvailable, issueUrls, microsoftStoreUrl } from '../config/distribution';
 
 const feedbackHref = distribution.publicRepository
@@ -27,8 +28,8 @@ const captureModes = [
       <h1 id="hero-title">Show exactly<br /><span>what happened.</span></h1>
       <p>Capture a screenshot or record your screen. Mark up the picture, or shape a video with clips, text, sound, and transitions. Keep it local until you are ready to share.</p>
       <div class="hero-actions">
-        <a class="button button-hero" href="/download/">{downloadsAvailable ? 'Download Shnapp' : 'Explore the preview'} <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v10m-4-4 4 4 4-4M4 16h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></a>
-        <a class="button button-hero-outline" href="#video">Explore video editing <span aria-hidden="true">↘</span></a>
+        <MicrosoftStoreBadge />
+        <a class="hero-secondary-link" href="/download/#builds">Other download options <span aria-hidden="true">↗</span></a>
       </div>
       <p class="hero-availability">Windows 11 · x64 and ARM64 · {downloadsAvailable ? 'Available now' : 'Early preview'}</p>
     </div>
@@ -280,7 +281,7 @@ const captureModes = [
   <section class="final-cta" aria-labelledby="final-title">
     <div class="shell final-cta-inner">
       <div><h2 id="final-title">Ready to make it clear?</h2><p>Capture the moment. Add the context. Share the picture or the clip.</p></div>
-      <div class="final-actions"><a class="button button-final" href="/download/">{downloadsAvailable ? 'Download Shnapp' : 'Explore the preview'} <span aria-hidden="true">↗</span></a><a href={feedbackHref} target={distribution.publicRepository ? '_blank' : undefined} rel={distribution.publicRepository ? 'noopener noreferrer' : undefined}>Help shape Shnapp</a></div>
+      <div class="final-actions"><MicrosoftStoreBadge /><a href={feedbackHref} target={distribution.publicRepository ? '_blank' : undefined} rel={distribution.publicRepository ? 'noopener noreferrer' : undefined}>Help shape Shnapp</a></div>
     </div>
   </section>
 </SiteLayout>

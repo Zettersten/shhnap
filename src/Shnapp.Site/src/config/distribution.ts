@@ -22,6 +22,7 @@ export const distribution = {
 export const releaseUrl = `${distribution.repositoryUrl}/releases`;
 export const latestReleaseUrl = `${distribution.repositoryUrl}/releases/latest`;
 export const microsoftStoreUrl = 'https://apps.microsoft.com/detail/9P7LX12F1V5L';
+export const microsoftStoreInstallUrl = 'https://get.microsoft.com/installer/download/9P7LX12F1V5L?referrer=appbadge';
 export const downloadsAvailable = distribution.publicRepository && distribution.downloadsLive;
 
 export function assetUrl(fileName: string) {

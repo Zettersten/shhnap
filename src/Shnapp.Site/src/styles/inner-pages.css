@@ -43,10 +43,7 @@
 .download-page .dl-hero h1 { max-width: 11ch; margin: 1.7rem 0 1.4rem; color: #fff; font-size: clamp(3.6rem, 6.2vw, 6rem); font-weight: 770; line-height: 1.035; letter-spacing: -.04em; text-wrap: balance; }
 .download-page .dl-hero h1 em { color: #a6b9ff; font-style: normal; }
 .download-page .dl-hero-copy > p { max-width: 43ch; margin: 0; color: #d6e1f7; font-size: clamp(1.06rem, 1.5vw, 1.22rem); line-height: 1.62; }
-.download-page .dl-hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .95rem 1.5rem; margin-top: 2rem; }
-.download-page .dl-primary-link { display: inline-flex; min-height: 52px; align-items: center; justify-content: center; gap: .85rem; padding: .8rem 1.25rem; border-radius: 12px; background: #fff; color: #152447; font-weight: 740; text-decoration: none; transition: transform .2s cubic-bezier(.2,.8,.2,1), background-color .2s; }
-.download-page .dl-primary-link:hover { transform: translateY(-2px); background: #eaf1ff; color: #152447; }
-.download-page .dl-primary-link svg { width: 19px; height: 19px; }
+.download-page .dl-hero-actions { display: flex; flex-direction: column; align-items: flex-start; gap: .95rem; margin-top: 2rem; }
 .download-page .dl-secondary-link { color: #e8efff; font-size: .94rem; font-weight: 660; text-decoration-color: rgba(232, 239, 255, .5); }
 .download-page .dl-secondary-link:hover { color: #fff; }
 .download-page .dl-secondary-link span { margin-left: .25rem; }
@@ -241,7 +238,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .download-page .dl-primary-link,
   .download-page .dl-build-action,
   .download-page .dl-faq summary::after { transition: none; }
 }
