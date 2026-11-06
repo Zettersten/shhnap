@@ -1,6 +1,6 @@
 # Microsoft Store listing (en-US, MSIX)
 
-**Shnapp** is [publicly available in Microsoft Store](https://apps.microsoft.com/detail/9P7LX12F1V5L) under the publisher **Nenvy**. The first public submission used validated x64 and ARM64 `2.1.0.0` packages. For the video release, create an update submission with `3.0.0.0` packages and the listing text and screenshots below. The [Store candidate workflow](https://github.com/Zettersten/shhnap/actions/workflows/store-candidates.yml) builds upload files; Partner Center validation, certification, and publication are separate steps. [Microsoft's MSIX listing guide](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/add-and-edit-store-listing-info) requires a description and at least one screenshot.
+**Shnapp** is [publicly available in Microsoft Store](https://apps.microsoft.com/detail/9P7LX12F1V5L) under the publisher **Nenvy**. The first public submission used validated x64 and ARM64 `2.1.0.0` packages. For the video release, create an update submission with `3.0.1.0` packages and the listing text and screenshots below. The [Store candidate workflow](https://github.com/Zettersten/shhnap/actions/workflows/store-candidates.yml) builds upload files; Partner Center validation, certification, and publication are separate steps. [Microsoft's MSIX listing guide](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/add-and-edit-store-listing-info) requires a description and at least one screenshot.
 
 ## Product identity
 
@@ -29,7 +29,7 @@ The [three manifest values](https://learn.microsoft.com/en-us/windows/apps/publi
 | Copyright | © 2026 Erik Zettersten |
 | License | MIT for Shnapp's own code and first-party artwork; bundled components keep their own license notices in the package |
 | Additional license terms | https://github.com/Zettersten/shhnap/blob/main/LICENSE (the canonical MIT terms, so Store buyers see the same grant) |
-| What's new in this version | Use the v3.0.0 update text below |
+| What's new in this version | Use the v3.0.1 update text below |
 
 **Short description**
 
@@ -45,7 +45,7 @@ For video, trim or split clips on a timeline, add another video or image, edit t
 
 Screenshots and videos appear together in a searchable local library. The original recording stays intact while you edit. The core capture and editing flow works without a Shnapp account or cloud service. Launch at sign-in is optional; Microsoft Store delivers updates to this edition.
 
-**What's new in this version (v3.0.0)**
+**What's new in this version (v3.0.1)**
 
 Record a region, window, or display with optional computer audio, microphone, and camera video. Edit clips, layered images and video, live text, audio, and transitions in the new video editor. Screenshots and videos now share one library, with a direct Record video action on the empty gallery. Gallery previews load as you browse.
 
@@ -64,7 +64,7 @@ Record a region, window, or display with optional computer audio, microphone, an
 - The MSIX manifest declares `runFullTrust` for the WinUI desktop app and a disabled-by-default `windows.startupTask` extension. Launch at sign-in is user controlled in Settings.
 - The app captures screen pixels only when the user starts a still or video capture. Optional computer audio, microphone, and camera capture are controlled in Recording settings; audio capture is off by default. Export and sharing are user initiated. The optional Store update check contacts Microsoft Store; the portable edition checks GitHub Releases.
 - The app has no Shnapp account, hosted capture library, analytics, or in-app purchases. Confirm the privacy answers against the final build. Microsoft says a privacy policy is required when the app accesses, collects, or transmits personal information or has capabilities that could do so: [MSIX support info](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/support-info).
-- The public Store version is `2.1.0.0`. The v3 candidate must increase it to `3.0.0.0` for both x64 and ARM64. The workflow checks identity and contents but does not sign, submit, or certify packages. [MSIX package upload](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/upload-app-packages).
+- The public Store version is `2.1.0.0`. The v3 candidate must increase it to `3.0.1.0` for both x64 and ARM64. The workflow checks identity and contents but does not sign, submit, or certify packages. [MSIX package upload](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/upload-app-packages).
 - The ARM64 package is cross-built and structurally checked; it has not been run on ARM64 hardware. Test it when a device is available.
 - The Store build uses its package-specific LocalCache folder; Windows excludes it from device backup. On first packaged launch, Shnapp copies a default portable library into that folder without deleting the portable source. Validate the import and packaged startup on a clean Windows 11 install. Export or back up editable captures before Store uninstall or reset, which may remove that package data.
 - The public en-US listing has the description, six features, four screenshots with captions, canonical MIT license URL, and developer attribution. Pricing, properties, IARC age ratings, packages, Store listing, and Submission options all showed Complete before certification was requested. The `runFullTrust` warning is expected for a WinUI 3 desktop app; its rationale is saved in Submission options. Reviewer instructions are saved under Additional Testing Info.
