@@ -11,6 +11,10 @@
     "origin": "User-supplied root logo.png",
     "transform": "Unmodified copy"
   },
+  "LibraryEmptyBackgroundVideo.png": {
+    "origin": "Generated from the previous Shnapp gallery hero artwork with OpenAI image generation",
+    "transform": "Added a video preview, multitrack timeline, and mixed photo and video gallery; 1448 × 1086"
+  },
   "packagingLogos": {
     "origin": "User-supplied root icon.png",
     "transform": "Aspect-preserving resize onto transparent packaging canvases"

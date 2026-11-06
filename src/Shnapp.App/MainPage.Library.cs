@@ -50,7 +50,7 @@ public sealed partial class MainPage
     {
         LibraryEmptyDescription.Text = restoring
             ? "Restoring saved shnapps. They will appear here as they are ready."
-            : "The fast, beautiful way to capture your screen and turn ideas into reality.";
+            : "Capture screenshots and video. Annotate images, trim clips, and keep it all in one library.";
     }
 
     private void RebuildLibraryEntries()

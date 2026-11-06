@@ -1140,7 +1140,7 @@
                             <Canvas x:Name="LibraryEmptyScene" Width="0" Height="0"
                                 HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False"
                                 AutomationProperties.AccessibilityView="Raw">
-                                <Image Source="ms-appx:///Assets/LibraryEmptyBackground.png"
+                                <Image Source="ms-appx:///Assets/LibraryEmptyBackgroundVideo.png"
                                     Width="1448" Height="1086" Stretch="Fill" />
 
                             </Canvas>
@@ -1149,14 +1149,16 @@
                                 <Image x:Name="LibraryEmptyLogo" Source="ms-appx:///Assets/ShnappLogo.png"
                                     Width="300" Height="88" Stretch="Uniform" HorizontalAlignment="Center"
                                     AutomationProperties.Name="Shnapp" />
-                                <TextBlock x:Name="LibraryEmptyTitle" Text="Capture. Annotate. Organize."
+                                <TextBlock x:Name="LibraryEmptyTitle" Text="Capture. Record. Create."
                                     FontFamily="Segoe UI Variable Display" FontSize="38" FontWeight="Bold"
                                     TextWrapping="WrapWholeWords" TextAlignment="Center" Foreground="#F8FAFF" />
                                 <TextBlock x:Name="LibraryEmptyDescription"
-                                    Text="The fast, beautiful way to capture your screen and turn ideas into reality."
+                                    Text="Capture screenshots and video. Annotate images, trim clips, and keep it all in one library."
                                     FontSize="19" TextWrapping="WrapWholeWords" TextAlignment="Center"
                                     Foreground="#C8D6F2" />
-                                <Grid x:Name="LibraryEmptyCaptureShell" Width="306" Height="54" Margin="0,16,0,0"
+                                <StackPanel x:Name="LibraryEmptyActions" Orientation="Horizontal" Spacing="10"
+                                    Margin="0,16,0,0" HorizontalAlignment="Center">
+                                <Grid x:Name="LibraryEmptyCaptureShell" Width="306" Height="54"
                                     HorizontalAlignment="Center" Translation="0,0,2">
                                     <Border Height="54" CornerRadius="8" VerticalAlignment="Center"
                                         Background="{ThemeResource CaptureButtonShadowBrush}" IsHitTestVisible="False">
@@ -1205,6 +1207,19 @@
                                         BorderBrush="{ThemeResource CaptureButtonRimBrushPressed}"
                                         Visibility="Collapsed" IsHitTestVisible="False" />
                                 </Grid>
+                                <Button x:Name="LibraryEmptyRecord" Tag="Region" Click="VideoCapture_Click"
+                                    Width="190" Height="54" Padding="14,0" CornerRadius="8"
+                                    Background="{ThemeResource ShnappToolbarBrush}"
+                                    AutomationProperties.Name="Record a video of a region"
+                                    AutomationProperties.AutomationId="LibraryEmptyRecordVideo"
+                                    ToolTipService.ToolTip="Record a region · Alt+Shift+2">
+                                    <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                                        <SymbolIcon Symbol="Video" Width="18" Height="18" />
+                                        <TextBlock Text="Record video" FontSize="16" FontWeight="SemiBold"
+                                            VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                </StackPanel>
                             </StackPanel>
                         </Grid>
                         <StackPanel x:Name="LibraryNoResults" Visibility="Collapsed" MaxWidth="500" Margin="24"

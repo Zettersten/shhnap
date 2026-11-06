@@ -61,7 +61,7 @@ public sealed partial class MainPage
 
         bool hasNoResults = _library.Count + _videoLibrary.Count > 0 &&
             ViewModel.Library.Count == 0;
-        double minimumHeight = width < 720 ? 760 : 640;
+        double minimumHeight = width < 720 ? 820 : 640;
         LibraryEmptyContent.Width = width;
         LibraryEmptyContent.Height = hasNoResults ? height : Math.Max(height, minimumHeight);
         LayoutLibraryEmptyScene();
@@ -94,7 +94,10 @@ public sealed partial class MainPage
         LibraryEmptyLogo.Height = compact ? 60 : 88;
         LibraryEmptyTitle.FontSize = compact ? 28 : width < 1100 ? 34 : 38;
         LibraryEmptyDescription.FontSize = compact ? 15 : width < 1100 ? 17 : 19;
+        LibraryEmptyActions.Orientation = compact ? Orientation.Vertical : Orientation.Horizontal;
         LibraryEmptyCaptureShell.Width = compact ? 272 : 306;
+        LibraryEmptyRecord.Width = compact ? 272 : 190;
+        LibraryEmptyRecord.Height = compact ? 44 : 54;
         LibraryEmptySparkleHost.Width = LibraryEmptyCaptureShell.Width - 54;
 
         bool highContrast = _themeSettings?.HighContrast ?? _accessibility.HighContrast;
