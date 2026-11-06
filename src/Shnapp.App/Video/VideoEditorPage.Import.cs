@@ -120,8 +120,10 @@ public sealed partial class VideoEditorPage
                 if (summary is not null)
                 {
                     string path = _getGalleryPreviewPath?.Invoke(item.Id) ?? string.Empty;
-                    thumbnail.Source = new LibraryEntry(summary, path,
-                        previewPixelWidth: 160).Preview;
+                    var entry = new LibraryEntry(summary, path,
+                        previewPixelWidth: 160);
+                    entry.EnsurePreview(token);
+                    thumbnail.Source = entry.Preview;
                 }
             }
             else

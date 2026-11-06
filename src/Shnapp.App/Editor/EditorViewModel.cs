@@ -56,7 +56,13 @@ public sealed partial class EditorViewModel : ObservableObject
 /// <summary>A gallery entry backed by a saved screenshot or recording.</summary>
 public sealed partial class LibraryEntry : ObservableObject
 {
-    private bool _videoPreviewRequested;
+    private static readonly SemaphoreSlim PreviewDecodeGate = new(4, 4);
+    private readonly string? _photoPreviewPath;
+    private readonly int _previewPixelWidth;
+    private BitmapImage _preview = new();
+    private CancellationTokenSource? _previewCancellation;
+    private bool _previewLoaded;
+    private bool _previewFailed;
 
     /// <summary>Enables dragging a saved image into the editor outside selection mode.</summary>
     [ObservableProperty]
@@ -172,7 +178,11 @@ public sealed partial class LibraryEntry : ObservableObject
     public string CompactMetadataSummary { get; }
 
     /// <summary>Gets the decoded-size-limited local preview.</summary>
-    public BitmapImage Preview { get; }
+    public BitmapImage Preview
+    {
+        get => _preview;
+        private set => SetProperty(ref _preview, value);
+    }
 
     /// <summary>Gets the width of this entry in the selected grid layout.</summary>
     [ObservableProperty]
@@ -231,13 +241,9 @@ public sealed partial class LibraryEntry : ObservableObject
         CardWidth = cardWidth;
         CardTileWidth = cardWidth;
         ThumbnailHeight = thumbnailHeight;
-        Preview = new BitmapImage { DecodePixelWidth = previewPixelWidth };
-        if (File.Exists(previewPath))
-        {
-            // The preview path is stable across saves. UriSource can reuse a cached
-            // decode after an edit, so read the latest file bytes for each entry.
-            _ = LoadPreviewAsync(previewPath);
-        }
+        _previewPixelWidth = previewPixelWidth;
+        _photoPreviewPath = previewPath;
+        Preview = NewPreview();
     }
 
     /// <summary>Creates a video card in the same virtualized gallery as photos.</summary>
@@ -272,50 +278,81 @@ public sealed partial class LibraryEntry : ObservableObject
         CardWidth = cardWidth;
         CardTileWidth = cardWidth;
         ThumbnailHeight = thumbnailHeight;
-        Preview = new BitmapImage
-        {
-            DecodePixelWidth = Math.Clamp(previewPixelWidth, 64, 512),
-        };
+        _previewPixelWidth = Math.Clamp(previewPixelWidth, 64, 512);
+        Preview = NewPreview();
     }
 
-    /// <summary>Loads a recording thumbnail when its gallery card is realized.</summary>
-    public void EnsureVideoPreview()
+    /// <summary>Loads only realized thumbnails, with bounded decode concurrency.</summary>
+    public void EnsurePreview(CancellationToken cancellationToken = default)
     {
-        if (!IsVideo || _videoPreviewRequested || string.IsNullOrWhiteSpace(VideoSourcePath))
+        if (_previewLoaded || _previewFailed || _previewCancellation is not null ||
+            (IsVideo ? string.IsNullOrWhiteSpace(VideoSourcePath) :
+                string.IsNullOrWhiteSpace(_photoPreviewPath)))
             return;
-        _videoPreviewRequested = true;
-        _ = LoadVideoPreviewAsync(VideoSourcePath, Preview.DecodePixelWidth);
+        CancellationTokenSource cancellation = cancellationToken.CanBeCanceled
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : new CancellationTokenSource();
+        _previewCancellation = cancellation;
+        _ = LoadPreviewAsync(cancellation);
     }
 
-    private async Task LoadPreviewAsync(string path)
+    /// <summary>Drops decoded pixels when a gallery card leaves the viewport.</summary>
+    public void ReleasePreview()
     {
-        try
-        {
-            await using FileStream file = new(path, FileMode.Open, FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete);
-            using IRandomAccessStream stream = file.AsRandomAccessStream();
-            await Preview.SetSourceAsync(stream);
-        }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
-        catch (COMException) { }
+        bool hadPreview = _previewLoaded || _previewCancellation is not null;
+        _previewCancellation?.Cancel();
+        _previewCancellation = null;
+        if (!hadPreview) return;
+        _previewLoaded = false;
+        Preview = NewPreview();
     }
 
-    private async Task LoadVideoPreviewAsync(string path, int previewPixelWidth)
+    private BitmapImage NewPreview() => new() { DecodePixelWidth = _previewPixelWidth };
+
+    private async Task LoadPreviewAsync(CancellationTokenSource cancellation)
     {
+        bool entered = false;
+        CancellationToken token = cancellation.Token;
         try
         {
-            StorageFile file = await StorageFile.GetFileFromPathAsync(path);
-            using StorageItemThumbnail thumbnail = await file.GetThumbnailAsync(
-                ThumbnailMode.VideosView,
-                (uint)Math.Clamp(previewPixelWidth, 64, 512),
-                ThumbnailOptions.UseCurrentScale);
-            if (thumbnail.Size > 0)
-                await Preview.SetSourceAsync(thumbnail);
+            await PreviewDecodeGate.WaitAsync(token);
+            entered = true;
+            token.ThrowIfCancellationRequested();
+            BitmapImage preview = Preview;
+            if (IsVideo)
+            {
+                StorageFile file = await StorageFile.GetFileFromPathAsync(VideoSourcePath!);
+                token.ThrowIfCancellationRequested();
+                using StorageItemThumbnail thumbnail = await file.GetThumbnailAsync(
+                    ThumbnailMode.VideosView, (uint)_previewPixelWidth,
+                    ThumbnailOptions.UseCurrentScale);
+                token.ThrowIfCancellationRequested();
+                if (thumbnail.Size == 0) { _previewFailed = true; return; }
+                await preview.SetSourceAsync(thumbnail);
+            }
+            else
+            {
+                // Stable preview paths may change after an edit. Read current bytes.
+                await using FileStream file = new(_photoPreviewPath!, FileMode.Open,
+                    FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using IRandomAccessStream stream = file.AsRandomAccessStream();
+                token.ThrowIfCancellationRequested();
+                await preview.SetSourceAsync(stream);
+            }
+            token.ThrowIfCancellationRequested();
+            _previewLoaded = true;
         }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
-        catch (COMException) { }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (IOException) { _previewFailed = !token.IsCancellationRequested; }
+        catch (UnauthorizedAccessException) { _previewFailed = !token.IsCancellationRequested; }
+        catch (COMException) { _previewFailed = !token.IsCancellationRequested; }
+        finally
+        {
+            if (entered) PreviewDecodeGate.Release();
+            if (ReferenceEquals(_previewCancellation, cancellation))
+                _previewCancellation = null;
+            cancellation.Dispose();
+        }
     }
 }
 

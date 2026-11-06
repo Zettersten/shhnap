@@ -1727,7 +1727,11 @@ public sealed partial class MainPage : Page
     private void Library_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         LibraryEntry? entry = args.InRecycleQueue ? null : args.Item as LibraryEntry;
-        entry?.EnsureVideoPreview();
+        if (args.ItemContainer.Tag is LibraryEntry previous &&
+            !ReferenceEquals(previous, entry))
+            previous.ReleasePreview();
+        args.ItemContainer.Tag = entry;
+        entry?.EnsurePreview();
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(args.ItemContainer, entry?.Title ?? string.Empty);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(args.ItemContainer,
             entry is null ? string.Empty :

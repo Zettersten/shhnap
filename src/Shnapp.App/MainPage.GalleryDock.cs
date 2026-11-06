@@ -141,7 +141,7 @@ public sealed partial class MainPage
             {
                 hiddenTransform.X = GalleryHiddenOffset;
             }
-            GalleryDockItems.Children.Clear();
+            ClearGalleryDockItems();
             _galleryTargets.Clear();
             return;
         }
@@ -161,7 +161,7 @@ public sealed partial class MainPage
             {
                 hiddenTransform.X = GalleryHiddenOffset;
             }
-            GalleryDockItems.Children.Clear();
+            ClearGalleryDockItems();
             _galleryTargets.Clear();
             return;
         }
@@ -175,7 +175,7 @@ public sealed partial class MainPage
     private void RebuildGalleryPage(bool animatePage = false)
     {
         StopGalleryAnimation();
-        GalleryDockItems.Children.Clear();
+        ClearGalleryDockItems();
         _galleryTargets.Clear();
         _galleryHoveredButton = null;
         _galleryPressedButton = null;
@@ -188,6 +188,7 @@ public sealed partial class MainPage
             var entry = new LibraryEntry(document,
                 File.Exists(dockPreview) ? dockPreview : _controller.Library.GetPreviewPath(document.Id),
                 previewPixelWidth: 160);
+            entry.EnsurePreview();
             var thumbnail = new Image
             {
                 Source = entry.Preview,
@@ -249,6 +250,13 @@ public sealed partial class MainPage
         {
             AnimateGalleryTowardTargets();
         }
+    }
+
+    private void ClearGalleryDockItems()
+    {
+        foreach (Button button in GalleryDockItems.Children.OfType<Button>())
+            if (button.Tag is LibraryEntry entry) entry.ReleasePreview();
+        GalleryDockItems.Children.Clear();
     }
 
     private void GalleryDockItem_Click(object sender, RoutedEventArgs args)

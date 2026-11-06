@@ -1012,7 +1012,7 @@
                                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                 Visibility="{x:Bind VideoBadgeVisibility}"
                                                 IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="6"
+                                            <Image Source="{x:Bind Preview, Mode=OneWay}" Stretch="Uniform" Margin="6"
                                                 Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
                                                 Tapped="LibraryPreview_Tapped" />
                                         </Grid>
@@ -1092,7 +1092,7 @@
                                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                             Visibility="{x:Bind VideoBadgeVisibility}"
                                             IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        <Image Source="{x:Bind Preview}" Stretch="Uniform" Margin="2"
+                                        <Image Source="{x:Bind Preview, Mode=OneWay}" Stretch="Uniform" Margin="2"
                                             Tag="{x:Bind}" CanDrag="{x:Bind CanDrag, Mode=OneWay}" DragStarting="LibraryPreview_DragStarting"
                                             Tapped="LibraryPreview_Tapped" />
                                         <Border Width="16" Height="16" Margin="0,0,2,2" CornerRadius="8"

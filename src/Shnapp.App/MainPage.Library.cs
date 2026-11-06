@@ -66,6 +66,7 @@ public sealed partial class MainPage
             _focusedGridEntry.IsGridKeyboardFocused = false;
             _focusedGridEntry = null;
         }
+        foreach (LibraryEntry entry in _libraryEntries.Values) entry.ReleasePreview();
         _libraryEntries.Clear();
         foreach (ShnappSummary document in _library)
         {
@@ -98,6 +99,7 @@ public sealed partial class MainPage
         foreach (Guid id in _libraryEntries.Values.Where(static entry => entry.IsVideo)
             .Select(static entry => entry.Id).ToArray())
         {
+            _libraryEntries[id].ReleasePreview();
             _libraryEntries.Remove(id);
         }
 
