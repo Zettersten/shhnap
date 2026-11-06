@@ -27,8 +27,8 @@ const contactHref = `mailto:${distribution.contactEmail}`;
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
-    <meta property="og:image" content="https://shhnap.com/screenshots/editor.png" />
-    <meta property="og:image:alt" content="The Shnapp editor showing a real annotated capture" />
+    <meta property="og:image" content="https://shhnap.com/assets/shnapp-hero.webp" />
+    <meta property="og:image:alt" content="Illustration of Shnapp's video timeline and mixed photo and video library" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="canonical" href={canonical} />
@@ -41,11 +41,12 @@ const contactHref = `mailto:${distribution.contactEmail}`;
     <header class="site-header">
       <div class="shell header-inner">
         <a class="brand" href="/" aria-label="Shnapp home">
-          <img src="/assets/logo.png" alt="Shnapp" width="125" height="38" />
+          <img src="/assets/logo.webp" alt="Shnapp" width="125" height="38" />
         </a>
         <nav class="main-nav" aria-label="Main navigation">
           <a href="/#workflow">How it works</a>
           <a href="/#features">Features</a>
+          <a href="/#video">Video editor</a>
           <a href="/privacy/" aria-current={page === 'privacy' ? 'page' : undefined}>Privacy</a>
         </nav>
         <a class="header-action" href="/download/" aria-label="Download Shnapp">
@@ -57,6 +58,7 @@ const contactHref = `mailto:${distribution.contactEmail}`;
           <nav aria-label="Mobile navigation">
             <a href="/#workflow" aria-label="How it works">How it works</a>
             <a href="/#features" aria-label="Features">Features</a>
+            <a href="/#video" aria-label="Video editor">Video editor</a>
             <a href="/privacy/" aria-label="Privacy">Privacy</a>
             <a href="/download/" aria-label="Download">Download</a>
           </nav>
@@ -69,11 +71,11 @@ const contactHref = `mailto:${distribution.contactEmail}`;
     <footer class="site-footer">
       <div class="shell footer-main">
         <div class="footer-identity">
-          <a href="/" aria-label="Shnapp home"><img src="/assets/logo.png" alt="Shnapp" width="146" height="44" loading="lazy" /></a>
+          <a href="/" aria-label="Shnapp home"><img src="/assets/logo.webp" alt="Shnapp" width="146" height="44" loading="lazy" decoding="async" /></a>
           <p>Capture first. Think less.<br />Made for the moments you need to explain.</p>
         </div>
         <div class="footer-columns">
-          <nav aria-label="Explore Shnapp" class="footer-links"><strong>Explore</strong><a href="/#workflow">How it works</a><a href="/#features">Features</a><a href="/download/">Download</a><a href="/privacy/">Privacy</a></nav>
+          <nav aria-label="Explore Shnapp" class="footer-links"><strong>Explore</strong><a href="/#workflow">How it works</a><a href="/#features">Features</a><a href="/#video">Video editor</a><a href="/download/">Download</a><a href="/privacy/">Privacy</a></nav>
           <nav aria-label="Community and support" class="footer-links"><strong>More</strong>{distribution.publicRepository && <a href={github} target="_blank" rel="noopener noreferrer">Source on GitHub</a>}{distribution.publicRepository && <a href={`${github}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer">MIT license</a>}<a href={distribution.publicRepository ? issueUrls.bug : contactHref} target={distribution.publicRepository ? '_blank' : undefined} rel={distribution.publicRepository ? 'noopener noreferrer' : undefined}>Report a bug</a><a href={distribution.publicRepository ? issueUrls.feature : contactHref} target={distribution.publicRepository ? '_blank' : undefined} rel={distribution.publicRepository ? 'noopener noreferrer' : undefined}>Request a feature</a></nav>
         </div>
       </div>
