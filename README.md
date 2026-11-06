@@ -18,8 +18,10 @@ Shnapp waits quietly in your tray until you need it. Capture a screenshot or rec
 
 [Watch the 39-second photo editor tour](src/Shnapp.Site/public/demos/shnapp-workflow.mp4) for the full-window canvas, floating options, transforms, sharing actions, and local library. The app captures below use a fictional sample workspace.
 
-| Full-window canvas and acrylic options | Annotated editor |
+| Video timeline | Recording settings |
 | --- | --- |
+| [![Video editor with preview, media layers, audio tracks, and timeline](src/Shnapp.Site/public/screenshots/video-editor.webp)](src/Shnapp.Site/public/screenshots/video-editor.png) | [![Recording settings for computer audio, microphone, camera, and pointer](src/Shnapp.Site/public/screenshots/settings-recording.webp)](src/Shnapp.Site/public/screenshots/settings-recording.png) |
+| **Full-window canvas and acrylic options** | **Annotated editor** |
 | [![Landscape photo continuing behind Shnapp's translucent title bar, floating options panel, and footer](src/Shnapp.Site/public/screenshots/photo-canvas.png)](src/Shnapp.Site/public/screenshots/photo-canvas.png) | [![Fictional launch checklist annotated with steps, an outlined shape, privacy cover, and arrow](src/Shnapp.Site/public/screenshots/editor.png)](src/Shnapp.Site/public/screenshots/editor.png) |
 | **Rotate and flip** | **Local library** |
 | [![Transform context menu with horizontal and vertical flip plus clockwise rotation angles](src/Shnapp.Site/public/screenshots/rotate-transform.png)](src/Shnapp.Site/public/screenshots/rotate-transform.png) | [![Four fictional captures in the searchable Shnapp library](src/Shnapp.Site/public/screenshots/library.png)](src/Shnapp.Site/public/screenshots/library.png) |
