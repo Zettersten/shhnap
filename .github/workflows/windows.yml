@@ -86,6 +86,9 @@ jobs:
       - name: Validate draft and public feed generation
         shell: pwsh
         run: ./packaging/release/tests/Test-ReleaseMetadata.ps1
+      - name: Validate catalog archive layout
+        shell: pwsh
+        run: ./packaging/release/tests/Test-CatalogPackages.ps1
 
   package:
     name: Windows distributions (${{ matrix.rid }})
