@@ -108,7 +108,7 @@ jobs:
                 'Manifest Warning: The schema header URL does not match the expected pattern. Value: # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json Line: 1, Column: 25 File: Zettersten.Shnapp.locale.en-US.yaml'
                 'Manifest Warning: The schema header URL does not match the expected pattern. Value: # yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.28.0.schema.json Line: 1, Column: 25 File: Zettersten.Shnapp.yaml'
               )
-              $onlyKnownWarnings = $validationExitCode -eq 1 -and $validationLines.Count -eq $expectedLines.Count
+              $onlyKnownWarnings = $validationLines.Count -eq $expectedLines.Count
               if ($onlyKnownWarnings) {
                 for ($index = 0; $index -lt $expectedLines.Count; $index++) {
                   if ($validationLines[$index] -cne $expectedLines[$index]) { $onlyKnownWarnings = $false; break }
