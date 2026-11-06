@@ -119,7 +119,7 @@ jobs:
                     Write-Host "Mismatch at $index; actual length $($validationLines[$index].Length), expected length $($expectedLines[$index].Length)."
                     for ($charIndex = 0; $charIndex -lt [Math]::Min($validationLines[$index].Length, $expectedLines[$index].Length); $charIndex++) {
                       if ($validationLines[$index][$charIndex] -cne $expectedLines[$index][$charIndex]) {
-                        Write-Host "First different UTF-16 code unit at $charIndex: $([int][char]$validationLines[$index][$charIndex]) vs $([int][char]$expectedLines[$index][$charIndex])."
+                        Write-Host "First different UTF-16 code unit at ${charIndex}: $([int][char]$validationLines[$index][$charIndex]) vs $([int][char]$expectedLines[$index][$charIndex])."
                         break
                       }
                     }
