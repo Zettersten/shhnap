@@ -108,30 +108,16 @@ jobs:
                 'Manifest Warning: The schema header URL does not match the expected pattern. Value: # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json Line: 1, Column: 25 File: Zettersten.Shnapp.locale.en-US.yaml'
                 'Manifest Warning: The schema header URL does not match the expected pattern. Value: # yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.28.0.schema.json Line: 1, Column: 25 File: Zettersten.Shnapp.yaml'
               )
-              Write-Host "WinGet diagnostic: native exit $validationExitCode, captured $($validationLines.Count) lines, expected $($expectedLines.Count)."
-              for ($index = 0; $index -lt $validationLines.Count; $index++) {
-                Write-Host "Captured line $index JSON: $($validationLines[$index] | ConvertTo-Json -Compress)"
-              }
               $onlyKnownWarnings = $validationLines.Count -eq $expectedLines.Count
               if ($onlyKnownWarnings) {
                 for ($index = 0; $index -lt $expectedLines.Count; $index++) {
-                  if ($validationLines[$index] -cne $expectedLines[$index]) {
-                    Write-Host "Mismatch at $index; actual length $($validationLines[$index].Length), expected length $($expectedLines[$index].Length)."
-                    for ($charIndex = 0; $charIndex -lt [Math]::Min($validationLines[$index].Length, $expectedLines[$index].Length); $charIndex++) {
-                      if ($validationLines[$index][$charIndex] -cne $expectedLines[$index][$charIndex]) {
-                        Write-Host "First different UTF-16 code unit at ${charIndex}: $([int][char]$validationLines[$index][$charIndex]) vs $([int][char]$expectedLines[$index][$charIndex])."
-                        break
-                      }
-                    }
-                    $onlyKnownWarnings = $false
-                    break
-                  }
+                  if ($validationLines[$index] -cne $expectedLines[$index]) { $onlyKnownWarnings = $false; break }
                 }
               }
-              Write-Host "Known warnings matched: $onlyKnownWarnings"
               if (-not $onlyKnownWarnings) { exit $validationExitCode }
               'The runner WinGet CLI validated the manifest with only known 1.28 schema-header warnings.' |
                 Add-Content -Path $env:GITHUB_STEP_SUMMARY
+              $global:LASTEXITCODE = 0
             }
           }
           else {
