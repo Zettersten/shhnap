@@ -9,7 +9,7 @@ public sealed partial class VideoEditorPage
         if (string.IsNullOrWhiteSpace(message)) return;
         CaptureWarningBar.Message = message;
         AutomationProperties.SetName(CaptureWarningBar,
-            "Camera recording warning. " + message);
+            "Recording warning. " + message);
         CaptureWarningBar.IsOpen = true;
     }
 }

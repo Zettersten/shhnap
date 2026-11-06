@@ -833,7 +833,7 @@
         <InfoBar x:Name="CaptureWarningBar" Grid.Row="1" Canvas.ZIndex="50"
             HorizontalAlignment="Center" VerticalAlignment="Top"
             MaxWidth="520" Margin="12,10,12,0"
-            Title="Camera recording stopped" Severity="Warning"
+            Title="Recording warning" Severity="Warning"
             IsOpen="False" IsClosable="True" />
     </Grid>
 </Page>
