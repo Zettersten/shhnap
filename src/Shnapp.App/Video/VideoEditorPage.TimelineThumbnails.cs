@@ -16,13 +16,31 @@ public sealed partial class VideoEditorPage
     private readonly HashSet<Guid> _timelineThumbnailFailures = [];
     private readonly Queue<Guid> _timelineThumbnailOrder = new();
     private readonly SemaphoreSlim _timelineThumbnailGate = new(3, 3);
+    private CancellationTokenSource? _timelineThumbnailCancellation = new();
 
     private void ClearTimelineThumbnailViews()
     {
         _timelineThumbnailViews.Clear();
         Guid projectId = _editor?.Current.Id ?? Guid.Empty;
         if (projectId == _timelineThumbnailProjectId) return;
+        _timelineThumbnailCancellation?.Cancel();
+        _timelineThumbnailCancellation?.Dispose();
+        _timelineThumbnailCancellation = new CancellationTokenSource();
         _timelineThumbnailProjectId = projectId;
+        _timelineThumbnailCache.Clear();
+        _timelineThumbnailLoads.Clear();
+        _timelineThumbnailFailures.Clear();
+        _timelineThumbnailOrder.Clear();
+    }
+
+    private void ReleaseTimelineThumbnails()
+    {
+        _timelineThumbnailCancellation?.Cancel();
+        _timelineThumbnailCancellation?.Dispose();
+        _timelineThumbnailCancellation = null;
+        foreach (List<Image> views in _timelineThumbnailViews.Values)
+            foreach (Image view in views) view.Source = null;
+        _timelineThumbnailViews.Clear();
         _timelineThumbnailCache.Clear();
         _timelineThumbnailLoads.Clear();
         _timelineThumbnailFailures.Clear();
@@ -40,26 +58,34 @@ public sealed partial class VideoEditorPage
             view.Source = cached;
             return;
         }
-        if (_editor is not { } editor || _store is not { } store ||
+        if (_closed || _timelineThumbnailCancellation is not { } cancellation ||
+            _editor is not { } editor || _store is not { } store ||
             _timelineThumbnailFailures.Contains(assetId) ||
             !_timelineThumbnailLoads.Add(assetId)) return;
-        _ = LoadTimelineThumbnailAsync(editor.Current, store, assetId, kind);
+        _ = LoadTimelineThumbnailAsync(editor.Current, store, assetId, kind,
+            cancellation.Token);
     }
 
     private async Task LoadTimelineThumbnailAsync(VideoProject project,
-        VideoProjectStore store, Guid assetId, VideoAssetKind kind)
+        VideoProjectStore store, Guid assetId, VideoAssetKind kind,
+        CancellationToken token)
     {
-        await _timelineThumbnailGate.WaitAsync();
+        bool entered = false;
         try
         {
+            await _timelineThumbnailGate.WaitAsync(token);
+            entered = true;
+            token.ThrowIfCancellationRequested();
             if (_closed || _editor?.Current.Id != project.Id) return;
             VideoAsset? asset = project.Assets.FirstOrDefault(item => item.Id == assetId);
             if (asset is null) return;
             string path = store.ResolveAssetPath(project, asset);
             StorageFile file = await StorageFile.GetFileFromPathAsync(path);
+            token.ThrowIfCancellationRequested();
             using StorageItemThumbnail thumbnail = await file.GetThumbnailAsync(
                 kind == VideoAssetKind.Image ? ThumbnailMode.PicturesView : ThumbnailMode.VideosView,
                 96, ThumbnailOptions.UseCurrentScale);
+            token.ThrowIfCancellationRequested();
             if (thumbnail.Size == 0)
             {
                 if (!_closed && _timelineThumbnailProjectId == project.Id)
@@ -68,6 +94,7 @@ public sealed partial class VideoEditorPage
             }
             var bitmap = new BitmapImage { DecodePixelWidth = 96 };
             await bitmap.SetSourceAsync(thumbnail);
+            token.ThrowIfCancellationRequested();
             if (_closed || _editor?.Current.Id != project.Id) return;
             _timelineThumbnailCache[assetId] = bitmap;
             _timelineThumbnailOrder.Enqueue(assetId);
@@ -76,6 +103,7 @@ public sealed partial class VideoEditorPage
             while (_timelineThumbnailCache.Count > MaximumTimelineThumbnails)
                 _timelineThumbnailCache.Remove(_timelineThumbnailOrder.Dequeue());
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception)
         {
             // A missing or unsupported shell thumbnail leaves the media glyph visible.
@@ -84,7 +112,7 @@ public sealed partial class VideoEditorPage
         }
         finally
         {
-            _timelineThumbnailGate.Release();
+            if (entered) _timelineThumbnailGate.Release();
             if (_timelineThumbnailProjectId == project.Id)
                 _timelineThumbnailLoads.Remove(assetId);
         }

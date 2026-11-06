@@ -254,6 +254,7 @@ public sealed partial class VideoEditorPage : Page
         try { _player.Dispose(); }
         catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
         ReleasePausedFrame();
+        ReleaseTimelineThumbnails();
         ReleaseCanvasMedia();
         ReleasePreviewImages();
         ReleasePreviewText();

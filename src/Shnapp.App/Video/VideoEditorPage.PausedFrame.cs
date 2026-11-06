@@ -40,8 +40,11 @@ public sealed partial class VideoEditorPage
     private readonly SemaphoreSlim _pausedFrameGate = new(1, 1);
     private bool _pausedDecodePending;
     private bool _pausedDecodeInProgress;
-    private readonly Dictionary<(Guid AssetId, long Frame), BitmapImage> _pausedFrameCache = [];
-    private readonly Queue<(Guid AssetId, long Frame)> _pausedFrameCacheOrder = new();
+    // Twelve decoded 1080p frames can occupy about 95 MiB before native
+    // decoder surfaces are counted. Keep the useful nearby frames, but cap
+    // retained pixels to roughly six 1080p frames.
+    private readonly ByteBudgetCache<(Guid AssetId, long Frame), BitmapImage>
+        _pausedFrameCache = new(12, 48L * 1024 * 1024);
     private readonly Dictionary<Guid, MediaComposition> _pausedSourceCompositions = [];
     private readonly Queue<Guid> _pausedSourceOrder = new();
     private MediaComposition? _pausedPreviewComposition;
@@ -82,7 +85,6 @@ public sealed partial class VideoEditorPage
         if (clearPresentedFrame)
         {
             _pausedFrameCache.Clear();
-            _pausedFrameCacheOrder.Clear();
             _pausedSourceCompositions.Clear();
             _pausedSourceOrder.Clear();
             _pausedVideoFrame.Source = null;
@@ -407,10 +409,8 @@ public sealed partial class VideoEditorPage
                     await bitmap.SetSourceAsync(stream);
                     if (!PausedRequestCurrent(requestRevision, compositionRevision))
                         return;
-                    _pausedFrameCache[key] = bitmap;
-                    _pausedFrameCacheOrder.Enqueue(key);
-                    while (_pausedFrameCache.Count > 12)
-                        _pausedFrameCache.Remove(_pausedFrameCacheOrder.Dequeue());
+                    _pausedFrameCache.Add(key, bitmap,
+                        (long)frameWidth * frameHeight * 4);
                 }
                 if (primary is { } selected && selected.ItemId == source.ItemId)
                     _pausedVideoFrame.Source = bitmap;
